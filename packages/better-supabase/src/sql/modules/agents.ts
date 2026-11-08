@@ -11,7 +11,6 @@ import { sqlIdent } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   raise,
   revokeTable,
   schemaPreamble,
@@ -25,7 +24,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const AGENTS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   owner: "owner_id",
   slug: "slug",
   name: "name",
@@ -48,7 +47,7 @@ const AGENTS = {
 const INSTALLS = {
   agent: "agent_id",
   user: "user_id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   installedAt: "installed_at",
 } as const;
 
@@ -103,7 +102,7 @@ const EVENTS: BlockSqlEvents<AgentsEvents> = {
 const NAMES: BlockSqlNames = {
   entities: { agent: { table: "agents", singular: "agent", primary: true } },
   events: EVENTS,
-  options: ["maxInstructions", "extraColumns"],
+  options: ["maxInstructions"],
   tables: {
     agents: {
       name: "agents",
@@ -362,13 +361,13 @@ create table if not exists ${agents} (
   ${a.updatedAt} timestamptz not null default now(),
   unique (${a.tenant}, ${a.slug})
 );
-create index if not exists ${ctx.naming.rename("agents_owner_idx")} on ${agents} (${a.owner});${addExtraColumns(agents, extras)}
+create index if not exists ${ctx.naming.rename("agents_owner_idx")} on ${agents} (${a.owner});
 create index if not exists ${ctx.naming.rename("agents_published_idx")} on ${agents} (${a.visibility}, ${a.publishedAt}) where ${a.publishedAt} is not null;
 alter table ${agents} enable row level security;
 ${revokeTable(agents)}
 grant select on ${agents} to authenticated;
 grant all on ${agents} to service_role;
-${renderPolicy(makePolicy({ name: ctx.naming.rename("agents_read"), table: agents, command: "select", roles: ["authenticated"], using: readable(agents) }), { drop: true, target: agents })}
+${renderPolicy(makePolicy({ name: ctx.naming.rename("agents_read"), table: agents, command: "select", roles: ["authenticated"], using: readable(agents) }), { target: agents })}
 
 create table if not exists ${installs} (
   ${i.agent} uuid not null references ${agents} (${a.id}) on delete cascade,
@@ -381,7 +380,7 @@ alter table ${installs} enable row level security;
 ${revokeTable(installs)}
 grant select on ${installs} to authenticated;
 grant all on ${installs} to service_role;
-${renderPolicy(makePolicy({ table: installs, name: ctx.naming.rename("agent_installs_read"), command: "select", roles: ["authenticated"], using: `${i.user} = (select auth.uid())` }), { drop: true, target: installs })}
+${renderPolicy(makePolicy({ table: installs, name: ctx.naming.rename("agent_installs_read"), command: "select", roles: ["authenticated"], using: `${i.user} = (select auth.uid())` }), { target: installs })}
 
 create table if not exists ${ratings} (
   ${r.agent} uuid not null references ${agents} (${a.id}) on delete cascade,
@@ -394,7 +393,7 @@ alter table ${ratings} enable row level security;
 ${revokeTable(ratings)}
 grant select on ${ratings} to authenticated;
 grant all on ${ratings} to service_role;
-${renderPolicy(makePolicy({ table: ratings, name: ctx.naming.rename("agent_ratings_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${agents} x where x.${a.id} = ${r.agent})` }), { drop: true, target: ratings })}
+${renderPolicy(makePolicy({ table: ratings, name: ctx.naming.rename("agent_ratings_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${agents} x where x.${a.id} = ${r.agent})` }), { target: ratings })}
 
 -- Skills an agent loads from a provider (a reference such as a skill id).
 create table if not exists ${skills} (
@@ -415,7 +414,7 @@ alter table ${skills} enable row level security;
 ${revokeTable(skills)}
 grant select on ${skills} to authenticated;
 grant all on ${skills} to service_role;
-${renderPolicy(makePolicy({ table: skills, name: ctx.naming.rename("agent_skills_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${agents} x where x.${a.id} = ${s.agent})` }), { drop: true, target: skills })}
+${renderPolicy(makePolicy({ table: skills, name: ctx.naming.rename("agent_skills_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${agents} x where x.${a.id} = ${s.agent})` }), { target: skills })}
 
 -- Creates an agent (id null, needs ${create}) or changes one its owner or a
 -- moderator may change. fields holds the columns to set; visibility and

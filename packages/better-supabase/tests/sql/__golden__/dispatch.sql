@@ -1,85 +1,11 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:3b27c8dc2d0df386afc989e71eb09401b879035a248a53976274dfb060dc8f36
+-- @bsb-hash sha256:ec0c02119890e0875cc875a8bd3658edcbd8052ad713b622bb50d44e676abd26
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Dispatch: work orders at asset locations, scheduled into technicians'
 -- slots on a board, worked through a status lifecycle, with day routes and
 -- the parts each job used.
@@ -87,55 +13,54 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Work orders: a job at a place (an asset location or an address), for an
 -- asset or a record, scheduled into a technician's slot and worked through
 -- en route, on site and done.
-create table if not exists "better_supabase"."work_orders" (
+create table "better_supabase"."work_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'unscheduled' check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled')),
+  "title" text not null constraint bsb_work_orders_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_work_orders_description_check check ("description" is null or length("description") <= 10000),
+  "priority" text not null default 'normal' constraint bsb_work_orders_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "status" text not null default 'unscheduled' constraint bsb_work_orders_status_check check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled')),
   "technician_id" uuid references auth.users (id) on delete set null,
   "starts_at" timestamptz,
   "ends_at" timestamptz,
   "location_id" uuid,
   "asset_id" uuid,
   "booking_id" uuid,
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
-  "address" text check ("address" is null or length("address") >= 1 and length("address") <= 500),
+  "subject_type" text constraint bsb_work_orders_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_work_orders_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "address" text constraint bsb_work_orders_address_check check ("address" is null or length("address") >= 1 and length("address") <= 500),
   "en_route_at" timestamptz,
   "arrived_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 1000),
-  "completion_note" text check ("completion_note" is null or length("completion_note") <= 10000),
+  "cancel_reason" text constraint bsb_work_orders_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 1000),
+  "completion_note" text constraint bsb_work_orders_completion_note_check check ("completion_note" is null or length("completion_note") <= 10000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check (("starts_at" is null) = ("ends_at" is null)),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
+  constraint bsb_work_orders_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_work_orders_check1 check (("starts_at" is null) = ("ends_at" is null)),
+  constraint bsb_work_orders_check2 check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_work_orders_check3 check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
 );
-create index if not exists "work_orders_tenant_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at" desc);
-create index if not exists "work_orders_slot_idx" on "better_supabase"."work_orders" ("technician_id", "starts_at") where "starts_at" is not null;
-create index if not exists "work_orders_board_idx" on "better_supabase"."work_orders" ("tenant_id", "starts_at") where "starts_at" is not null;
-create index if not exists "work_orders_backlog_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at") where "status" = 'unscheduled';
-create index if not exists "work_orders_location_idx" on "better_supabase"."work_orders" ("location_id");
-create index if not exists "work_orders_asset_idx" on "better_supabase"."work_orders" ("asset_id");
-create index if not exists "work_orders_booking_idx" on "better_supabase"."work_orders" ("booking_id");
-create index if not exists "work_orders_subject_idx" on "better_supabase"."work_orders" ("tenant_id", "subject_type", "subject_id");
+create index "work_orders_tenant_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at" desc);
+create index "work_orders_slot_idx" on "better_supabase"."work_orders" ("technician_id", "starts_at") where "starts_at" is not null;
+create index "work_orders_board_idx" on "better_supabase"."work_orders" ("tenant_id", "starts_at") where "starts_at" is not null;
+create index "work_orders_backlog_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at") where "status" = 'unscheduled';
+create index "work_orders_location_idx" on "better_supabase"."work_orders" ("location_id");
+create index "work_orders_asset_idx" on "better_supabase"."work_orders" ("asset_id");
+create index "work_orders_booking_idx" on "better_supabase"."work_orders" ("booking_id");
+create index "work_orders_subject_idx" on "better_supabase"."work_orders" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."work_orders" enable row level security;
 revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
-drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
-create policy work_orders_read on "better_supabase"."work_orders"
+create policy bsb_work_orders_read on "better_supabase"."work_orders"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
-create table if not exists "better_supabase"."dispatch_routes" (
+create table "better_supabase"."dispatch_routes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "technician_id" uuid not null references auth.users (id) on delete cascade,
@@ -145,63 +70,57 @@ create table if not exists "better_supabase"."dispatch_routes" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "technician_id", "route_date")
 );
-create index if not exists "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
+create index "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
 alter table "better_supabase"."dispatch_routes" enable row level security;
 revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
-drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
-create policy dispatch_routes_read on "better_supabase"."dispatch_routes"
+create policy bsb_dispatch_routes_read on "better_supabase"."dispatch_routes"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
-create table if not exists "better_supabase"."dispatch_route_stops" (
+create table "better_supabase"."dispatch_route_stops" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "route_id" uuid not null references "better_supabase"."dispatch_routes" ("id") on delete cascade,
   "work_order_id" uuid not null references "better_supabase"."work_orders" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
+  "position" integer not null constraint bsb_dispatch_route_stops_position_check check ("position" >= 1),
   unique ("route_id", "position"),
   unique ("route_id", "work_order_id")
 );
-create index if not exists "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
+create index "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
 alter table "better_supabase"."dispatch_route_stops" enable row level security;
 revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
-drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
-create policy dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
+create policy bsb_dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
-create table if not exists "better_supabase"."work_order_parts" (
+create table "better_supabase"."work_order_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "work_order_id" uuid not null references "better_supabase"."work_orders" ("id") on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "quantity" numeric(14, 3) not null check ("quantity" > 0),
-  "unit" text check ("unit" is null or length("unit") >= 1 and length("unit") <= 20),
+  "name" text not null constraint bsb_work_order_parts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "quantity" numeric(14, 3) not null constraint bsb_work_order_parts_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_work_order_parts_unit_check check ("unit" is null or length("unit") >= 1 and length("unit") <= 20),
   "asset_id" uuid,
   "variant_id" uuid,
   "location_id" uuid,
   "recorded_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "work_order_parts_job_idx" on "better_supabase"."work_order_parts" ("work_order_id", "created_at");
-create index if not exists "work_order_parts_asset_idx" on "better_supabase"."work_order_parts" ("asset_id");
-create index if not exists "work_order_parts_variant_idx" on "better_supabase"."work_order_parts" ("variant_id");
-create index if not exists "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
+create index "work_order_parts_job_idx" on "better_supabase"."work_order_parts" ("work_order_id", "created_at");
+create index "work_order_parts_asset_idx" on "better_supabase"."work_order_parts" ("asset_id");
+create index "work_order_parts_variant_idx" on "better_supabase"."work_order_parts" ("variant_id");
+create index "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
 alter table "better_supabase"."work_order_parts" enable row level security;
 revoke all on "better_supabase"."work_order_parts" from public, anon, authenticated;
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
-drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
-create policy work_order_parts_read on "better_supabase"."work_order_parts"
+create policy bsb_work_order_parts_read on "better_supabase"."work_order_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
-
-
-drop function if exists "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz, jsonb);
 -- Creates a work order in tenant. With a technician and starts_at (or a
 -- booking to take the slot from) it is scheduled at once; otherwise it waits
 -- in the backlog. ends_at defaults to starts_at plus the default duration.
@@ -280,8 +199,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz) from public, anon;
 grant execute on function "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_work_order"(uuid, text, text, text, uuid, uuid, text, jsonb);
 -- Changes a work order's title, description, priority or place; null keeps a
 -- value.
 create or replace function "better_supabase"."update_work_order"(work_order_id uuid, title text default null, description text default null, priority text default null, location_id uuid default null, asset_id uuid default null, address text default null)
@@ -799,115 +716,70 @@ grant execute on function "better_supabase"."remove_work_order_part"(uuid) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_select on "better_supabase"."work_orders" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_orders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_update on "better_supabase"."work_orders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_orders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_select on "better_supabase"."dispatch_routes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_routes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_update on "better_supabase"."dispatch_routes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_routes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_select on "better_supabase"."work_order_parts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_order_parts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_update on "better_supabase"."work_order_parts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
@@ -926,85 +798,11 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:457c6eb4400ebccadff1e6bbfbdfe9e0c2c8c1a5e55fd1ce0d9793bf74a0a32e
+-- @bsb-hash sha256:97c2f5272b17ed1465a4f02d877d2f3277d2dd0b188b93f16289d99cbc35c951
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Dispatch: work orders at asset locations, scheduled into technicians'
 -- slots on a board, worked through a status lifecycle, with day routes and
 -- the parts each job used.
@@ -1012,55 +810,54 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Work orders: a job at a place (an asset location or an address), for an
 -- asset or a record, scheduled into a technician's slot and worked through
 -- en route, on site and done.
-create table if not exists "better_supabase"."work_orders" (
+create table "better_supabase"."work_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'unscheduled' check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled')),
+  "title" text not null constraint bsb_work_orders_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_work_orders_description_check check ("description" is null or length("description") <= 10000),
+  "priority" text not null default 'normal' constraint bsb_work_orders_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "status" text not null default 'unscheduled' constraint bsb_work_orders_status_check check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled')),
   "technician_id" uuid references auth.users (id) on delete set null,
   "starts_at" timestamptz,
   "ends_at" timestamptz,
   "location_id" uuid,
   "asset_id" uuid,
   "booking_id" uuid,
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
-  "address" text check ("address" is null or length("address") >= 1 and length("address") <= 500),
+  "subject_type" text constraint bsb_work_orders_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_work_orders_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "address" text constraint bsb_work_orders_address_check check ("address" is null or length("address") >= 1 and length("address") <= 500),
   "en_route_at" timestamptz,
   "arrived_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 1000),
-  "completion_note" text check ("completion_note" is null or length("completion_note") <= 10000),
+  "cancel_reason" text constraint bsb_work_orders_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 1000),
+  "completion_note" text constraint bsb_work_orders_completion_note_check check ("completion_note" is null or length("completion_note") <= 10000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check (("starts_at" is null) = ("ends_at" is null)),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
+  constraint bsb_work_orders_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_work_orders_check1 check (("starts_at" is null) = ("ends_at" is null)),
+  constraint bsb_work_orders_check2 check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_work_orders_check3 check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
 );
-create index if not exists "work_orders_tenant_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at" desc);
-create index if not exists "work_orders_slot_idx" on "better_supabase"."work_orders" ("technician_id", "starts_at") where "starts_at" is not null;
-create index if not exists "work_orders_board_idx" on "better_supabase"."work_orders" ("tenant_id", "starts_at") where "starts_at" is not null;
-create index if not exists "work_orders_backlog_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at") where "status" = 'unscheduled';
-create index if not exists "work_orders_location_idx" on "better_supabase"."work_orders" ("location_id");
-create index if not exists "work_orders_asset_idx" on "better_supabase"."work_orders" ("asset_id");
-create index if not exists "work_orders_booking_idx" on "better_supabase"."work_orders" ("booking_id");
-create index if not exists "work_orders_subject_idx" on "better_supabase"."work_orders" ("tenant_id", "subject_type", "subject_id");
+create index "work_orders_tenant_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at" desc);
+create index "work_orders_slot_idx" on "better_supabase"."work_orders" ("technician_id", "starts_at") where "starts_at" is not null;
+create index "work_orders_board_idx" on "better_supabase"."work_orders" ("tenant_id", "starts_at") where "starts_at" is not null;
+create index "work_orders_backlog_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at") where "status" = 'unscheduled';
+create index "work_orders_location_idx" on "better_supabase"."work_orders" ("location_id");
+create index "work_orders_asset_idx" on "better_supabase"."work_orders" ("asset_id");
+create index "work_orders_booking_idx" on "better_supabase"."work_orders" ("booking_id");
+create index "work_orders_subject_idx" on "better_supabase"."work_orders" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."work_orders" enable row level security;
 revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
-drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
-create policy work_orders_read on "better_supabase"."work_orders"
+create policy bsb_work_orders_read on "better_supabase"."work_orders"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
-create table if not exists "better_supabase"."dispatch_routes" (
+create table "better_supabase"."dispatch_routes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "technician_id" uuid not null references auth.users (id) on delete cascade,
@@ -1070,164 +867,69 @@ create table if not exists "better_supabase"."dispatch_routes" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "technician_id", "route_date")
 );
-create index if not exists "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
+create index "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
 alter table "better_supabase"."dispatch_routes" enable row level security;
 revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
-drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
-create policy dispatch_routes_read on "better_supabase"."dispatch_routes"
+create policy bsb_dispatch_routes_read on "better_supabase"."dispatch_routes"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
-create table if not exists "better_supabase"."dispatch_route_stops" (
+create table "better_supabase"."dispatch_route_stops" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "route_id" uuid not null references "better_supabase"."dispatch_routes" ("id") on delete cascade,
   "work_order_id" uuid not null references "better_supabase"."work_orders" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
+  "position" integer not null constraint bsb_dispatch_route_stops_position_check check ("position" >= 1),
   unique ("route_id", "position"),
   unique ("route_id", "work_order_id")
 );
-create index if not exists "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
+create index "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
 alter table "better_supabase"."dispatch_route_stops" enable row level security;
 revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
-drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
-create policy dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
+create policy bsb_dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
-create table if not exists "better_supabase"."work_order_parts" (
+create table "better_supabase"."work_order_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "work_order_id" uuid not null references "better_supabase"."work_orders" ("id") on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "quantity" numeric(14, 3) not null check ("quantity" > 0),
-  "unit" text check ("unit" is null or length("unit") >= 1 and length("unit") <= 20),
+  "name" text not null constraint bsb_work_order_parts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "quantity" numeric(14, 3) not null constraint bsb_work_order_parts_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_work_order_parts_unit_check check ("unit" is null or length("unit") >= 1 and length("unit") <= 20),
   "asset_id" uuid,
   "variant_id" uuid,
   "location_id" uuid,
   "recorded_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "work_order_parts_job_idx" on "better_supabase"."work_order_parts" ("work_order_id", "created_at");
-create index if not exists "work_order_parts_asset_idx" on "better_supabase"."work_order_parts" ("asset_id");
-create index if not exists "work_order_parts_variant_idx" on "better_supabase"."work_order_parts" ("variant_id");
-create index if not exists "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
+create index "work_order_parts_job_idx" on "better_supabase"."work_order_parts" ("work_order_id", "created_at");
+create index "work_order_parts_asset_idx" on "better_supabase"."work_order_parts" ("asset_id");
+create index "work_order_parts_variant_idx" on "better_supabase"."work_order_parts" ("variant_id");
+create index "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
 alter table "better_supabase"."work_order_parts" enable row level security;
 revoke all on "better_supabase"."work_order_parts" from public, anon, authenticated;
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
-drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
-create policy work_order_parts_read on "better_supabase"."work_order_parts"
+create policy bsb_work_order_parts_read on "better_supabase"."work_order_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."work_orders"'::regclass and conname = 'work_orders_location_fkey'
-  ) then
-    alter table "better_supabase"."work_orders" add constraint "work_orders_location_fkey"
-      foreign key ("location_id") references "better_supabase"."asset_locations" ("id") on delete set null not valid;
-    begin
-      alter table "better_supabase"."work_orders" validate constraint "work_orders_location_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."work_orders"', '"better_supabase"."work_orders"', 'work_orders_location_fkey';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."work_orders"'::regclass and conname = 'work_orders_asset_fkey'
-  ) then
-    alter table "better_supabase"."work_orders" add constraint "work_orders_asset_fkey"
-      foreign key ("asset_id") references "better_supabase"."assets" ("id") on delete set null not valid;
-    begin
-      alter table "better_supabase"."work_orders" validate constraint "work_orders_asset_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."work_orders"', '"better_supabase"."work_orders"', 'work_orders_asset_fkey';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."work_orders"'::regclass and conname = 'work_orders_booking_fkey'
-  ) then
-    alter table "better_supabase"."work_orders" add constraint "work_orders_booking_fkey"
-      foreign key ("booking_id") references "better_supabase"."bookings" ("id") on delete set null not valid;
-    begin
-      alter table "better_supabase"."work_orders" validate constraint "work_orders_booking_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."work_orders"', '"better_supabase"."work_orders"', 'work_orders_booking_fkey';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."work_order_parts"'::regclass and conname = 'work_order_parts_asset_fkey'
-  ) then
-    alter table "better_supabase"."work_order_parts" add constraint "work_order_parts_asset_fkey"
-      foreign key ("asset_id") references "better_supabase"."assets" ("id") on delete set null not valid;
-    begin
-      alter table "better_supabase"."work_order_parts" validate constraint "work_order_parts_asset_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."work_order_parts"', '"better_supabase"."work_order_parts"', 'work_order_parts_asset_fkey';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."work_order_parts"'::regclass and conname = 'work_order_parts_variant_fkey'
-  ) then
-    alter table "better_supabase"."work_order_parts" add constraint "work_order_parts_variant_fkey"
-      foreign key ("variant_id") references "better_supabase"."product_variants" ("id") on delete set null not valid;
-    begin
-      alter table "better_supabase"."work_order_parts" validate constraint "work_order_parts_variant_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."work_order_parts"', '"better_supabase"."work_order_parts"', 'work_order_parts_variant_fkey';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."work_order_parts"'::regclass and conname = 'work_order_parts_location_fkey'
-  ) then
-    alter table "better_supabase"."work_order_parts" add constraint "work_order_parts_location_fkey"
-      foreign key ("location_id") references "better_supabase"."inventory_locations" ("id") on delete set null not valid;
-    begin
-      alter table "better_supabase"."work_order_parts" validate constraint "work_order_parts_location_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."work_order_parts"', '"better_supabase"."work_order_parts"', 'work_order_parts_location_fkey';
-    end;
-  end if;
-end;
-$$;
-
-drop function if exists "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz, jsonb);
+alter table "better_supabase"."work_orders" add constraint "work_orders_location_fkey"
+  foreign key ("location_id") references "better_supabase"."asset_locations" ("id") on delete set null;
+alter table "better_supabase"."work_orders" add constraint "work_orders_asset_fkey"
+  foreign key ("asset_id") references "better_supabase"."assets" ("id") on delete set null;
+alter table "better_supabase"."work_orders" add constraint "work_orders_booking_fkey"
+  foreign key ("booking_id") references "better_supabase"."bookings" ("id") on delete set null;
+alter table "better_supabase"."work_order_parts" add constraint "work_order_parts_asset_fkey"
+  foreign key ("asset_id") references "better_supabase"."assets" ("id") on delete set null;
+alter table "better_supabase"."work_order_parts" add constraint "work_order_parts_variant_fkey"
+  foreign key ("variant_id") references "better_supabase"."product_variants" ("id") on delete set null;
+alter table "better_supabase"."work_order_parts" add constraint "work_order_parts_location_fkey"
+  foreign key ("location_id") references "better_supabase"."inventory_locations" ("id") on delete set null;
 -- Creates a work order in tenant. With a technician and starts_at (or a
 -- booking to take the slot from) it is scheduled at once; otherwise it waits
 -- in the backlog. ends_at defaults to starts_at plus the default duration.
@@ -1344,8 +1046,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz) from public, anon;
 grant execute on function "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_work_order"(uuid, text, text, text, uuid, uuid, text, jsonb);
 -- Changes a work order's title, description, priority or place; null keeps a
 -- value.
 create or replace function "better_supabase"."update_work_order"(work_order_id uuid, title text default null, description text default null, priority text default null, location_id uuid default null, asset_id uuid default null, address text default null)
@@ -1921,124 +1621,75 @@ grant execute on function "better_supabase"."remove_work_order_part"(uuid) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_select on "better_supabase"."work_orders" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_orders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_update on "better_supabase"."work_orders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_orders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_select on "better_supabase"."dispatch_routes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_routes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_update on "better_supabase"."dispatch_routes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_routes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_select on "better_supabase"."work_order_parts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_order_parts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_update on "better_supabase"."work_order_parts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.work_orders', target_type => 'work_order', event_prefix => 'work_order', deferred => true);
-  perform better_supabase.audit('better_supabase.dispatch_routes', target_type => 'dispatch_route', event_prefix => 'dispatch_route', deferred => true);
-  perform better_supabase.audit('better_supabase.work_order_parts', target_type => 'work_order_part', event_prefix => 'work_order_part', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_orders deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_order","event_prefix":"work_order"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.dispatch_routes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dispatch_route","event_prefix":"dispatch_route"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_order_parts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_order_part","event_prefix":"work_order_part"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
@@ -2057,85 +1708,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:8dc46d2c7622d2b86365a88de4b1de2ca7ba27e82c9112a826da1b8415ad2f7f
+-- @bsb-hash sha256:64d2c231a5f7b458fe5a5fd2fc855163564d303db0d462d1395930e6265cef56
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."work_orders";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."work_orders";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."work_orders";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."work_orders";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."work_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."dispatch_routes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."dispatch_route_stops";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."work_order_parts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -2148,55 +1725,54 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Work orders: a job at a place (an asset location or an address), for an
 -- asset or a record, scheduled into a technician's slot and worked through
 -- en route, on site and done.
-create table if not exists "app_private"."work_orders" (
+create table "app_private"."work_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'unscheduled' check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled')),
+  "title" text not null constraint bsb_work_orders_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_work_orders_description_check check ("description" is null or length("description") <= 10000),
+  "priority" text not null default 'normal' constraint bsb_work_orders_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "status" text not null default 'unscheduled' constraint bsb_work_orders_status_check check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled')),
   "technician_id" uuid references auth.users (id) on delete set null,
   "starts_at" timestamptz,
   "ends_at" timestamptz,
   "location_id" uuid,
   "asset_id" uuid,
   "booking_id" uuid,
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
-  "address" text check ("address" is null or length("address") >= 1 and length("address") <= 500),
+  "subject_type" text constraint bsb_work_orders_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_work_orders_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "address" text constraint bsb_work_orders_address_check check ("address" is null or length("address") >= 1 and length("address") <= 500),
   "en_route_at" timestamptz,
   "arrived_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 1000),
-  "completion_note" text check ("completion_note" is null or length("completion_note") <= 10000),
+  "cancel_reason" text constraint bsb_work_orders_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 1000),
+  "completion_note" text constraint bsb_work_orders_completion_note_check check ("completion_note" is null or length("completion_note") <= 10000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check (("starts_at" is null) = ("ends_at" is null)),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
+  constraint bsb_work_orders_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_work_orders_check1 check (("starts_at" is null) = ("ends_at" is null)),
+  constraint bsb_work_orders_check2 check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_work_orders_check3 check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
 );
-create index if not exists "work_orders_tenant_idx" on "app_private"."work_orders" ("tenant_id", "created_at" desc);
-create index if not exists "work_orders_slot_idx" on "app_private"."work_orders" ("technician_id", "starts_at") where "starts_at" is not null;
-create index if not exists "work_orders_board_idx" on "app_private"."work_orders" ("tenant_id", "starts_at") where "starts_at" is not null;
-create index if not exists "work_orders_backlog_idx" on "app_private"."work_orders" ("tenant_id", "created_at") where "status" = 'unscheduled';
-create index if not exists "work_orders_location_idx" on "app_private"."work_orders" ("location_id");
-create index if not exists "work_orders_asset_idx" on "app_private"."work_orders" ("asset_id");
-create index if not exists "work_orders_booking_idx" on "app_private"."work_orders" ("booking_id");
-create index if not exists "work_orders_subject_idx" on "app_private"."work_orders" ("tenant_id", "subject_type", "subject_id");
+create index "work_orders_tenant_idx" on "app_private"."work_orders" ("tenant_id", "created_at" desc);
+create index "work_orders_slot_idx" on "app_private"."work_orders" ("technician_id", "starts_at") where "starts_at" is not null;
+create index "work_orders_board_idx" on "app_private"."work_orders" ("tenant_id", "starts_at") where "starts_at" is not null;
+create index "work_orders_backlog_idx" on "app_private"."work_orders" ("tenant_id", "created_at") where "status" = 'unscheduled';
+create index "work_orders_location_idx" on "app_private"."work_orders" ("location_id");
+create index "work_orders_asset_idx" on "app_private"."work_orders" ("asset_id");
+create index "work_orders_booking_idx" on "app_private"."work_orders" ("booking_id");
+create index "work_orders_subject_idx" on "app_private"."work_orders" ("tenant_id", "subject_type", "subject_id");
 alter table "app_private"."work_orders" enable row level security;
 revoke all on "app_private"."work_orders" from public, anon, authenticated;
 grant select on "app_private"."work_orders" to authenticated;
 grant all on "app_private"."work_orders" to service_role;
-drop policy if exists "work_orders_read" on "app_private"."work_orders";
-create policy work_orders_read on "app_private"."work_orders"
+create policy bsb_work_orders_read on "app_private"."work_orders"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
-create table if not exists "app_private"."dispatch_routes" (
+create table "app_private"."dispatch_routes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "technician_id" uuid not null references auth.users (id) on delete cascade,
@@ -2206,63 +1782,57 @@ create table if not exists "app_private"."dispatch_routes" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "technician_id", "route_date")
 );
-create index if not exists "dispatch_routes_technician_idx" on "app_private"."dispatch_routes" ("technician_id", "route_date");
+create index "dispatch_routes_technician_idx" on "app_private"."dispatch_routes" ("technician_id", "route_date");
 alter table "app_private"."dispatch_routes" enable row level security;
 revoke all on "app_private"."dispatch_routes" from public, anon, authenticated;
 grant select on "app_private"."dispatch_routes" to authenticated;
 grant all on "app_private"."dispatch_routes" to service_role;
-drop policy if exists "dispatch_routes_read" on "app_private"."dispatch_routes";
-create policy dispatch_routes_read on "app_private"."dispatch_routes"
+create policy bsb_dispatch_routes_read on "app_private"."dispatch_routes"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
-create table if not exists "app_private"."dispatch_route_stops" (
+create table "app_private"."dispatch_route_stops" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "route_id" uuid not null references "app_private"."dispatch_routes" ("id") on delete cascade,
   "work_order_id" uuid not null references "app_private"."work_orders" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
+  "position" integer not null constraint bsb_dispatch_route_stops_position_check check ("position" >= 1),
   unique ("route_id", "position"),
   unique ("route_id", "work_order_id")
 );
-create index if not exists "dispatch_route_stops_job_idx" on "app_private"."dispatch_route_stops" ("work_order_id");
+create index "dispatch_route_stops_job_idx" on "app_private"."dispatch_route_stops" ("work_order_id");
 alter table "app_private"."dispatch_route_stops" enable row level security;
 revoke all on "app_private"."dispatch_route_stops" from public, anon, authenticated;
 grant select on "app_private"."dispatch_route_stops" to authenticated;
 grant all on "app_private"."dispatch_route_stops" to service_role;
-drop policy if exists "dispatch_route_stops_read" on "app_private"."dispatch_route_stops";
-create policy dispatch_route_stops_read on "app_private"."dispatch_route_stops"
+create policy bsb_dispatch_route_stops_read on "app_private"."dispatch_route_stops"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
-create table if not exists "app_private"."work_order_parts" (
+create table "app_private"."work_order_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "work_order_id" uuid not null references "app_private"."work_orders" ("id") on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "quantity" numeric(14, 3) not null check ("quantity" > 0),
-  "unit" text check ("unit" is null or length("unit") >= 1 and length("unit") <= 20),
+  "name" text not null constraint bsb_work_order_parts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "quantity" numeric(14, 3) not null constraint bsb_work_order_parts_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_work_order_parts_unit_check check ("unit" is null or length("unit") >= 1 and length("unit") <= 20),
   "asset_id" uuid,
   "variant_id" uuid,
   "location_id" uuid,
   "recorded_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "work_order_parts_job_idx" on "app_private"."work_order_parts" ("work_order_id", "created_at");
-create index if not exists "work_order_parts_asset_idx" on "app_private"."work_order_parts" ("asset_id");
-create index if not exists "work_order_parts_variant_idx" on "app_private"."work_order_parts" ("variant_id");
-create index if not exists "work_order_parts_location_idx" on "app_private"."work_order_parts" ("location_id");
+create index "work_order_parts_job_idx" on "app_private"."work_order_parts" ("work_order_id", "created_at");
+create index "work_order_parts_asset_idx" on "app_private"."work_order_parts" ("asset_id");
+create index "work_order_parts_variant_idx" on "app_private"."work_order_parts" ("variant_id");
+create index "work_order_parts_location_idx" on "app_private"."work_order_parts" ("location_id");
 alter table "app_private"."work_order_parts" enable row level security;
 revoke all on "app_private"."work_order_parts" from public, anon, authenticated;
 grant select on "app_private"."work_order_parts" to authenticated;
 grant all on "app_private"."work_order_parts" to service_role;
-drop policy if exists "work_order_parts_read" on "app_private"."work_order_parts";
-create policy work_order_parts_read on "app_private"."work_order_parts"
+create policy bsb_work_order_parts_read on "app_private"."work_order_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
-
-
-drop function if exists "app_private"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz, jsonb);
 -- Creates a work order in tenant. With a technician and starts_at (or a
 -- booking to take the slot from) it is scheduled at once; otherwise it waits
 -- in the backlog. ends_at defaults to starts_at plus the default duration.
@@ -2341,8 +1911,6 @@ end;
 $$;
 revoke execute on function "app_private"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz) from public, anon;
 grant execute on function "app_private"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz) to authenticated, service_role;
-
-drop function if exists "app_private"."update_work_order"(uuid, text, text, text, uuid, uuid, text, jsonb);
 -- Changes a work order's title, description, priority or place; null keeps a
 -- value.
 create or replace function "app_private"."update_work_order"(work_order_id uuid, title text default null, description text default null, priority text default null, location_id uuid default null, asset_id uuid default null, address text default null)
@@ -2860,115 +2428,70 @@ grant execute on function "app_private"."remove_work_order_part"(uuid) to authen
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."work_orders";
-drop policy if exists bsb_tenant_scope_select on "app_private"."work_orders";
 create policy bsb_tenant_scope_select on "app_private"."work_orders" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."work_orders";
 create policy bsb_tenant_scope_insert on "app_private"."work_orders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."work_orders";
 create policy bsb_tenant_scope_update on "app_private"."work_orders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."work_orders";
 create policy bsb_tenant_scope_delete on "app_private"."work_orders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."dispatch_routes";
-drop policy if exists bsb_tenant_scope_select on "app_private"."dispatch_routes";
 create policy bsb_tenant_scope_select on "app_private"."dispatch_routes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."dispatch_routes";
 create policy bsb_tenant_scope_insert on "app_private"."dispatch_routes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."dispatch_routes";
 create policy bsb_tenant_scope_update on "app_private"."dispatch_routes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."dispatch_routes";
 create policy bsb_tenant_scope_delete on "app_private"."dispatch_routes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."dispatch_route_stops";
-drop policy if exists bsb_tenant_scope_select on "app_private"."dispatch_route_stops";
 create policy bsb_tenant_scope_select on "app_private"."dispatch_route_stops" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."dispatch_route_stops";
 create policy bsb_tenant_scope_insert on "app_private"."dispatch_route_stops" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."dispatch_route_stops";
 create policy bsb_tenant_scope_update on "app_private"."dispatch_route_stops" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."dispatch_route_stops";
 create policy bsb_tenant_scope_delete on "app_private"."dispatch_route_stops" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."work_order_parts";
-drop policy if exists bsb_tenant_scope_select on "app_private"."work_order_parts";
 create policy bsb_tenant_scope_select on "app_private"."work_order_parts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."work_order_parts";
 create policy bsb_tenant_scope_insert on "app_private"."work_order_parts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."work_order_parts";
 create policy bsb_tenant_scope_update on "app_private"."work_order_parts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."work_order_parts";
 create policy bsb_tenant_scope_delete on "app_private"."work_order_parts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
@@ -2987,85 +2510,11 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:af754bb0baf14fb9401b45afc1c7ddeab52a6695b8f94140faf7ee758b6acea8
+-- @bsb-hash sha256:5d756460e1e00c259c2932cb5f785c015acacaf7f6ffa5b83cdf454f7f431ee7
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Dispatch: work orders at asset locations, scheduled into technicians'
 -- slots on a board, worked through a status lifecycle, with day routes and
 -- the parts each job used.
@@ -3073,55 +2522,54 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Work orders: a job at a place (an asset location or an address), for an
 -- asset or a record, scheduled into a technician's slot and worked through
 -- en route, on site and done.
-create table if not exists "better_supabase"."work_orders" (
+create table "better_supabase"."work_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'unscheduled' check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled')),
+  "title" text not null constraint bsb_work_orders_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_work_orders_description_check check ("description" is null or length("description") <= 10000),
+  "priority" text not null default 'normal' constraint bsb_work_orders_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "status" text not null default 'unscheduled' constraint bsb_work_orders_status_check check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled')),
   "technician_id" uuid references auth.users (id) on delete set null,
   "starts_at" timestamptz,
   "ends_at" timestamptz,
   "location_id" uuid,
   "asset_id" uuid,
   "booking_id" uuid,
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
-  "address" text check ("address" is null or length("address") >= 1 and length("address") <= 500),
+  "subject_type" text constraint bsb_work_orders_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_work_orders_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "address" text constraint bsb_work_orders_address_check check ("address" is null or length("address") >= 1 and length("address") <= 500),
   "en_route_at" timestamptz,
   "arrived_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 1000),
-  "completion_note" text check ("completion_note" is null or length("completion_note") <= 10000),
+  "cancel_reason" text constraint bsb_work_orders_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 1000),
+  "completion_note" text constraint bsb_work_orders_completion_note_check check ("completion_note" is null or length("completion_note") <= 10000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check (("starts_at" is null) = ("ends_at" is null)),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
+  constraint bsb_work_orders_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_work_orders_check1 check (("starts_at" is null) = ("ends_at" is null)),
+  constraint bsb_work_orders_check2 check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_work_orders_check3 check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
 );
-create index if not exists "work_orders_tenant_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at" desc);
-create index if not exists "work_orders_slot_idx" on "better_supabase"."work_orders" ("technician_id", "starts_at") where "starts_at" is not null;
-create index if not exists "work_orders_board_idx" on "better_supabase"."work_orders" ("tenant_id", "starts_at") where "starts_at" is not null;
-create index if not exists "work_orders_backlog_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at") where "status" = 'unscheduled';
-create index if not exists "work_orders_location_idx" on "better_supabase"."work_orders" ("location_id");
-create index if not exists "work_orders_asset_idx" on "better_supabase"."work_orders" ("asset_id");
-create index if not exists "work_orders_booking_idx" on "better_supabase"."work_orders" ("booking_id");
-create index if not exists "work_orders_subject_idx" on "better_supabase"."work_orders" ("tenant_id", "subject_type", "subject_id");
+create index "work_orders_tenant_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at" desc);
+create index "work_orders_slot_idx" on "better_supabase"."work_orders" ("technician_id", "starts_at") where "starts_at" is not null;
+create index "work_orders_board_idx" on "better_supabase"."work_orders" ("tenant_id", "starts_at") where "starts_at" is not null;
+create index "work_orders_backlog_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at") where "status" = 'unscheduled';
+create index "work_orders_location_idx" on "better_supabase"."work_orders" ("location_id");
+create index "work_orders_asset_idx" on "better_supabase"."work_orders" ("asset_id");
+create index "work_orders_booking_idx" on "better_supabase"."work_orders" ("booking_id");
+create index "work_orders_subject_idx" on "better_supabase"."work_orders" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."work_orders" enable row level security;
 revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
-drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
-create policy work_orders_read on "better_supabase"."work_orders"
+create policy bsb_work_orders_read on "better_supabase"."work_orders"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
-create table if not exists "better_supabase"."dispatch_routes" (
+create table "better_supabase"."dispatch_routes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "technician_id" uuid not null references auth.users (id) on delete cascade,
@@ -3131,63 +2579,57 @@ create table if not exists "better_supabase"."dispatch_routes" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "technician_id", "route_date")
 );
-create index if not exists "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
+create index "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
 alter table "better_supabase"."dispatch_routes" enable row level security;
 revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
-drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
-create policy dispatch_routes_read on "better_supabase"."dispatch_routes"
+create policy bsb_dispatch_routes_read on "better_supabase"."dispatch_routes"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
-create table if not exists "better_supabase"."dispatch_route_stops" (
+create table "better_supabase"."dispatch_route_stops" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "route_id" uuid not null references "better_supabase"."dispatch_routes" ("id") on delete cascade,
   "work_order_id" uuid not null references "better_supabase"."work_orders" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
+  "position" integer not null constraint bsb_dispatch_route_stops_position_check check ("position" >= 1),
   unique ("route_id", "position"),
   unique ("route_id", "work_order_id")
 );
-create index if not exists "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
+create index "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
 alter table "better_supabase"."dispatch_route_stops" enable row level security;
 revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
-drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
-create policy dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
+create policy bsb_dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
-create table if not exists "better_supabase"."work_order_parts" (
+create table "better_supabase"."work_order_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "work_order_id" uuid not null references "better_supabase"."work_orders" ("id") on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "quantity" numeric(14, 3) not null check ("quantity" > 0),
-  "unit" text check ("unit" is null or length("unit") >= 1 and length("unit") <= 20),
+  "name" text not null constraint bsb_work_order_parts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "quantity" numeric(14, 3) not null constraint bsb_work_order_parts_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_work_order_parts_unit_check check ("unit" is null or length("unit") >= 1 and length("unit") <= 20),
   "asset_id" uuid,
   "variant_id" uuid,
   "location_id" uuid,
   "recorded_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "work_order_parts_job_idx" on "better_supabase"."work_order_parts" ("work_order_id", "created_at");
-create index if not exists "work_order_parts_asset_idx" on "better_supabase"."work_order_parts" ("asset_id");
-create index if not exists "work_order_parts_variant_idx" on "better_supabase"."work_order_parts" ("variant_id");
-create index if not exists "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
+create index "work_order_parts_job_idx" on "better_supabase"."work_order_parts" ("work_order_id", "created_at");
+create index "work_order_parts_asset_idx" on "better_supabase"."work_order_parts" ("asset_id");
+create index "work_order_parts_variant_idx" on "better_supabase"."work_order_parts" ("variant_id");
+create index "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
 alter table "better_supabase"."work_order_parts" enable row level security;
 revoke all on "better_supabase"."work_order_parts" from public, anon, authenticated;
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
-drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
-create policy work_order_parts_read on "better_supabase"."work_order_parts"
+create policy bsb_work_order_parts_read on "better_supabase"."work_order_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
-
-
-drop function if exists "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz, jsonb);
 -- Creates a work order in tenant. With a technician and starts_at (or a
 -- booking to take the slot from) it is scheduled at once; otherwise it waits
 -- in the backlog. ends_at defaults to starts_at plus the default duration.
@@ -3266,8 +2708,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz) from public, anon;
 grant execute on function "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_work_order"(uuid, text, text, text, uuid, uuid, text, jsonb);
 -- Changes a work order's title, description, priority or place; null keeps a
 -- value.
 create or replace function "better_supabase"."update_work_order"(work_order_id uuid, title text default null, description text default null, priority text default null, location_id uuid default null, asset_id uuid default null, address text default null)
@@ -3785,99 +3225,67 @@ grant execute on function "better_supabase"."remove_work_order_part"(uuid) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_select on "better_supabase"."work_orders" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_orders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_update on "better_supabase"."work_orders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_orders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_select on "better_supabase"."dispatch_routes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_routes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_update on "better_supabase"."dispatch_routes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_routes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_select on "better_supabase"."work_order_parts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_order_parts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_update on "better_supabase"."work_order_parts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3885,28 +3293,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as
 -- blocks.dispatch.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz, jsonb);
-drop function if exists "api"."update_work_order"(uuid, text, text, text, uuid, uuid, text, jsonb);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."create_work_order"(tenant uuid, title text, description text default null, priority text default 'normal', location_id uuid default null, asset_id uuid default null, booking_id uuid default null, subject_type text default null, subject_id text default null, address text default null, technician uuid default null, starts_at timestamptz default null, ends_at timestamptz default null)
 returns jsonb
@@ -4030,19 +3416,6 @@ as $$ select "better_supabase"."remove_work_order_part"($1) $$;
 revoke execute on function "api"."remove_work_order_part"(uuid) from public, anon;
 grant execute on function "api"."remove_work_order_part"(uuid) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block-data dispatch
@@ -4060,101 +3433,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:f4e163788e7acf58c2735136fa3c981cc75f7cafad430191ec82c5064cb29b23
+-- @bsb-hash sha256:514197fbc285af7c60a8c94541a258f0867a94a89a8483fd30ae3aff525a3bb5
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Dispatch: work orders at asset locations, scheduled into technicians'
 -- slots on a board, worked through a status lifecycle, with day routes and
 -- the parts each job used.
@@ -4165,25 +3448,25 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.work_orders is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."work_orders" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."work_orders" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."work_orders" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
-alter table "better_supabase"."work_orders" add column if not exists "description" text check ("description" is null or length("description") <= 10000);
-alter table "better_supabase"."work_orders" add column if not exists "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent'));
-alter table "better_supabase"."work_orders" add column if not exists "status" text not null default 'unscheduled' check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled'));
+alter table "better_supabase"."work_orders" add column if not exists "title" text constraint bsb_work_orders_title_check check (length("title") >= 1 and length("title") <= 200);
+alter table "better_supabase"."work_orders" add column if not exists "description" text constraint bsb_work_orders_description_check check ("description" is null or length("description") <= 10000);
+alter table "better_supabase"."work_orders" add column if not exists "priority" text not null default 'normal' constraint bsb_work_orders_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent'));
+alter table "better_supabase"."work_orders" add column if not exists "status" text not null default 'unscheduled' constraint bsb_work_orders_status_check check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled'));
 alter table "better_supabase"."work_orders" add column if not exists "technician_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."work_orders" add column if not exists "starts_at" timestamptz;
 alter table "better_supabase"."work_orders" add column if not exists "ends_at" timestamptz;
 alter table "better_supabase"."work_orders" add column if not exists "location_id" uuid;
 alter table "better_supabase"."work_orders" add column if not exists "asset_id" uuid;
 alter table "better_supabase"."work_orders" add column if not exists "booking_id" uuid;
-alter table "better_supabase"."work_orders" add column if not exists "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."work_orders" add column if not exists "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "better_supabase"."work_orders" add column if not exists "address" text check ("address" is null or length("address") >= 1 and length("address") <= 500);
+alter table "better_supabase"."work_orders" add column if not exists "subject_type" text constraint bsb_work_orders_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."work_orders" add column if not exists "subject_id" text constraint bsb_work_orders_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."work_orders" add column if not exists "address" text constraint bsb_work_orders_address_check check ("address" is null or length("address") >= 1 and length("address") <= 500);
 alter table "better_supabase"."work_orders" add column if not exists "en_route_at" timestamptz;
 alter table "better_supabase"."work_orders" add column if not exists "arrived_at" timestamptz;
 alter table "better_supabase"."work_orders" add column if not exists "completed_at" timestamptz;
 alter table "better_supabase"."work_orders" add column if not exists "cancelled_at" timestamptz;
-alter table "better_supabase"."work_orders" add column if not exists "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 1000);
-alter table "better_supabase"."work_orders" add column if not exists "completion_note" text check ("completion_note" is null or length("completion_note") <= 10000);
+alter table "better_supabase"."work_orders" add column if not exists "cancel_reason" text constraint bsb_work_orders_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 1000);
+alter table "better_supabase"."work_orders" add column if not exists "completion_note" text constraint bsb_work_orders_completion_note_check check ("completion_note" is null or length("completion_note") <= 10000);
 alter table "better_supabase"."work_orders" add column if not exists "created_by" uuid;
 alter table "better_supabase"."work_orders" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."work_orders" add column if not exists "updated_at" timestamptz not null default now();
@@ -4198,7 +3481,6 @@ create index if not exists "work_orders_subject_idx" on "better_supabase"."work_
 alter table "better_supabase"."work_orders" enable row level security;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
-drop policy if exists bsb_work_orders_select on "better_supabase"."work_orders";
 create policy bsb_work_orders_select on "better_supabase"."work_orders"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
@@ -4217,7 +3499,6 @@ create index if not exists "dispatch_routes_technician_idx" on "better_supabase"
 alter table "better_supabase"."dispatch_routes" enable row level security;
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
-drop policy if exists bsb_dispatch_routes_select on "better_supabase"."dispatch_routes";
 create policy bsb_dispatch_routes_select on "better_supabase"."dispatch_routes"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
@@ -4226,12 +3507,11 @@ alter table "better_supabase"."dispatch_route_stops" add column if not exists "i
 alter table "better_supabase"."dispatch_route_stops" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."dispatch_route_stops" add column if not exists "route_id" uuid references "better_supabase"."dispatch_routes" ("id") on delete cascade;
 alter table "better_supabase"."dispatch_route_stops" add column if not exists "work_order_id" uuid references "better_supabase"."work_orders" ("id") on delete cascade;
-alter table "better_supabase"."dispatch_route_stops" add column if not exists "position" integer check ("position" >= 1);
+alter table "better_supabase"."dispatch_route_stops" add column if not exists "position" integer constraint bsb_dispatch_route_stops_position_check check ("position" >= 1);
 create index if not exists "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
 alter table "better_supabase"."dispatch_route_stops" enable row level security;
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
-drop policy if exists bsb_dispatch_route_stops_select on "better_supabase"."dispatch_route_stops";
 create policy bsb_dispatch_route_stops_select on "better_supabase"."dispatch_route_stops"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
@@ -4241,9 +3521,9 @@ create policy bsb_dispatch_route_stops_select on "better_supabase"."dispatch_rou
 alter table "better_supabase"."work_order_parts" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."work_order_parts" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."work_order_parts" add column if not exists "work_order_id" uuid references "better_supabase"."work_orders" ("id") on delete cascade;
-alter table "better_supabase"."work_order_parts" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."work_order_parts" add column if not exists "quantity" numeric(14, 3) check ("quantity" > 0);
-alter table "better_supabase"."work_order_parts" add column if not exists "unit" text check ("unit" is null or length("unit") >= 1 and length("unit") <= 20);
+alter table "better_supabase"."work_order_parts" add column if not exists "name" text constraint bsb_work_order_parts_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."work_order_parts" add column if not exists "quantity" numeric(14, 3) constraint bsb_work_order_parts_quantity_check check ("quantity" > 0);
+alter table "better_supabase"."work_order_parts" add column if not exists "unit" text constraint bsb_work_order_parts_unit_check check ("unit" is null or length("unit") >= 1 and length("unit") <= 20);
 alter table "better_supabase"."work_order_parts" add column if not exists "asset_id" uuid;
 alter table "better_supabase"."work_order_parts" add column if not exists "variant_id" uuid;
 alter table "better_supabase"."work_order_parts" add column if not exists "location_id" uuid;
@@ -4256,13 +3536,9 @@ create index if not exists "work_order_parts_location_idx" on "better_supabase".
 alter table "better_supabase"."work_order_parts" enable row level security;
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
-drop policy if exists bsb_work_order_parts_select on "better_supabase"."work_order_parts";
 create policy bsb_work_order_parts_select on "better_supabase"."work_order_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
-
-
-drop function if exists "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz, jsonb);
 -- Creates a work order in tenant. With a technician and starts_at (or a
 -- booking to take the slot from) it is scheduled at once; otherwise it waits
 -- in the backlog. ends_at defaults to starts_at plus the default duration.
@@ -4341,8 +3617,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz) from public, anon;
 grant execute on function "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_work_order"(uuid, text, text, text, uuid, uuid, text, jsonb);
 -- Changes a work order's title, description, priority or place; null keeps a
 -- value.
 create or replace function "better_supabase"."update_work_order"(work_order_id uuid, title text default null, description text default null, priority text default null, location_id uuid default null, asset_id uuid default null, address text default null)
@@ -4860,115 +4134,70 @@ grant execute on function "better_supabase"."remove_work_order_part"(uuid) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_select on "better_supabase"."work_orders" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_orders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_update on "better_supabase"."work_orders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_orders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_select on "better_supabase"."dispatch_routes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_routes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_update on "better_supabase"."dispatch_routes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_routes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_select on "better_supabase"."work_order_parts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_order_parts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_update on "better_supabase"."work_order_parts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
@@ -4987,85 +4216,11 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:574d11dd20208adcc06983e80f9915ed35293b201a52c3facbe992282ed03ffd
+-- @bsb-hash sha256:3cf71b16068cd39c9da3fd9c085c14347fefa547a2362dbd0d51bc60fa8d5eff
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Dispatch: work orders at asset locations, scheduled into technicians'
 -- slots on a board, worked through a status lifecycle, with day routes and
 -- the parts each job used.
@@ -5073,55 +4228,54 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Work orders: a job at a place (an asset location or an address), for an
 -- asset or a record, scheduled into a technician's slot and worked through
 -- en route, on site and done.
-create table if not exists "better_supabase"."work_orders" (
+create table "better_supabase"."work_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'unscheduled' check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled')),
+  "title" text not null constraint bsb_work_orders_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_work_orders_description_check check ("description" is null or length("description") <= 10000),
+  "priority" text not null default 'normal' constraint bsb_work_orders_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "status" text not null default 'unscheduled' constraint bsb_work_orders_status_check check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled')),
   "technician_id" uuid references auth.users (id) on delete set null,
   "starts_at" timestamptz,
   "ends_at" timestamptz,
   "location_id" uuid,
   "asset_id" uuid,
   "booking_id" uuid,
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
-  "address" text check ("address" is null or length("address") >= 1 and length("address") <= 500),
+  "subject_type" text constraint bsb_work_orders_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_work_orders_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "address" text constraint bsb_work_orders_address_check check ("address" is null or length("address") >= 1 and length("address") <= 500),
   "en_route_at" timestamptz,
   "arrived_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 1000),
-  "completion_note" text check ("completion_note" is null or length("completion_note") <= 10000),
+  "cancel_reason" text constraint bsb_work_orders_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 1000),
+  "completion_note" text constraint bsb_work_orders_completion_note_check check ("completion_note" is null or length("completion_note") <= 10000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check (("starts_at" is null) = ("ends_at" is null)),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
+  constraint bsb_work_orders_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_work_orders_check1 check (("starts_at" is null) = ("ends_at" is null)),
+  constraint bsb_work_orders_check2 check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_work_orders_check3 check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
 );
-create index if not exists "work_orders_tenant_idx" on "better_supabase"."work_orders" ("org_id", "created_at" desc);
-create index if not exists "work_orders_slot_idx" on "better_supabase"."work_orders" ("technician_id", "starts_at") where "starts_at" is not null;
-create index if not exists "work_orders_board_idx" on "better_supabase"."work_orders" ("org_id", "starts_at") where "starts_at" is not null;
-create index if not exists "work_orders_backlog_idx" on "better_supabase"."work_orders" ("org_id", "created_at") where "status" = 'unscheduled';
-create index if not exists "work_orders_location_idx" on "better_supabase"."work_orders" ("location_id");
-create index if not exists "work_orders_asset_idx" on "better_supabase"."work_orders" ("asset_id");
-create index if not exists "work_orders_booking_idx" on "better_supabase"."work_orders" ("booking_id");
-create index if not exists "work_orders_subject_idx" on "better_supabase"."work_orders" ("org_id", "subject_type", "subject_id");
+create index "work_orders_tenant_idx" on "better_supabase"."work_orders" ("org_id", "created_at" desc);
+create index "work_orders_slot_idx" on "better_supabase"."work_orders" ("technician_id", "starts_at") where "starts_at" is not null;
+create index "work_orders_board_idx" on "better_supabase"."work_orders" ("org_id", "starts_at") where "starts_at" is not null;
+create index "work_orders_backlog_idx" on "better_supabase"."work_orders" ("org_id", "created_at") where "status" = 'unscheduled';
+create index "work_orders_location_idx" on "better_supabase"."work_orders" ("location_id");
+create index "work_orders_asset_idx" on "better_supabase"."work_orders" ("asset_id");
+create index "work_orders_booking_idx" on "better_supabase"."work_orders" ("booking_id");
+create index "work_orders_subject_idx" on "better_supabase"."work_orders" ("org_id", "subject_type", "subject_id");
 alter table "better_supabase"."work_orders" enable row level security;
 revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
-drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
-create policy work_orders_read on "better_supabase"."work_orders"
+create policy bsb_work_orders_read on "better_supabase"."work_orders"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
-create table if not exists "better_supabase"."dispatch_routes" (
+create table "better_supabase"."dispatch_routes" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "technician_id" uuid not null references auth.users (id) on delete cascade,
@@ -5131,63 +4285,57 @@ create table if not exists "better_supabase"."dispatch_routes" (
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "technician_id", "route_date")
 );
-create index if not exists "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
+create index "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
 alter table "better_supabase"."dispatch_routes" enable row level security;
 revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
-drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
-create policy dispatch_routes_read on "better_supabase"."dispatch_routes"
+create policy bsb_dispatch_routes_read on "better_supabase"."dispatch_routes"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
-create table if not exists "better_supabase"."dispatch_route_stops" (
+create table "better_supabase"."dispatch_route_stops" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "route_id" uuid not null references "better_supabase"."dispatch_routes" ("id") on delete cascade,
   "work_order_id" uuid not null references "better_supabase"."work_orders" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
+  "position" integer not null constraint bsb_dispatch_route_stops_position_check check ("position" >= 1),
   unique ("route_id", "position"),
   unique ("route_id", "work_order_id")
 );
-create index if not exists "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
+create index "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
 alter table "better_supabase"."dispatch_route_stops" enable row level security;
 revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
-drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
-create policy dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
+create policy bsb_dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
-create table if not exists "better_supabase"."work_order_parts" (
+create table "better_supabase"."work_order_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "work_order_id" uuid not null references "better_supabase"."work_orders" ("id") on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "quantity" numeric(14, 3) not null check ("quantity" > 0),
-  "unit" text check ("unit" is null or length("unit") >= 1 and length("unit") <= 20),
+  "name" text not null constraint bsb_work_order_parts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "quantity" numeric(14, 3) not null constraint bsb_work_order_parts_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_work_order_parts_unit_check check ("unit" is null or length("unit") >= 1 and length("unit") <= 20),
   "asset_id" uuid,
   "variant_id" uuid,
   "location_id" uuid,
   "recorded_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "work_order_parts_job_idx" on "better_supabase"."work_order_parts" ("work_order_id", "created_at");
-create index if not exists "work_order_parts_asset_idx" on "better_supabase"."work_order_parts" ("asset_id");
-create index if not exists "work_order_parts_variant_idx" on "better_supabase"."work_order_parts" ("variant_id");
-create index if not exists "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
+create index "work_order_parts_job_idx" on "better_supabase"."work_order_parts" ("work_order_id", "created_at");
+create index "work_order_parts_asset_idx" on "better_supabase"."work_order_parts" ("asset_id");
+create index "work_order_parts_variant_idx" on "better_supabase"."work_order_parts" ("variant_id");
+create index "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
 alter table "better_supabase"."work_order_parts" enable row level security;
 revoke all on "better_supabase"."work_order_parts" from public, anon, authenticated;
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
-drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
-create policy work_order_parts_read on "better_supabase"."work_order_parts"
+create policy bsb_work_order_parts_read on "better_supabase"."work_order_parts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
-
-
-drop function if exists "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz, jsonb);
 -- Creates a work order in tenant. With a technician and starts_at (or a
 -- booking to take the slot from) it is scheduled at once; otherwise it waits
 -- in the backlog. ends_at defaults to starts_at plus the default duration.
@@ -5266,8 +4414,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz) from public, anon;
 grant execute on function "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_work_order"(uuid, text, text, text, uuid, uuid, text, jsonb);
 -- Changes a work order's title, description, priority or place; null keeps a
 -- value.
 create or replace function "better_supabase"."update_work_order"(work_order_id uuid, title text default null, description text default null, priority text default null, location_id uuid default null, asset_id uuid default null, address text default null)
@@ -5785,115 +4931,70 @@ grant execute on function "better_supabase"."remove_work_order_part"(uuid) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_orders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_select on "better_supabase"."work_orders" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_orders" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_update on "better_supabase"."work_orders" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_orders";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_orders" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_routes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_select on "better_supabase"."dispatch_routes" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("technician_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_routes" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_update on "better_supabase"."dispatch_routes" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_routes";
 create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_routes" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."dispatch_route_stops";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_select on "better_supabase"."dispatch_route_stops" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_insert on "better_supabase"."dispatch_route_stops" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_update on "better_supabase"."dispatch_route_stops" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops";
 create policy bsb_tenant_scope_delete on "better_supabase"."dispatch_route_stops" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_order_parts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_select on "better_supabase"."work_order_parts" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('dispatch.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_order_parts" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_update on "better_supabase"."work_order_parts" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_order_parts";
 create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch

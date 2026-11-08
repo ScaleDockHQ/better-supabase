@@ -77,13 +77,11 @@ export function invoiceOptIn(ctx: BlockSqlContext, logical: string): boolean {
 
 type Party = "company" | "contact" | "origin";
 
-/** `options.chargeExtraColumns`: app columns of the charges table. */
+/** The columns your schema files add: app columns of the charges table. */
 export const chargeExtraColumns = (
   ctx: BlockSqlContext,
 ): readonly ExtraColumn[] =>
-  ctx.hasTable("charges")
-    ? ctx.extraColumns("charges", ["fields"], "chargeExtraColumns")
-    : [];
+  ctx.hasTable("charges") ? ctx.extraColumns("charges", ["fields"]) : [];
 
 /**
  * How the invoices table holds a company, contact or origin: a type and an id
@@ -518,7 +516,7 @@ drop function if exists ${fn("add_invoice_charge")}(uuid, bigint, text, text${ch
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
--- charge's extra columns (options.chargeExtraColumns). actor: who added it,
+-- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
 create or replace function ${fn("add_invoice_charge")}(invoice uuid, amount bigint, currency text, description text${chargeFields.param}, actor jsonb default null)
 returns jsonb

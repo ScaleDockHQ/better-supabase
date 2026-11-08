@@ -8,7 +8,7 @@ import {
   unappliedMigrations,
 } from "../../../src/cli/doctor/migration-safety.ts";
 import { RULE_CODES } from "../../../src/cli/doctor/rules.ts";
-import { splitStatements } from "../../../src/cli/doctor/shared.ts";
+import { splitStatements } from "../../../src/sql/pipeline/split.ts";
 import {
   addNotNullCheck,
   notNullCheckName,

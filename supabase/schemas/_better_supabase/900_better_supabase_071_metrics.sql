@@ -1,41 +1,25 @@
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:9ca7e4c9a57e0b7f94e668c9b32c0933df55cdb3593bbaab9d22daab862b55f3
+-- @bsb-hash sha256:caec6501f05eb90bce2e9edf3aafd25fa194871eb5234d893799c35e5bf5ee64
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."metric_points";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."metric_points";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."metric_points";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."metric_points";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."metric_points";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."metric_points" (
+create table "better_supabase"."metric_points" (
   "tenant_id" uuid not null,
   "metric" text not null,
-  "grain" text not null check ("grain" in ('hour', 'day', 'week', 'month')),
-  "bucket_start" timestamptz not null,
+  "grain" text not null constraint bsb_metric_points_grain_check check ("grain" in ('hour', 'day', 'week', 'month')),
+  "bucket_started_at" timestamptz not null,
   "dims" jsonb not null default '{}'::jsonb,
   "value" numeric not null,
   "count" bigint not null,
   "updated_at" timestamptz not null default now(),
-  primary key ("tenant_id", "metric", "grain", "bucket_start", "dims")
+  primary key ("tenant_id", "metric", "grain", "bucket_started_at", "dims")
 );
 alter table "better_supabase"."metric_points" enable row level security;
 revoke all on "better_supabase"."metric_points" from public, anon, authenticated;
 grant all on "better_supabase"."metric_points" to service_role;
-create index if not exists metric_points_rollup_idx on "better_supabase"."metric_points" ("metric", "grain", "bucket_start");
+create index metric_points_rollup_idx on "better_supabase"."metric_points" ("metric", "grain", "bucket_started_at");
 
 -- Re-aggregates the window [since, until), default the last 3 days, so
 -- rows that arrive late or change land in their buckets. Run it from cron or
@@ -272,16 +256,3 @@ set search_path = ''
 as $$ select "better_supabase"."metric_definitions"() $$;
 revoke execute on function "api"."metric_definitions"() from public, anon;
 grant execute on function "api"."metric_definitions"() to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

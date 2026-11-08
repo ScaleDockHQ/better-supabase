@@ -1,0 +1,93 @@
+---
+title: Frameworks
+description: Register a framework binding with defineFramework so gen writes its data hooks and init detects it.
+---
+
+A framework binding tells better-supabase everything it needs to know about a
+front-end framework in one place: which packages identify it, which module holds
+its data hooks and what `gen` writes at the top of `hooks.ts`. The four built-in
+bindings (`react`, `svelte`, `vue` and `solid`) are defined the same way, so a
+package you publish gets the same treatment.
+
+## Define a binding
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+import { defineFramework } from "better-supabase/plugins";
+
+const qwik = defineFramework({
+  name: "qwik",
+  tier: "community",
+  detect: ["@builder.io/qwik"],
+  hooksModule: "@acme/qwik-hooks",
+});
+
+export default defineConfig({ gen: { frameworks: [qwik], hooks: "qwik" } });
+```
+
+`gen.hooks` takes the name of a built-in binding or of one you register. A name
+that nothing registers is an error that lists the registered names.
+
+| Field            | Meaning                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| `name`           | The value of `gen.hooks`, in lowercase letters, digits and dashes.                                           |
+| `tier`           | `supported` or `community`, as in the [adapter tiers](/docs/frameworks#adapter-tiers).                       |
+| `detect`         | Package names in `package.json` that identify the framework. `init` writes `gen.hooks` when it finds one.    |
+| `integrations`   | `adapters` entries that select the binding when `gen.hooks` is unset (`next` selects `react`).               |
+| `hooksSubpath`   | The `better-supabase/<subpath>` entry that exports `defineListHook` and `defineOneHook`. Defaults to `name`. |
+| `hooksModule`    | A full module specifier for hooks that live in another package. It takes precedence over `hooksSubpath`.     |
+| `hooksDirective` | A directive on the first line of `hooks.ts`, such as `"use client";`.                                        |
+| `serverSubpath`  | The runtime subpath of the framework's server adapter. `init` names it, and `templates` receive it.          |
+| `templates`      | A function that returns the files `init` writes for the framework.                                           |
+
+## What derives from the registry
+
+The `gen.hooks` choices in the config schema, the default framework for an
+`adapters` list, the directive and import in `hooks.ts` and the framework `init`
+detects all come from the registered bindings. Adding a built-in framework is a
+folder under `src/plugins` and the entries invariant 9 asks for; adding a third
+party framework is a binding in the config.
+
+The bindings are plain data and a `templates` function, so `better-supabase
+config` prints them and the capability registry can list them.
+
+## Init templates and the server adapter
+
+When `init` detects a registered framework, it calls `templates` with the
+source directory (`srcDir`), the generated module path (`generated`), whether
+imports keep their `.ts` extension (`tsExtensions`) and `serverImport`, which is
+`better-supabase/<serverSubpath>` or `undefined`. Each returned file is written
+once, so a file your app already has stays yours. `init` also prints the server adapter specifier, so the next step is
+visible.
+
+```ts
+const qwik = defineFramework({
+  name: "qwik",
+  tier: "community",
+  detect: ["@builder.io/qwik"],
+  serverSubpath: "qwik-server",
+  templates: ({ srcDir, serverImport }) => [
+    {
+      path: `${srcDir}/lib/qwik-server.ts`,
+      contents: `export * from "${serverImport}";\n`,
+    },
+  ],
+});
+```
+
+## Share the adapter plumbing
+
+A server adapter for another framework starts from `adapterBase(server,
+options)` in `better-supabase/server`. It returns the parts every adapter
+repeats: `expose` (the `exposeErrors` option, or true in development), `flush`
+(hands pending event sink sends to the option's `waitUntil`, or to the one you
+found on the platform), `refuse` (the Problem Details response for a refused
+caller) and `extend` (the core server plus your adapter's methods). Call
+`flush` in a `finally`, so a handler that throws still hands its sends over.
+
+```ts
+import { adapterBase, createServer } from "better-supabase/server";
+
+const bsb = createServer(betterSupabase, options);
+const { expose, flush, refuse } = adapterBase(bsb, options);
+```

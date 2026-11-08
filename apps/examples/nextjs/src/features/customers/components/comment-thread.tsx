@@ -4,7 +4,7 @@
 import type { SubmitEvent } from "react";
 
 import { useExtracted, useFormatter } from "next-intl";
-import { useId, useState } from "react";
+import { useId, useOptimistic, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -32,13 +32,19 @@ export function CommentThread({
   const errorMessage = useErrorMessage();
   const fieldId = useId();
   const [body, setBody] = useState("");
-  const [pending, setPending] = useState(false);
+  const [pending, startTransition] = useTransition();
 
   const { comments, error, add } = useComments({ subject });
 
   const visible = comments?.filter((comment) => !comment.deletedAt);
 
-  const submit = async (event: SubmitEvent<HTMLFormElement>) => {
+  // The comment shows at once and settles when the server's list arrives.
+  const [sending, addPending] = useOptimistic<string | undefined, string>(
+    undefined,
+    (_current, text) => text,
+  );
+
+  const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = body.trim();
 
@@ -46,25 +52,25 @@ export function CommentThread({
       return;
     }
 
-    setPending(true);
+    startTransition(async () => {
+      addPending(text);
 
-    if ((await add({ body: text })).ok) {
-      setBody("");
-    }
-
-    setPending(false);
+      if ((await add({ body: text })).ok) {
+        setBody("");
+      }
+    });
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {visible === undefined ? (
         <Skeleton className="h-16" />
-      ) : visible.length === 0 ? (
+      ) : visible.length === 0 && sending === undefined ? (
         <p className="text-sm text-muted-foreground">{t("No comments yet.")}</p>
       ) : (
-        <ol className="space-y-4" data-testid="comments">
+        <ol className="flex flex-col gap-4" data-testid="comments">
           {visible.map((comment) => (
-            <li key={comment.id} className="space-y-1">
+            <li key={comment.id} className="flex flex-col gap-1">
               <p className="text-sm">
                 <span className="font-medium">
                   {(comment.authorId && authors[comment.authorId]) ??
@@ -80,10 +86,18 @@ export function CommentThread({
               <p className="text-sm whitespace-pre-wrap">{comment.body}</p>
             </li>
           ))}
+          {sending === undefined ? null : (
+            <li
+              className="text-sm whitespace-pre-wrap text-muted-foreground"
+              aria-busy
+            >
+              {sending}
+            </li>
+          )}
         </ol>
       )}
       {canComment ? (
-        <form onSubmit={(event) => void submit(event)} className="space-y-3">
+        <form onSubmit={submit} className="flex flex-col gap-3">
           <Field data-invalid={error ? true : undefined}>
             <FieldLabel htmlFor={`${fieldId}-comment-body`} className="sr-only">
               {t("Comment")}

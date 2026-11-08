@@ -47,6 +47,7 @@ export function rowAuditData(
   const entities = Object.values(ctx.names.entities ?? {});
   const seen = new Set<string>();
   const lines: string[] = [];
+  const triggers: string[] = [];
 
   for (const entity of entities) {
     const logical = entity.table;
@@ -63,8 +64,16 @@ export function rowAuditData(
     seen.add(logical);
     const { schema, name } = ctx.tableName(logical);
 
+    const label = ctx.naming.rename(entity.singular);
+
     lines.push(
-      `select better_supabase.audit(${sqlString(`${schema}.${name}`)}, target_type => ${sqlString(ctx.naming.rename(entity.singular))}, event_prefix => ${sqlString(ctx.naming.rename(entity.singular))}, deferred => true);`,
+      `select better_supabase.audit(${sqlString(`${schema}.${name}`)}, target_type => ${sqlString(label)}, event_prefix => ${sqlString(label)}, deferred => true);`,
+    );
+    triggers.push(
+      auditTrigger(`${schema}.${name}`, {
+        target_type: label,
+        event_prefix: label,
+      }),
     );
   }
 
@@ -79,6 +88,7 @@ export function rowAuditData(
       lines.push(
         `select better_supabase.audit(${sqlString(`${schema}.${name}`)});`,
       );
+      triggers.push(auditTrigger(`${schema}.${name}`, {}, false));
     }
   }
 
@@ -89,9 +99,25 @@ export function rowAuditData(
   const comment =
     "-- Row audit for the module's tables (blocks.audit.options.blockTables)";
 
-  // A top-level `select` is a statement a schema diff skips; inside `do` it
-  // runs when the schema is applied, so the triggers stay in the diff.
+  // A top-level `select` is a statement a schema diff skips, so the schema
+  // file declares the trigger itself, with the settings `audit()` would store
+  // in its arguments.
   return inSchema
-    ? `${comment}\ndo $$\nbegin\n${lines.map((line) => `  perform ${line.slice("select ".length)}`).join("\n")}\nend;\n$$;`
+    ? `${comment}\n${triggers.join("\n")}`
     : `${comment}\n${lines.join("\n")}`;
+}
+
+/**
+ * The trigger `better_supabase.audit(target, ...)` creates, as one static
+ * statement. The settings are the trigger's argument, so the row's key columns
+ * fall back to its primary key when the trigger runs.
+ */
+export function auditTrigger(
+  target: string,
+  names: Readonly<Record<string, string>>,
+  deferred = true,
+): string {
+  const settings = JSON.stringify({ ignore: [], redact: [], ...names });
+
+  return `create ${deferred ? "constraint " : ""}trigger bsb_audit after insert or update or delete on ${target} ${deferred ? "deferrable initially deferred " : ""}for each row execute function better_supabase.audit_row_change(${sqlString(settings)});`;
 }

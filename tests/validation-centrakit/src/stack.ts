@@ -98,8 +98,8 @@ const SEED = `insert into centrakit.roles (id, scope, key, name, system) values
 
 const SUPABASE = new URL("../supabase/", import.meta.url);
 
-// Renames the root fixture's schema, then drops the triggers and event
-// triggers it attaches to tables in other schemas.
+// Renames the root fixture's schema, then drops the triggers, event triggers
+// and Realtime and Storage policies it attaches to tables in other schemas.
 const SET_FIXTURE_ASIDE = `do $$
 declare
   r record;
@@ -118,6 +118,13 @@ begin
       and c.relnamespace <> 'better_supabase_fixture'::regnamespace
   loop
     execute format('drop trigger %I on %s', r.tgname, r.tbl);
+  end loop;
+  for r in
+    select schemaname, tablename, policyname from pg_policies
+    where (schemaname, tablename) in (('realtime', 'messages'), ('storage', 'objects'))
+      and left(policyname, 4) = 'bsb_'
+  loop
+    execute format('drop policy %I on %I.%I', r.policyname, r.schemaname, r.tablename);
   end loop;
   for r in
     select e.evtname
@@ -242,6 +249,58 @@ export interface Extra {
   readonly modules: readonly string[];
   readonly config?: BlocksConfig;
   readonly subjects?: SubjectsConfig;
+  /** SQL an app schema file holds, run after the block files. */
+  readonly appSql?: readonly string[];
+  /** The columns that SQL adds to block tables, by `schema.table`. */
+  readonly appColumns?: Readonly<
+    Record<string, readonly { readonly name: string; readonly type: string }[]>
+  >;
+}
+
+/**
+ * Applies the files like the declarative sync does: a file that needs an object
+ * a later file creates (the audit module's policies call
+ * `member_organization_ids`, which memberships defines) waits until a pass
+ * makes progress.
+ */
+async function applyInDependencyOrder(
+  client: PoolClient,
+  files: readonly string[],
+): Promise<void> {
+  // Undefined function, table, column and object.
+  const missing = new Set(["42883", "42P01", "42703", "42704"]);
+  let pending = [...files];
+
+  while (pending.length > 0) {
+    const waiting: string[] = [];
+    let last: unknown;
+
+    for (const file of pending) {
+      await client.query("savepoint apply_file");
+
+      try {
+        await client.query(file);
+        await client.query("release savepoint apply_file");
+      } catch (error) {
+        if (
+          !(error instanceof DatabaseError) ||
+          !missing.has(error.code ?? "")
+        ) {
+          throw error;
+        }
+
+        await client.query("rollback to savepoint apply_file");
+        waiting.push(file);
+        last = error;
+      }
+    }
+
+    if (waiting.length === pending.length) {
+      throw last;
+    }
+
+    pending = waiting;
+  }
 }
 
 /**
@@ -302,12 +361,10 @@ export async function withCentraKit(
       [USERS.support, ROLES.systemSupport],
     );
 
-    for (const file of [
+    await applyInDependencyOrder(client, [
       ...(await generated("schemas")),
       ...(await generated("better-supabase-data")),
-    ]) {
-      await client.query(file);
-    }
+    ]);
 
     // An app runs this once when it adopts the profiles block; a user without
     // a profile counts as disabled.
@@ -333,8 +390,19 @@ export async function withCentraKit(
         layout.subjects = extra.subjects;
       }
 
-      for (const file of renderBlocks(extra.modules, layout)) {
+      if (extra.appColumns) {
+        layout.appColumns = extra.appColumns;
+      }
+
+      for (const file of renderBlocks(extra.modules, {
+        ...layout,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
+      }
+
+      for (const sql of extra.appSql ?? []) {
+        await client.query(sql);
       }
     }
 

@@ -52,8 +52,14 @@ Imports stay at the top of the module. The exceptions are optional
     also loads on demand, each with a comment: the CLI itself in the bin
     shim `bin/better-supabase.js`, which answers a bare `--version` without
     it, the commands in
-    `src/cli/builtin-commands.ts`, config loading, env validation and the
-    shell completion engine (`__complete`) in `src/cli/core/run.ts`,
+    `src/cli/builtin-commands.ts`, config loading, env validation, the
+    memo store (`src/cli/cache/memo-backend.ts`, which pulls in the SQL
+    generator), the worker pool (`src/cli/generators/pool.ts`, loaded by
+    `run.ts` only when two generators run on workers; the generators run on the
+    main thread when it fails) and the generator's own module by a variable
+    specifier in `src/cli/generators/worker.ts` and
+    `src/testing/generator.ts` and the shell completion engine (`__complete`) in
+    `src/cli/core/run.ts`,
     `fastest-levenshtein` for the unknown-command and
     unknown-option suggestions in `src/cli/core/parse.ts`, the prompts in
     `src/cli/bin.ts`, the arktype-backed typegen entries in

@@ -372,7 +372,7 @@ begin
     where y.${e("tenant")} = close_fiscal_year.tenant and y.${e("sourceType")} = 'fiscal_year'
       and y.${e("sourceId")} = close_fiscal_year.fiscal_year::text and y.${e("status")} <> 'reversed'
   ) then
-    ${fail("FISCAL_YEAR_CLOSED", "the fiscal year is already closed; reverse its closing entry to close it again", "55000")}
+    ${fail("PERIOD_CLOSED", "the fiscal year is already closed; reverse its closing entry to close it again", "55000")}
   end if;
   if exists (
     select 1 from ${entries} y
@@ -410,7 +410,7 @@ begin
     v_entry := ${fn("accounting_post")}(v_entry.${e("id")}, true);
     v_closing := v_entry.${e("id")};
   elsif v_open = 0 then
-    ${fail("FISCAL_YEAR_CLOSED", "the fiscal year is already closed", "55000")}
+    ${fail("PERIOD_CLOSED", "the fiscal year is already closed", "55000")}
   end if;
   delete from ${openings} y
   where y.${o("tenant")} = close_fiscal_year.tenant and y.${o("fiscalYear")} = close_fiscal_year.fiscal_year + 1 and y.${o("source")} = 'carried';

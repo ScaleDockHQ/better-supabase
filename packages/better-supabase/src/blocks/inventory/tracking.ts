@@ -175,6 +175,18 @@ export interface InventoryTracking {
     variantId: string;
     locationId: string;
   }): AsyncResult<StockLevelDetail>;
+  /**
+   * The serial numbers to take for a pick, the oldest in stock first,
+   * optionally from one lot. Nothing changes; pass them in the `detail` of
+   * `adjustStock`. Fails with `INVENTORY_INSUFFICIENT` when fewer are in
+   * stock.
+   */
+  pickSerials(input: {
+    variantId: string;
+    locationId: string;
+    quantity: number;
+    lotId?: string | undefined;
+  }): AsyncResult<readonly string[]>;
   /** Lots with stock that expire before `before` (`YYYY-MM-DD`). */
   expiringLots(input: {
     organizationId: string;
@@ -205,6 +217,21 @@ export interface InventoryTracking {
     allocationId: string;
     quantity: number;
     detail?: StockDetail | undefined;
+  }): AsyncResult<Allocation>;
+  /**
+   * Releases one open allocation: what it holds goes back to available and its
+   * backorder closes.
+   */
+  releaseAllocation(input: { allocationId: string }): AsyncResult<Allocation>;
+  /**
+   * Moves an open allocation to another document (a quote that became an
+   * order), keeping what it holds, and records `allocation.transferred`.
+   */
+  transferAllocation(input: {
+    allocationId: string;
+    documentType: string;
+    documentId: string;
+    lineId?: string | undefined;
   }): AsyncResult<Allocation>;
   /** Releases a document's open allocations. Resolves to the number released. */
   releaseAllocations(input: {
@@ -377,6 +404,17 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
           };
         },
       ),
+    pickSerials: ({ variantId, locationId, quantity, lotId }) =>
+      call(
+        "pick_serials",
+        {
+          variant: variantId,
+          location: locationId,
+          quantity,
+          lot: lotId ?? null,
+        },
+        (value) => stringsOf(value),
+      ),
     expiringLots: ({ organizationId, before }) =>
       call("expiring_lots", { tenant: organizationId, before }, (value) =>
         recordsOf(value, "expiring_lots").map(expiringOf),
@@ -414,6 +452,19 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
       call(
         "restore_allocation",
         { allocation: allocationId, quantity, detail: detailArg(detail) },
+        allocationOf,
+      ),
+    releaseAllocation: ({ allocationId }) =>
+      call("release_allocation", { allocation: allocationId }, allocationOf),
+    transferAllocation: ({ allocationId, documentType, documentId, lineId }) =>
+      call(
+        "transfer_allocation",
+        {
+          allocation: allocationId,
+          document_type: documentType,
+          document_id: documentId,
+          line_id: lineId ?? null,
+        },
         allocationOf,
       ),
     releaseAllocations: ({ organizationId, documentType, documentId }) =>

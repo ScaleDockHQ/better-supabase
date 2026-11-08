@@ -1,8 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
-import type { BlockSqlLayout } from "../module-types.ts";
 
 import { booksAccounting } from "../accounting-sources-sql.ts";
-import { subjectTypeRenames } from "./subject-type-renames.ts";
 
 /**
  * The data step that gives every existing project its value of accounting's
@@ -11,7 +9,7 @@ import { subjectTypeRenames } from "./subject-type-renames.ts";
  * creates the dimension when it is missing and updates names, so running it
  * again changes nothing.
  */
-function backfillProjectDimensions(ctx: BlockSqlContext): string {
+export function backfillProjectDimensions(ctx: BlockSqlContext): string {
   if (
     ctx.mode === "custom" ||
     !booksAccounting(ctx) ||
@@ -28,14 +26,4 @@ function backfillProjectDimensions(ctx: BlockSqlContext): string {
 select ${sync}(x.${p("tenant")}, 'project', 'Project', x.${p("id")}::text, x.${p("key")} || ' ' || x.${p("name")}, x.${p("archivedAt")} is not null)
 from ${projects} x
 where exists (select 1 from ${ctx.of("accounting").table("settings")} s where s.${ctx.of("accounting").col("settings", "tenant")} = x.${p("tenant")});`;
-}
-
-/** What `tasks` writes to its data file: the renames, then the backfill. */
-export function tasksData(
-  ctx: BlockSqlContext,
-  layout: BlockSqlLayout,
-): string {
-  return [subjectTypeRenames(ctx, layout), backfillProjectDimensions(ctx)]
-    .filter((step) => step !== "")
-    .join("\n");
 }

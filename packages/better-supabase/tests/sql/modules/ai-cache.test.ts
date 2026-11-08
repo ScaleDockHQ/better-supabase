@@ -11,7 +11,7 @@ describe("ai-cache module", () => {
   it("owns the entries table, service role only", () => {
     const sql = body();
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."ai_cache_entries" (',
+      'create table "better_supabase"."ai_cache_entries" (',
     );
     expect(sql).not.toMatch(/to authenticated/);
 

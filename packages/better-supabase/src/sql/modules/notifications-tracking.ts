@@ -15,6 +15,7 @@ import {
   revokeTable,
   serviceGrant,
 } from "../shared.ts";
+import { addressSql } from "./notifications-address.ts";
 import { suppressing } from "./notifications-suppressions.ts";
 
 /**
@@ -139,7 +140,7 @@ ${renderPolicy(
       and r.${n.col("recipients", "user")} = (select auth.uid())
   )`,
   }),
-  { drop: true, target: t },
+  { target: t },
 )}${partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(t)}` : ""}`;
 }
 
@@ -220,7 +221,7 @@ export function trackingFunctions(
   const suppress = suppressing(ctx)
     ? `
     if v_kind in ('bounced', 'complained') and coalesce(${record}.suppress, true) then
-      select u.email into v_email from auth.users u where u.id = v_user;
+      select ${addressSql(ctx, "v_user", "v_channel", "u.email")} into v_email from auth.users u where u.id = v_user;
       if v_email is not null and btrim(v_email) <> '' then
         perform ${ctx.fn("suppress_notification_address")}(
           v_email,

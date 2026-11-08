@@ -1,0 +1,11 @@
+{
+  "$schema": "https://v2-11-10.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tags": ["test"],
+  "tasks": {
+    "test": {
+      "env": ["NEXT_BUILD_UPDATE"],
+      "dependsOn": ["@better-supabase/example-nextjs#build"]
+    }
+  }
+}

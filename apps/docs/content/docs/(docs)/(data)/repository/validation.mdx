@@ -5,13 +5,56 @@ description: Validate writes with zod, valibot or any Standard Schema.
 
 When `gen.generators` includes `zod()`, `valibot()` or `standardSchema()` (no
 validation library needed), the generated schema validates every write with
-the generated `insert` and `update` schemas. Nothing to install:
+the generated `insert` and `update` schemas. `standardSchema()` needs nothing
+installed; `zod()` and `valibot()` write files that import `zod` (version 4) or
+`valibot` (version 1), so the app installs the one it uses:
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, zod } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { zod } from "better-supabase/generators/zod";
 
 export default defineConfig({ gen: { generators: [zod()] } });
 ```
+
+## Generator subpaths
+
+Each first-party generator has its own subpath, so a config imports only the
+generator it uses. `better-supabase/config` does not export them; `better-supabase codemod generators` moves old imports.
+
+| Subpath                                      | Export                           | The generated files import   |
+| -------------------------------------------- | -------------------------------- | ---------------------------- |
+| `better-supabase/generators/zod`             | `zod()`                          | `zod` or `zod/mini` (4.x)    |
+| `better-supabase/generators/valibot`         | `valibot()`                      | `valibot` (1.x)              |
+| `better-supabase/generators/json-schema`     | `jsonSchema()`, `toJsonSchema()` | nothing                      |
+| `better-supabase/generators/standard-schema` | `standardSchema()`               | nothing                      |
+| `better-supabase/generators/factories`       | `factories()`                    | nothing                      |
+| `better-supabase/generators/nuqs`            | `nuqs()`                         | `nuqs/server` (2.3 or later) |
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+import { factories } from "better-supabase/generators/factories";
+import { jsonSchema } from "better-supabase/generators/json-schema";
+import { nuqs } from "better-supabase/generators/nuqs";
+import { standardSchema } from "better-supabase/generators/standard-schema";
+import { valibot } from "better-supabase/generators/valibot";
+
+export default defineConfig({
+  gen: {
+    generators: [
+      valibot(),
+      standardSchema(),
+      jsonSchema(),
+      factories(),
+      nuqs(),
+    ],
+  },
+});
+```
+
+`zod`, `valibot` and `nuqs` are optional peers of `better-supabase` with those
+tested ranges. When a configured generator's library is installed outside its
+range, `gen` prints a notice, and `doctor` reports the version like any other
+optional peer.
 
 To pass your own schemas, per table, install `validation()` yourself; it
 replaces the one the generated schema installed:
@@ -21,7 +64,7 @@ import { validation } from "better-supabase";
 
 import { validators } from "./generated.zod.ts";
 
-const betterSupabase = defineSupabase(schema).use(
+const betterSupabase = createSupabase(schema).use(
   validation({
     schemas: {
       ...validators,
@@ -40,3 +83,34 @@ const betterSupabase = defineSupabase(schema).use(
 
 Any validator that implements [Standard Schema](https://standardschema.dev)
 works: zod, valibot, arktype, effect schema and more.
+
+## Typed jsonb columns
+
+Name a Standard Schema for a jsonb column in the `json` option of
+`standardSchema()`, and the column's row type is that schema's output. You no
+longer repeat the type in `gen.json`:
+
+```ts title="better-supabase.config.ts"
+gen: {
+  generators: [
+    standardSchema({ json: { "customers.metadata": "./src/schemas.ts#metadata" } }),
+  ],
+},
+```
+
+The generated module imports `metadata` for its `typeof` and types the column
+as `StandardSchemaV1.InferOutput<typeof metadata>`. An entry in `gen.json` for
+the same column wins.
+
+## Settings schemas
+
+Name the `defineSettings()` result in the `settings` option, and the
+`settings` block checks its keys with those schemas. You no longer pass it as
+`blocks.settings.options.schemas`:
+
+```ts title="better-supabase.config.ts"
+standardSchema({ settings: "./src/settings.ts#settings" });
+```
+
+The CLI imports that module when it loads the config. A `schemas` option on
+the block wins.

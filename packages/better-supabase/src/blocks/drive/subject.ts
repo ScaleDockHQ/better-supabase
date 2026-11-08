@@ -34,7 +34,7 @@ export function driveSubject(
     idType: "uuid",
     tenant: options.tenant ?? "tenant_id",
     title: "name",
-    deletedAt: "deleted_at",
+    deletedAt: "archived_at",
     permissions: {
       read: { key: "drive.read", check: `${schema}.drive_node_readable` },
       write: "drive.manage",

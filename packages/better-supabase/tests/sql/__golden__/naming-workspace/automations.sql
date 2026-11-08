@@ -1,88 +1,22 @@
 -- ==== schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:0cbea9cc44374e4e7194b806591753f92a2bb38aaf2fa2ea93a97db0728758fa
+-- @bsb-hash sha256:a8aa19208c1702232ea0ed56ed15f4432774d944aaac500fbde7e646ef3107b5
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
-create table if not exists "better_supabase"."automations" (
+create table "better_supabase"."automations" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_automations_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automations_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automations_description_check check (length("description") <= 2000),
   "conditions" jsonb not null,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automations_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default false,
   "stop_processing" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -92,11 +26,11 @@ create table if not exists "better_supabase"."automations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "automations_trigger_idx" on "better_supabase"."automations" ("workspace_id", "subject_type", "trigger", "rank");
-create index if not exists "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
-create index if not exists "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
-alter table "better_supabase"."automations" add column if not exists "default_key" text;
-create unique index if not exists "automations_default_key_idx" on "better_supabase"."automations" ("workspace_id", "default_key") where "default_key" is not null;
+create index "automations_trigger_idx" on "better_supabase"."automations" ("workspace_id", "subject_type", "trigger", "rank");
+create index "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
+create index "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."automations" add column "default_key" text;
+create unique index "automations_default_key_idx" on "better_supabase"."automations" ("workspace_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."automations" enable row level security;
 revoke all on "better_supabase"."automations" from public, anon, authenticated;
 grant all on "better_supabase"."automations" to service_role;
@@ -104,15 +38,15 @@ grant all on "better_supabase"."automations" to service_role;
 -- The automations blocks ship (defineBlock automations). Each organization
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists "better_supabase"."automation_defaults" (
-  "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
+create table "better_supabase"."automation_defaults" (
+  "key" text primary key constraint bsb_automation_defaults_key_check check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_automation_defaults_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automation_defaults_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automation_defaults_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automation_defaults_description_check check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automation_defaults_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -121,7 +55,7 @@ revoke all on "better_supabase"."automation_defaults" from public, anon, authent
 grant all on "better_supabase"."automation_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
-create table if not exists "better_supabase"."automation_versions" (
+create table "better_supabase"."automation_versions" (
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
   "workspace_id" uuid not null,
@@ -132,14 +66,14 @@ create table if not exists "better_supabase"."automation_versions" (
   "saved_at" timestamptz not null default now(),
   primary key ("rule_id", "version")
 );
-create index if not exists "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("workspace_id");
+create index "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("workspace_id");
 alter table "better_supabase"."automation_versions" enable row level security;
 revoke all on "better_supabase"."automation_versions" from public, anon, authenticated;
 grant all on "better_supabase"."automation_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
 -- truth of every condition and group.
-create table if not exists "better_supabase"."automation_evaluations" (
+create table "better_supabase"."automation_evaluations" (
   "id" bigint generated always as identity primary key,
   "workspace_id" uuid not null,
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
@@ -149,25 +83,25 @@ create table if not exists "better_supabase"."automation_evaluations" (
   "trigger" text not null,
   "matched" boolean not null,
   "results" jsonb not null default '{}'::jsonb,
-  "mode" text not null default 'live' check ("mode" in ('live', 'test')),
+  "mode" text not null default 'live' constraint bsb_automation_evaluations_mode_check check ("mode" in ('live', 'test')),
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
-create index if not exists "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("workspace_id", "evaluated_at" desc);
+create index "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
+create index "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("workspace_id", "evaluated_at" desc);
 alter table "better_supabase"."automation_evaluations" enable row level security;
 revoke all on "better_supabase"."automation_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
-create table if not exists "better_supabase"."automation_fields" (
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+create table "better_supabase"."automation_fields" (
+  "subject_type" text not null constraint bsb_automation_fields_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "field_id" text not null constraint bsb_automation_fields_field_id_check check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
   "description" text,
-  "type" text not null check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
-  "path" text not null check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+  "type" text not null constraint bsb_automation_fields_type_check check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
+  "path" text not null constraint bsb_automation_fields_path_check check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "column_type" text not null,
   "nullable" boolean not null default true,
   "options" jsonb,
@@ -175,7 +109,7 @@ create table if not exists "better_supabase"."automation_fields" (
   "position" integer not null default 0,
   "updated_at" timestamptz not null default now(),
   primary key ("subject_type", "field_id"),
-  check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
+  constraint bsb_automation_fields_check check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "better_supabase"."automation_fields" enable row level security;
 revoke all on "better_supabase"."automation_fields" from public, anon, authenticated;
@@ -1287,230 +1221,14 @@ grant execute on function "better_supabase"."run_rules"(uuid, text, text, text, 
 revoke execute on function "better_supabase"."install_default_rules"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."install_default_rules"(uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== data supabase/better-supabase-data/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:75ffe1c16d5d668dcbd89b982e6431e9d51a6ed68d0ada90ff43db63399d41f5
+-- @bsb-hash sha256:72f65e29bd899329dc93590f2a8a8b8b1eebc558ce6675ce1623394c33a949ee
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "better_supabase"."automations" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
-
-update "better_supabase"."automation_defaults" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('automations', 2, 'managed')

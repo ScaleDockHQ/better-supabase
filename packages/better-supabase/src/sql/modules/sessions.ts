@@ -4,7 +4,6 @@ import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
 import { AUTHZ_EVENT, AUTHZ_TOPIC } from "../../core/authz-topic.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { tableGlobs } from "../schema-scan.ts";
-import { SCHEMA } from "../shared.ts";
 import { qualifiedTable } from "./grants.ts";
 import { SESSIONS_OVERVIEW_SQL, SESSIONS_READS } from "./sessions-reads.ts";
 
@@ -47,7 +46,7 @@ function sessionPolicies(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
         using: "(select better_supabase.session_active())",
         check: "(select better_supabase.session_active())",
       }),
-      { drop: true, target },
+      { target },
     );
   });
 
@@ -455,7 +454,7 @@ ${renderPolicy(
     roles: ["supabase_auth_admin"],
     using: "true",
   }),
-  { drop: true, target: "better_supabase.user_authz_versions" },
+  { target: "better_supabase.user_authz_versions" },
 )}
 
 -- The version the access token hook copies into authz_ver; 0 before the
@@ -547,7 +546,7 @@ begin
         roles: ["authenticated"],
         using: `realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'authz:' || (select auth.uid())::text`,
       }),
-      { drop: true, target: "realtime.messages" },
+      { target: "realtime.messages" },
     )}
   end if;
 end;
@@ -567,8 +566,7 @@ export const SESSIONS: BlockSqlDefinition = {
     "session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.",
   requires: [],
   target: "schema",
-  build: (ctx, layout) => `${SCHEMA}
-
+  build: (ctx, layout) => `
 -- An access token stays valid until it expires, even after its session is
 -- signed out or its user is deleted. This checks the session behind it.
 -- Tokens without a session_id claim (signed by the app) and support tokens

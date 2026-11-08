@@ -8,7 +8,6 @@ import { DbException } from "better-supabase";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { createContext, use, useCallback, useMemo, useState } from "react";
-import { toast } from "sonner";
 import * as v from "valibot";
 
 import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
@@ -49,7 +48,9 @@ import { useMembers } from "@/hooks/use-organizations";
 import { Link } from "@/i18n/navigation";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { organizationsConfig } from "@/lib/supabase/blocks/slices";
+import { toast } from "@/lib/toast";
+import { useSearchParam } from "@/lib/url-filters";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
@@ -255,7 +256,7 @@ export function MemberTable({
   const t = useExtracted("members");
   const roleLabel = useRoleLabel();
   const errorMessage = useErrorMessage();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useSearchParam();
 
   const [roleFilter, setRoleFilter] = useState<Role | typeof ALL_ROLES>(
     ALL_ROLES,
@@ -265,7 +266,7 @@ export function MemberTable({
     organizationId,
     load: loadOrganizationMembers,
     initial,
-    schema: blockConfig.organizations.api,
+    schema: organizationsConfig.api,
     onChanged: async ({ userId }) => {
       await memberChanged({ userId });
     },

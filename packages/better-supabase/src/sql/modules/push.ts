@@ -10,7 +10,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -35,7 +34,7 @@ const EVENTS: BlockSqlEvents<PushEvents> = {
 
 const NAMES: BlockSqlNames = {
   events: EVENTS,
-  options: ["extraColumns"],
+  options: [],
   tables: {
     devices: {
       name: "push_devices",
@@ -75,7 +74,7 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-/** `options.extraColumns`, added to the devices table. */
+/** The columns your schema files add, added to the devices table. */
 const extrasOf = (ctx: BlockSqlContext) => ctx.extraColumns("devices");
 
 const PLATFORMS = ["ios", "android", "web"];
@@ -177,13 +176,13 @@ create table if not exists ${d} (
   ${c("platform")} text not null check (${c("platform")} in (${list(PLATFORMS)})),
   ${c("provider")} text not null default 'expo' check (${c("provider")} in (${list(PROVIDERS)}))${optional("deviceName", (column) => `text check (length(${column}) <= 200)`)}${optional("appVersion", (column) => `text check (length(${column}) <= 50)`)}${optional("createdAt", () => "timestamptz not null default now()")}${optional("lastSeenAt", () => "timestamptz not null default now()")}
 );
-create index if not exists push_devices_user_idx on ${d} (${c("user")});${ctx.owns("devices") ? "" : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_token_key`)} on ${d} (${c("token")});`}${addExtraColumns(d, extras)}
+create index if not exists push_devices_user_idx on ${d} (${c("user")});${ctx.owns("devices") ? "" : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_token_key`)} on ${d} (${c("token")});`}
 alter table ${d} enable row level security;
 ${revokeTable(d)}
 grant select, delete on ${d} to authenticated;
 grant all on ${d} to service_role;
-${renderPolicy(makePolicy({ table: d, name: "push_devices_own_read", command: "select", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { drop: true, target: d })}
-${renderPolicy(makePolicy({ table: d, name: "push_devices_own_delete", command: "delete", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { drop: true, target: d })}
+${renderPolicy(makePolicy({ table: d, name: "push_devices_own_read", command: "select", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { target: d })}
+${renderPolicy(makePolicy({ table: d, name: "push_devices_own_delete", command: "delete", roles: ["authenticated"], using: `${c("user")} = (select auth.uid())` }), { target: d })}
 
 -- Registers the caller's device, or refreshes it; returns the device id.
 ${extraFieldsArg(extras).drop(fn("register_push_device"), "text, text, text, text, text")}

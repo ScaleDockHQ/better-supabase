@@ -91,7 +91,7 @@ function collectionOf(value: unknown): KnowledgeCollection {
 
   return {
     id: textOf(row["id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     name: textOf(row["name"]),
     description: optionalText(row["description"]),
     visibility: oneOf(textOf(row["visibility"]), VISIBILITIES, "disabled"),

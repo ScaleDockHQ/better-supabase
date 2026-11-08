@@ -3,7 +3,7 @@ import type { BlockSqlIdType } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, userGrant } from "../shared.ts";
-import { APP_TABLE_SET } from "./bulk.ts";
+import { APP_TABLE_SET } from "./bulk-actions.ts";
 
 /** An app table as `appTableSetSql` needs it. */
 export interface SettableTable {

@@ -11,7 +11,7 @@ export function workflowsContract(
   const requests = ctx.hasTable("startRequests");
   const keyed = ctx.has("runs", "idempotencyKey");
   const leased = keyed && ctx.has("runs", "dispatchUntil");
-  const extras = ctx.extraColumns("runs", RUN_KEYS, "runExtraColumns");
+  const extras = ctx.extraColumns("runs", RUN_KEYS);
 
   return [
     {

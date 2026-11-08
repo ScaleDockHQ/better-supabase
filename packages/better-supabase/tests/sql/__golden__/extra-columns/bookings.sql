@@ -1,164 +1,77 @@
 -- ==== schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:fba3457bb079bb34d40ab79e3cde79e94aa3b41aaa62ee7ac148b89624f7d39d
+-- @bsb-hash sha256:ea02cbc09c4202f3b721920ab6667f1fca6fc392aa8b7565ddc36c9bf102f3e9
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."booking_resources";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_resources";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_resources";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_resources";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_resources";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."booking_availability";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_availability";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_availability";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_availability";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_availability";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."booking_exceptions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_exceptions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_exceptions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_exceptions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_exceptions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."booking_services";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_services";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_services";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_services";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_services";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."bookings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bookings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bookings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bookings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bookings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create extension if not exists btree_gist with schema extensions;
-create table if not exists "better_supabase"."booking_resources" (
+create table "better_supabase"."booking_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
+  "name" text not null constraint bsb_booking_resources_name_check check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'staff',
-  "capacity" integer not null default 1 check ("capacity" between 1 and 1000),
+  "capacity" integer not null default 1 constraint bsb_booking_resources_capacity_check check ("capacity" >= 1 and "capacity" <= 1000),
   "tz" text not null default 'UTC',
   "calendar_id" uuid,
-  "host_user_id" uuid,
+  "host_id" uuid,
   "check_busy" boolean not null default false,
   "active" boolean not null default true,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."booking_resources" add column if not exists "host_user_id" uuid;
-alter table "better_supabase"."booking_resources" add column if not exists "check_busy" boolean not null default false;
 alter table "better_supabase"."booking_resources" enable row level security;
 revoke all on "better_supabase"."booking_resources" from public, anon, authenticated;
 grant select on "better_supabase"."booking_resources" to authenticated;
 grant all on "better_supabase"."booking_resources" to service_role;
-create index if not exists "booking_resources_tenant_idx" on "better_supabase"."booking_resources" ("tenant_id");
-drop policy if exists booking_resources_read on "better_supabase"."booking_resources";
-create policy booking_resources_read on "better_supabase"."booking_resources"
+create index "booking_resources_tenant_idx" on "better_supabase"."booking_resources" ("tenant_id");
+create policy bsb_booking_resources_read on "better_supabase"."booking_resources"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
-create table if not exists "better_supabase"."booking_availability" (
+create table "better_supabase"."booking_availability" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
-  "weekday" smallint not null check ("weekday" between 1 and 7),
+  "weekday" smallint not null constraint bsb_booking_availability_weekday_check check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
-  check ("ends_at" > "starts_at")
+  constraint bsb_booking_availability_check check ("ends_at" > "starts_at")
 );
-create index if not exists booking_availability_resource_idx on "better_supabase"."booking_availability" ("resource_id", "weekday");
+create index booking_availability_resource_idx on "better_supabase"."booking_availability" ("resource_id", "weekday");
 alter table "better_supabase"."booking_availability" enable row level security;
 revoke all on "better_supabase"."booking_availability" from public, anon, authenticated;
 grant select on "better_supabase"."booking_availability" to authenticated;
 grant all on "better_supabase"."booking_availability" to service_role;
-drop policy if exists booking_availability_read on "better_supabase"."booking_availability";
-create policy booking_availability_read on "better_supabase"."booking_availability"
+create policy bsb_booking_availability_read on "better_supabase"."booking_availability"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
-create table if not exists "better_supabase"."booking_exceptions" (
+create table "better_supabase"."booking_exceptions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
-  "during" tstzrange not null check (not isempty("during")),
+  "during" tstzrange not null constraint bsb_booking_exceptions_during_check check (not isempty("during")),
   "available" boolean not null default false,
   "reason" text
 );
-create index if not exists booking_exceptions_resource_idx on "better_supabase"."booking_exceptions" using gist ("resource_id", "during");
+create index booking_exceptions_resource_idx on "better_supabase"."booking_exceptions" using gist ("resource_id", "during");
 alter table "better_supabase"."booking_exceptions" enable row level security;
 revoke all on "better_supabase"."booking_exceptions" from public, anon, authenticated;
 grant select on "better_supabase"."booking_exceptions" to authenticated;
 grant all on "better_supabase"."booking_exceptions" to service_role;
-drop policy if exists booking_exceptions_read on "better_supabase"."booking_exceptions";
-create policy booking_exceptions_read on "better_supabase"."booking_exceptions"
+create policy bsb_booking_exceptions_read on "better_supabase"."booking_exceptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')));
-create table if not exists "better_supabase"."booking_services" (
+create table "better_supabase"."booking_services" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 120),
-  "duration" interval not null check ("duration" > interval '0'),
-  "buffer_before" interval not null default interval '0' check ("buffer_before" >= interval '0'),
-  "buffer_after" interval not null default interval '0' check ("buffer_after" >= interval '0'),
+  "name" text not null constraint bsb_booking_services_name_check check (length("name") >= 1 and length("name") <= 120),
+  "duration" interval not null constraint bsb_booking_services_duration_check check ("duration" > interval '0'),
+  "buffer_before" interval not null default interval '0' constraint bsb_booking_services_buffer_before_check check ("buffer_before" >= interval '0'),
+  "buffer_after" interval not null default interval '0' constraint bsb_booking_services_buffer_after_check check ("buffer_after" >= interval '0'),
   "resource_kinds" text[] not null default '{}',
-  "step" interval check ("step" > interval '0'),
+  "step" interval constraint bsb_booking_services_step_check check ("step" > interval '0'),
   "min_notice" interval not null default interval '0',
-  "hold_for" interval not null default interval '10 minutes' check ("hold_for" > interval '0'),
+  "hold_for" interval not null default interval '10 minutes' constraint bsb_booking_services_hold_for_check check ("hold_for" > interval '0'),
   "reminder_offsets" integer[] not null default '{1440}',
   "active" boolean not null default true,
   "created_at" timestamptz not null default now()
@@ -167,24 +80,23 @@ alter table "better_supabase"."booking_services" enable row level security;
 revoke all on "better_supabase"."booking_services" from public, anon, authenticated;
 grant select on "better_supabase"."booking_services" to authenticated;
 grant all on "better_supabase"."booking_services" to service_role;
-create index if not exists "booking_services_tenant_idx" on "better_supabase"."booking_services" ("tenant_id");
-drop policy if exists booking_services_read on "better_supabase"."booking_services";
-create policy booking_services_read on "better_supabase"."booking_services"
+create index "booking_services_tenant_idx" on "better_supabase"."booking_services" ("tenant_id");
+create policy bsb_booking_services_read on "better_supabase"."booking_services"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
-create table if not exists "better_supabase"."bookings" (
+create table "better_supabase"."bookings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
   "service_id" uuid not null references "better_supabase"."booking_services" ("id") on delete restrict,
-  "seat" integer not null default 1 check ("seat" >= 1),
-  "during" tstzrange not null check (not isempty("during")),
+  "seat" integer not null default 1 constraint bsb_bookings_seat_check check ("seat" >= 1),
+  "during" tstzrange not null constraint bsb_bookings_during_check check (not isempty("during")),
   "blocked" tstzrange not null,
-  "status" text not null default 'hold' check ("status" in ('hold', 'confirmed', 'cancelled')),
+  "status" text not null default 'hold' constraint bsb_bookings_status_check check ("status" in ('hold', 'confirmed', 'cancelled')),
   "hold_expires_at" timestamptz,
   "customer_name" text,
   "customer_email" text,
-  "customer_user_id" uuid,
+  "customer_id" uuid,
   "notes" text,
   "access_hash" text unique,
   "calendar_event_id" uuid,
@@ -193,27 +105,25 @@ create table if not exists "better_supabase"."bookings" (
   "updated_at" timestamptz not null default now(),
   "cancelled_at" timestamptz,
   "cancel_reason" text,
-  check ("blocked" @> "during"),
-  check (("status" = 'hold') = ("hold_expires_at" is not null)),
-  constraint bookings_no_overlap exclude using gist (
+  constraint bsb_bookings_check check ("blocked" @> "during"),
+  constraint bsb_bookings_check1 check (("status" = 'hold') = ("hold_expires_at" is not null)),
+  constraint bookings_no_overlap_excl exclude using gist (
     "resource_id" with =,
     "seat" with =,
     "blocked" with &&
   ) where ("status" <> 'cancelled')
 );
-create index if not exists bookings_tenant_during_idx on "better_supabase"."bookings" using gist ("tenant_id", "during");
-create index if not exists bookings_resource_idx on "better_supabase"."bookings" ("resource_id");
-create index if not exists bookings_service_idx on "better_supabase"."bookings" ("service_id");
-create index if not exists bookings_hold_idx on "better_supabase"."bookings" ("hold_expires_at") where "status" = 'hold';
-alter table "better_supabase"."bookings" add column if not exists "app_note" text;
+create index bookings_tenant_during_idx on "better_supabase"."bookings" using gist ("tenant_id", "during");
+create index bookings_resource_idx on "better_supabase"."bookings" ("resource_id");
+create index bookings_service_idx on "better_supabase"."bookings" ("service_id");
+create index bookings_hold_idx on "better_supabase"."bookings" ("hold_expires_at") where "status" = 'hold';
 alter table "better_supabase"."bookings" enable row level security;
 revoke all on "better_supabase"."bookings" from public, anon, authenticated;
 grant select on "better_supabase"."bookings" to authenticated;
 grant all on "better_supabase"."bookings" to service_role;
-drop policy if exists bookings_read on "better_supabase"."bookings";
-create policy bookings_read on "better_supabase"."bookings"
+create policy bsb_bookings_read on "better_supabase"."bookings"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_user_id" = (select auth.uid()));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_id" = (select auth.uid()));
 
 create or replace function "better_supabase"."save_booking_resource"(tenant uuid, item jsonb)
 returns jsonb
@@ -237,11 +147,11 @@ begin
     raise exception 'tz must be an IANA time zone' using errcode = '22023', hint = 'BOOKING_TZ_INVALID';
   end if;
   if v_id is null then
-    insert into "better_supabase"."booking_resources" ("tenant_id", "name", "kind", "capacity", "tz", "active", "calendar_id", "host_user_id", "check_busy")
+    insert into "better_supabase"."booking_resources" ("tenant_id", "name", "kind", "capacity", "tz", "active", "calendar_id", "host_id", "check_busy")
     values (v_tenant, case when v_item ? 'name' then v_item ->> 'name' else null end, case when v_item ? 'kind' then v_item ->> 'kind' else 'staff' end, case when v_item ? 'capacity' then (v_item ->> 'capacity')::integer else 1 end, case when v_item ? 'tz' then v_item ->> 'tz' else 'UTC' end, case when v_item ? 'active' then (v_item ->> 'active')::boolean else true end, case when v_item ? 'calendarId' then nullif(v_item ->> 'calendarId', '')::uuid else null end, case when v_item ? 'hostUserId' then nullif(v_item ->> 'hostUserId', '')::uuid else null end, case when v_item ? 'checkBusy' then (v_item ->> 'checkBusy')::boolean else false end)
     returning "id" into v_id;
   else
-    update "better_supabase"."booking_resources" set "name" = case when v_item ? 'name' then v_item ->> 'name' else "name" end, "kind" = case when v_item ? 'kind' then v_item ->> 'kind' else "kind" end, "capacity" = case when v_item ? 'capacity' then (v_item ->> 'capacity')::integer else "capacity" end, "tz" = case when v_item ? 'tz' then v_item ->> 'tz' else "tz" end, "active" = case when v_item ? 'active' then (v_item ->> 'active')::boolean else "active" end, "calendar_id" = case when v_item ? 'calendarId' then nullif(v_item ->> 'calendarId', '')::uuid else "calendar_id" end, "host_user_id" = case when v_item ? 'hostUserId' then nullif(v_item ->> 'hostUserId', '')::uuid else "host_user_id" end, "check_busy" = case when v_item ? 'checkBusy' then (v_item ->> 'checkBusy')::boolean else "check_busy" end
+    update "better_supabase"."booking_resources" set "name" = case when v_item ? 'name' then v_item ->> 'name' else "name" end, "kind" = case when v_item ? 'kind' then v_item ->> 'kind' else "kind" end, "capacity" = case when v_item ? 'capacity' then (v_item ->> 'capacity')::integer else "capacity" end, "tz" = case when v_item ? 'tz' then v_item ->> 'tz' else "tz" end, "active" = case when v_item ? 'active' then (v_item ->> 'active')::boolean else "active" end, "calendar_id" = case when v_item ? 'calendarId' then nullif(v_item ->> 'calendarId', '')::uuid else "calendar_id" end, "host_id" = case when v_item ? 'hostUserId' then nullif(v_item ->> 'hostUserId', '')::uuid else "host_id" end, "check_busy" = case when v_item ? 'checkBusy' then (v_item ->> 'checkBusy')::boolean else "check_busy" end
     where "id" = v_id and "tenant_id" = v_tenant;
     if not found then
       raise exception 'not found' using errcode = 'P0002', hint = 'BOOKING_NOT_FOUND';
@@ -596,7 +506,7 @@ begin
   end if;
   for v_seat in 1..v_capacity loop
     begin
-      insert into "better_supabase"."bookings" ("tenant_id", "resource_id", "service_id", "seat", "during", "blocked", "status", "hold_expires_at", "customer_name", "customer_email", "customer_user_id", "notes", "access_hash", "created_by")
+      insert into "better_supabase"."bookings" ("tenant_id", "resource_id", "service_id", "seat", "during", "blocked", "status", "hold_expires_at", "customer_name", "customer_email", "customer_id", "notes", "access_hash", "created_by")
       values (v_service."tenant_id", place_booking.resource, place_booking.service, v_seat, v_during, v_blocked, v_status, v_expires, v_customer ->> 'name', lower(v_customer ->> 'email'), place_booking.customer_user, v_customer ->> 'notes', encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), auth.uid())
       returning * into v_booking;
       v_id := v_booking."id";
@@ -635,7 +545,7 @@ begin
         using v_id;
     end if;
   end;
-  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'fields', jsonb_build_object('app_note', v_booking."app_note")) || jsonb_build_object('accessToken', v_token);
+  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'fields', jsonb_build_object('app_note', v_booking."app_note")) || jsonb_build_object('accessToken', v_token);
 end;
 $$;
 revoke execute on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
@@ -696,13 +606,13 @@ begin
   if not (
     (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.manage'), false))
     or (change_booking.access_token is not null and v_booking."access_hash" = encode(extensions.digest(convert_to(change_booking.access_token, 'utf8'), 'sha256'), 'hex'))
-    or (change_booking.access_token is null and coalesce(v_booking."customer_user_id" = auth.uid(), false) and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.create'), false)))
+    or (change_booking.access_token is null and coalesce(v_booking."customer_id" = auth.uid(), false) and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.create'), false)))
   ) then
     raise exception 'not allowed to change this booking' using errcode = '42501', hint = 'BOOKING_FORBIDDEN';
   end if;
   if change_booking.to_status = 'confirmed' then
     if v_booking."status" = 'confirmed' then
-      return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'fields', jsonb_build_object('app_note', v_booking."app_note"));
+      return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'fields', jsonb_build_object('app_note', v_booking."app_note"));
     end if;
     if v_booking."status" <> 'hold' or v_booking."hold_expires_at" <= now() then
       raise exception 'the hold has expired or was cancelled' using errcode = '22023', hint = 'BOOKING_HOLD_EXPIRED';
@@ -722,7 +632,7 @@ begin
   end;
   elsif change_booking.to_status = 'cancelled' then
     if v_booking."status" = 'cancelled' then
-      return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'fields', jsonb_build_object('app_note', v_booking."app_note"));
+      return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'fields', jsonb_build_object('app_note', v_booking."app_note"));
     end if;
     update "better_supabase"."bookings" bk set "status" = 'cancelled', "hold_expires_at" = null, "cancelled_at" = now(), "cancel_reason" = change_booking.reason, "updated_at" = now()
     where bk."id" = v_id returning * into v_booking;
@@ -740,7 +650,7 @@ begin
   else
     raise exception 'change a booking to confirmed or cancelled' using errcode = '22023', hint = 'BOOKING_STATUS_INVALID';
   end if;
-  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'fields', jsonb_build_object('app_note', v_booking."app_note"));
+  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'fields', jsonb_build_object('app_note', v_booking."app_note"));
 end;
 $$;
 revoke execute on function "better_supabase"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
@@ -777,7 +687,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_user_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'fields', jsonb_build_object('app_note', bk."app_note")) order by lower(bk."during"), bk."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'fields', jsonb_build_object('app_note', bk."app_note")) order by lower(bk."during"), bk."id"), '[]'::jsonb)
   from "better_supabase"."bookings" bk
   where bk."tenant_id" = list_bookings.tenant
     and bk."during" && tstzrange(list_bookings.range_start, list_bookings.range_end)
@@ -799,7 +709,7 @@ as $$
     'id', rs."id", 'name', rs."name", 'kind', rs."kind",
     'capacity', rs."capacity", 'tz', rs."tz", 'active', rs."active",
     'calendarId', rs."calendar_id",
-    'hostUserId', rs."host_user_id"
+    'hostUserId', rs."host_id"
   ) order by rs."name", rs."id"), '[]'::jsonb)
   from "better_supabase"."booking_resources" rs
   where rs."tenant_id" = list_booking_resources.tenant
@@ -835,136 +745,86 @@ grant execute on function "better_supabase"."list_booking_services"(uuid, boolea
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."booking_resources";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_resources";
 create policy bsb_tenant_scope_select on "better_supabase"."booking_resources" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_resources";
 create policy bsb_tenant_scope_insert on "better_supabase"."booking_resources" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_resources";
 create policy bsb_tenant_scope_update on "better_supabase"."booking_resources" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_resources";
 create policy bsb_tenant_scope_delete on "better_supabase"."booking_resources" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."booking_availability";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_availability";
 create policy bsb_tenant_scope_select on "better_supabase"."booking_availability" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_availability";
 create policy bsb_tenant_scope_insert on "better_supabase"."booking_availability" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_availability";
 create policy bsb_tenant_scope_update on "better_supabase"."booking_availability" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_availability";
 create policy bsb_tenant_scope_delete on "better_supabase"."booking_availability" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."booking_exceptions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_exceptions";
 create policy bsb_tenant_scope_select on "better_supabase"."booking_exceptions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_exceptions";
 create policy bsb_tenant_scope_insert on "better_supabase"."booking_exceptions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_exceptions";
 create policy bsb_tenant_scope_update on "better_supabase"."booking_exceptions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_exceptions";
 create policy bsb_tenant_scope_delete on "better_supabase"."booking_exceptions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."booking_services";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."booking_services";
 create policy bsb_tenant_scope_select on "better_supabase"."booking_services" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."booking_services";
 create policy bsb_tenant_scope_insert on "better_supabase"."booking_services" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."booking_services";
 create policy bsb_tenant_scope_update on "better_supabase"."booking_services" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."booking_services";
 create policy bsb_tenant_scope_delete on "better_supabase"."booking_services" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."bookings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."bookings";
 create policy bsb_tenant_scope_select on "better_supabase"."bookings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_user_id" = (select auth.uid()))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bookings";
 create policy bsb_tenant_scope_insert on "better_supabase"."bookings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."bookings";
 create policy bsb_tenant_scope_update on "better_supabase"."bookings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bookings";
 create policy bsb_tenant_scope_delete on "better_supabase"."bookings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings

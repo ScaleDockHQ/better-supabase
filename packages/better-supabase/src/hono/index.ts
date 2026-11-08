@@ -35,6 +35,7 @@ import { toSession } from "../auth/view.ts";
 import { honoMiddleware } from "../bridges/hono.ts";
 import { dbErrorOf } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
+import { adapterBase } from "../server/adapter-base.ts";
 import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
 import { corsConfig } from "../server/cors.ts";
@@ -42,11 +43,7 @@ import { requireCaller } from "../server/kit.ts";
 import { rateLimitGate } from "../server/rate-limit.ts";
 import { defineResource } from "../server/resource.ts";
 import { matchResource } from "../server/resources.ts";
-import {
-  assertCookieRefresh,
-  defaultExpose,
-  respond,
-} from "../server/respond.ts";
+import { assertCookieRefresh, respond } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
@@ -70,7 +67,7 @@ export { toHono } from "../bridges/hono.ts";
 export type { HonoBridge } from "../bridges/hono.ts";
 
 export type {
-  ActionArgs,
+  ActionParams,
   ResourceAction,
   ResourceContext,
   ResourceHooks,
@@ -268,7 +265,7 @@ export function createHono<
     (options.server as BetterServer<M, F, E, C, P, B, V> | undefined) ??
     createServer(betterSupabase, options);
 
-  const expose = options.exposeErrors ?? defaultExpose();
+  const { expose } = adapterBase(server, options);
 
   const onError: ErrorHandler<HonoEnv<M, F, E, C, P, B>> = (cause, c) => {
     if (cause instanceof HTTPException) {

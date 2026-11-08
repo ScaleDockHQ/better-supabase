@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { PowerSyncSubject } from "../../../src/cli/powersync/streams.ts";
+
+import { projectionsOf } from "../../../src/cli/powersync/projection.ts";
 import {
   powersyncColumnType,
   powersyncOutput,
@@ -68,7 +71,7 @@ describe("powersyncOutput", () => {
     );
 
     expect(output.streams).toContain(
-      'query: "SELECT * FROM better_supabase.attachments WHERE organization_id IN active_orgs"',
+      'query: "SELECT * FROM better_supabase.attachments WHERE tenant_id IN active_orgs"',
     );
   });
 
@@ -109,7 +112,7 @@ describe("powersyncOutput", () => {
     );
 
     expect(gated.streams).toContain(
-      "WHERE organization_id IN active_orgs AND organization_id IN reader_orgs",
+      "WHERE tenant_id IN active_orgs AND tenant_id IN reader_orgs",
     );
   });
 
@@ -228,8 +231,14 @@ describe("powersyncOutput for memberships, teams and profiles", () => {
       memberships: ["memberships", "membership_roles"],
     });
 
+    // Bounded by organization only: every member's roles in the user's
+    // organizations, and a disabled membership doesn't narrow the list.
     expect(roles.streams).toContain(
-      `query: "SELECT organization_id || ':' || user_id || ':' || role AS id, * FROM better_supabase.membership_roles WHERE user_id = auth.user_id()"`,
+      `query: "SELECT organization_id || ':' || user_id || ':' || role AS id, * FROM better_supabase.membership_roles WHERE organization_id IN member_orgs"`,
+    );
+
+    expect(roles.streams).toContain(
+      'member_orgs: "SELECT organization_id FROM better_supabase.memberships WHERE user_id = auth.user_id()"',
     );
 
     expect(roles.streams).toContain(
@@ -256,6 +265,263 @@ describe("powersyncOutput for memberships, teams and profiles", () => {
     expect(extended.schema).toMatch(
       /export const memberships = new Table\(\{[^}]*last_seen_at: column\.text/,
     );
+  });
+});
+
+describe("powersyncOutput shaping", () => {
+  const base = renderBlocks(["memberships", "attachments"], { modules: {} });
+
+  const run = (
+    app: string,
+    projections?: Parameters<typeof powersyncOutput>[0]["projections"],
+    extra: Partial<Parameters<typeof powersyncOutput>[0]> = {},
+  ) =>
+    powersyncOutput({
+      files: [
+        ...base,
+        {
+          path: "supabase/schemas/app.sql",
+          module: "app",
+          kind: "schema",
+          contents: app,
+        },
+      ],
+      instances: [
+        { key: "memberships", block: "memberships" },
+        { key: "attachments", block: "attachments" },
+      ],
+      importFrom: "@powersync/common",
+      ...(projections === undefined ? {} : { projections }),
+      ...extra,
+    });
+
+  const jobs = {
+    table: "public.jobs",
+    id: "id",
+    tenant: "organization_id",
+    deletedAt: "deleted_at",
+  } as const;
+
+  it("scopes a view's attachments to the rows of the subject it keeps", () => {
+    const projections = projectionsOf([
+      {
+        text: `create view public.job_attachments as
+          select id, tenant_id as organization_id, subject_id as job_id from better_supabase.attachments where subject_type = 'job';`,
+      },
+    ]);
+
+    const synced = run("", projections, { subjects: new Map([["job", jobs]]) });
+
+    expect(synced.streams).toContain(
+      "AND subject_id IN (SELECT id::text FROM public.jobs WHERE organization_id IN active_orgs AND deleted_at IS NULL)",
+    );
+  });
+
+  it("leaves attachments alone when the subject is unknown or has no tenant", () => {
+    const projections = projectionsOf([
+      {
+        text: `create view public.job_attachments as
+          select id, tenant_id as organization_id from better_supabase.attachments where subject_type = 'job';`,
+      },
+    ]);
+
+    expect(run("", projections).streams).not.toContain("subject_id IN");
+
+    expect(
+      run("", projections, {
+        subjects: new Map([["job", { ...jobs, tenant: false }]]),
+      }).streams,
+    ).not.toContain("subject_id IN");
+  });
+
+  const quotes = {
+    table: "public.quotes",
+    id: "id",
+    tenant: "organization_id",
+  } as const;
+
+  const several = (where: string) =>
+    projectionsOf([
+      {
+        text: `create view public.case_attachments as
+          select id, tenant_id as organization_id, subject_type, subject_id from better_supabase.attachments where ${where};`,
+      },
+    ]);
+
+  it("scopes a view that keeps several subjects to each subject's own rows", () => {
+    const subjects = new Map<string, PowerSyncSubject>([
+      ["job", jobs],
+      ["quote", quotes],
+    ]);
+
+    for (const where of [
+      "subject_type in ('job', 'quote')",
+      "subject_type = 'job' or subject_type = 'quote'",
+    ]) {
+      const { streams } = run("", several(where), { subjects });
+
+      expect(streams).toContain(
+        "AND (subject_type = 'job' AND subject_id IN (SELECT id::text FROM public.jobs WHERE organization_id IN active_orgs AND deleted_at IS NULL) OR subject_type = 'quote' AND subject_id IN (SELECT id::text FROM public.quotes WHERE organization_id IN active_orgs))",
+      );
+      expect(streams).toContain(`(${where})`);
+    }
+  });
+
+  it("keeps a subject type the app doesn't register to its organization bound", () => {
+    const { streams } = run("", several("subject_type in ('job', 'note')"), {
+      subjects: new Map([["job", jobs]]),
+    });
+
+    expect(streams).toContain("OR subject_type = 'note')");
+    expect(streams).not.toContain("quotes");
+  });
+
+  it("leaves several unregistered subjects organization-wide", () => {
+    expect(
+      run("", several("subject_type in ('a', 'b')")).streams,
+    ).not.toContain("subject_id IN");
+  });
+
+  const parties = new Map([
+    ["id", "uuid"],
+    ["job_id", "uuid"],
+    ["name", "text"],
+  ]);
+
+  const child = {
+    table: "public.job_parties",
+    parent: "job",
+    column: "job_id",
+    columns: parties,
+  };
+
+  it("streams a child table with the rows of its parent subject", () => {
+    const synced = run("", undefined, {
+      subjects: new Map([["job", jobs]]),
+      children: [child],
+    });
+
+    expect(synced.children).toEqual(["job_parties"]);
+    expect(synced.published).toContain("public.job_parties");
+
+    expect(synced.streams).toContain(
+      '  job_parties:\n    auto_subscribe: true\n    with:\n      active_orgs: "SELECT organization_id FROM better_supabase.memberships WHERE user_id = auth.user_id()',
+    );
+
+    expect(synced.streams).toContain(
+      "SELECT * FROM public.job_parties WHERE job_id IN (SELECT id FROM public.jobs WHERE organization_id IN active_orgs AND deleted_at IS NULL)",
+    );
+
+    expect(synced.schema).toContain("export const job_parties = new Table({");
+  });
+
+  it("refuses a child whose parent isn't a subject, has no tenant or lacks columns", () => {
+    expect(() => run("", undefined, { children: [child] })).toThrow(
+      /no table tags as `@bsb subject`/,
+    );
+
+    expect(() =>
+      run("", undefined, {
+        subjects: new Map([["job", { ...jobs, tenant: false }]]),
+        children: [child],
+      }),
+    ).toThrow(/has no tenant column/);
+
+    expect(() =>
+      run("", undefined, {
+        subjects: new Map([["job", jobs]]),
+        children: [{ ...child, columns: new Map() }],
+      }),
+    ).toThrow(/has no job_id column/);
+
+    expect(() =>
+      run("", undefined, {
+        subjects: new Map([["job", jobs]]),
+        children: [{ ...child, columns: new Map([["job_id", "uuid"]]) }],
+      }),
+    ).toThrow(/no id column/);
+  });
+
+  it("leaves the provider's version column out of the stream and the schema", () => {
+    const synced = run(
+      "alter table better_supabase.memberships add column authz_version bigint, add column note text;",
+    );
+
+    expect(synced.streams).toMatch(
+      /memberships WHERE|FROM better_supabase\.memberships/,
+    );
+    expect(synced.streams).not.toContain("authz_version");
+    expect(synced.schema).not.toContain("authz_version");
+    expect(synced.schema).toContain("note: column.text");
+    expect(synced.streams).toContain("note");
+  });
+
+  it("sends a bigint id as text and keeps the real id of an adopted table", () => {
+    const adopted = powersyncOutput({
+      files: [],
+      instances: [{ key: "memberships", block: "memberships" }],
+      own: new Map([
+        [
+          "memberships",
+          new Map([
+            [
+              "public.memberships",
+              new Map([
+                ["id", "bigint"],
+                ["organization_id", "uuid"],
+                ["user_id", "uuid"],
+                ["role", "text"],
+              ]),
+            ],
+          ]),
+        ],
+      ]),
+      importFrom: "@powersync/common",
+    });
+
+    expect(adopted.streams).toContain(
+      "SELECT id::text AS id, organization_id, user_id, role FROM public.memberships WHERE user_id = auth.user_id()",
+    );
+  });
+
+  it("streams the columns and rows of the app's view under the view's names", () => {
+    const projections = projectionsOf([
+      {
+        text: `create view public.job_attachments with (security_invoker = true) as
+          select id, tenant_id as organization_id, name from better_supabase.attachments where subject_type = 'job';`,
+      },
+    ]);
+
+    const synced = run("", projections);
+
+    expect(synced.streams).toContain(
+      "SELECT id, tenant_id AS organization_id, name FROM better_supabase.attachments WHERE",
+    );
+    expect(synced.streams).toContain("AND (subject_type = 'job')");
+    expect(synced.schema).toMatch(
+      /export const attachments = new Table\(\{\n {2}organization_id: column\.text,\n {2}name: column\.text,\n\}\);/,
+    );
+  });
+});
+
+describe("projectionsOf", () => {
+  it("reads a view over one table and skips joins and expressions", () => {
+    const found = projectionsOf([
+      {
+        text: `create view public.a as select x, y as z from b.t;
+create view public.c as select t.x from b.t join b.u on true;
+create view public.d as select lower(x) as x from b.v;`,
+      },
+    ]);
+
+    expect([...found.keys()]).toEqual(["b.t"]);
+    expect(found.get("b.t")).toEqual({
+      view: "public.a",
+      columns: [
+        { source: "x", name: "x" },
+        { source: "y", name: "z" },
+      ],
+    });
   });
 });
 
@@ -390,7 +656,7 @@ describe("powersyncOutput for the care blocks", () => {
 
     expect(out.tables["activities"]).toEqual([
       "activities",
-      "engagement_subjects",
+      "activity_subjects",
     ]);
 
     expect(out.streams).toContain(

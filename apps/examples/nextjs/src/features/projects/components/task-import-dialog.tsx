@@ -5,7 +5,6 @@ import { useAction } from "better-supabase/react";
 import { TriangleAlertIcon, UploadIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -35,12 +34,13 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { TaskImportField } from "../project-types";
 
 import { TASK_IMPORT_FIELDS } from "../project-types";
-import { previewTaskImport, runTaskImport } from "../task-import-actions";
+import { previewTaskImport, runTaskImport } from "../projects-actions";
 
 // #region recipe:upsert-import
 

@@ -147,7 +147,7 @@ describe.skipIf(!live)("notifications", () => {
 
       for (const file of renderBlocks(
         ["organizations", "outbox", "notifications"],
-        LAYOUT,
+        { ...LAYOUT, rerunnable: true },
       )) {
         await client.query(file.contents);
       }
@@ -550,6 +550,7 @@ describe.skipIf(!live)("notifications", () => {
       }
 
       for (const file of renderBlocks(["organizations", "notifications"], {
+        rerunnable: true,
         modules: { notifications: { columns: { events: { key: null } } } },
       })) {
         await client.query(file.contents);
@@ -590,7 +591,7 @@ describe.skipIf(!live)("notifications", () => {
 
       await s.as("service");
       await client.query(
-        "insert into better_supabase.notification_events (id, organization_id, type) values ($1, $2, 'task.assigned')",
+        "insert into better_supabase.notification_events (id, tenant_id, type) values ($1, $2, 'task.assigned')",
         [legacy, organization],
       );
       await s.as("owner");
@@ -625,6 +626,7 @@ describe.skipIf(!live)("notifications", () => {
       );
 
       for (const file of renderBlocks(["organizations", "notifications"], {
+        rerunnable: true,
         modules: {
           notifications: {
             on: {
@@ -685,7 +687,7 @@ describe.skipIf(!live)("notifications", () => {
 
       expect(
         await s.value(
-          "(select coalesce(array_agg(subject_id), '{}') from better_supabase.notification_events where organization_id = $1)",
+          "(select coalesce(array_agg(subject_id), '{}') from better_supabase.notification_events where tenant_id = $1)",
           [organization],
         ),
       ).toEqual([kept]);
@@ -693,7 +695,7 @@ describe.skipIf(!live)("notifications", () => {
       expect(await s.recipients(stays!)).toEqual([USERS.member]);
       expect(
         await s.value(
-          "(select coalesce(array_agg(subject_id), '{}') from better_supabase.notification_subscriptions where organization_id = $1)",
+          "(select coalesce(array_agg(subject_id), '{}') from better_supabase.notification_subscriptions where tenant_id = $1)",
           [organization],
         ),
       ).toEqual([kept]);
@@ -757,7 +759,7 @@ describe.skipIf(!live)("notifications", () => {
 
       for (const file of renderBlocks(
         ["organizations", "profiles", "notifications"],
-        LAYOUT,
+        { ...LAYOUT, rerunnable: true },
       )) {
         await client.query(file.contents);
       }
@@ -783,7 +785,7 @@ describe.skipIf(!live)("notifications", () => {
         [organization, USERS.member],
       );
       await client.query(
-        "insert into better_supabase.notification_preferences (user_id, organization_id, type, channel, enabled) values ($1, null, '*', 'email', true)",
+        "insert into better_supabase.notification_preferences (user_id, tenant_id, type, channel, enabled) values ($1, null, '*', 'email', true)",
         [USERS.member],
       );
 
@@ -904,10 +906,10 @@ describe.skipIf(!live)("notifications", () => {
         );
       }
 
-      for (const file of renderBlocks(
-        ["organizations", "notifications"],
-        LAYOUT,
-      )) {
+      for (const file of renderBlocks(["organizations", "notifications"], {
+        ...LAYOUT,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 

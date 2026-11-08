@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { defineApi } from "../../src/spec/api.ts";
 import {
@@ -12,7 +12,7 @@ import {
 import { schema } from "../fixtures/generated-camel.ts";
 import { problems, validatorFor } from "./validator.ts";
 
-const workflows = defineApi(defineSupabase(schema), {
+const workflows = defineApi(createSupabase(schema), {
   info: { title: "CRM workflows", version: "1.0.0" },
   resources: { customers: { pagination: "cursor" } },
   workflows: [

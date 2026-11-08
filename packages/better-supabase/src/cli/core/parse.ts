@@ -60,7 +60,7 @@ export function commandTree(
  * The index of the next token that is not an option or a global option's value,
  * from `start`.
  */
-export function positionalIndex(argv: readonly string[], start = 0): number {
+function positionalIndex(argv: readonly string[], start = 0): number {
   for (let index = start; index < argv.length; index += 1) {
     const token = argv[index]!;
 

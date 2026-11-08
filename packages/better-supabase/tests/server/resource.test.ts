@@ -8,7 +8,7 @@ import type {
 import type { Executor } from "../../src/core/executor.ts";
 
 import { defineAuthorizer, requestMemo } from "../../src/core/authorizer.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { defineListQuery } from "../../src/list/index.ts";
@@ -17,7 +17,7 @@ import { defineResource } from "../../src/server/resource.ts";
 import { planResource } from "../../src/spec/resource.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 function fakeDb() {
   const queries: Parameters<Executor["execute"]>[0][] = [];

@@ -19,7 +19,7 @@ export const DEAL_COLUMNS: Readonly<Record<string, string>> = {
   companyId: "company_id",
   motion: "motion",
   priority: "priority",
-  owner: "owner_user_id",
+  owner: "owner_id",
   product: "product",
   seats: "seats",
   amount: "amount",
@@ -100,8 +100,8 @@ export interface DealNames {
   /** SQL that is true for the service role. */
   readonly service: string;
   /**
-   * `options.extraColumns`, which `create_deal` and `update_deals` write by
-   * name.
+   * The columns your schema files add, which `create_deal` and `update_deals`
+   * write by name.
    */
   readonly extras: readonly ExtraColumn[];
   readonly lineExtras: readonly ExtraColumn[];

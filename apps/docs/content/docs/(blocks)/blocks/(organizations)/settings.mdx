@@ -213,7 +213,7 @@ const { state, actions } = useBlockController(createSettingsController, {
 
 ```svelte title="Preferences.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import {
     createSettings,
     createSettingsController,
@@ -222,7 +222,7 @@ const { state, actions } = useBlockController(createSettingsController, {
 
   import { settings } from "$lib/settings";
 
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const preferences = useBlockController(createSettingsController, {
     entries: settings.schemas.user,
     user: createSettings({ settings, transport: rpcTransport(supabase) }),
@@ -279,8 +279,9 @@ export const platformSettings = defineSettings({
 });
 ```
 
-Pass the definition as `blocks.settings.options.schemas`, so the
-module writes the permission and read rule of each key into the policies.
+Pass the definition as `blocks.settings.options.schemas`, or name it in
+`standardSchema({ settings: "./src/settings.ts#settings" })` and leave the
+option out, so the module writes the permission and read rule of each key into the policies.
 When `schemas` lists platform keys, only those keys can be written: a key
 the config doesn't list is refused, so a typo or a stale key never lands in
 `platform_settings`. Rows that exist without a listed key are read with

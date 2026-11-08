@@ -1,98 +1,74 @@
 -- ==== schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:eed7c87200ccfc4f09d751a098a3862183fdd52523a9ad3beefd26c6f5f63b26
+-- @bsb-hash sha256:181f14422466f962c1e17618b773ff893b862a3d37f07c76408576b337babd53
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eval_datasets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eval_datasets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."eval_runs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."eval_runs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Evaluation datasets and runs. A dataset holds items (an input and, when
 -- known, the expected output); a run replays the items against one prompt
 -- version and model and keeps a score per scorer for each item. Inputs and
 -- outputs can hold user content, so only the service role reads and writes
 -- them.
-create table if not exists "better_supabase"."eval_datasets" (
+create table "better_supabase"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "description" text check (length("description") <= 2000),
+  "name" text not null constraint bsb_eval_datasets_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "description" text constraint bsb_eval_datasets_description_check check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("workspace_id"::text, '')), "name");
+create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("workspace_id"::text, '')), "name");
 alter table "better_supabase"."eval_datasets" enable row level security;
 revoke all on "better_supabase"."eval_datasets" from public, anon, authenticated;
 grant all on "better_supabase"."eval_datasets" to service_role;
 
-create table if not exists "better_supabase"."eval_items" (
+create table "better_supabase"."eval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "input" jsonb not null,
   "expected" jsonb,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_eval_items_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "source_chat_id" text,
   "source_message_id" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "eval_items_dataset_idx" on "better_supabase"."eval_items" ("dataset_id", "id");
-create unique index if not exists "bsb_eval_items_source_key" on "better_supabase"."eval_items" ("dataset_id", "source_chat_id", "source_message_id") where "source_chat_id" is not null;
+create index "eval_items_dataset_idx" on "better_supabase"."eval_items" ("dataset_id", "id");
+create unique index "bsb_eval_items_source_key" on "better_supabase"."eval_items" ("dataset_id", "source_chat_id", "source_message_id") where "source_chat_id" is not null;
 alter table "better_supabase"."eval_items" enable row level security;
 revoke all on "better_supabase"."eval_items" from public, anon, authenticated;
 grant all on "better_supabase"."eval_items" to service_role;
 
-create table if not exists "better_supabase"."eval_runs" (
+create table "better_supabase"."eval_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "workspace_id" uuid,
   "prompt_name" text not null,
-  "prompt_version" integer not null check ("prompt_version" >= 1),
+  "prompt_version" integer not null constraint bsb_eval_runs_prompt_version_check check ("prompt_version" >= 1),
   "model" text not null,
-  "scorers" jsonb not null default '[]'::jsonb check (jsonb_typeof("scorers") = 'array'),
-  "status" text not null default 'running' check ("status" in ('running', 'completed', 'failed', 'cancelled')),
+  "scorers" jsonb not null default '[]'::jsonb constraint bsb_eval_runs_scorers_check check (jsonb_typeof("scorers") = 'array'),
+  "status" text not null default 'running' constraint bsb_eval_runs_status_check check ("status" in ('running', 'completed', 'failed', 'cancelled')),
   "summary" jsonb,
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
 );
-create index if not exists "eval_runs_dataset_idx" on "better_supabase"."eval_runs" ("dataset_id", "created_at" desc);
+create index "eval_runs_dataset_idx" on "better_supabase"."eval_runs" ("dataset_id", "created_at" desc);
 alter table "better_supabase"."eval_runs" enable row level security;
 revoke all on "better_supabase"."eval_runs" from public, anon, authenticated;
 grant all on "better_supabase"."eval_runs" to service_role;
 
-create table if not exists "better_supabase"."eval_results" (
+create table "better_supabase"."eval_results" (
   "run_id" uuid not null references "better_supabase"."eval_runs" ("id") on delete cascade,
   "item_id" uuid not null references "better_supabase"."eval_items" ("id") on delete cascade,
   "output" text,
-  "scores" jsonb not null default '{}'::jsonb check (jsonb_typeof("scores") = 'object'),
+  "scores" jsonb not null default '{}'::jsonb constraint bsb_eval_results_scores_check check (jsonb_typeof("scores") = 'object'),
   "passed" boolean not null,
   "error" text,
-  "latency_ms" integer check ("latency_ms" >= 0),
+  "latency_ms" integer constraint bsb_eval_results_latency_ms_check check ("latency_ms" >= 0),
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "item_id")
 );
-create index if not exists "eval_results_item_idx" on "better_supabase"."eval_results" ("item_id");
+create index "eval_results_item_idx" on "better_supabase"."eval_results" ("item_id");
 alter table "better_supabase"."eval_results" enable row level security;
 revoke all on "better_supabase"."eval_results" from public, anon, authenticated;
 grant all on "better_supabase"."eval_results" to service_role;
@@ -458,19 +434,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals

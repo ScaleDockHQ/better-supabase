@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { DbException } from "../../src/core/errors.ts";
 import { capturingClient, query } from "../fixtures/client.ts";
 import { schema as camel } from "../fixtures/generated-camel.ts";
 import { schema as snake } from "../fixtures/generated.ts";
 
-const sbCamel = defineSupabase(camel);
-const sbSnake = defineSupabase(snake);
+const sbCamel = createSupabase(camel);
+const sbSnake = createSupabase(snake);
 
 describe("reads", () => {
   it("aliases camel-cased columns inside the select", async () => {
@@ -819,7 +819,7 @@ describe("events", () => {
       body: [{ id: "x" }],
     }));
 
-    const betterSupabase = defineSupabase(camel);
+    const betterSupabase = createSupabase(camel);
     const seen: string[] = [];
 
     const off = betterSupabase.on("mutation", (event) => {
@@ -850,7 +850,7 @@ describe("events", () => {
     }));
 
     const logger = { debug() {}, info() {}, warn() {}, error: vi.fn() };
-    const betterSupabase = defineSupabase(camel, { logger });
+    const betterSupabase = createSupabase(camel, { logger });
     betterSupabase.on("error", (event) => {
       (event.error as { message: string }).message = "changed";
     });
@@ -872,7 +872,7 @@ describe("events", () => {
 
   it("reports arguments the builder rejects as error events with the table", async () => {
     const { client, requests } = capturingClient();
-    const betterSupabase = defineSupabase(camel);
+    const betterSupabase = createSupabase(camel);
     const errors: unknown[] = [];
     betterSupabase.on("error", (event) => errors.push(event));
 
@@ -890,7 +890,7 @@ describe("events", () => {
 
   it("rejects _count and measures outside include instead of ignoring them", async () => {
     const { client, requests } = capturingClient();
-    const customers = defineSupabase(camel).connect(client).customers;
+    const customers = createSupabase(camel).connect(client).customers;
 
     // SAFETY: an untyped caller (JavaScript, a cast) passes the key anyway.
     const loose = (args: object) => args as never;
@@ -944,7 +944,7 @@ describe("row caps and default order", () => {
     const { client } = capturingClient(() => ({ body: rows }));
     const warn = vi.fn();
     const logger = { debug() {}, info() {}, warn, error() {} };
-    const betterSupabase = defineSupabase(camel, { maxRows: 2, logger });
+    const betterSupabase = createSupabase(camel, { maxRows: 2, logger });
     const truncated: boolean[] = [];
     betterSupabase.on("query", (event) => truncated.push(event.truncated));
     const db = betterSupabase.connect(client);

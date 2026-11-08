@@ -59,6 +59,16 @@ create table storage.objects (
   version text
 );
 alter table storage.objects enable row level security;
+
+-- PGlite has no Realtime schema; block policies are written on its messages table.
+create schema if not exists realtime;
+create table realtime.messages (
+  id bigint generated always as identity primary key,
+  topic text not null default '',
+  extension text not null default 'broadcast'
+);
+create function realtime.topic() returns text language sql stable
+as $$ select nullif(current_setting('realtime.topic', true), '') $$;
 `;
 
 // The inbox's version 7 contact tables, and the contacts block's link table,
@@ -176,7 +186,7 @@ const BOOT = { timeout: 60_000 };
 
 describe("inbox version 8 upgrade", BOOT, () => {
   it("moves inbox contacts onto people without losing a row", async () => {
-    const files = renderBlocks(["inbox", "identities"]);
+    const files = renderBlocks(["inbox", "identities"], { rerunnable: true });
 
     const plan = upgradePlan(
       [

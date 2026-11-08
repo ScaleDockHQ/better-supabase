@@ -1,92 +1,10 @@
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:790efc5b121692dfcabf5cb4b084340e13da1e90247462aabddf3b32700b5c8c
+-- @bsb-hash sha256:1f6fa5332d48d660d991c5be9e5f17c6bc1de138148c78c195653bb107cf4dc4
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."organization_number_sequences";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."organization_number_sequences";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."organization_number_sequences";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."organization_number_sequences";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."organization_number_sequences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Gapless numbers. next_number locks the sequence row inside the caller's
 -- transaction, so a rollback releases the number. Clients get a number
 -- only through a trigger: the function is service-only.
@@ -94,27 +12,6 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "centrakit"."organization_number_sequences" add column if not exists "scope" text not null default '';
 alter table "centrakit"."organization_number_sequences" enable row level security;
 grant all on "centrakit"."organization_number_sequences" to service_role;
-do $$
-declare
-  v_constraint record;
-begin
-  for v_constraint in
-    select c.conname
-    from pg_catalog.pg_constraint c
-    where c.conrelid = '"centrakit"."organization_number_sequences"'::pg_catalog.regclass
-      and c.contype in ('p', 'u')
-      and not exists (
-        select 1
-        from pg_catalog.pg_attribute a
-        where a.attrelid = c.conrelid
-          and a.attnum = any (c.conkey)
-          and a.attname = 'scope'
-      )
-  loop
-    execute pg_catalog.format('alter table "centrakit"."organization_number_sequences" drop constraint %I', v_constraint.conname);
-  end loop;
-end
-$$;
 create unique index if not exists number_sequences_series_key on "centrakit"."organization_number_sequences" ("tenant_id", "entity", "scope", "period");
 
 create or replace function better_supabase.format_assigned_number(template text, n bigint, at timestamptz)
@@ -216,8 +113,7 @@ revoke execute on function better_supabase.number_format_pattern(text) from publ
 grant execute on function better_supabase.number_format_pattern(text) to service_role;
 
 -- PostgreSQL refuses CREATE OR REPLACE when an argument is renamed.
-drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz) cascade;
-drop function if exists "better_supabase"."next_number"(uuid, text, timestamptz, text) cascade;
+
 create or replace function "better_supabase"."next_number"(tenant uuid, p_entity text, at timestamptz default now(), p_scope text default '')
 returns bigint
 language plpgsql
@@ -397,8 +293,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."number_period"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."number_period"(uuid, text) to service_role;
-
-drop function if exists "better_supabase"."preview_number"(uuid, text, timestamptz);
 create or replace function "better_supabase"."preview_number"(p_tenant uuid, p_entity text, p_at timestamptz default now(), p_scope text default '')
 returns text
 language plpgsql
@@ -437,7 +331,7 @@ grant execute on function "better_supabase"."preview_number"(uuid, text, timesta
 -- syncs every one. Returns { synced, mismatched }: the numbers that don't
 -- match the current format are listed (and added to the import run as
 -- warnings), never rejected.
-drop function if exists "better_supabase"."sync_number_sequences"(uuid, text);
+
 create or replace function "better_supabase"."sync_number_sequences"(p_tenant uuid default null, p_entity text default null, p_scope text default null)
 returns jsonb
 language plpgsql
@@ -469,16 +363,3 @@ end;
 $$;
 revoke execute on function "better_supabase"."sync_number_sequences"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."sync_number_sequences"(uuid, text, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

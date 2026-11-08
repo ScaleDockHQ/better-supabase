@@ -11,7 +11,6 @@ import { useAction } from "better-supabase/react";
 import { BookmarkIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState, useTransition } from "react";
-import { toast } from "sonner";
 import * as v from "valibot";
 
 import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
@@ -58,6 +57,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Link, usePathname, useRouter, withSearch } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type {
@@ -68,13 +68,13 @@ import type {
   TaskViewOption,
 } from "../project-types";
 
+import { TASK_STATUSES, taskSearch } from "../project-types";
 import {
   deleteTaskView,
   runTaskBulkAction,
   saveTaskView,
   setTaskField,
-} from "../project-actions";
-import { TASK_STATUSES, taskSearch } from "../project-types";
+} from "../projects-actions";
 import { useStatusLabel } from "../use-task-labels";
 import { TaskStatusBadge } from "./task-status-badge";
 
@@ -522,6 +522,7 @@ function TitleCell({ row }: GridCell) {
   return (
     <Link
       href={`/projects/${row.original.projectId}`}
+      prefetch
       className="font-medium hover:underline"
     >
       {row.original.title}

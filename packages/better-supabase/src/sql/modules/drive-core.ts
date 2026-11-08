@@ -78,6 +78,27 @@ export function driveCoreSql(kit: DriveKit): string {
 
   const tables = driveTablesSql(kit);
 
+  // With attachments the node JSON carries the file, so drive-files declares
+  // the one function; the core declares it only when no file module will.
+  const files = ctx.installed("drive-files")
+    ? ctx.of("drive-files")
+    : undefined;
+
+  const nodeJsonFunction =
+    kit.A !== undefined && files !== undefined && files.mode !== "custom"
+      ? ""
+      : `create or replace function ${fn("drive_node_json")}(node ${T})
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select ${nodeJson("")}
+$$;
+revoke execute on function ${fn("drive_node_json")}(${T}) from public, anon, authenticated;
+`;
+
   const ancestors = pathMode
     ? `  select string_to_array(btrim(x.${n("path")}, '/'), '/')::uuid[] from ${T} x where x.${n("id")} = drive_ancestors.node`
     : `  with recursive up (id, parent, depth) as (
@@ -360,32 +381,22 @@ ${
 $$;
 ${userGrant(`${fn("drive_readable_ids")}()`)}
 
-create or replace function ${fn("drive_node_json")}(node ${T})
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select ${nodeJson("")}
-$$;
-revoke execute on function ${fn("drive_node_json")}(${T}) from public, anon, authenticated;
-${
-  ctx.manages && readPolicy
-    ? `
-${renderPolicy(makePolicy({ table: T, name: ctx.naming.rename("drive_nodes_read"), command: "select", roles: ["authenticated"], using: `${ctx.has("nodes", "deletedAt") ? `${n("deletedAt")} is null and ` : ""}${n("id")} in (select ${fn("drive_readable_ids")}())` }), { drop: true, target: T })}
+${nodeJsonFunction}${
+    ctx.manages && readPolicy
+      ? `
+${renderPolicy(makePolicy({ table: T, name: ctx.naming.rename("drive_nodes_read"), command: "select", roles: ["authenticated"], using: `${ctx.has("nodes", "deletedAt") ? `${n("deletedAt")} is null and ` : ""}${n("id")} in (select ${fn("drive_readable_ids")}())` }), { target: T })}
 `
-    : ""
-}${
+      : ""
+  }${
     readPolicy && drives && D !== undefined && ctx.owns("drives")
       ? `
-${renderPolicy(makePolicy({ table: D, name: ctx.naming.rename("drive_drives_read"), command: "select", roles: ["authenticated"], using: `${d("id")} in (select ${fn("drive_drive_readable_ids")}())` }), { drop: true, target: D })}
+${renderPolicy(makePolicy({ table: D, name: ctx.naming.rename("drive_drives_read"), command: "select", roles: ["authenticated"], using: `${d("id")} in (select ${fn("drive_drive_readable_ids")}())` }), { target: D })}
 `
       : ""
   }${
     readPolicy && drives && DG !== undefined && ctx.owns("driveGrants")
       ? `
-${renderPolicy(makePolicy({ table: DG, name: ctx.naming.rename("drive_drive_grants_read"), command: "select", roles: ["authenticated"], using: `${dg("drive")} in (select ${fn("drive_drive_readable_ids")}())` }), { drop: true, target: DG })}
+${renderPolicy(makePolicy({ table: DG, name: ctx.naming.rename("drive_drive_grants_read"), command: "select", roles: ["authenticated"], using: `${dg("drive")} in (select ${fn("drive_drive_readable_ids")}())` }), { target: DG })}
 `
       : ""
   }${driveTriggersSql(kit)}

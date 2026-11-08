@@ -161,7 +161,7 @@ export interface QueueProvider {
    * Deletes up to `batch` archived messages of `queue`; an unset option keeps
    * the SQL default. Returns how many. Absent when the backend can't.
    */
-  purge?(queue: string, options: QueuePurgeArgs): Promise<number>;
+  purge?(queue: string, options: QueuePurgeOptions): Promise<number>;
   schedule(
     name: string,
     cron: string,
@@ -209,7 +209,7 @@ interface ScheduleListRow {
   readonly tenant: string | null;
   readonly next_run: Date | string | null;
   readonly last_run: Date | string | null;
-  readonly locked_until: Date | string | null;
+  readonly lock_expires_at: Date | string | null;
   readonly created_at: Date | string | null;
   readonly payload?: unknown;
 }
@@ -313,7 +313,7 @@ const scheduleInfo = (row: ScheduleListRow): StoredSchedule => ({
   tenant: row.tenant,
   nextRun: instantOrNull(row.next_run),
   lastRun: instantOrNull(row.last_run),
-  leasedUntil: instantOrNull(row.locked_until),
+  leasedUntil: instantOrNull(row.lock_expires_at),
   createdAt: instantOrNull(row.created_at),
   ...(row.payload === undefined ? {} : { payload: row.payload }),
 });
@@ -603,7 +603,7 @@ export function transportRows<T>(fn: string, value: unknown): readonly T[] {
 }
 
 /** The intervals are Postgres intervals such as `"7 days"`. */
-export interface QueuePurgeArgs {
+export interface QueuePurgeOptions {
   readonly olderThan?: string | undefined;
   readonly deadOlderThan?: string | undefined;
   readonly batch?: number | undefined;

@@ -20,14 +20,14 @@ import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
+import { PROJECT_SUBJECT } from "../project-types";
 import {
   getMemberOptions,
   getProject,
   getProjectHistory,
   getTasks,
   settle,
-} from "../project-queries";
-import { PROJECT_SUBJECT } from "../project-types";
+} from "../projects-queries";
 import { ProjectHistory } from "./project-history";
 import { ProjectLoadError } from "./project-load-error";
 import { TaskFormDialog } from "./task-form-dialog";
@@ -40,13 +40,8 @@ import { TaskStatusBadge } from "./task-status-badge";
  * tasks through the `project_id` reference, and the comments and tags that
  * reach it because `projects` is a subject.
  */
-export async function ProjectPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, session, permissions] = await Promise.all([
-    params,
+export async function ProjectPage({ id }: { id: string }) {
+  const [session, permissions] = await Promise.all([
     getSession(),
     getPermissions(),
   ]);

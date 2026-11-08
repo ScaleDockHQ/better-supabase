@@ -119,7 +119,7 @@ An archived asset location is an inactive stock location, so
 
 ## Your own fields
 
-`blocks.inventory.options.extraColumns` adds columns to the `inventory_locations` table,
+Columns you add to `inventory_locations` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. `saveLocation` writes them from `fields` and returns them under `fields`; a location you save without `fields` keeps its values. Pass a
 [Standard Schema](https://standardschema.dev) as `fields` to type them,
 parse them on reads and validate them on writes; a bad value is a
@@ -173,6 +173,11 @@ variant with `allowBackorder` can go negative.
 `setReorderPoint(variantId, locationId, 10)` stores a threshold. When
 available stock drops to it or below, the module emits
 `stock.reorder_point_reached`, once per crossing.
+
+`setReorderQuantity({ variantId, locationId, reorderQuantity })` stores how much
+to order when stock reaches that point (`null` clears it) in
+`stock_levels.reorder_quantity`, so a reorder job reads both numbers from the
+base table. It needs `inventory.manage`.
 
 A catalog variant or product with stock history can't be deleted
 (`CATALOG_VARIANT_IN_USE`, `CATALOG_PRODUCT_IN_USE`); archive it instead.
@@ -265,6 +270,12 @@ first-expiry-first-out: the lot that expires first, then the stock outside any
 lot. A sale or a transfer out skips hold bins and expired lots, and stock in a
 hold bin counts as `held`, so `available` is on hand minus reserved minus held.
 
+`pickSerials({ variantId, locationId, quantity, lotId? })` returns the serial
+numbers to take for a pick, the oldest in stock first, from one lot when you
+pass `lotId`. It changes nothing: pass the result in the `detail` of
+`adjustStock`. It fails with `INVENTORY_INSUFFICIENT` when fewer serials are in
+stock, and replaces app SQL that chose serials by hand.
+
 `expiringLots(organizationId, "2027-03-01")` lists the lots with stock that
 expire before a date. `expireLots(organizationId)` is a service function that
 scraps the stock of lots that have expired, as `expired` movements.
@@ -316,6 +327,18 @@ await inventory
   .releaseAllocations(organizationId, "work_order", workOrder.id)
   .orThrow();
 ```
+
+`releaseAllocation({ allocationId })` releases one open allocation, and
+`transferAllocation({ allocationId, documentType, documentId, lineId })` moves
+it to another document (such as a quote that became an order) and keeps what it
+holds. They call the SQL functions `release_allocation(allocation)` and
+`transfer_allocation(allocation, document_type, document_id, line_id)`. Both
+fail with `INVENTORY_ALLOCATION_CLOSED` for an allocation that is no longer open
+and with `INVENTORY_ALLOCATION_NOT_FOUND` for an unknown one. A release frees the
+stock for waiting backorders and records `allocation.released`; a move records
+`allocation.transferred`, with the old document in `documentType` and
+`documentId` and the new one in `toDocumentType` and `toDocumentId`. They
+replace app SQL that updated `stock_allocations` rows.
 
 Pass `backorder: false` to refuse what isn't available
 (`INVENTORY_INSUFFICIENT`). Orders allocate their lines themselves (see
@@ -371,7 +394,7 @@ receipt above what is owed fails with `INVENTORY_OVER_RECEIPT`. Cancelling
 removes the units still owed from incoming.
 
 Unit costs are `bigint` minor units in the order's currency, checked against
-the catalog's ISO 4217 list. The supplier is a `config.subjects` type and id,
+the catalog's ISO 4217 list. The supplier is a `config.recordTypes` type and id,
 such as a CRM company. With the [contacts](/docs/blocks/contacts) block
 installed, a supplier whose `supplier_status` is `blocked` can't get a
 purchase order: saving or placing one fails with

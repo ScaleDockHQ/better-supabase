@@ -1,11 +1,11 @@
-import type { Args, Row } from "./runner.ts";
+import type { CallParams, Row } from "./runner.ts";
 
 /**
  * The page size and row offset of a list call, or the reason its arguments are
  * invalid.
  */
 export function pageWindow(
-  args: Args,
+  args: CallParams,
 ): { size: number; offset: number } | { invalid: string } {
   if (args["offset"] !== undefined || args["limit"] !== undefined) {
     if (args["page"] !== undefined || args["size"] !== undefined) {

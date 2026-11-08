@@ -10,7 +10,7 @@ import type {
 
 import { useContext, useMemo, useRef, useState } from "react";
 
-import type { AuthFailure } from "../client/native/auth-link.ts";
+import type { AuthLinkError } from "../client/native/auth-link.ts";
 
 import { ClientContext } from "./hooks.ts";
 
@@ -34,33 +34,33 @@ export interface PendingState {
   /** A call is in flight. */
   readonly pending: boolean;
   /** The last call's error; cleared when the next call starts. */
-  readonly error: AuthFailure | undefined;
+  readonly error: AuthLinkError | undefined;
 }
 
 export interface SignIn extends PendingState {
   readonly password: (credentials: {
     readonly email: string;
     readonly password: string;
-  }) => Promise<AuthFailure | undefined>;
+  }) => Promise<AuthLinkError | undefined>;
   /** Sends a magic link or a one-time code to an email or a phone. */
   readonly otp: (
     credentials: SignInWithPasswordlessCredentials,
-  ) => Promise<AuthFailure | undefined>;
+  ) => Promise<AuthLinkError | undefined>;
   /** Checks the code `otp` sent. */
   readonly verifyOtp: (
     params: VerifyOtpParams,
-  ) => Promise<AuthFailure | undefined>;
+  ) => Promise<AuthLinkError | undefined>;
   /** Starts the OAuth redirect. In a browser the page navigates away. */
   readonly oauth: (
     provider: Provider,
     options?: SignInWithOAuthCredentials["options"],
-  ) => Promise<AuthFailure | undefined>;
+  ) => Promise<AuthLinkError | undefined>;
 }
 
 export interface SignOut extends PendingState {
   readonly signOut: (options?: {
     readonly scope?: "global" | "local" | "others";
-  }) => Promise<AuthFailure | undefined>;
+  }) => Promise<AuthLinkError | undefined>;
 }
 
 function useAuthApi(options: AuthHookOptions, hook: string): AuthApi {
@@ -85,8 +85,8 @@ export function usePending(options: {
 }): {
   readonly state: PendingState;
   readonly run: (
-    call: () => Promise<{ readonly error: AuthFailure | null }>,
-  ) => Promise<AuthFailure | undefined>;
+    call: () => Promise<{ readonly error: AuthLinkError | null }>,
+  ) => Promise<AuthLinkError | undefined>;
 } {
   const [state, setState] = useState<PendingState>({
     pending: false,
@@ -99,11 +99,11 @@ export function usePending(options: {
 
   const run = useMemo(
     () =>
-      async (call: () => Promise<{ readonly error: AuthFailure | null }>) => {
+      async (call: () => Promise<{ readonly error: AuthLinkError | null }>) => {
         latest.current.call += 1;
         const id = latest.current.call;
         setState({ pending: true, error: undefined });
-        let error: AuthFailure | null;
+        let error: AuthLinkError | null;
 
         try {
           ({ error } = await call());

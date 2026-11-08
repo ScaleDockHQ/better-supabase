@@ -3,7 +3,7 @@ title: Payroll export
 description: Payroll runs that add up the approved time, leave and scheduled shifts of a period per person, and hand them to the payroll provider through a versioned export format.
 ---
 
-`payroll-export` adds up a period for payroll. A run collects, per person, the hours worked from [time tracking](/docs/blocks/time-tracking), the approved leave from [leave](/docs/blocks/leave) and, when you ask for it, the assigned hours from [shifts](/docs/blocks/shifts). Exporting a run renders the lines through a `PayrollExportFormat`, keeps the SHA-256 of the file on the run and locks it, so the same days are never paid twice.
+`payroll-export` adds up a period for payroll. A run collects, per person, the hours worked from [time tracking](/docs/blocks/time-entries), the approved leave from [leave](/docs/blocks/leave) and, when you ask for it, the assigned hours from [shifts](/docs/blocks/shifts). Exporting a run renders the lines through a `PayrollExportFormat`, keeps the SHA-256 of the file on the run and locks it, so the same days are never paid twice.
 
 Reading runs needs `payroll_export.read`, and creating, refreshing, exporting and deleting runs needs `payroll_export.export`. Admins get both; members get neither, because a run holds everyone's hours.
 
@@ -11,7 +11,7 @@ Reading runs needs `payroll_export.read`, and creating, refreshing, exporting an
 better-supabase add payroll-export
 ```
 
-The module needs `memberships` and `permissions`. It collects from the sources that are installed: `time-tracking` and `leave` by default. Install the block next to them, or name the sources yourself.
+The module needs `memberships` and `permissions`. It collects from the sources that are installed: `time-entries` and `leave` by default. Install the block next to them, or name the sources yourself.
 
 ```ts
 import {
@@ -35,12 +35,12 @@ const { file } = await db["payroll-export"]
 
 ## Options
 
-| Option     | Default                     | Meaning                                                                                    |
-| ---------- | --------------------------- | ------------------------------------------------------------------------------------------ |
-| `timeZone` | `UTC`                       | The zone that decides which day a time entry or shift belongs to.                          |
-| `sources`  | `time-tracking` and `leave` | What a run collects: any of `time-tracking`, `leave` and `shifts`. Each must be installed. |
+| Option     | Default                    | Meaning                                                                                   |
+| ---------- | -------------------------- | ----------------------------------------------------------------------------------------- |
+| `timeZone` | `UTC`                      | The zone that decides which day a time entry or shift belongs to.                         |
+| `sources`  | `time-entries` and `leave` | What a run collects: any of `time-entries`, `leave` and `shifts`. Each must be installed. |
 
-Shifts are not collected by default: scheduled hours overlap the hours people track, so adding both would pay the same time twice. Name `shifts` when the roster is what you pay, and leave `time-tracking` out.
+Shifts are not collected by default: scheduled hours overlap the hours people track, so adding both would pay the same time twice. Name `shifts` when the roster is what you pay, and leave `time-entries` out.
 
 ## Tables
 
@@ -55,7 +55,7 @@ A line names the member (`user_id`), the employee (`employee_id`) or both, and k
 
 `create` makes a draft run and collects its lines. `refresh` collects them again for a draft run, which is how late corrections reach it. The collection is deterministic: the same entries give the same lines.
 
-- Time tracking counts finished time entries that start in the period (in `timeZone`), in hours, but only the entries of weeks whose timesheet is approved in [time tracking](/docs/blocks/time-tracking). A week that is open, submitted or rejected adds no line; approve it, then refresh the draft run.
+- Time tracking counts finished time entries that start in the period (in `timeZone`), in hours, but only the entries of weeks whose timesheet is approved in [time tracking](/docs/blocks/time-entries). A week that is open, submitted or rejected adds no line; approve it, then refresh the draft run.
 - Leave counts requests that are approved and not cancelled, by their start date, in the unit of the leave type.
 - Shifts count assigned assignments of published, not canceled shifts that start in the period, minus the shift's break, in hours.
 

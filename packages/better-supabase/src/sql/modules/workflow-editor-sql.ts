@@ -220,9 +220,13 @@ export function builderSql(
   const cn = (column: string): string => ctx.col("nodeRuns", column);
   const ca = (column: string): string => ctx.col("alerts", column);
   const cf = (column: string): string => ctx.col("alertFires", column);
-  const o = ctx.table("optOuts");
+  const optOuts = ctx.hasTable("optOuts");
+  const o = optOuts ? ctx.table("optOuts") : "";
   const g = ctx.table("grants");
-  const co = (column: string): string => ctx.col("optOuts", column);
+
+  const co = (column: string): string =>
+    optOuts ? ctx.col("optOuts", column) : "";
+
   const cg = (column: string): string => ctx.col("grants", column);
   const workflows = ctx.of("workflows");
   const r = workflows.table("runs");
@@ -304,8 +308,11 @@ grant execute on function ${signature} to authenticated, service_role;`;
           and ${principalMatch("gr", tenantId)}
       ))`;
 
+  // Without the table nobody opts out.
   const optedOut = (definition: string, tenantId: string): string =>
-    `exists (select 1 from ${o} oo where oo.${co("tenant")} = ${tenantId} and oo.${co("definition")} = ${definition})`;
+    optOuts
+      ? `exists (select 1 from ${o} oo where oo.${co("tenant")} = ${tenantId} and oo.${co("definition")} = ${definition})`
+      : "false";
 
   const definitionJson = (alias: string): string =>
     withExtraFields(

@@ -93,6 +93,12 @@ export interface QuoteLine extends Line {
   readonly selected: boolean;
   /** The periods a subscription line runs; its amount counts each. */
   readonly periods?: number;
+  /** A subscription line with no end: it runs until cancelled. */
+  readonly openEnded?: true;
+  /** What one unit of the line is, such as `hour` or `day`. */
+  readonly unit?: string;
+  /** How the line's discount is given: a percentage or a fixed amount. */
+  readonly discountKind?: "percentage" | "fixed";
   /**
    * The line's id in the latest published version (`options.versionLines`); a
    * decision's `selected` may name it.
@@ -173,7 +179,10 @@ export interface Quote<F extends object = Record<never, never>> {
   readonly lines: readonly QuoteLine[];
   readonly taxLines: readonly QuoteTaxLine[];
   readonly totals: Totals;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
   readonly createdAt: Temporal.Instant;
 }
@@ -199,8 +208,8 @@ export interface QuoteInput<F extends object = Record<never, never>> {
   /** The customer pays the deposit before accepting. */
   readonly depositRequired?: boolean;
   /**
-   * Values for the app's extra columns (`options.extraColumns`); left out keeps
-   * the stored ones.
+   * Values for the app's extra columns (the columns the app's schema files
+   * add); left out keeps the stored ones.
    */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
@@ -264,8 +273,10 @@ export type QuoteLineInput = (LineInput | CatalogLineInput) & {
   readonly optional?: boolean;
   /** Defaults to `true` for a required line and `false` for an optional one. */
   readonly selected?: boolean;
-  /** The periods a subscription line runs; default 1. */
-  readonly periods?: number;
+  /** The periods a subscription line runs; default 1, `null` for no end. */
+  readonly periods?: number | null;
+  readonly unit?: string;
+  readonly discountKind?: "percentage" | "fixed";
 };
 
 /** Who acted, for the state machine's history. */
@@ -409,9 +420,8 @@ export interface QuotesOptions<
   readonly transport: BlockTransport;
   readonly schema?: string;
   /**
-   * A Standard Schema for the extra columns of the quotes table
-   * (`blocks.quotes.options.extraColumns`): writes are validated, reads
-   * parsed.
+   * A Standard Schema for the extra columns of the quotes table (columns the
+   * app's schema files add to the table): writes are validated, reads parsed.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Quotes<FieldsOf<S>>>>;
@@ -433,7 +443,7 @@ const KNOWN = new Set([
   "company_id",
   "contact_type",
   "contact_id",
-  "owner_user_id",
+  "owner_id",
   "currency",
   "status",
   "valid_until",
@@ -446,7 +456,7 @@ const KNOWN = new Set([
   "decided_at",
   "decided_by",
   "decision_note",
-  "decided_user_id",
+  "decider_id",
   "decided_ip",
   "decided_user_agent",
   "prices_include_tax",
@@ -487,6 +497,12 @@ function quoteLineOf(value: unknown, currency: string): QuoteLine {
     periods:
       typeof row["periods"] === "number" && row["periods"] !== 1
         ? row["periods"]
+        : undefined,
+    openEnded: "periods" in row && row["periods"] === null ? true : undefined,
+    unit: optionalText(row["unit"]),
+    discountKind:
+      row["discountKind"] === "percentage" || row["discountKind"] === "fixed"
+        ? row["discountKind"]
         : undefined,
     versionLineId: optionalText(row["versionLineId"]),
   });
@@ -579,7 +595,7 @@ function quoteOf(value: unknown): Quote {
     title: textOf(row["title"]),
     company: refOf(row["company_type"], row["company_id"]),
     contact: refOf(row["contact_type"], row["contact_id"]),
-    ownerId: optionalText(row["owner_user_id"]),
+    ownerId: optionalText(row["owner_id"]),
     currency,
     status: enumOrThrow(row["status"], STATUSES, "quote status"),
     validUntil: optionalPlainDateOf(row["valid_until"]),
@@ -591,7 +607,7 @@ function quoteOf(value: unknown): Quote {
     decidedAt: optionalInstant(row["decided_at"]),
     decidedBy: optionalText(row["decided_by"]),
     decisionNote: optionalText(row["decision_note"]),
-    decidedUserId: optionalText(row["decided_user_id"]),
+    decidedUserId: optionalText(row["decider_id"]),
     decidedIp: optionalText(row["decided_ip"]),
     decidedUserAgent: optionalText(row["decided_user_agent"]),
     unpublishedChanges:

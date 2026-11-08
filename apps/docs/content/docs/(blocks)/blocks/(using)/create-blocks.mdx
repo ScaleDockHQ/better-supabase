@@ -59,12 +59,12 @@ each instance under its key in camel case: `db.comments`, `db.leadScoring`.
 instance's manifest, so you list only the blocks that take app definitions:
 
 ```ts title="src/lib/supabase/index.ts"
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 import { defineBlocks } from "better-supabase/blocks";
 import { createNotifications } from "better-supabase/blocks/notifications";
 
 import { blockConfig, blocks } from "./blocks.generated.ts";
-import { schema } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
 const blockSet = defineBlocks(blockConfig, {
   ...blocks,
@@ -73,7 +73,7 @@ const blockSet = defineBlocks(blockConfig, {
   ),
 });
 
-export const betterSupabase = defineSupabase(schema).blocks(blockSet);
+export const betterSupabase = createSupabase(schema).blocks(blockSet);
 ```
 
 ```ts title="src/features/notes/notes-actions.ts"
@@ -114,10 +114,7 @@ const quotes = await db
 
 `blockSet.call(db, fn, args)` does the same outside a `Db` with blocks on it
 and also returns a `Result`.
-`db.$apiResult(fn, args)` is the same as `db.$api(fn, args)` and stays for
-code written against 0.19.0.
-
-`defineSupabase(schema, { temporal })` passes its `temporal` to every
+`createSupabase(schema, { temporal })` passes its `temporal` to every
 instance `.blocks()` builds, so a runtime without a global `Temporal` needs it
 only there.
 
@@ -167,13 +164,13 @@ notifications topic is a template, which `fillTopic` fills in:
 | Option shared with TypeScript | Read by                                    |
 | ----------------------------- | ------------------------------------------ |
 | `attachments.requireScan`     | `createAttachments`                        |
-| `bulk.limit`                  | `createBulk`                               |
+| `bulk.limit`                  | `createBulkActions`                        |
 | `notifications.topic`         | the notifications feed controller and hook |
 | `announcements.topic`         | the announcements controller and hook      |
 | `inbox.topic`                 | the inbox controllers and hooks            |
 | `reactions.topic`             | the reactions controller and hook          |
 | `ai-chat.topic`, `listTopic`  | the chat controllers and hooks             |
-| `time-tracking.timeZone`      | `toWeeklyGrid`                             |
+| `time-entries.timeZone`       | `toWeeklyGrid`                             |
 | `waitlist.codeField`          | `waitlistHook`                             |
 | `webhooks-out.allowHttp`      | `publicUrl`, the webhook URL check         |
 
@@ -321,19 +318,19 @@ tenant columns (`workspace_id`) back under the names the clients read
 A renamed entity also renames the TypeScript side. For each block whose
 entities the config renames, `gen` writes the block and its types under the
 new names, so you import `tasksBlock` and `Task` instead of `tasksBlock`
-and `WorkItem`:
+and `Task`:
 
 ```ts title="src/lib/supabase/blocks.generated.ts"
 export const tasksBlock = renameBlock(tasksBlock, blockConfig["tasks"].names);
 export type Task<F extends object = Record<never, never>> = RenamedType<
-  WorkItem<F>,
+  Task<F>,
   WorkItemsRenames
 >;
 export type TasksEvents = RenamedEvents<TasksEvents, WorkItemsRenames>;
 ```
 
 `renameBlock` renames the client's methods (`createWorkItem` to `createTask`),
-the keys of their arguments and results (`workItemId` to `taskId`) and the
+the keys of their arguments and results (`taskId` to `taskId`) and the
 block's event types (`task.created` to `task.created`). The block keeps
 its name, SQL and ports, and hooks see the renamed client. The tenant rename
 stays in SQL: payloads and client types keep `organizationId`. See

@@ -1,4 +1,4 @@
-import type { Policy, PolicyInput } from "./policy.ts";
+import type { Policy, PolicyInput, RenderPolicyOptions } from "./policy.ts";
 
 import { maskSql, policy, readPolicies, renderPolicy } from "./policy.ts";
 
@@ -8,8 +8,8 @@ export type RuleOperator = "=" | "<>" | "<" | "<=" | ">" | ">=";
 export type RuleValue = string | number | boolean;
 
 /**
- * The policy DSL: a small tree that renders to a policy over the four `bsb.*`
- * functions and reads back from the `@bsb rule` comment.
+ * The policy DSL: a small tree that renders to a policy over the four
+ * `better_supabase.*` functions and reads back from the `@bsb rule` comment.
  */
 export type Rule =
   | { readonly kind: "public" }
@@ -33,10 +33,10 @@ export type Rule =
 
 /** The only functions a policy may call. */
 export const POLICY_FUNCTIONS: readonly string[] = [
-  "bsb.is_member",
-  "bsb.can",
-  "bsb.owns",
-  "bsb.uid",
+  "better_supabase.is_member",
+  "better_supabase.can",
+  "better_supabase.owns",
+  "better_supabase.uid",
 ];
 
 const OPERATORS: ReadonlySet<string> = new Set([
@@ -78,15 +78,15 @@ export function renderRule(rule: Rule): string {
     }
 
     case "owner": {
-      return `bsb.owns(${column(rule.column)})`;
+      return `better_supabase.owns(${column(rule.column)})`;
     }
 
     case "member": {
-      return `bsb.is_member(${column(rule.column)})`;
+      return `better_supabase.is_member(${column(rule.column)})`;
     }
 
     case "can": {
-      return `bsb.can(${column(rule.column)}, ${literal(rule.permission)})`;
+      return `better_supabase.can(${column(rule.column)}, ${literal(rule.permission)})`;
     }
 
     case "compare": {
@@ -221,7 +221,7 @@ export function rulePolicy(input: RulePolicyInput): RulePolicy {
  */
 export function renderRulePolicy(
   built: RulePolicy,
-  options: { readonly drop?: boolean } = {},
+  options: RenderPolicyOptions = {},
 ): string {
   const meta = JSON.stringify({ using: built.using, check: built.check });
 
@@ -337,7 +337,7 @@ const CALL = /([a-z_][\w$]*(?:\s*\.\s*[a-z_][\w$]*)?)\s*\(/gi;
 /**
  * The functions a policy calls that are not in {@link POLICY_FUNCTIONS},
  * lowercased and without spaces. An empty list means the policy only uses the
- * `bsb.*` functions.
+ * `better_supabase.*` functions.
  */
 export function disallowedPolicyCalls(built: Policy): string[] {
   const bad = new Set<string>();
@@ -367,14 +367,14 @@ export interface PolicyFunctionsOptions {
   readonly memberships?: string;
   /** Function `(scope, scope_id, permission)` that answers a permission. */
   readonly permission?: string;
-  /** Scope name `bsb.can` passes to the permission function. */
+  /** Scope name `better_supabase.can` passes to the permission function. */
   readonly scope?: string;
 }
 
 /**
- * The `bsb` schema and the four functions policies may call. `uid` and `owns`
- * are fixed; `is_member` and `can` delegate to the functions named in the
- * options, so a library or your own tables can answer them.
+ * The `better_supabase` schema and the four functions policies may call. `uid`
+ * and `owns` are fixed; `is_member` and `can` delegate to the functions named
+ * in the options, so a library or your own tables can answer them.
  */
 export function policyFunctionsSql(
   options: PolicyFunctionsOptions = {},
@@ -385,22 +385,22 @@ export function policyFunctionsSql(
   const permission = options.permission ?? "better_supabase.can";
   const scope = (options.scope ?? "organization").replaceAll("'", "''");
 
-  return `create schema if not exists bsb;
-grant usage on schema bsb to anon, authenticated, service_role;
+  return `create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
 
-create or replace function bsb.uid()
+create or replace function better_supabase.uid()
 returns uuid
 language sql
 stable
 as $$ select auth.uid() $$;
 
-create or replace function bsb.owns(owner uuid)
+create or replace function better_supabase.owns(owner uuid)
 returns boolean
 language sql
 stable
-as $$ select owner is not null and owner = bsb.uid() $$;
+as $$ select owner is not null and owner = better_supabase.uid() $$;
 
-create or replace function bsb.is_member(tenant uuid)
+create or replace function better_supabase.is_member(tenant uuid)
 returns boolean
 language sql
 stable
@@ -408,7 +408,7 @@ security definer
 set search_path = ''
 as $$ select tenant in (select * from ${memberships}) $$;
 
-create or replace function bsb.can(tenant uuid, permission_key text)
+create or replace function better_supabase.can(tenant uuid, permission_key text)
 returns boolean
 language sql
 stable
@@ -416,7 +416,7 @@ security definer
 set search_path = ''
 as $$ select ${permission}('${scope}', tenant, permission_key) $$;
 
-revoke execute on function bsb.uid(), bsb.owns(uuid), bsb.is_member(uuid), bsb.can(uuid, text) from public;
-grant execute on function bsb.uid(), bsb.owns(uuid), bsb.is_member(uuid), bsb.can(uuid, text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.uid(), better_supabase.owns(uuid), better_supabase.is_member(uuid), better_supabase.can(uuid, text) from public;
+grant execute on function better_supabase.uid(), better_supabase.owns(uuid), better_supabase.is_member(uuid), better_supabase.can(uuid, text) to anon, authenticated, service_role;
 `;
 }

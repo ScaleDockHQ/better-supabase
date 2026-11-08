@@ -2,7 +2,7 @@ import { pipeline } from "@supabase/middleware";
 import { describe, expect, it, vi } from "vitest";
 
 import { writeSession } from "../../../src/auth/session.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { serverCore } from "../../../src/server/entries/core.ts";
 import { withSession } from "../../../src/server/entries/session.ts";
 import { createServer } from "../../../src/server/server.ts";
@@ -32,7 +32,7 @@ describe("withSession onAuthOutage", () => {
       throw new TypeError("fetch failed");
     });
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env: {
         url: PROJECT_URL,
         publishableKey: "sb_publishable_test",

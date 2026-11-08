@@ -89,7 +89,10 @@ interface PartyRecord {
   readonly language?: string;
   /** Where the record stands as a supplier; unset when not assessed. */
   readonly supplierStatus?: SupplierStatus;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: Readonly<Record<string, unknown>>;
 }
 
@@ -116,15 +119,28 @@ interface TermsInput {
 export interface Company<
   F extends object = Record<never, never>,
 > extends PartyRecord {
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
   readonly domain?: string;
   readonly website?: string;
   readonly vatId?: string;
+  /** The registered name, when it differs from the trading name. */
+  readonly legalName?: string;
+  /** The chamber of commerce or company register number. */
+  readonly registrationId?: string;
+  readonly phone?: string;
   readonly address?: Readonly<Record<string, unknown>>;
 }
 
+/** `external` is outside the organization; `tenant` is a member (it has a user). */
+export type PersonMode = "external" | "tenant";
+
 export interface Person extends PartyRecord {
+  /** Absent when the table has no mode column. */
+  readonly mode?: PersonMode;
   readonly email?: string;
   readonly phone?: string;
   readonly title?: string;
@@ -202,6 +218,9 @@ export interface CompanyInput<
   readonly domain?: string | null;
   readonly website?: string | null;
   readonly vatId?: string | null;
+  readonly legalName?: string | null;
+  readonly registrationId?: string | null;
+  readonly phone?: string | null;
   readonly lifecycle?: string;
   readonly ownerId?: string | null;
   readonly address?: Readonly<Record<string, unknown>> | null;
@@ -219,6 +238,8 @@ export interface PersonInput extends TermsInput {
   readonly email?: string | null;
   readonly phone?: string | null;
   readonly title?: string | null;
+  /** `tenant` needs `userId` when the person is created. Default `external`. */
+  readonly mode?: PersonMode;
   readonly lifecycle?: string;
   readonly ownerId?: string | null;
   readonly userId?: string | null;
@@ -373,9 +394,8 @@ export interface ContactsOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the extra columns of the companies table
-   * (`blocks.contacts.options.extraColumns`): writes are validated, reads
-   * parsed.
+   * A Standard Schema for the extra columns of the companies table (columns the
+   * app's schema files add to the table): writes are validated, reads parsed.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -389,7 +409,7 @@ const COMMON = [
   "tenant_id",
   "name",
   "lifecycle",
-  "owner_user_id",
+  "owner_id",
   "merged_into",
   "roles",
   "customer_terms_id",
@@ -410,6 +430,9 @@ const COMPANY_COLUMNS = new Set([
   "domain",
   "website",
   "vat_id",
+  "legal_name",
+  "registration_id",
+  "phone",
   "address",
 ]);
 
@@ -418,6 +441,7 @@ const PERSON_COLUMNS = new Set([
   "email",
   "phone",
   "title",
+  "mode",
   "user_id",
   "avatar_url",
   "metadata",
@@ -436,7 +460,7 @@ function base(
   known: ReadonlySet<string>,
 ): PartyRecord {
   const fields = row["fields"];
-  const ownerId = optionalText(row["owner_user_id"]);
+  const ownerId = optionalText(row["owner_id"]);
   const mergedInto = optionalText(row["merged_into"]);
   const roles = row["roles"];
   const customerTermsId = optionalText(row["customer_terms_id"]);
@@ -488,6 +512,9 @@ function companyOf(value: unknown): Company {
   const domain = optionalText(row["domain"]);
   const website = optionalText(row["website"]);
   const vatId = optionalText(row["vat_id"]);
+  const legalName = optionalText(row["legal_name"]);
+  const registrationId = optionalText(row["registration_id"]);
+  const phone = optionalText(row["phone"]);
   const address = row["address"];
 
   return {
@@ -495,8 +522,15 @@ function companyOf(value: unknown): Company {
     ...(domain === undefined ? {} : { domain }),
     ...(website === undefined ? {} : { website }),
     ...(vatId === undefined ? {} : { vatId }),
+    ...(legalName === undefined ? {} : { legalName }),
+    ...(registrationId === undefined ? {} : { registrationId }),
+    ...(phone === undefined ? {} : { phone }),
     ...(isRecord(address) ? { address } : {}),
   };
+}
+
+function personModeOf(value: unknown): PersonMode | undefined {
+  return value === "external" || value === "tenant" ? value : undefined;
 }
 
 function personOf(value: unknown): Person {
@@ -504,6 +538,7 @@ function personOf(value: unknown): Person {
   const email = optionalText(row["email"]);
   const phone = optionalText(row["phone"]);
   const title = optionalText(row["title"]);
+  const mode = personModeOf(row["mode"]);
   const userId = optionalText(row["user_id"]);
   const avatarUrl = optionalText(row["avatar_url"]);
   const metadata = row["metadata"];
@@ -513,6 +548,7 @@ function personOf(value: unknown): Person {
     ...(email === undefined ? {} : { email }),
     ...(phone === undefined ? {} : { phone }),
     ...(title === undefined ? {} : { title }),
+    ...(mode === undefined ? {} : { mode }),
     ...(userId === undefined ? {} : { userId }),
     ...(avatarUrl === undefined ? {} : { avatarUrl }),
     ...(isRecord(metadata) ? { metadata } : {}),

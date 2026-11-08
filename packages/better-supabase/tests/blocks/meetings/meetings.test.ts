@@ -191,7 +191,7 @@ describe("createMeetings", () => {
           { ...DECISION, votes: { score: 1, up: 2, down: 1, vote: 1 } },
         ],
         actionItems: [
-          { workItemId: "t1", title: "Send the budget", state: "open" },
+          { taskId: "t1", title: "Send the budget", state: "open" },
         ],
       }),
     });
@@ -215,7 +215,7 @@ describe("createMeetings", () => {
       down: 1,
       vote: 1,
     });
-    expect(detail.actionItems[0]?.workItemId).toBe("t1");
+    expect(detail.actionItems[0]?.taskId).toBe("t1");
   });
 
   it("opens an action item as a task", async () => {

@@ -9,7 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { qualificationFunctions } from "./qualifications-functions.ts";
@@ -94,7 +94,7 @@ const NAMES: BlockSqlNames = {
     "before_qualification_revoke",
     "after_qualification_revoke",
   ],
-  options: ["holderTypes", "renewalWindowDays", "extraColumns"],
+  options: ["holderTypes", "renewalWindowDays"],
   tables: {
     types: {
       name: "qualification_types",
@@ -172,7 +172,6 @@ function tables(ctx: BlockSqlContext): string {
   const r = (column: string): string => ctx.col("requirements", column);
   const q = (column: string): string => ctx.col("qualifications", column);
   const read = ctx.permission("read", moduleOperations("qualifications").read);
-  const extras = ctx.extraColumns("qualifications", QUALIFICATION_RESERVED);
   const attachments = evidenceAttachments(ctx);
 
   const courses =
@@ -209,7 +208,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const appKey = (logical: string, what: string, columns: string): string =>
@@ -287,7 +286,7 @@ create table if not exists ${holdings} (
   ${q("notifiedStatus")} text check (${q("notifiedStatus")} is null or ${q("notifiedStatus")} in ('expiring', 'expired')),${stamps("qualifications", ["createdAt", "updatedAt"])}
   check (${q("expiresOn")} is null or ${q("expiresOn")} >= ${q("grantedOn")}),
   foreign key (${q("tenant")}, ${q("type")}) references ${types} (${t("tenant")}, ${t("id")}) on delete cascade
-);${addExtraColumns(holdings, extras)}
+);
 create index if not exists ${name("qualifications", "holder_idx")} on ${holdings} (${q("tenant")}, ${q("holderType")}, ${q("holderId")});
 create index if not exists ${name("qualifications", "type_idx")} on ${holdings} (${q("tenant")}, ${q("type")});
 create index if not exists ${name("qualifications", "expiry_idx")} on ${holdings} (${q("type")}, ${q("expiresOn")});

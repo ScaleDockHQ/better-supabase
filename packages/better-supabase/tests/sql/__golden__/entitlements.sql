@@ -4,13 +4,11 @@
 -- ==== with every module: schema supabase/schemas/900_better_supabase_016_entitlements.sql
 -- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
--- @bsb-hash sha256:955c7ce2d8e524f980a1878ff2c150b1db5dfc5a37e2b90d1b78575af7971967
+-- @bsb-hash sha256:77842c9d7fd9e186d5d99b76dc18847799acc3df8e655c11bd988524fa12cc35
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Lookup keys of the tenant's active entitlements, from the Stripe Sync
@@ -139,7 +137,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  return (select t."stripe_customer_id" from "better_supabase"."billing_customers" t where t."organization_id" = tenant);
+  return (select t."stripe_customer_id" from "better_supabase"."billing_customers" t where t."tenant_id" = tenant);
 end
 $$;
 
@@ -151,7 +149,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  return query select t."organization_id" from "better_supabase"."billing_customers" t where t."stripe_customer_id" = customer;
+  return query select t."tenant_id" from "better_supabase"."billing_customers" t where t."stripe_customer_id" = customer;
 end
 $$;
 
@@ -173,19 +171,6 @@ revoke execute on function better_supabase.tenant_stripe_customer(uuid) from pub
 revoke execute on function better_supabase.stripe_customer_tenants(text) from public, anon, authenticated;
 revoke execute on function better_supabase.entitlement_members(text) from public, anon, authenticated;
 grant execute on function better_supabase.entitlement_members(text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_016_entitlements.sql
 -- better-supabase module: entitlements

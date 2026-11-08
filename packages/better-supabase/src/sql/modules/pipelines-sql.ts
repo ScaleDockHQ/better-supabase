@@ -269,7 +269,7 @@ export function stageTrigger(
   const transitions = ctx.hasTable("transitions")
     ? `
     if tg_op = 'UPDATE' and old.${stage} is not null
-      and coalesce(current_setting('bsb.lane_move', true), '') <> old.${stage}::text || ':' || new.${stage}::text
+      and coalesce(current_setting('better_supabase.lane_move', true), '') <> old.${stage}::text || ':' || new.${stage}::text
       and exists (select 1 from ${t("transitions")} x where x.${c("transitions", "pipeline")} = new.${pipeline})
       and not exists (
         select 1 from ${t("transitions")} x
@@ -907,9 +907,9 @@ begin
   if v_used then
     -- The stage trigger lets this one change through even where the allowed
     -- stage changes would not.
-    perform set_config('bsb.lane_move', v_stage::text || ':' || v_to::text, true);
+    perform set_config('better_supabase.lane_move', v_stage::text || ':' || v_to::text, true);
     ${moveRecords}
-    perform set_config('bsb.lane_move', '', true);
+    perform set_config('better_supabase.lane_move', '', true);
   end if;
   update ${t("stages")} x set ${s("archivedAt")} = now()${touched(names, "stages")} where x.${s("id")} = archive_pipeline_stage.stage;
   ${ctx.record({

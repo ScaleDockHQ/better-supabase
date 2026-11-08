@@ -1,4 +1,4 @@
-import { sessionStatusRoute } from "better-supabase/server";
+import { sessionStatusRoute } from "better-supabase/server/accounts";
 
 import { bsb } from "../../../lib/supabase/server";
 

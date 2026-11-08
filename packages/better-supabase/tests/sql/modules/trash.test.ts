@@ -117,7 +117,7 @@ describe("trash module", () => {
             doc: {
               table: "app.docs",
               deletedAt: "deleted_at",
-              held: "legal_hold_until",
+              held: "legal_hold_expires_at",
             },
             task: { table: "app.tasks", deletedAt: "removed_at" },
           },
@@ -125,8 +125,8 @@ describe("trash module", () => {
       },
     });
 
-    expect(sql).toContain(`and s."legal_hold_until" is not null`);
-    expect(sql).toContain(`and s."legal_hold_until" > now()`);
+    expect(sql).toContain(`and s."legal_hold_expires_at" is not null`);
+    expect(sql).toContain(`and s."legal_hold_expires_at" > now()`);
     expect(sql).toContain(`when 'doc' then exists (`);
     expect(sql).toContain(`else false`);
     expect(sql).toContain("TRASH_HELD");

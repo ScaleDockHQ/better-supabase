@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-import type { Temporal } from "temporal-polyfill";
 
 import { getExtracted } from "next-intl/server";
 
@@ -24,6 +23,7 @@ import { WindowDays, WindowNav } from "./window-header";
 // #region recipe:record-timeline
 const UNASSIGNED = "";
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * Tasks as bars from `startsOn` to `dueOn`, one lane per assignee, over a
  * four-week window that lives in the URL (`?from=YYYY-MM-DD`).

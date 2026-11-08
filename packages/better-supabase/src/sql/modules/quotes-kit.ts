@@ -301,7 +301,14 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
   const lineValue = (column: string): string =>
     lineColumn(ctx, "lines", "ql", column);
 
-  const documentLine = ["section", "optional", "selected", "periods"]
+  const documentLine = [
+    "section",
+    "optional",
+    "selected",
+    "periods",
+    "unit",
+    "discountKind",
+  ]
     .filter(lineHas)
     .map((column) => `, ${sqlString(column)}, ql.${l(column)}`)
     .join("");

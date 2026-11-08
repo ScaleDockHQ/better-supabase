@@ -43,5 +43,5 @@ export const customFieldsSqlOptions: BlockOptionsSchema<CustomFieldsSqlOptions> 
     rankType: option.string<"text" | "integer">({ default: "text" }),
     readAccess: option.string<"tenant" | "record">({ default: "tenant" }),
     packs: option.unknown<readonly unknown[]>({ client: true }),
-    entityMap: option.extraColumns(),
+    entityMap: option.unknown<Readonly<Record<string, string>>>(),
   });

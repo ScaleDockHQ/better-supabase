@@ -67,8 +67,6 @@ await db.signatures
 
 Errors carry these hints: `SIGNATURE_SIGNERS_INVALID`, `SIGNATURE_VERSION_NOT_FOUND`, `SIGNATURE_OUT_OF_ORDER`, `SIGNATURE_ALREADY_SIGNED`, `SIGNATURE_METHOD_INVALID`, `SIGNATURE_CONTENT_CHANGED` (the version changed between the request and the signature), `SIGNATURE_REQUEST_CLOSED`, `SIGNATURE_REQUEST_MEANING_UNKNOWN` (a meaning outside `options.meanings`) and `SIGNATURE_FORBIDDEN`.
 
-Until 0.14 the client was exported from `better-supabase/blocks/forms`. Import it from `better-supabase/blocks/signatures`; see [From 0.13 to 0.14](/docs/migration/0.13-to-0.14#signatures-get-their-own-block).
-
 ## Events and hooks
 
 The module records `signature_request.requested`, `signature_request.signed` (with `signer` and `method`), `signature_request.completed` (with the request's `meaning`), `signature_request.declined` and `signature_request.cancelled`, each with the signed record's `subjectType` and `subjectId`, and audits requests, signatures, declines and cancellations. It calls `before_signature_request`, `after_signature_request`, `before_signature_sign` and `after_signature_sign`.
@@ -79,7 +77,7 @@ For drawn signatures, ReUI's Signature Pad (free, MIT) captures the image. Uploa
 
 ## Your own columns
 
-Add columns to the signature request table with `blocks.signatures.options.extraColumns`
+Add columns to the signature request table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `request` validates and writes them, and `request`, `get`, `list`, `decline` and `cancel` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

@@ -1,5 +1,7 @@
 export { createNext } from "./create.ts";
 
+export type { GateUser } from "./user.ts";
+
 export { postAuthPath } from "./sign-in.ts";
 
 export { nextCache, sessionIdTag, sessionTag, supportTag } from "./cache.ts";
@@ -51,7 +53,7 @@ export type {
 } from "./resources.ts";
 
 export type {
-  ActionArgs,
+  ActionParams,
   ResourceAction,
   ResourceContext,
   ResourceHooks,
@@ -65,7 +67,7 @@ export type { ResourceMap } from "../server/resources.ts";
 export type {
   Access,
   ActionOptions,
-  BlockActionArgs,
+  BlockActionParams,
   BetterNext,
   Bootstrap,
   BootstrapOptions,
@@ -73,6 +75,7 @@ export type {
   CacheShare,
   CachedContext,
   CachedLife,
+  CachedStage,
   CachedOptions,
   ExchangeCodeParams,
   EmailRedirect,

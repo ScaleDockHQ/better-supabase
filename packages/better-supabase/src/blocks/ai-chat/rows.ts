@@ -44,7 +44,7 @@ export function chatOf(value: unknown): AiChatRecord {
 
   return {
     id: textOf(row["id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     ownerId: textOf(row["owner_id"]),
     projectId: optionalText(row["project_id"]),
     agentId: optionalText(row["agent_id"]),
@@ -74,7 +74,7 @@ export function projectOf(value: unknown): AiProject {
 
   return {
     id: textOf(row["id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     ownerId: textOf(row["owner_id"]),
     name: textOf(row["name"]),
     instructions: textOf(row["instructions"] ?? ""),
@@ -256,7 +256,7 @@ export function moderationOf(value: unknown): AiModerationEvent {
 
   return {
     id: textOf(row["id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     chatId: optionalText(row["chat_id"]),
     messageId: optionalText(row["message_id"]),
     userId: optionalText(row["user_id"]),
@@ -404,7 +404,7 @@ export function participantOf(value: unknown): AiChatParticipant {
     kind: oneOf(row["kind"], ["user", "team", "customer", "external"], "user"),
     userId: optionalText(row["user_id"]),
     teamId: optionalText(row["team_id"]),
-    customerUserId: optionalText(row["customer_user_id"]),
+    customerUserId: optionalText(row["customer_id"]),
     email: optionalText(row["email"]),
     role: oneOf(row["role"], ["owner", "viewer", "editor"], "viewer"),
     addedBy: optionalText(row["added_by"]),

@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineListQuery } from "../../src/list/index.ts";
-import { buildApiModel } from "../../src/spec/build.ts";
+import { defineApiModel } from "../../src/spec/build.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { opaque, standard } from "./helpers.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const info = { title: "CRM", version: "1.0.0" };
 
 const operation = (
-  model: ReturnType<typeof buildApiModel>["model"],
+  model: ReturnType<typeof defineApiModel>["model"],
   id: string,
 ) => {
   const found = model.operations.find((entry) => entry.id === id);
@@ -23,15 +23,15 @@ const operation = (
   return found;
 };
 
-describe("buildApiModel: resources", () => {
+describe("defineApiModel: resources", () => {
   it("rejects unknown tables", () => {
     expect(() =>
-      buildApiModel(betterSupabase, { info, resources: { nope: true } }),
+      defineApiModel(betterSupabase, { info, resources: { nope: true } }),
     ).toThrow('unknown table "nope"');
   });
 
   it("documents tables and columns from the schema metadata", () => {
-    const { model } = buildApiModel(betterSupabase, {
+    const { model } = defineApiModel(betterSupabase, {
       info,
       resources: { customers: true },
     });
@@ -57,7 +57,7 @@ describe("buildApiModel: resources", () => {
       pagination: "cursor",
     });
 
-    const { model } = buildApiModel(betterSupabase, {
+    const { model } = defineApiModel(betterSupabase, {
       info,
       basePath: "/api/",
       resources: { customers: { list, operations: ["list"] } },
@@ -77,7 +77,7 @@ describe("buildApiModel: resources", () => {
   });
 
   it("adds row examples, custom names, ids and a prefix", () => {
-    const { model } = buildApiModel(betterSupabase, {
+    const { model } = defineApiModel(betterSupabase, {
       info,
       resources: { notes: { operations: ["get"] } },
       examples: { notes: [{ id: "n1" }] },
@@ -114,7 +114,7 @@ describe("buildApiModel: resources", () => {
       properties: { name: { type: "string" } },
     });
 
-    const { model, diagnostics } = buildApiModel(betterSupabase, {
+    const { model, diagnostics } = defineApiModel(betterSupabase, {
       info,
       resources: {
         customers: {
@@ -148,7 +148,7 @@ describe("buildApiModel: resources", () => {
   });
 
   it("reports two different schemas with one name", () => {
-    const { diagnostics } = buildApiModel(betterSupabase, {
+    const { diagnostics } = defineApiModel(betterSupabase, {
       info,
       resources: {
         customers: {
@@ -168,7 +168,7 @@ describe("buildApiModel: resources", () => {
   });
 
   it("documents actions with their parameters and events", () => {
-    const { model } = buildApiModel(betterSupabase, {
+    const { model } = defineApiModel(betterSupabase, {
       info,
       resources: {
         customers: {
@@ -226,7 +226,7 @@ describe("buildApiModel: resources", () => {
   });
 
   it("uses per-resource errors and security, and reports unknown extend keys", () => {
-    const { model, diagnostics } = buildApiModel(betterSupabase, {
+    const { model, diagnostics } = defineApiModel(betterSupabase, {
       info,
       resources: {
         notes: {
@@ -252,7 +252,7 @@ describe("buildApiModel: resources", () => {
     const deprecated = structuredClone(betterSupabase.meta);
     Object.assign(deprecated.tables["notes"]!, { deprecated: true });
 
-    const { model } = buildApiModel(
+    const { model } = defineApiModel(
       { meta: deprecated },
       { info, resources: { notes: { operations: ["get"] } } },
     );
@@ -262,9 +262,9 @@ describe("buildApiModel: resources", () => {
   });
 });
 
-describe("buildApiModel: routes", () => {
+describe("defineApiModel: routes", () => {
   it("documents routes with params, query, body, output and streams", () => {
-    const { model } = buildApiModel(betterSupabase, {
+    const { model } = defineApiModel(betterSupabase, {
       info,
       basePath: "/api",
       routes: [
@@ -340,14 +340,14 @@ describe("buildApiModel: routes", () => {
 
   it("rejects unknown methods and reports duplicate ids", () => {
     expect(() =>
-      buildApiModel(betterSupabase, {
+      defineApiModel(betterSupabase, {
         info,
         // @ts-expect-error -- not an HTTP method
         routes: [{ method: "fetch", path: "/x" }],
       }),
     ).toThrow('unknown method "fetch"');
 
-    const { diagnostics } = buildApiModel(betterSupabase, {
+    const { diagnostics } = defineApiModel(betterSupabase, {
       info,
       resources: { notes: { operations: ["get"] } },
       routes: [{ method: "get", path: "/x", operationId: "getNotes" }],
@@ -362,9 +362,9 @@ describe("buildApiModel: routes", () => {
   });
 });
 
-describe("buildApiModel: security presets", () => {
+describe("defineApiModel: security presets", () => {
   it("defaults to a bearer token", () => {
-    const { model } = buildApiModel(betterSupabase, { info });
+    const { model } = defineApiModel(betterSupabase, { info });
     expect(model.securitySchemes).toEqual({
       supabaseJwt: expect.objectContaining({ type: "http", scheme: "bearer" }),
     });
@@ -372,7 +372,7 @@ describe("buildApiModel: security presets", () => {
   });
 
   it("builds oauth2, apiKey and custom schemes", () => {
-    const { model } = buildApiModel(betterSupabase, {
+    const { model } = defineApiModel(betterSupabase, {
       info,
       security: [
         "oauth2",
@@ -405,12 +405,12 @@ describe("buildApiModel: security presets", () => {
       { partner: ["read"] },
     ]);
     expect(() =>
-      buildApiModel(betterSupabase, { info, security: ["oauth2"] }),
+      defineApiModel(betterSupabase, { info, security: ["oauth2"] }),
     ).toThrow("needs supabaseUrl");
   });
 });
 
-describe("buildApiModel: permissions", () => {
+describe("defineApiModel: permissions", () => {
   const authorizer = defineAuthorizer<{ readonly id: string }>({
     name: "test",
     key: (ref) => {
@@ -426,7 +426,7 @@ describe("buildApiModel: permissions", () => {
   });
 
   it("documents the permission key and a 403 with every denial", () => {
-    const { model } = buildApiModel(betterSupabase, {
+    const { model } = defineApiModel(betterSupabase, {
       info,
       authorizer,
       resources: {
@@ -454,7 +454,7 @@ describe("buildApiModel: permissions", () => {
   });
 
   it("reports permissions without a key", () => {
-    const { diagnostics } = buildApiModel(betterSupabase, {
+    const { diagnostics } = defineApiModel(betterSupabase, {
       info,
       authorizer,
       resources: {
@@ -469,7 +469,7 @@ describe("buildApiModel: permissions", () => {
       }),
     );
 
-    const plain = buildApiModel<{ readonly id: string }>(betterSupabase, {
+    const plain = defineApiModel<{ readonly id: string }>(betterSupabase, {
       info,
       resources: {
         notes: { operations: ["get"], permissions: { get: { id: "x" } } },
@@ -482,7 +482,7 @@ describe("buildApiModel: permissions", () => {
   });
 
   it("turns permission keys into OAuth scopes", () => {
-    const { model } = buildApiModel(betterSupabase, {
+    const { model } = defineApiModel(betterSupabase, {
       info,
       security: ["bearer", "oauth2"],
       supabaseUrl: "https://abc.supabase.co",
@@ -517,7 +517,7 @@ describe("buildApiModel: permissions", () => {
   });
 
   it("reports writes without a permission when they are required", () => {
-    const { diagnostics } = buildApiModel(betterSupabase, {
+    const { diagnostics } = defineApiModel(betterSupabase, {
       info,
       requirePermissions: true,
       resources: {
@@ -537,9 +537,9 @@ describe("buildApiModel: permissions", () => {
   });
 });
 
-describe("buildApiModel: enrich and passthrough", () => {
+describe("defineApiModel: enrich and passthrough", () => {
   it("lets enrich hooks replace schemas, operations, messages, channels and workflows", () => {
-    const { model } = buildApiModel(betterSupabase, {
+    const { model } = defineApiModel(betterSupabase, {
       info,
       resources: { notes: { operations: ["get"] } },
       messages: {

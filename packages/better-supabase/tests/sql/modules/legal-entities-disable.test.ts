@@ -26,15 +26,20 @@ const BOOT = { timeout: 90_000 };
 
 const MODULES = ["invoices", "legal-entities"] as const;
 
+// The restore tests replay one file over the other, as the migrations workflow does.
 const options = (on: readonly string[]) => ({
   modules: { "legal-entities": { options: { on } } },
+  rerunnable: true,
 });
 
-/** The legal-entities schema file with legal entities off for every kind. */
+/**
+ * The legal-entities data file with legal entities off for every kind: the
+ * restore runs there.
+ */
 function turnedOff(): string {
   const file = renderBlocks([...MODULES], options([])).find(
     (candidate) =>
-      candidate.module === "legal-entities" && candidate.kind === "schema",
+      candidate.module === "legal-entities" && candidate.kind === "data",
   );
 
   expect(file).toBeDefined();

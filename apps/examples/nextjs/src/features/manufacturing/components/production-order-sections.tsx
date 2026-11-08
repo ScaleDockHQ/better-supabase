@@ -112,7 +112,7 @@ export async function ProductionOrderBoardSection() {
   );
 }
 
-export function ProductionOrderBoardSkeleton() {
+export function ProductionOrderBoardSectionSkeleton() {
   return (
     <Frame spacing="sm" aria-busy="true">
       <FrameHeader className="gap-1">

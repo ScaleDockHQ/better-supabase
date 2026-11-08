@@ -109,7 +109,7 @@ describe("search module", () => {
     );
 
     expect(sql).toContain(
-      `alter table "better_supabase"."search_documents" add column if not exists "embedding" "extensions".vector(384);`,
+      `alter table "better_supabase"."search_documents" add column "embedding" "extensions".vector(384);`,
     );
     expect(sql).toContain("vector_hits as materialized");
     expect(sql).toContain("coalesce(1.0 / (60 + t.rank), 0)");
@@ -122,7 +122,7 @@ describe("search module", () => {
     );
     expect(sql).toContain("SEARCH_EMBEDDINGS_TOO_LARGE");
     expect(sql).toContain(
-      `create index if not exists search_documents_pending_idx on "better_supabase"."search_documents" ("updated_at") where "embedding" is null;`,
+      `create index search_documents_pending_idx on "better_supabase"."search_documents" ("updated_at") where "embedding" is null;`,
     );
     expect(sql).toContain("to_tsvector('english'");
     expect(sql).toContain(

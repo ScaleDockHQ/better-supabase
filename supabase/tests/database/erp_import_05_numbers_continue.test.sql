@@ -15,7 +15,7 @@ create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated, service_role;
 
 select set_config(
-  'bsb.run',
+  'better_supabase.run',
   (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'erp-numbers', '{}'::jsonb) ->> 'id'),
   true
 );
@@ -36,8 +36,8 @@ select isnt(
   'the two legal entities keep separate number series'
 );
 
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
-select better_supabase.begin_import_session(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
+select better_supabase.begin_import_session(current_setting('better_supabase.run')::uuid);
 
 -- Imported numbers: cases (a year series) and inspections, two years, two entities.
 create temporary table imported (entity text, entity_name text, period date, number text, n bigint) on commit drop;
@@ -62,7 +62,7 @@ select is(
 
 -- Imported invoices of the two entities, each in its own administration.
 select is(
-  (select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice', jsonb_build_array(
+  (select better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'invoice', jsonb_build_array(
     jsonb_build_object('key', 'a-40', 'scope', 'A', 'data', jsonb_build_object(
       'number', 'INV-0040', 'status', 'issued', 'issuedOn', '2025-03-01', 'dueOn', '2025-04-01', 'currency', 'EUR',
       'legalEntityId', (select id from ids where name = 'a'),

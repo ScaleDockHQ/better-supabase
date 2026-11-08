@@ -38,7 +38,7 @@ export function memoryOf(value: unknown): MemoryRecord {
 
   return {
     id: textOf(row["id"]),
-    organizationId: optionalText(row["organization_id"]) ?? null,
+    organizationId: optionalText(row["tenant_id"]) ?? null,
     ownerId: optionalText(row["owner_id"]),
     scope: scopeOf(row["scope"]),
     agentId: optionalText(row["agent_id"]),

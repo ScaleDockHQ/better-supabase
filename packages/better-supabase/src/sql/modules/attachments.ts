@@ -6,7 +6,6 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { readIfAny } from "../read-if-any.ts";
 import {
-  addExtraColumns,
   ensureCheck,
   extraFieldsArg,
   fail,
@@ -33,6 +32,7 @@ import {
   statusAssignments,
   statusFrom,
 } from "./attachments-app.ts";
+import { attachmentBackfills } from "./attachments-backfill.ts";
 import {
   BUCKET,
   bucketInsert,
@@ -514,7 +514,9 @@ alter table ${t} add column if not exists ${c("metadata")} jsonb not null defaul
 -- ${c("path")} is a plain column a trigger fills: logical replication (PowerSync)
 -- skips generated columns. An install from before keeps its values when the
 -- expression is dropped.
-do $$
+${
+  ctx.rerunnable
+    ? `do $$
 begin
   if exists (
     select 1 from pg_attribute
@@ -525,7 +527,9 @@ begin
   end if;
 end;
 $$;
-create or replace function ${fn("attachment_object_path")}()
+`
+    : ""
+}create or replace function ${fn("attachment_object_path")}()
 returns trigger
 language plpgsql
 security invoker
@@ -541,20 +545,8 @@ drop trigger if exists bsb_attachments_object_path on ${t};
 create trigger bsb_attachments_object_path
   before insert or update on ${t}
   for each row execute function ${fn("attachment_object_path")}();
--- options.path: the column comment records the template the path was built
--- from, so a changed template rewrites every row's path.
-do $$
-declare
-  v_current text := coalesce(
-    col_description(${sqlString(qualifiedTable)}::regclass,
-      (select attnum from pg_attribute where attrelid = ${sqlString(qualifiedTable)}::regclass and attname = ${sqlString(pathColumn)})::integer),
-    'better-supabase path: {organization_id}/attachments/{id}');
-begin
-  if v_current is distinct from ${sqlString(pathComment)} then
-    update ${t} set ${c("path")} = null;
-  end if;
-end;
-$$;`
+-- options.path: the data file recomputes the path of a row that no longer
+-- matches the template, so a changed template rewrites it.`
       : ""
   }
 ${
@@ -569,7 +561,7 @@ ${ensureCheck(t, "bsb_attachments_size", `${c("size")} between 0 and ${String(ma
 ${mimeCheck}
 create unique index if not exists ${ctx.naming.rename("attachments_object_idx")} on ${t} (${c("bucket")}, ${c("path")});
 create index if not exists ${ctx.naming.rename("attachments_subject_idx")} on ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")});
-create index if not exists ${ctx.naming.rename("attachments_uploaded_by_idx")} on ${t} (${c("uploadedBy")});${addExtraColumns(t, extras)}${
+create index if not exists ${ctx.naming.rename("attachments_uploaded_by_idx")} on ${t} (${c("uploadedBy")});${
     documents
       ? documentGuardSql(
           ctx,
@@ -602,7 +594,7 @@ $$;
 revoke execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) from public, anon;
 grant execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) to authenticated, service_role;
 
-${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_read`), command: "select", roles: ["authenticated"], using: `${memberIn("read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})` }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_read`), command: "select", roles: ["authenticated"], using: `${memberIn("read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})` }), { target: t })}
 ${renderPolicy(
   makePolicy({
     table: t,
@@ -613,9 +605,9 @@ ${renderPolicy(
     and ${inTenant("", "upload")}
     and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})`,
   }),
-  { drop: true, target: t },
+  { target: t },
 )}
-${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_delete`), command: "delete", roles: ["authenticated"], using: `${c("uploadedBy")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")}` }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_delete`), command: "delete", roles: ["authenticated"], using: `${c("uploadedBy")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")}` }), { target: t })}
 ${attachmentsTopicSql(ctx, { t, c, read: ctx.permission("read", permissions.read) })}
 ${versioned.table}
 -- Whether the caller may run action (insert, select or delete) on the
@@ -1018,7 +1010,7 @@ function data(ctx: BlockSqlContext): string {
     }
   }
 
-  return bucketInsert(ctx, rows, maxSize);
+  return `${bucketInsert(ctx, rows, maxSize)}${attachmentBackfills(ctx)}`;
 }
 
 export const ATTACHMENTS: BlockSqlDefinition = {

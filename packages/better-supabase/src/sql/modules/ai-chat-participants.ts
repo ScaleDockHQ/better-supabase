@@ -22,7 +22,7 @@ export function participantJson(ctx: BlockSqlContext, row: string): string {
     ["user_id", "user"],
     ["kind", "kind", "'user'"],
     ["team_id", "team"],
-    ["customer_user_id", "customerUser"],
+    ["customer_id", "customerUser"],
     ["email", "email"],
     ["role", "role"],
     ["added_by", "addedBy"],
@@ -147,7 +147,7 @@ begin
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "list_ai_chat_participants.chat")}
   end if;
   return (
-    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c.${ch.id}, 'user_id', c.${ch.owner}, 'kind', 'user', 'team_id', null, 'customer_user_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', ${ctx.has("chats", "createdAt") ? `c.${ch.createdAt}` : "null"}))
+    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c.${ch.id}, 'user_id', c.${ch.owner}, 'kind', 'user', 'team_id', null, 'customer_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', ${ctx.has("chats", "createdAt") ? `c.${ch.createdAt}` : "null"}))
       || coalesce((
         select jsonb_agg(${participantJson(ctx, "x")} order by ${ctx.has("participants", "createdAt") ? `x.${pa.createdAt}, ` : ""}${ctx.has("participants", "id") ? `x.${pa.id}` : `x.${pa.user}`})
         from ${t.participants} x

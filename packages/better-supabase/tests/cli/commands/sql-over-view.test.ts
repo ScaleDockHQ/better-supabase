@@ -13,12 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
-import {
-  codemodCommand,
-  runCodemod,
-} from "../../../src/cli/commands/codemod.ts";
 import { runSql } from "../../../src/cli/commands/sql.ts";
-import { parseCommandArgs } from "../../../src/cli/core/command.ts";
 import { moduleLayoutFor } from "../../../src/cli/sql-layout.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
@@ -50,25 +45,9 @@ create table public.docs (
 );
 `;
 
-/** The 0.14 config: the block adopted the view with `ownership: "adopt"`. */
-const CONFIG_014 = `export default {
-  blocks: {
-    memberships: {
-      ownership: "adopt",
-      tables: { memberships: "${VIEW}" },
-      columns: { memberships: { updatedAt: null, lastUsedAt: null } },
-    },
-    "share-links": { on: { doc: { table: "docs" } } },
-  },
-};
-`;
-
 const CONFIG: BetterSupabaseConfig = {
   blocks: {
-    memberships: {
-      tables: { memberships: VIEW },
-      columns: { memberships: { updatedAt: null, lastUsedAt: null } },
-    },
+    memberships: { tables: { memberships: VIEW } },
     "share-links": { on: { doc: { table: "docs" } } },
   },
 };
@@ -93,7 +72,7 @@ language sql immutable as $$ select sha256(data) $$;
 const VIEW_DDL =
   /^\s*(?:create table|alter table|create (?:unique )?index\b.* on|(?:grant|revoke)\b.* on(?: table)?|(?:create|alter|drop) policy\b.* on|(?:create|drop) trigger\b.* on|comment on (?:table|column))(?: if (?:not )?exists| only)*\s+"?public"?\."?organization_memberships\b/im;
 
-describe("a 0.14 block adopted over the app's view", () => {
+describe("a block adopted over the app's view", () => {
   let root: string;
 
   beforeEach(async () => {
@@ -125,20 +104,7 @@ describe("a 0.14 block adopted over the app's view", () => {
     ]);
   });
 
-  it("drops ownership after the codemod and writes SQL that leaves the view alone", async () => {
-    await writeFile(join(root, "better-supabase.config.ts"), CONFIG_014);
-
-    const codemod = await runCodemod(
-      resolveConfig({}, root),
-      // SAFETY: every codemod subcommand declares the same args, so any one parses `argv`.
-      parseCommandArgs(codemodCommand("0.15"), ["0.15"]),
-    );
-
-    expect(codemod.code).toBe(0);
-    expect(
-      await readFile(join(root, "better-supabase.config.ts"), "utf-8"),
-    ).not.toContain("ownership");
-
+  it("writes SQL that leaves the view alone", async () => {
     expect((await sql(["sync"])).code).toBe(0);
     expect((await sql(["upgrade"])).code).toBe(0);
 

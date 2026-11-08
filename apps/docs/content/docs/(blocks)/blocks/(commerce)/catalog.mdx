@@ -316,21 +316,16 @@ leave out keeps the column's value.
 
 ### Variant and category columns of your own
 
-`options.variantExtraColumns` and `options.categoryExtraColumns` list columns
-of the variants and categories tables the block doesn't know, such as a
+Columns you add to the variants and categories tables the block doesn't know, such as a
 manufacturer part number, a purchase cost, a default flag or a category icon.
 `createVariant`, `updateVariant` and `saveCategory` take them as `fields`,
 write them, and return them under `fields`:
 
-```ts
-catalog: {
-  options: {
-    variantExtraColumns: { manufacturer_part_number: "text", purchase_price_cents: "bigint", is_default: "boolean not null default false" },
-    categoryExtraColumns: { icon: "text not null default 'Package01Icon'" },
-  },
-}
-
-await catalog.createVariant({ productId, input: { sku: "TEE-S", fields: { is_default: true } } }).orThrow();
+```sql title="supabase/schemas/your_table.sql"
+alter table "better_supabase"."your_table" add column "manufacturer_part_number" text;
+alter table "better_supabase"."your_table" add column "purchase_price_cents" bigint;
+alter table "better_supabase"."your_table" add column "is_default" boolean not null default false;
+alter table "better_supabase"."your_table" add column "icon" text not null default 'Package01Icon';
 ```
 
 ## Categories and collections
@@ -839,7 +834,7 @@ know who belongs to a customer group yet, so only base prices are public.
 
 ## Your own fields
 
-`blocks.catalog.options.extraColumns` adds columns to the `products` table,
+Columns you add to `products` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createCatalog` a Standard Schema
 for them as `fields`: `createProduct`, `updateProduct` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and the saved product return them

@@ -71,11 +71,11 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
         ),
       ).toBe(2);
 
-      const left = await s.rows<{ organization_id: string }>(
-        "select organization_id from better_supabase.outbox_events where type = 'test.retained'",
+      const left = await s.rows<{ tenant_id: string }>(
+        "select tenant_id from better_supabase.outbox_events where type = 'test.retained'",
       );
 
-      expect(left).toEqual([{ organization_id: b }]);
+      expect(left).toEqual([{ tenant_id: b }]);
 
       const hold = await retention
         .placeHold({ reason: "Litigation", organizationId: b })
@@ -123,7 +123,7 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
       );
       await s.client.query("set local session_replication_role = replica");
       await s.client.query(
-        "update better_supabase.audit_events set occurred_at = now() - interval '3 years' where organization_id = $1",
+        "update better_supabase.audit_events set occurred_at = now() - interval '3 years' where tenant_id = $1",
         [tenant],
       );
       await s.client.query("set local session_replication_role = origin");
@@ -153,7 +153,7 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
         .orThrow();
       await s.client.query("reset role");
       await s.client.query(
-        "insert into better_supabase.organization_deletions (organization_id, requested_by, purge_after) values ($1, null, now() - interval '1 day')",
+        "insert into better_supabase.organization_deletions (tenant_id, requested_by, purge_at) values ($1, null, now() - interval '1 day')",
         [tenant],
       );
       await s.client.query("set local role service_role");

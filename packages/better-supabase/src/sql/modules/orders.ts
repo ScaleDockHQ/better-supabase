@@ -13,8 +13,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { BILLING_PARTIES, COST_SOURCES } from "../line-items-sql.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
+import { extraFieldsArg, schemaPreamble } from "../shared.ts";
 import {
   sourceTemplateColumnSql,
   templateColumnSql,
@@ -108,7 +107,6 @@ const NAMES: BlockSqlNames = {
       "order_from_quote",
     ),
   ],
-  migrations: tableMoves("orders", 3),
   entities: {
     order: {
       table: "orders",
@@ -131,13 +129,7 @@ const NAMES: BlockSqlNames = {
     "before_refund_create",
     "after_refund_create",
   ],
-  options: [
-    "paymentWindowMinutes",
-    "extraColumns",
-    "kitchen",
-    "discountMatrix",
-    "templates",
-  ],
+  options: ["paymentWindowMinutes", "kitchen", "discountMatrix", "templates"],
   tables: {
     carts: {
       name: "carts",
@@ -426,7 +418,7 @@ function tables(ctx: BlockSqlContext, names: OrdersNames): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   const ofOrder = (table: string): string => {
@@ -568,7 +560,7 @@ create unique index if not exists ${ctx.naming.rename("orders_origin_idx")} on $
       ? `
 create index if not exists ${ctx.naming.rename("orders_variant_idx")} on ${t("orders")} (${o("variantOf")}) where ${o("variantOf")} is not null;`
       : ""
-  }${addExtraColumns(t("orders"), names.extras)}
+  }
 ${lockModuleTable(ctx, "orders", { read: true })}
 ${policy("orders", `${o("customer")} = (select auth.uid()) or ${tenantRead("orders")}`)}
 
@@ -690,7 +682,7 @@ ${policy("refunds", ofOrder("refunds"))}
 `;
 }
 
-/** `options.extraColumns`, added to the orders table. */
+/** The columns your schema files add, added to the orders table. */
 const extrasOf = (ctx: BlockSqlContext) =>
   ctx.extraColumns("orders", ["fields"]);
 

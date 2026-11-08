@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { getSimilarNotes } from "../note-queries";
+import { getSimilarNotes } from "../notes-queries";
 
 /** Render inside `<Suspense>`: vector search over the organization's notes. */
 export async function SimilarNotes() {

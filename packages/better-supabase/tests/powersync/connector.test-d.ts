@@ -11,7 +11,7 @@ import type {
 import type { Insert } from "../../src/schema/types.ts";
 import type { Models } from "../fixtures/generated-camel.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import {
   createUploadConnector,
   uploadRoute,
@@ -22,7 +22,7 @@ declare const client: SupabaseClient;
 
 declare const supabase: Parameters<typeof createUploadConnector>[0]["supabase"];
 
-const db = defineSupabase(camel).connect(client);
+const db = createSupabase(camel).connect(client);
 
 describe("upload routes", () => {
   it("takes a generated repository as a typed UploadRepository", () => {

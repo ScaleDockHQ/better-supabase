@@ -48,7 +48,7 @@ flag.
 - Data a client component fetches in `useEffect` is never in the prefetch,
   so an `instant` page that does it shows a skeleton on every click. Load it
   in a `"use cache: private"` function with `bsb.cached()` and pass it in as a
-  prop (`security-queries.ts` for the two-factor and connected agents cards).
+  prop (`user-queries.ts` for the two-factor and connected agents cards).
   `supabase.auth` is off on the server client, which passes `accessToken`, so
   those reads call the Auth REST endpoints with `auth.token`.
 - A database budget (`maxCalls`, `maxWaves`) fails on a navigation served
@@ -258,3 +258,157 @@ against production after the deploy.
   pricing page returns one `default` code when `FLAGS_SECRET` is unset.
 - Pass the adapter itself (`adapter: bsFlags`) and put `identify` on
   `createBetterSupabaseAdapter`, not on each flag.
+
+## App architecture
+
+`pnpm check:app-architecture` holds the example to the feature-sliced RSC rules
+(ADR 0310). Pages compose: they import feature components and place
+`<Suspense>`, stay synchronous and turn `params` or `searchParams` into plain
+values with `params.then()` before a feature sees them. A feature takes ids and
+a `query` object, never the route promise. Queries sit in
+`<folder>-queries.ts` with `import "server-only"`, actions in
+`<folder>-actions.ts`, and pure helpers a page needs (a scope, a filter parser)
+in `<folder>-cache.ts`. A tag you write yourself lives in `<folder>-cache.ts` too, built with `tagFor` (ADR 0311). An async component in `components/` exports its
+`*Skeleton` in the same file, or carries `// skeleton: <reason>` above it. Use
+`io()` from `next/cache` for a clock or random read, and `connection()` only
+with a comment that states why rendering has to wait for a request. Read
+`.agents/skills/nextjs-app-architecture` before you add a feature.
+
+## Library specs
+
+The example app cannot do these without a change in `packages/better-supabase`
+(and `packages/next-config` where named). Each entry says what to build, where,
+and how to prove it; none is implemented yet. ADR 0316 records the decision.
+
+### `AuthGate`
+
+Build: `better-supabase/next/auth-gate`, a Server Component that `init` writes
+into `app/[locale]/(app)/layout.tsx`. Export `AuthGate({ children, fallback =
+null, redirect })` and a client `useUser()` hook.
+
+- The layout stays synchronous. `AuthGate` renders `<Suspense fallback>` around
+  an inner async component that creates one promise with `bsb.user()` and passes
+  it through a context provider. Client leaves call `use(userPromise)` inside
+  their own boundary and never import the data layer.
+- `bsb.user()` is a `"use cache: private"` function with `cacheLife({ stale:
+  300 })` that returns `{ id, email, name, organizationId }`. It never returns
+  the token or the session.
+- The session check (`redirect`, `forbidden`, `unauthorized`) runs before the
+  first `<Suspense>`, so the status code is right; the proxy keeps the
+  cookie-only redirect for signed-out visitors.
+- User-scoped subtrees get `key={userId}`, so a user change never shows another
+  user's DOM.
+
+Prove it: `tests/next` renders the layout with an ended session (expects a 307)
+and a valid one (expects the shell in the first chunk and one token
+verification, asserted with `expectRequestStats`); a type test shows that
+`useUser()` returns no token field. Size: `next + client` in
+`tests/bundle/baseline-shipped.json` does not grow.
+
+### `bsb.cached(options, { stage })`
+
+Build: add `stage?: "prefetch" | "navigation"` to `CachedOptions` in
+`src/next/types.ts` and apply it in `create.ts` before the scope opens.
+
+- `stage: "navigation"` awaits `navigation()` from `next/cache`, and `stage:
+  "prefetch"` awaits `prefetch()`, in the calling component, before
+  `applyEntry` runs and never inside the `"use cache"` scope (the gates throw in
+  one).
+- `bsb.bootstrap` takes the same option.
+- Without Cache Components or Partial Prefetching the option is a no-op that
+  logs once in development.
+- Add `life?: CachedLife | "max"` so an app names the profile instead of
+  calling `cacheLife("max")` after `bsb.cached()` (ADR 0312). `"max"` means
+  `{ stale: 300, revalidate: 2592000, expire: 31536000 }`; the token cap of
+  `capToToken` still applies.
+
+Prove it: a `tests/next` case per stage that records the order of `navigation()`
+and the first query, and a case that `life: "max"` yields the `max` profile.
+Export snapshot and `api/exports.json` change (`vitest run tests/exports.test.ts
+-u`); the docs page for `bsb.cached` gains both options.
+
+### `better-supabase/next/proxy`
+
+Build: a new subpath whose entry is `src/next/proxy-entry.ts`, exporting
+`createProxy()` and the helpers `proxy.ts` uses (`mutableResponse`,
+`overrideRequestHeaders`, `syncMiddlewareSetCookie`, `serverTimingValue`).
+
+- The entry imports `src/next/proxy.ts`, the session refresh of ADR 0117 and the
+  cookie-only optimistic redirect, and nothing from `create.ts`. Today `create.ts`
+  statically imports `sign-in.ts`, `record.ts`, `collector.ts` and
+  `resources.ts`, so the proxy bundle carries Server Component code.
+- Add the subpath to the exports map, `tsdown.config.ts`, `README.md`'s table,
+  the export snapshot and the docs under `apps/docs/content/docs`; add it to
+  neither `NODE_ENTRIES` list (it imports no Node built-in).
+- The example's `src/proxy.ts` imports it.
+
+Prove it: a new entry in `tests/bundle/baseline-shipped.json` smaller than
+`next`, and `tests/standards/wintertc.test.ts` passes for it.
+
+### Taint
+
+Build: `createNextConfig()` sets `experimental.taint: true`
+(`packages/next-config/src/next-config.ts`). `createNext` calls
+`experimental_taintUniqueValue` on the access and refresh tokens and
+`experimental_taintObjectReference` on the `ServerContext`, `AuthState` and the
+Supabase clients it hands out, behind a guard for React builds without the API.
+
+Prove it: a `tests/next` case passes a tainted object and a tainted token to a
+client component and expects the React taint error; the DTO rule (`bsb.user()`)
+stays the first layer, taint the second.
+
+### Offline and PWA files
+
+Build: the controllers of ADR 0030 read `useOffline()` from `next/offline`: a
+list or record pauses refetches and exposes `offline: true` instead of an
+error, and a write queues once and retries when the navigation layer retries.
+`useOffline()` is `false` during SSR and hydration, so no mismatch. The
+controllers stay idempotent under double effects and mutate no props.
+
+`init` for Next.js also writes `app/manifest.ts`, a service worker served with
+the `no-cache, no-store, must-revalidate` header `createNextConfig` already
+sets, and `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` in
+`.env.example` without values.
+
+Prove it: `tests/types` for the `offline` field, a controller test with
+`useOffline` mocked to `true`, and the example's offline e2e.
+
+### The `init` fixture
+
+`init` for Next.js must write the layout `scripts/check-app-architecture.ts`
+checks: `app/`, `features/<domain>/<domain>-queries.ts` (`server-only`),
+`<domain>-actions.ts` (`'use server'`), `components/<name>.tsx` with a sibling
+`*Skeleton`, `<domain>-cache.ts` for tags, and synchronous pages that resolve
+`params` with `params.then()`. Commit the generated output under
+`tests/init-fixture/nextjs/src`; the check script already lists that path in
+`pendingRoots` and fails on findings as soon as the directory exists.
+
+## First-load JavaScript and the bundle analyzer
+
+`tests/next-build` holds every route's first load to `baseline.json` (raw bytes
+never rise, compressed bytes may move by 64). To see what a route ships and why,
+use the Turbopack analyzer from Next.js 16.4 (ADR 0481). `--output` writes the
+analysis without starting the UI and `--snapshot` names it:
+
+```bash
+cd apps/examples/nextjs
+pnpm exec next analyze --output --snapshot before
+pnpm exec next analyze export --snapshot before \
+  | node ../../../scripts/next-analyze-report.ts "/[locale]/customers" 25
+pnpm exec next analyze            # the interactive UI, with import chains
+```
+
+The report groups a route's synchronous client chunks by package. In the UI,
+open a module to see the import chain that includes it, and switch between the
+client and server views. `next analyze` builds on its own and writes under
+`.next/diagnostics/analyze`; run `rm -rf .next` before a real `next build`
+afterwards, or the prerender fails with a duplicate-React error.
+
+Rules the example follows (ADR 0480):
+
+- A route outside `(app)` never imports `@/lib/supabase/client`, `@/lib/hooks` or a
+  `@/hooks/*` file. Forms that call Auth await `loadBrowserClient()` on submit.
+- A menu, dialog or sheet that most visits never open loads on first intent
+  (`LazyOnIntent`) or on first open. Toasts go through `@/lib/toast`.
+- Browser code reads the global `Temporal` and never imports `temporal-polyfill`
+  (ADR 0482).

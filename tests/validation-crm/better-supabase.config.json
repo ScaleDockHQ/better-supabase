@@ -65,7 +65,7 @@
   },
   "gen": {
     "casing": "camel",
-    "output": "src/generated.ts",
+    "file": "src/generated.ts",
     "readSets": ["src/latency.ts", "src/customer-detail.ts"]
   }
 }

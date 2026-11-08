@@ -77,7 +77,7 @@ describe("timeline transition and message sources", () => {
       `join "better_supabase"."conversations" c on c."id" = m."conversation_id"`,
     );
     expect(sql).toContain(`and m."sent_at" is not null`);
-    expect(sql).toContain(`and m."deleted_at" is null`);
+    expect(sql).toContain(`and m."archived_at" is null`);
     expect(sql).toContain(
       `'type', case when c."kind" = 'subject' then 'comment.posted' else 'message.sent' end`,
     );

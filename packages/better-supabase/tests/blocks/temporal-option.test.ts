@@ -15,7 +15,7 @@ import {
 } from "../../src/blocks/settings/index.ts";
 import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { applyTemporal } from "../../src/core/block-helpers.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { provideTemporal, providedTemporal } from "../../src/core/temporal.ts";
 import { createRateLimit } from "../../src/rate-limit/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -89,7 +89,7 @@ describe("the temporal option of block creators", () => {
 
   it("stamps block events with the definition's now option", () => {
     const time = Temporal.Instant.from("2026-10-01T12:00:00Z");
-    const betterSupabase = defineSupabase(schema, { now: () => time });
+    const betterSupabase = createSupabase(schema, { now: () => time });
     const seen: BlockEvent[] = [];
     betterSupabase.on("block", (event) => {
       seen.push(event);

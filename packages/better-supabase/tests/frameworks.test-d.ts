@@ -40,7 +40,7 @@ import type {
 import type { BetterSupabaseNuxtModule, NuxtLike } from "../src/nuxt/index.ts";
 import type {
   BetterReactRouter,
-  ReactRouterArgs,
+  ReactRouterParams,
   ReactRouterOptions,
 } from "../src/react-router/create.ts";
 import type { SolidFetchEvent } from "../src/solid-start/index.ts";
@@ -64,7 +64,7 @@ describe("framework adapters", () => {
   it("React Router runs the middleware and pass loader arguments", () => {
     type Middleware = BetterReactRouter<never, never, never>["middleware"];
 
-    expectTypeOf<LoaderFunctionArgs>().toExtend<ReactRouterArgs>();
+    expectTypeOf<LoaderFunctionArgs>().toExtend<ReactRouterParams>();
     expectTypeOf<Middleware>().toExtend<MiddlewareFunction<Response>>();
     expectTypeOf<typeof createContext>().toExtend<
       ReactRouterOptions["createContext"]

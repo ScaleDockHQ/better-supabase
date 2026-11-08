@@ -16,6 +16,7 @@ export type InventoryEvents = {
   readonly "allocation.created": CommerceEventData;
   readonly "allocation.filled": CommerceEventData;
   readonly "allocation.released": CommerceEventData;
+  readonly "allocation.transferred": CommerceEventData;
   readonly "transfer.shipped": CommerceEventData;
   readonly "transfer.received": CommerceEventData;
   readonly "transfer.cancelled": CommerceEventData;
@@ -37,6 +38,7 @@ export const inventoryEvents: Events<InventoryEvents> = defineEvents({
   "allocation.created": event<CommerceEventData>(),
   "allocation.filled": event<CommerceEventData>(),
   "allocation.released": event<CommerceEventData>(),
+  "allocation.transferred": event<CommerceEventData>(),
   "transfer.shipped": event<CommerceEventData>(),
   "transfer.received": event<CommerceEventData>(),
   "transfer.cancelled": event<CommerceEventData>(),

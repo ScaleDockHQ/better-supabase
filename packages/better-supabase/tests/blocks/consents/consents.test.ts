@@ -138,7 +138,7 @@ describe("createConsents", () => {
       status: "granted",
       given_by: "self",
       given_by_contact_id: null,
-      valid_until: null,
+      expires_at: null,
       scope: { channels: ["email"] },
       evidence: { submissionId: "s1" },
     });

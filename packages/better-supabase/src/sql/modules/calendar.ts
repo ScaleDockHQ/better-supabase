@@ -7,7 +7,6 @@ import { ensureExclusion } from "../exclusion.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addCheck,
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -78,7 +77,7 @@ function eventOverlap(ctx: BlockSqlContext): string {
 
   return `\n${ensureExclusion(
     ctx.table("events"),
-    ctx.naming.rename("calendar_events_no_overlap"),
+    ctx.naming.rename("calendar_events_no_overlap_excl"),
     [
       { expression: e("calendar"), operator: "=" },
       {
@@ -214,11 +213,7 @@ ${addCheck({
         .join("")}`
     : "";
 
-  const calendarExtras = ctx.extraColumns(
-    "calendars",
-    ["fields"],
-    "calendarExtraColumns",
-  );
+  const calendarExtras = ctx.extraColumns("calendars", ["fields"]);
 
   const calendarExtra = extraFieldsArg(calendarExtras);
 
@@ -260,7 +255,7 @@ ${
       })
     : ""
 }
-${renderPolicy(makePolicy({ table: attendees, name: `${ctx.tableName("attendees").name}_read`, command: "select", roles: ["authenticated"], using: `${features.access ? eventAccessCall(ctx, a("event"), "read", me) : ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid())` }), { drop: true, target: attendees })}
+${renderPolicy(makePolicy({ table: attendees, name: `${ctx.tableName("attendees").name}_read`, command: "select", roles: ["authenticated"], using: `${features.access ? eventAccessCall(ctx, a("event"), "read", me) : ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid())` }), { target: attendees })}
 `
       : "";
 
@@ -274,10 +269,10 @@ ${renderPolicy(makePolicy({ table: attendees, name: `${ctx.tableName("attendees"
   ${k("ownerType")} text,
   ${k("ownerId")} text,
   ${k("createdAt")} timestamptz not null default now()
-);${addExtraColumns(calendars, calendarExtras)}${calendarColumns}
+);${calendarColumns}
 ${lockTable(calendars, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("calendars").name}_tenant_idx`)} on ${calendars} (${k("tenant")});
-${renderPolicy(makePolicy({ table: calendars, name: `${ctx.tableName("calendars").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? accessCall(ctx, k("id"), "read", me) : ctx.scope.check(k("tenant"), read) }), { drop: true, target: calendars })}
+${renderPolicy(makePolicy({ table: calendars, name: `${ctx.tableName("calendars").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? accessCall(ctx, k("id"), "read", me) : ctx.scope.check(k("tenant"), read) }), { target: calendars })}
 create table if not exists ${events} (
   ${e("id")} uuid primary key default gen_random_uuid(),
   ${e("tenant")} ${ctx.idType} not null,
@@ -322,9 +317,9 @@ ${addCheck({
   table: events,
   name: `${ctx.tableName("events").name}_transparency_check`,
   expression: `${e("transparency")} in ${TRANSPARENCIES}`,
-})}${eventColumns}${addExtraColumns(events, eventExtras(ctx))}${eventOverlap(ctx)}
+})}${eventColumns}${eventOverlap(ctx)}
 ${lockTable(events, { read: true })}
-${renderPolicy(makePolicy({ table: events, name: `${ctx.tableName("events").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? eventAccessCall(ctx, e("id"), "read", me) : ctx.scope.check(e("tenant"), read) }), { drop: true, target: events })}
+${renderPolicy(makePolicy({ table: events, name: `${ctx.tableName("events").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? eventAccessCall(ctx, e("id"), "read", me) : ctx.scope.check(e("tenant"), read) }), { target: events })}
 ${attendeesTable()}${alarmsTable(ctx)}${defaultAlarmsTable(ctx)}${workingHoursTable(ctx)}${grantsTable(ctx)}${recurrenceTables(ctx)}`
     : "";
 
@@ -688,7 +683,7 @@ $$;
 ${userGrant(`${fn("delete_calendar_event")}(uuid)`)}
 
 -- Removes one occurrence of a series: adds an EXDATE and drops its override.
-create or replace function ${fn("cancel_calendar_occurrence")}(event_id uuid, original_start timestamptz)
+create or replace function ${fn("cancel_calendar_occurrence")}(event_id uuid, original_starts_at timestamptz)
 returns boolean
 language plpgsql
 security definer
@@ -710,17 +705,17 @@ begin
   end if;${actionCheck("delete", "v_tenant")}${readOnlyCheck("v_id")}
   ${
     features.table
-      ? `if not (cancel_calendar_occurrence.original_start = any (${recurrence.exdatesOf("v_id")})) then
-    ${addDate(ctx, "v_id", "v_tenant", "exdate", "cancel_calendar_occurrence.original_start")}
+      ? `if not (cancel_calendar_occurrence.original_starts_at = any (${recurrence.exdatesOf("v_id")})) then
+    ${addDate(ctx, "v_id", "v_tenant", "exdate", "cancel_calendar_occurrence.original_starts_at")}
   end if;
   update ${events} set ${e("updatedAt")} = now()
   where ${e("id")} = v_id;`
       : `update ${events} set ${e("exdates")} = (
-      select array_agg(distinct d order by d) from unnest(array_append(${e("exdates")}, cancel_calendar_occurrence.original_start)) d
+      select array_agg(distinct d order by d) from unnest(array_append(${e("exdates")}, cancel_calendar_occurrence.original_starts_at)) d
     ), ${e("updatedAt")} = now()
   where ${e("id")} = v_id;`
   }
-  delete from ${events} where ${e("recurrence")} = v_id and ${e("originalStart")} = cancel_calendar_occurrence.original_start;
+  delete from ${events} where ${e("recurrence")} = v_id and ${e("originalStart")} = cancel_calendar_occurrence.original_starts_at;
   ${record("calendar_event.updated", "v_id", "v_calendar", "v_tenant")}
   return true;
 end;
@@ -909,9 +904,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "text",
         "text",
         "text",
-        ...extraFieldsArg(
-          ctx.extraColumns("calendars", ["fields"], "calendarExtraColumns"),
-        ).contract,
+        ...extraFieldsArg(ctx.extraColumns("calendars", ["fields"])).contract,
         ...(attrs ? ["jsonb"] : []),
       ],
       returns: "jsonb",

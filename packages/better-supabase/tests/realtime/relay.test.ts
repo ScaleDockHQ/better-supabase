@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthState } from "../../src/auth/resolve.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { liveQuery } from "../../src/realtime/live.ts";
 import {
   relayRealtimeClient,
@@ -19,7 +19,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 const meta: SchemaMeta = { ...schema.meta, realtime: { notes: {} } };
 
-const betterSupabase = defineSupabase(defineSchema(meta));
+const betterSupabase = createSupabase(defineSchema(meta));
 
 const caller: AuthState = {
   kind: "user",

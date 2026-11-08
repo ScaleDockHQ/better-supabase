@@ -8,6 +8,7 @@ import {
   renderBlocks,
 } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const schemaOf = (names: readonly string[]) =>
   renderBlocks(names, {})
@@ -16,6 +17,28 @@ const schemaOf = (names: readonly string[]) =>
     .join("\n");
 
 describe("workflow-editor module", () => {
+  it("leaves out opt-outs when the app maps the table to null", () => {
+    const kept = schemaOf(["workflow-editor"]);
+    expect(kept).toContain(
+      'create table "better_supabase"."workflow_opt_outs"',
+    );
+    expect(kept).toContain('"set_workflow_opt_out"');
+    expect(kept).toContain("This organization opted out of this workflow");
+
+    const left = renderBlocks(["workflow-editor"], {
+      modules: { "workflow-editor": { tables: { optOuts: null } } },
+    })
+      .filter((file) => file.kind === "schema")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(left).not.toContain(
+      'create table "better_supabase"."workflow_opt_outs"',
+    );
+    expect(left).not.toContain("set_workflow_opt_out");
+    expect(left).not.toContain("This organization opted out of this workflow");
+  });
+
   it("installs after workflows and emits alerts only with the outbox", () => {
     const names = renderBlocks(["workflow-editor"], {}).map(
       (file) => file.module,
@@ -61,10 +84,10 @@ describe("workflow-editor module", () => {
   it("stores the publisher and refuses one who lacks a step's permission", () => {
     const body = moduleBody("workflow-editor", {})!;
     expect(body).toContain(
-      'add column if not exists "published_by" uuid references auth.users (id) on delete set null',
+      'add column "published_by" uuid references auth.users (id) on delete set null',
     );
-    expect(body).toContain(
-      `add column if not exists "owner_kind" text check ("owner_kind" in ('user', 'organization'))`,
+    expect(unnamedChecks(body)).toContain(
+      `add column "owner_kind" text check ("owner_kind" in ('user', 'organization'))`,
     );
 
     const publish = body.slice(
@@ -110,18 +133,12 @@ describe("workflow-editor module", () => {
     expect(principal).toContain(
       `select case when x."scope" = 'system' then tenant else x."tenant_id" end into v_tenant`,
     );
-    expect(body).toContain(
-      'drop function if exists "better_supabase"."workflow_run_principal"(uuid);',
-    );
   });
 
   it("binds definitions to subject types and checks the record on a subject start", () => {
     const body = moduleBody("workflow-editor", {})!;
     expect(body).toContain(
-      `add column if not exists "subject_types" text[] not null default '{}'`,
-    );
-    expect(body).toContain(
-      'drop function if exists "better_supabase"."save_workflow_definition"(uuid, text, text, text);',
+      `add column "subject_types" text[] not null default '{}'`,
     );
     expect(body).toContain(
       'or workflow_definitions_list.subject_type = any (x."subject_types")',

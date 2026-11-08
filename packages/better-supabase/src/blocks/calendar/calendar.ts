@@ -59,10 +59,10 @@ export interface CalendarOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > {
   /**
-   * A Standard Schema for the event columns the app adds
-   * (`blocks.calendar.options.extraColumns`), keyed by column name. It types
-   * and parses them on `events`, and validates them on `upsert` and the
-   * occurrence edits, which return a `validation` error for a bad value.
+   * A Standard Schema for the event columns the app adds (columns the app's
+   * schema files add to the table), keyed by column name. It types and parses
+   * them on `events`, and validates them on `upsert` and the occurrence edits,
+   * which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -81,7 +81,7 @@ export interface CalendarInfo {
   readonly color?: string;
   readonly ownerType?: string;
   readonly ownerId?: string;
-  /** With `options.calendarExtraColumns`: the calendar's own columns. */
+  /** With the columns the app's schema files add: the calendar's own columns. */
   readonly fields?: Readonly<Record<string, unknown>>;
   readonly visibility?: CalendarVisibility;
   readonly description?: string;
@@ -214,7 +214,10 @@ export interface Calendar<F extends object = Record<never, never>> {
           readonly tz?: string;
           readonly ownerType?: string;
           readonly ownerId?: string;
-          /** With `options.calendarExtraColumns`: values for those columns. */
+          /**
+           * With the columns the app's schema files add: values for those
+           * columns.
+           */
           readonly fields?: Readonly<Record<string, unknown>>;
         } & Omit<CalendarAttributes, "name" | "tz">)
       | undefined;
@@ -906,7 +909,7 @@ export function createCalendar<
           "cancel_calendar_occurrence",
           {
             event_id: occurrence.seriesId,
-            original_start: occurrence.originalStart.toString(),
+            original_starts_at: occurrence.originalStart.toString(),
           },
           (value) => value === true,
         );
@@ -926,7 +929,7 @@ export function createCalendar<
         "cancel_calendar_occurrence",
         {
           event_id: series.id,
-          original_start: occurrence.originalStart.toString(),
+          original_starts_at: occurrence.originalStart.toString(),
         },
         (value) => value === true,
       );

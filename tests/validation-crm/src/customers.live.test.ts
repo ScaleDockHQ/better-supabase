@@ -1,9 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 import { describe, expect, it } from "vitest";
 
 import { createCustomersService } from "./customers.ts";
-import { schema } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
 const url = process.env["CRM_SUPABASE_URL"];
 const secretKey = process.env["CRM_SUPABASE_SECRET_KEY"];
@@ -12,7 +12,7 @@ describe.skipIf(!url || !secretKey)(
   "CRM customers against a running CRM stack (read-only)",
   () => {
     it("runs the overview query with every filter and include", async () => {
-      const db = defineSupabase(schema).connect(
+      const db = createSupabase(schema).connect(
         createClient(url!, secretKey!, { auth: { persistSession: false } }),
       );
 

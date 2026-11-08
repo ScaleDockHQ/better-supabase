@@ -23,15 +23,15 @@ describe("collections module", () => {
   it("creates lists, entries and favorites with read policies", () => {
     const sql = sqlOf();
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."subject_collections"',
+      'create table "better_supabase"."subject_collections"',
     );
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."subject_collection_entries"',
+      'create table "better_supabase"."subject_collection_entries"',
     );
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."collection_favorites"',
+      'create table "better_supabase"."collection_favorites"',
     );
-    expect(sql).toContain("create policy subject_collection_entries_read");
+    expect(sql).toContain("create policy bsb_subject_collection_entries_read");
     expect(sql).toContain(
       `"better_supabase"."can_subject"("subject_type", "subject_id", 'read')`,
     );
@@ -116,10 +116,8 @@ describe("collections module", () => {
 
   it("saves records for later and claims due reminders as the service role", () => {
     const sql = sqlOf(["outbox"]);
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."saved_items"',
-    );
-    expect(sql).toContain("create policy saved_items_read");
+    expect(sql).toContain('create table "better_supabase"."saved_items"');
+    expect(sql).toContain("create policy bsb_saved_items_read");
     expect(sql).toContain("SAVED_ITEM_SUBJECT_FORBIDDEN");
     expect(sql).toContain("the reminder time must be in the future");
     expect(sql).toContain("for update skip locked");

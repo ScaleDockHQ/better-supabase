@@ -526,11 +526,11 @@ describe("doctor rules", () => {
         ];
       });
 
-      const subjects = {
+      const recordTypes = {
         membership: { table: "better_supabase.memberships", deletedAt: "role" },
       };
 
-      const softDelete = { config: resolveConfig({ subjects }, "/project") };
+      const softDelete = { config: resolveConfig({ recordTypes }, "/project") };
 
       const findings = await runRules(context(snap, softDelete), only);
       expect(findings[0]?.message).toContain(
@@ -540,7 +540,7 @@ describe("doctor rules", () => {
       const listed = {
         config: resolveConfig(
           {
-            subjects,
+            recordTypes,
             auth: {
               authorization: withProvider({
                 decidingColumns: ["better_supabase.memberships.role"],

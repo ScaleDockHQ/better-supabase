@@ -204,7 +204,7 @@ describe.skipIf(!live)("flags", () => {
          values ('theme', 'string', '{"a": "light", "b": "dark"}', 'a', false)`,
       );
       await s.rows(
-        `insert into better_supabase.flag_overrides (flag_key, organization_id, user_id, variant)
+        `insert into better_supabase.flag_overrides (flag_key, tenant_id, user_id, variant)
          values ('dark_mode', $1, null, 'on'), ('dark_mode', null, $2, 'off')`,
         [organization, member.id],
       );
@@ -536,18 +536,22 @@ describe.skipIf(!live)("flags", () => {
   it("finds the flags past expires_at that doctor reports", async () => {
     const s = await BlockSession.open(pool);
 
+    // The app's schema files add these columns to the flags table.
     const layout = {
-      modules: {
-        flags: {
-          options: {
-            extraColumns: { expires_at: "timestamptz", owner: "text" },
-          },
-        },
+      appColumns: {
+        "better_supabase.flags": [
+          { name: "expires_at", type: "timestamptz" },
+          { name: "owner", type: "text" },
+        ],
       },
     };
 
     try {
+      await s.client.query(
+        "alter table better_supabase.flags add column if not exists expires_at timestamptz, add column if not exists owner text",
+      );
       await s.install(["flags"], layout);
+
       await s.rows(`insert into better_supabase.flags (key, expires_at, owner, archived) values
         ('expired', now() - interval '1 day', 'growth', false),
         ('archived', now() - interval '1 day', 'growth', true),

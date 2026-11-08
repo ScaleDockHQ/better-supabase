@@ -55,7 +55,8 @@ export function cacheTargetOf(
   notice: MutationNotice,
 ): CacheTarget {
   const table = meta.tables[notice.table];
-  const rows = notice.rows.length > 0 ? notice.rows : (notice.keys ?? []);
+  // The keys come from the returned rows, so reading them skips the row copy.
+  const rows = notice.keys ?? notice.rows;
 
   const ids = table
     ? [...new Set(rows.flatMap((row) => rowKey(table, row) ?? []))]

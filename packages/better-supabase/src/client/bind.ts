@@ -4,10 +4,11 @@ import type { DataEngine } from "../bindings/data-engine.ts";
 import type { GeneratedBlocks } from "../blocks/block-config.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
-import type { Db } from "../core/repository-types.ts";
+import type { Db, RepositoryOf } from "../core/repository-types.ts";
 import type { BlockTenant } from "../core/tenant-source.ts";
 import type { BetterQueries } from "../query/index.ts";
-import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { TableModule } from "../schema/define.ts";
+import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type { ClientPorts } from "./ports.ts";
 
 import { userContext } from "../auth/impersonation.ts";
@@ -65,6 +66,16 @@ export interface BetterClient<
   readonly supabase: SupabaseClient;
   /** Repositories with the current session's actor and claims. */
   readonly db: Db<M, F, E, SupabaseClient, B>;
+  /**
+   * The repository of one table module (`import { customers } from
+   * "./tables/customers"`). With a schema that sets `lazyTables`, it also
+   * registers the table, so a page carries only the tables it imports; a table
+   * you embed with `with` must be imported and passed here first. Without
+   * `lazyTables` it reads `db.<table>`.
+   */
+  readonly table: <K extends TableKey<M>>(
+    table: TableModule<K>,
+  ) => RepositoryOf<M, K, E>;
   /** TanStack Query option factories over `db`. */
   readonly queries: BetterQueries<M, E, F>;
   readonly auth: ClientAuth;
@@ -265,6 +276,13 @@ export function bindClient<
       }
 
       return db;
+    },
+    table: (table) => {
+      if (betterSupabase.meta.lazyTables === true) {
+        betterSupabase.registerTable(table);
+      }
+
+      return client.db.$table(table.key);
     },
     queries: createQueries(
       betterSupabase,

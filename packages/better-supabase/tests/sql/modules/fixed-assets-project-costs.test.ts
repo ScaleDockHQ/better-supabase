@@ -6,7 +6,7 @@ type Layout = Parameters<typeof renderBlocks>[1];
 
 const BASE = ["memberships", "permissions", "subjects", "outbox"];
 const ACCOUNTING = ["ledger", "numbering", "accounting"];
-const TIME = ["time-tracking", "tasks", "invoices", "billable-time"];
+const TIME = ["time-entries", "tasks", "invoices", "billable-time"];
 
 const sqlOf = (
   module: string,
@@ -92,7 +92,7 @@ describe("project costing", () => {
 
   it("renders no project costs without tasks", () => {
     const sql = sqlOf("billable-time", [
-      "time-tracking",
+      "time-entries",
       "invoices",
       "billable-time",
     ]);

@@ -21,7 +21,7 @@ export type {
   RouteSpec,
 } from "./options.ts";
 
-export { buildApiModel } from "./build.ts";
+export { defineApiModel } from "./build.ts";
 
 export type { DataApiOptions } from "./data-api.ts";
 

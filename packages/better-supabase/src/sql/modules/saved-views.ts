@@ -13,7 +13,6 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { declareRead } from "../reads.ts";
 import {
-  addExtraColumns,
   columnsObject,
   extraFieldsArg,
   extraFieldsJson,
@@ -89,7 +88,7 @@ const NAMES: BlockSqlNames = {
     ),
   ],
   hooks: ["before_view_save", "after_view_save"],
-  options: ["extraColumns"],
+  options: [],
   tables: {
     views: {
       name: "saved_views",
@@ -133,8 +132,8 @@ const textList = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
 /**
- * `options.extraColumns`, added to a managed views table. The preference keys
- * `list_views` returns next to them are reserved.
+ * The columns your schema files add, added to a managed views table. The
+ * preference keys `list_views` returns next to them are reserved.
  */
 const extrasOf = (ctx: BlockSqlContext) =>
   ctx.extraColumns("views", ["ownerId", "teamId", "updatedAt", "preferences"]);
@@ -198,7 +197,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 );
 create index if not exists ${index("list")} on ${views} (${tenant}, ${list});
 create index if not exists ${index("owner")} on ${views} (${owner}) where ${owner} is not null;
-create unique index if not exists ${index("default")} on ${views} (${tenant}, ${list}, ${scope}, (${slot})) where ${isDefault};${addExtraColumns(views, extras)}
+create unique index if not exists ${index("default")} on ${views} (${tenant}, ${list}, ${scope}, (${slot})) where ${isDefault};
 ${lockTable(views, { read: true })}
 `
     : "";
@@ -236,7 +235,7 @@ ${lockTable(views, { read: true })}
 
   return `${schemaPreamble(ctx)}
 ${tables}
-${renderPolicy(makePolicy({ table: views, name: ctx.naming.rename("saved_views_read"), command: "select", roles: ["authenticated"], using: visible }), { drop: true, target: views })}
+${renderPolicy(makePolicy({ table: views, name: ctx.naming.rename("saved_views_read"), command: "select", roles: ["authenticated"], using: visible }), { target: views })}
 ${preferences?.ddl ?? ""}
 
 ${extraFieldsArg(extras).drop(fn("save_view"), `${ctx.idType}, text, text, text, text, text, jsonb, uuid`)}
@@ -561,7 +560,7 @@ ${lockTable(prefs, { read: true })}
     `jsonb_build_object('isDefault', coalesce(${alias}.${isDefault}, false), 'hidden', coalesce(${alias}.${hidden}, false), 'pinned', coalesce(${alias}.${pinned}, false))`;
 
   return {
-    ddl: `${table}${renderPolicy(makePolicy({ table: prefs, name: ctx.naming.rename("saved_view_preferences_read"), command: "select", roles: ["authenticated"], using: `${user} = (select auth.uid())` }), { drop: true, target: prefs })}
+    ddl: `${table}${renderPolicy(makePolicy({ table: prefs, name: ctx.naming.rename("saved_view_preferences_read"), command: "select", roles: ["authenticated"], using: `${user} = (select auth.uid())` }), { target: prefs })}
 `,
     functions: `
 -- The caller's own default, hidden and pinned flags for a view they see, so

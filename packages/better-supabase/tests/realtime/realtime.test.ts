@@ -4,13 +4,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RealtimeClient } from "../../src/realtime/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { DbException } from "../../src/core/errors.ts";
 import { defineTopic, rowChange, rowKeys } from "../../src/realtime/index.ts";
 import { LOOKUP_WARNING } from "../../src/realtime/topic-trigger.ts";
 import { schema, topics } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const SQL = {
   idsWith: "authz.ids_{scope}({permission})",
@@ -1226,15 +1226,6 @@ describe("trigger with betterSupabase", () => {
         when: { changed: ["missing"] },
       }),
     ).toThrow('no column for when.changed on "customers" ("missing")');
-  });
-
-  it("keeps triggerSql as a deprecated alias", () => {
-    const options = { values: { organizationId: "organizationId" } } as const;
-
-    // oxlint-disable-next-line typescript/no-deprecated -- tests the deprecated alias (1 finding)
-    expect(customers.triggerSql(betterSupabase, "customers", options)).toBe(
-      customers.trigger("customers", { ...options, betterSupabase }),
-    );
   });
 });
 

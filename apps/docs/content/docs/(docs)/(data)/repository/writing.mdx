@@ -95,7 +95,7 @@ if (result.error?.kind === "max_affected") {
 
 Over PostgREST this sends `Prefer: handling=strict, max-affected=50`, which
 needs PostgREST 13 or later. On an older server, set
-`defineSupabase(schema, { postgrestVersion: "12.2" })` and a call with
+`createSupabase(schema, { postgrestVersion: "12.2" })` and a call with
 `maxAffected` fails with `invalid_request` before any request. The
 [Postgres executor](/docs/auth/postgres) and
 [PowerSync](/docs/frontend/powersync) count the rows inside the statement or

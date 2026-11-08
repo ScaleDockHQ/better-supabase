@@ -7,7 +7,6 @@ import type {
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { asColumnType } from "./column-type.ts";
 import {
-  addExtraColumns,
   extraFieldsJson,
   fail,
   insertExtraColumns,
@@ -84,6 +83,8 @@ const DOCUMENT_LINE_COLUMNS = {
   optional: "optional",
   selected: "selected",
   periods: "periods",
+  unit: "unit",
+  discountKind: "discount_kind",
 } as const;
 
 /**
@@ -166,7 +167,10 @@ export function lineTableSpec(
       ...(options.sales === true ? Object.keys(SALES_LINE_COLUMNS) : []),
       ...(options.purchase === true ? Object.keys(PURCHASE_LINE_COLUMNS) : []),
     ],
-    typed: ["productType"],
+    typed: [
+      "productType",
+      ...(options.document === true ? ["discountKind"] : []),
+    ],
   };
 }
 
@@ -320,7 +324,7 @@ export function lineExtraColumns(
   ctx: BlockSqlContext,
   lines = "lines",
 ): readonly ExtraColumn[] {
-  return ctx.extraColumns(lines, LINE_KEYS, "lineExtraColumns");
+  return ctx.extraColumns(lines, LINE_KEYS);
 }
 
 export const lineFieldsJson = (
@@ -453,7 +457,7 @@ export function lineItemsSql(
     ...(options.fallback ? [options.fallback.unitAmount] : []),
   ];
 
-  const written = (
+  const rows = (
     [
       ["tenant", "v_tenant"],
       ["parent", "v_parent"],
@@ -500,21 +504,56 @@ export function lineItemsSql(
         "selected",
         "coalesce((x.value ->> 'selected')::boolean, not coalesce((x.value ->> 'optional')::boolean, false))",
       ],
-      ["periods", "coalesce((x.value ->> 'periods')::integer, 1)"],
+      // A `periods` of null runs until cancelled; leaving it out means one.
+      [
+        "periods",
+        "case when x.value ? 'periods' then (x.value ->> 'periods')::integer else 1 end",
+      ],
+      ["unit", "nullif(trim(x.value ->> 'unit'), '')"],
+      ["discountKind", "nullif(x.value ->> 'discountKind', '')"],
       ["position", "x.ordinality::integer"],
     ] as const
-  )
-    .filter(([column]) => has(column))
-    .map(([column, value]): readonly [string, string] => [
-      column,
-      column === "productType"
-        ? ctx.cast(items.lines, column, value)
-        : column === "productId" && !replaces
-          ? asColumnType(t, ctx.colName(items.lines, column), value)
-          : RATE_COLUMNS.has(column) && percentRates(ctx, items.lines)
+  ).filter(([column]) => has(column));
+
+  // A line that leaves out `unit` or `discountKind` keeps the column's value on
+  // an update and takes the column's own default on an insert, as an extra
+  // column does, so an app column that is `not null default 'none'` still
+  // accepts the line.
+  const given = (column: string): string => `x.value ? ${sqlString(column)}`;
+
+  const raw = (column: string, value: string): string =>
+    column === "discountKind" ? ctx.cast(items.lines, column, value) : value;
+
+  const kept = (column: string, value: string, existing: string): string =>
+    `case when ${given(column)} then ${raw(column, value)} else ${existing} end`;
+
+  const column = (name: string): string => ctx.colName(items.lines, name);
+
+  const ownDefault = (name: string): string =>
+    `better_supabase.column_default(${sqlString(t)}, ${sqlString(column(name))}, (null::${t}).${sqlIdent(column(name))})`;
+
+  const written = rows.map(([name, value]): readonly [string, string] => [
+    name,
+    name === "unit" || name === "discountKind"
+      ? kept(name, value, ownDefault(name))
+      : name === "productType"
+        ? ctx.cast(items.lines, name, value)
+        : name === "productId" && !replaces
+          ? asColumnType(t, column(name), value)
+          : RATE_COLUMNS.has(name) && percentRates(ctx, items.lines)
             ? `(${value} / 100.0)`
             : value,
-    ]);
+  ]);
+
+  // What an update sets: the line's value, or the row's own for a key left out.
+  const updated = (name: string, value: string): string =>
+    name === "unit" || name === "discountKind"
+      ? kept(
+          name,
+          rows.find(([key]) => key === name)?.[1] ?? value,
+          `l.${c(name)}`,
+        )
+      : value;
 
   const extras = items.extras ?? [];
 
@@ -530,14 +569,14 @@ export function lineItemsSql(
   ${c("parent")} uuid not null references ${p} (${pc("id")}) on delete cascade,${optional("productType")}${optional("productId")}
   ${c("description")} text not null check (length(${c("description")}) between 1 and 2000),
   ${c("quantity")} numeric(18, 4) not null check (${c("quantity")} > 0),
-  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}${optional("taxCodeId", () => "uuid")}${optional("unitCost", () => "bigint")}${optional("discountAmount", (name) => `bigint not null default 0 check (${name} >= 0)`)}${optional("costSource", (name) => `text check (${name} in (${COST_SOURCES.map(sqlString).join(", ")}))`)}${optional("locationId", () => "uuid")}${optional("binId", () => "uuid")}${optional("billingParty", (name) => `text not null default 'customer' check (${name} in (${BILLING_PARTIES.map(sqlString).join(", ")}))`)}${optional("billingPartyId")}${optional("billingAccountId", () => "uuid")}${optional("dimensions", (name) => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}${optional("section", (section) => `text check (length(${section}) between 1 and 300)`)}${optional("optional", () => "boolean not null default false")}${optional("selected", () => "boolean not null default true")}${optional("periods", (periods) => `integer not null default 1 check (${periods} > 0)`)}
+  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}${optional("taxCodeId", () => "uuid")}${optional("unitCost", () => "bigint")}${optional("discountAmount", (name) => `bigint not null default 0 check (${name} >= 0)`)}${optional("costSource", (name) => `text check (${name} in (${COST_SOURCES.map(sqlString).join(", ")}))`)}${optional("locationId", () => "uuid")}${optional("binId", () => "uuid")}${optional("billingParty", (name) => `text not null default 'customer' check (${name} in (${BILLING_PARTIES.map(sqlString).join(", ")}))`)}${optional("billingPartyId")}${optional("billingAccountId", () => "uuid")}${optional("dimensions", (name) => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}${optional("section", (section) => `text check (length(${section}) between 1 and 300)`)}${optional("optional", () => "boolean not null default false")}${optional("selected", () => "boolean not null default true")}${optional("periods", (periods) => `integer default 1 check (${periods} > 0)`)}
   ${c("position")} integer not null${has("createdAt") ? `,\n  ${c("createdAt")} timestamptz not null default now()` : ""}${has("productType") && has("productId") ? `,\n  check ((${c("productType")} is null) = (${c("productId")} is null))` : ""}
 );
-${has("periods") ? `alter table ${t} add column if not exists ${c("periods")} integer not null default 1 check (${c("periods")} > 0);\n` : ""}${has("dimensions") ? `alter table ${t} add column if not exists ${c("dimensions")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${c("dimensions")}) = 'object');\n` : ""}create index if not exists ${sqlIdent(`${name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${
+${has("periods") ? `alter table ${t} add column if not exists ${c("periods")} integer default 1 check (${c("periods")} > 0);\n` : ""}${has("unit") ? `alter table ${t} add column if not exists ${c("unit")} text constraint ${sqlIdent(`bsb_${name}_unit`)} check (length(${c("unit")}) between 1 and 40);\n` : ""}${has("discountKind") ? `alter table ${t} add column if not exists ${c("discountKind")} text constraint ${sqlIdent(`bsb_${name}_discount_kind`)} check (${c("discountKind")} in ('percentage', 'fixed'));\n` : ""}${has("dimensions") ? `alter table ${t} add column if not exists ${c("dimensions")} jsonb not null default '{}'::jsonb check (jsonb_typeof(${c("dimensions")}) = 'object');\n` : ""}create index if not exists ${sqlIdent(`${name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${
         ctx.owns(items.lines) || !positionKey
           ? ""
           : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_position_key`)} on ${t} (${c("parent")}, ${c("position")});`
-      }${addExtraColumns(t, extras)}
+      }
 ${lockTable(t, { read: true })}
 drop policy if exists ${sqlIdent(`${name}_read`)} on ${t};
 create policy ${sqlIdent(`${name}_read`)} on ${t} for select to authenticated
@@ -697,7 +736,7 @@ begin
       : `
     update ${t} l set ${written
       .filter(([column]) => !["tenant", "parent", "position"].includes(column))
-      .map(([column, value]) => `${c(column)} = ${value}`)
+      .map(([name, value]) => `${c(name)} = ${updated(name, value)}`)
       .join(", ")}${updateExtraColumns(t, extras, fieldsOf("x.value"), "l")}
     from jsonb_array_elements(coalesce(${name}.lines, '[]')) with ordinality x
     where l.${c("parent")} = v_parent and l.${c("position")} = x.ordinality;`
@@ -713,7 +752,11 @@ begin
                 ([column]) =>
                   !["tenant", "parent", "position"].includes(column),
               )
-              .map(([column]) => `${c(column)} = excluded.${c(column)}`)
+              .map(([col]) =>
+                col === "unit" || col === "discountKind"
+                  ? `${c(col)} = case when (${name}.lines -> (excluded.${c("position")}::integer - 1)) ? ${sqlString(col)} then excluded.${c(col)} else l.${c(col)} end`
+                  : `${c(col)} = excluded.${c(col)}`,
+              )
               .join(", ")}${extras
               .map(
                 (extra) =>

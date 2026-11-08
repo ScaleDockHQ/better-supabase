@@ -20,7 +20,8 @@ export function printableConfig(config: ResolvedConfig): unknown {
     },
     generators: config.generators.map((generator) => ({
       name: generator.name,
-      apiVersion: generator.apiVersion ?? null,
+      version: generator.version,
+      apiVersion: generator.apiVersion,
     })),
   });
 }

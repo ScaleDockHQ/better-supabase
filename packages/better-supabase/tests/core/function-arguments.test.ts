@@ -8,7 +8,7 @@ import {
   rpcTransport,
   sqlTransport,
 } from "../../src/core/block-transport.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { postgrestExecutor } from "../../src/core/postgrest-executor.ts";
 import { ok } from "../../src/core/result.ts";
 import { loadLite } from "../../src/lite/runtime.ts";
@@ -52,7 +52,7 @@ describe("function arguments over PostgREST", () => {
       "db.$rpc",
       async () => {
         const { client, last } = capturingClient(() => ({ body: null }));
-        await defineSupabase(schema)
+        await createSupabase(schema)
           .connect(postgrestExecutor(client))
           .$rpc("echo_args" as never, ARGS as never)
           .orThrow();

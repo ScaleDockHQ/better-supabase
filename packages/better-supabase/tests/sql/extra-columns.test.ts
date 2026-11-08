@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../src/sql/render.ts";
+import { withAppColumns } from "./app-columns.ts";
 
 /**
  * Each module whose managed table takes `extraColumns`, and what its SQL must
@@ -33,7 +34,7 @@ const CASES: readonly {
   },
   {
     module: "activities",
-    table: "engagements",
+    table: "activities",
     writes: [
       `"region" = case when log_activity.attrs -> 'fields' ? 'region'`,
       `"region" = case when update_activity.attrs -> 'fields' ? 'region'`,
@@ -75,7 +76,7 @@ const CASES: readonly {
 ];
 
 const body = (module: string, options: Record<string, unknown>): string =>
-  renderBlocks([module], { modules: { [module]: { options } } })
+  renderBlocks([module], withAppColumns(module, options))
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");
@@ -85,7 +86,7 @@ describe("extraColumns", () => {
     "$module adds, writes and returns the extra columns of $table",
     ({ module, writes, reads }) => {
       const sql = body(module, { extraColumns: { region: "text" } });
-      expect(sql).toContain('add column if not exists "region" text;');
+      expect(sql).not.toContain('add column "region"');
 
       for (const write of writes) {
         expect(sql).toContain(write);
@@ -99,9 +100,11 @@ describe("extraColumns", () => {
     },
   );
 
-  it.each(CASES)("$module refuses a name it already uses", (entry) => {
-    expect(() =>
-      body(entry.module, { extraColumns: { [entry.taken ?? "id"]: "text" } }),
-    ).toThrow(/shadows/);
+  it.each(CASES)("$module skips a column named like one it has", (entry) => {
+    const name = entry.taken ?? "id";
+
+    expect(body(entry.module, { extraColumns: { [name]: "text" } })).toBe(
+      body(entry.module, {}),
+    );
   });
 });

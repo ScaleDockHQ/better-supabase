@@ -19,7 +19,7 @@ const Fields = v.object({
   sentiment: v.picklist(["positive", "neutral", "negative"]),
 });
 
-describe("engagements fields", () => {
+describe("activities fields", () => {
   it("sends the extra fields under fields and parses every read", async () => {
     const t = fieldsTransport({
       log_activity: () => ROW,
@@ -27,9 +27,9 @@ describe("engagements fields", () => {
       next_activity: () => null,
     });
 
-    const engagements = createActivities({ transport: t, fields: Fields });
+    const activities = createActivities({ transport: t, fields: Fields });
 
-    const logged = await engagements
+    const logged = await activities
       .log({
         organizationId: "o",
         input: {
@@ -48,7 +48,7 @@ describe("engagements fields", () => {
       fields: { sentiment: "positive" },
     });
 
-    const list = await engagements
+    const list = await activities
       .of({ subject: { type: "deal", id: "d1" } })
       .orThrow();
 
@@ -57,7 +57,7 @@ describe("engagements fields", () => {
       "positive",
     ]);
     expect(
-      await engagements.next({ type: "deal", id: "d1" }).orThrow(),
+      await activities.next({ type: "deal", id: "d1" }).orThrow(),
     ).toBeUndefined();
   });
 

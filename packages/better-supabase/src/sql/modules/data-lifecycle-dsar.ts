@@ -26,7 +26,7 @@ export const DSAR_TABLES: Readonly<Record<string, BlockSqlTableSpec>> = {
     name: "data_subject_requests",
     columns: {
       id: "id",
-      tenant: "organization_id",
+      tenant: "tenant_id",
       kind: "kind",
       requester: "requester",
       subjectType: "subject_type",

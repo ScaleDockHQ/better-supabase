@@ -66,7 +66,7 @@ describe("BS236", () => {
     expect(findings).toEqual([
       {
         message: expect.stringContaining(
-          'no row fails it. Run `better-supabase doctor --fix` to validate it; then `alter table "public"."invoices" alter column "organization_id" set not null` needs no scan.',
+          'no row fails it. Run `better-supabase doctor --yes` to validate it; then `alter table "public"."invoices" alter column "organization_id" set not null` needs no scan.',
         ),
         target: "public.invoices:invoices_organization_id_not_null",
         object: { kind: "table", schema: "public", name: "invoices" },
@@ -100,7 +100,7 @@ describe("BS236", () => {
       ),
       expect.stringContaining("no row fails it"),
       expect.stringMatching(
-        /rows still fail it\. Fix those rows, then run `better-supabase doctor --fix`\.$/u,
+        /rows still fail it\. Fix those rows, then run `better-supabase doctor --yes`\.$/u,
       ),
     ]);
   });

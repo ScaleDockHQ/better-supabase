@@ -1,153 +1,69 @@
 -- ==== schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:a7777dbf91e66da0d76f02e15f0a3e6dd7e04c7f57a212d6d5bc7623c3c1f8be
+-- @bsb-hash sha256:07e149075ced0fe1c88732b5745f37e475a642125f9cddeda4a52ec3e2baa058
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."risk_matrices";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."risk_matrices";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."risk_matrices";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."risk_matrices";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."risk_matrices";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."risks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."risks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."risks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."risks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."risks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."risk_assessments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."risk_assessments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."risk_assessments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."risk_assessments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."risk_assessments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- A risk register per organization: risks scored on a likelihood by impact
 -- matrix, assessed before and after controls, treated, reviewed and closed.
 
-create table if not exists "better_supabase"."risk_matrices" (
+create table "better_supabase"."risk_matrices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "key" text not null constraint bsb_risk_matrices_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_risk_matrices_name_check check (length("name") >= 1 and length("name") <= 200),
   -- [{ value, label }] with values 1 to n; save_risk_matrix checks the shape.
-  "likelihood_levels" jsonb not null check (jsonb_typeof("likelihood_levels") = 'array'),
-  "impact_levels" jsonb not null check (jsonb_typeof("impact_levels") = 'array'),
+  "likelihood_levels" jsonb not null constraint bsb_risk_matrices_likelihood_levels_check check (jsonb_typeof("likelihood_levels") = 'array'),
+  "impact_levels" jsonb not null constraint bsb_risk_matrices_impact_levels_check check (jsonb_typeof("impact_levels") = 'array'),
   -- [{ key, label, min, max }] covering every score once.
-  "bands" jsonb not null check (jsonb_typeof("bands") = 'array'),
-  "scoring" text not null default 'product' check ("scoring" in ('product', 'sum')),
+  "bands" jsonb not null constraint bsb_risk_matrices_bands_check check (jsonb_typeof("bands") = 'array'),
+  "scoring" text not null default 'product' constraint bsb_risk_matrices_scoring_check check ("scoring" in ('product', 'sum')),
   "is_default" boolean not null default false,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "risk_matrices_default_key" on "better_supabase"."risk_matrices" ("tenant_id") where "is_default";
+create unique index "risk_matrices_default_key" on "better_supabase"."risk_matrices" ("tenant_id") where "is_default";
 alter table "better_supabase"."risk_matrices" enable row level security;
 revoke all on "better_supabase"."risk_matrices" from public, anon, authenticated;
 grant select on "better_supabase"."risk_matrices" to authenticated;
 grant all on "better_supabase"."risk_matrices" to service_role;
-drop policy if exists risk_matrices_read on "better_supabase"."risk_matrices";
-create policy risk_matrices_read on "better_supabase"."risk_matrices"
+create policy bsb_risk_matrices_read on "better_supabase"."risk_matrices"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
-create table if not exists "better_supabase"."risks" (
+create table "better_supabase"."risks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- RSK-0001, from the numbering block when it numbers risks.
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null constraint bsb_risks_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "matrix_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 300),
-  "description" text check ("description" is null or length("description") <= 10000),
+  "title" text not null constraint bsb_risks_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_risks_description_check check ("description" is null or length("description") <= 10000),
   -- One of options.categories; the functions check it.
-  "category" text not null check (length("category") between 1 and 63),
-  "cause" text check ("cause" is null or length("cause") <= 4000),
-  "consequence" text check ("consequence" is null or length("consequence") <= 4000),
+  "category" text not null constraint bsb_risks_category_check check (length("category") >= 1 and length("category") <= 63),
+  "cause" text constraint bsb_risks_cause_check check ("cause" is null or length("cause") <= 4000),
+  "consequence" text constraint bsb_risks_consequence_check check ("consequence" is null or length("consequence") <= 4000),
   "owner_id" uuid,
-  "status" text not null default 'identified' check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
-  "treatment" text check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
+  "status" text not null default 'identified' constraint bsb_risks_status_check check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
+  "treatment" text constraint bsb_risks_treatment_check check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
   -- An assessment or a review moves next_review_on this many months ahead (12 when null).
-  "review_interval_months" integer check ("review_interval_months" is null or "review_interval_months" between 1 and 120),
+  "review_interval_months" integer constraint bsb_risks_review_interval_months_check check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120),
   "next_review_on" date,
   "reviewed_at" timestamptz,
   -- The review date notify_due_risk_reviews last reported, so each lapse notifies once.
   "review_notified_for" date,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" between 1 and 10),
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" between 1 and 10),
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" between 1 and 100),
+  "inherent_likelihood" integer constraint bsb_risks_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10),
+  "inherent_impact" integer constraint bsb_risks_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10),
+  "inherent_score" integer constraint bsb_risks_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100),
   "inherent_band" text,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" between 1 and 10),
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" between 1 and 10),
-  "residual_score" integer check ("residual_score" is null or "residual_score" between 1 and 100),
+  "residual_likelihood" integer constraint bsb_risks_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10),
+  "residual_impact" integer constraint bsb_risks_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10),
+  "residual_score" integer constraint bsb_risks_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100),
   "residual_band" text,
   "current_assessment_id" uuid,
   "closed_at" timestamptz,
@@ -157,49 +73,46 @@ create table if not exists "better_supabase"."risks" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "id"),
-  check ("status" <> 'closed' or "closed_at" is not null),
+  constraint bsb_risks_check check ("status" <> 'closed' or "closed_at" is not null),
   foreign key ("tenant_id", "matrix_id") references "better_supabase"."risk_matrices" ("tenant_id", "id") on delete restrict
 );
-alter table "better_supabase"."risks" add column if not exists "app_note" text;
-create index if not exists "risks_tenant_idx" on "better_supabase"."risks" ("tenant_id", "status", "residual_score" desc);
-create index if not exists "risks_matrix_idx" on "better_supabase"."risks" ("tenant_id", "matrix_id");
-create index if not exists "risks_owner_idx" on "better_supabase"."risks" ("tenant_id", "owner_id") where "owner_id" is not null;
-create index if not exists "risks_review_idx" on "better_supabase"."risks" ("next_review_on") where "status" <> 'closed';
+create index "risks_tenant_idx" on "better_supabase"."risks" ("tenant_id", "status", "residual_score" desc);
+create index "risks_matrix_idx" on "better_supabase"."risks" ("tenant_id", "matrix_id");
+create index "risks_owner_idx" on "better_supabase"."risks" ("tenant_id", "owner_id") where "owner_id" is not null;
+create index "risks_review_idx" on "better_supabase"."risks" ("next_review_on") where "status" <> 'closed';
 alter table "better_supabase"."risks" enable row level security;
 revoke all on "better_supabase"."risks" from public, anon, authenticated;
 grant select on "better_supabase"."risks" to authenticated;
 grant all on "better_supabase"."risks" to service_role;
-drop policy if exists risks_read on "better_supabase"."risks";
-create policy risks_read on "better_supabase"."risks"
+create policy bsb_risks_read on "better_supabase"."risks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
-create table if not exists "better_supabase"."risk_assessments" (
+create table "better_supabase"."risk_assessments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "risk_id" uuid not null,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" between 1 and 10) not null,
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" between 1 and 10) not null,
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" between 1 and 100) not null,
+  "inherent_likelihood" integer constraint bsb_risk_assessments_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10) not null,
+  "inherent_impact" integer constraint bsb_risk_assessments_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10) not null,
+  "inherent_score" integer constraint bsb_risk_assessments_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100) not null,
   "inherent_band" text not null,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" between 1 and 10) not null,
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" between 1 and 10) not null,
-  "residual_score" integer check ("residual_score" is null or "residual_score" between 1 and 100) not null,
+  "residual_likelihood" integer constraint bsb_risk_assessments_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10) not null,
+  "residual_impact" integer constraint bsb_risk_assessments_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10) not null,
+  "residual_score" integer constraint bsb_risk_assessments_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100) not null,
   "residual_band" text not null,
-  "rationale" text check ("rationale" is null or length("rationale") <= 10000),
+  "rationale" text constraint bsb_risk_assessments_rationale_check check ("rationale" is null or length("rationale") <= 10000),
   "version_id" uuid references "better_supabase"."versions" ("id") on delete set null,
   "assessed_by" uuid,
   "assessed_at" timestamptz not null default now(),
   foreign key ("tenant_id", "risk_id") references "better_supabase"."risks" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "risk_assessments_history_idx" on "better_supabase"."risk_assessments" ("tenant_id", "risk_id", "assessed_at" desc);
-create index if not exists "risk_assessments_version_idx" on "better_supabase"."risk_assessments" ("version_id") where "version_id" is not null;
+create index "risk_assessments_history_idx" on "better_supabase"."risk_assessments" ("tenant_id", "risk_id", "assessed_at" desc);
+create index "risk_assessments_version_idx" on "better_supabase"."risk_assessments" ("version_id") where "version_id" is not null;
 alter table "better_supabase"."risk_assessments" enable row level security;
 revoke all on "better_supabase"."risk_assessments" from public, anon, authenticated;
 grant select on "better_supabase"."risk_assessments" to authenticated;
 grant all on "better_supabase"."risk_assessments" to service_role;
-drop policy if exists risk_assessments_read on "better_supabase"."risk_assessments";
-create policy risk_assessments_read on "better_supabase"."risk_assessments"
+create policy bsb_risk_assessments_read on "better_supabase"."risk_assessments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -1022,94 +935,54 @@ grant execute on function "better_supabase"."seed_risks_defaults"(uuid, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."risk_matrices";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."risk_matrices";
 create policy bsb_tenant_scope_select on "better_supabase"."risk_matrices" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."risk_matrices";
 create policy bsb_tenant_scope_insert on "better_supabase"."risk_matrices" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."risk_matrices";
 create policy bsb_tenant_scope_update on "better_supabase"."risk_matrices" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."risk_matrices";
 create policy bsb_tenant_scope_delete on "better_supabase"."risk_matrices" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."risks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."risks";
 create policy bsb_tenant_scope_select on "better_supabase"."risks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."risks";
 create policy bsb_tenant_scope_insert on "better_supabase"."risks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."risks";
 create policy bsb_tenant_scope_update on "better_supabase"."risks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."risks";
 create policy bsb_tenant_scope_delete on "better_supabase"."risks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."risk_assessments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."risk_assessments";
 create policy bsb_tenant_scope_select on "better_supabase"."risk_assessments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."risk_assessments";
 create policy bsb_tenant_scope_insert on "better_supabase"."risk_assessments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."risk_assessments";
 create policy bsb_tenant_scope_update on "better_supabase"."risk_assessments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."risk_assessments";
 create policy bsb_tenant_scope_delete on "better_supabase"."risk_assessments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_144_risks.sql
 -- better-supabase module: risks

@@ -40,12 +40,12 @@ describe("databaseUrl with a named stack", () => {
     );
   });
 
-  it("reads $BSB_STACK when no stack is passed", async () => {
+  it("reads $BETTER_SUPABASE_STACK when no stack is passed", async () => {
     const config = resolveConfig({}, root);
 
-    expect(await databaseUrl(config, { BSB_STACK: "tests" })).toContain(
-      ":54422/",
-    );
+    expect(
+      await databaseUrl(config, { BETTER_SUPABASE_STACK: "tests" }),
+    ).toContain(":54422/");
   });
 
   it("rejects an unknown or unsafe stack", async () => {

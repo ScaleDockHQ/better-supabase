@@ -2,7 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 
-/** The engagement type a booking's meeting gets. */
+/** The activity type a booking's meeting gets. */
 const MEETING = "meeting";
 
 /** Whether `blocks.activities.options.bookings` turns the integration on. */
@@ -20,9 +20,9 @@ export function logsBookings(
     );
   }
 
-  if (!ctx.has("engagements", "externalRef")) {
+  if (!ctx.has("activities", "externalRef")) {
     throw new TypeError(
-      "blocks.activities.options.bookings needs the engagements externalRef column",
+      "blocks.activities.options.bookings needs the activities externalRef column",
     );
   }
 
@@ -36,19 +36,19 @@ export function logsBookings(
 }
 
 /**
- * The SQL that keeps a meeting engagement per confirmed booking: logged on
+ * The SQL that keeps a meeting activity per confirmed booking: logged on
  * confirmation, moved on a reschedule and closed as cancelled on a
  * cancellation, on the person with the booker's email and their company.
  */
-export function bookingEngagementsSql(ctx: BlockSqlContext): string {
+export function bookingActivitiesSql(ctx: BlockSqlContext): string {
   const bookings = ctx.of("bookings");
   const t = (table: string): string => ctx.table(table);
-  const e = (column: string): string => ctx.col("engagements", column);
+  const e = (column: string): string => ctx.col("activities", column);
   const l = (column: string): string => ctx.col("links", column);
   const b = (column: string): string => bookings.col("bookings", column);
   const s = (column: string): string => bookings.col("services", column);
-  const fn = ctx.fn("bsb_booking_engagement");
-  const trigger = ctx.naming.rename("bookings_engagement");
+  const fn = ctx.fn("bsb_booking_activity");
+  const trigger = ctx.naming.rename("bsb_bookings_activity");
 
   const createdBy = bookings.has("bookings", "createdBy")
     ? `new.${b("createdBy")}`
@@ -58,7 +58,7 @@ export function bookingEngagementsSql(ctx: BlockSqlContext): string {
     ? `new.${b("notes")}`
     : "null::text";
 
-  const has = (column: string): boolean => ctx.has("engagements", column);
+  const has = (column: string): boolean => ctx.has("activities", column);
 
   const met = (
     [
@@ -93,23 +93,23 @@ export function bookingEngagementsSql(ctx: BlockSqlContext): string {
           user: `new.${b("customerUser")}`,
         });
 
-  const payload = `jsonb_build_object('organizationId', v_tenant, 'engagementId', v_id, 'type', '${MEETING}', 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects)`;
+  const payload = `jsonb_build_object('organizationId', v_tenant, 'activityId', v_id, 'type', '${MEETING}', 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects)`;
 
   const record = (event: string): string =>
     ctx.record({
       type: event,
       payload,
-      subject: `'engagements/' || v_id::text`,
+      subject: `'activities/' || v_id::text`,
       tenant: "v_tenant::text",
       audit: false,
     });
 
   const subjects = `
-    v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx.${l("subjectType")}, 'id', sx.${l("subjectId")}) order by ${order}) from ${t("links")} sx where sx.${l("engagement")} = v_id), '[]'::jsonb);
+    v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx.${l("subjectType")}, 'id', sx.${l("subjectId")}) order by ${order}) from ${t("links")} sx where sx.${l("activity")} = v_id), '[]'::jsonb);
     v_first := v_subjects -> 0;`;
 
   return `
--- A meeting engagement for each confirmed booking (options.bookings), with
+-- A meeting activity for each confirmed booking (options.bookings), with
 -- the external ref booking:<id>: moved when the booking moves, and closed
 -- with the outcome cancelled when it is cancelled.
 create or replace function ${fn}()
@@ -137,7 +137,7 @@ begin
     select left(coalesce(sv.${s("name")}, 'Booking') || coalesce(' with ' || nullif(trim(new.${b("customerName")}), ''), ''), 500)
     into v_title
     from ${bookings.table("services")} sv where sv.${s("id")} = new.${b("service")};
-    insert into ${t("engagements")} (${met.map(([column]) => e(column)).join(", ")})
+    insert into ${t("activities")} (${met.map(([column]) => e(column)).join(", ")})
     values (${met.map(([, value]) => value).join(", ")})
     on conflict (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null do update set
       ${e("dueAt")} = excluded.${e("dueAt")},${has("durationSeconds") ? ` ${e("durationSeconds")} = excluded.${e("durationSeconds")},` : ""}
@@ -149,7 +149,7 @@ begin
       ${record("activity.updated")}
     end if;
   elsif new.${b("status")} = 'cancelled' and tg_op = 'UPDATE' and old.${b("status")} = 'confirmed' then
-    update ${t("engagements")} x set
+    update ${t("activities")} x set
       ${e("doneAt")} = coalesce(new.${b("cancelledAt")}, now()),
       ${e("outcome")} = left('cancelled' || coalesce(': ' || nullif(trim(new.${b("cancelReason")}), ''), ''), 500)${has("updatedAt") ? `,\n      ${e("updatedAt")} = now()` : ""}
     where x.${e("tenant")} = v_tenant and x.${e("externalRef")} = v_ref and x.${e("doneAt")} is null
@@ -170,7 +170,7 @@ for each row execute function ${fn}();
 }
 
 /**
- * Links the engagement to the active person the booking names (by user, then by
+ * Links the activity to the active person the booking names (by user, then by
  * email) and that person's first company, and gives the meeting the person's
  * owner when no member made the booking.
  */
@@ -200,10 +200,10 @@ function partyLinksSql(
     v_owner := coalesce(v_owner, v_person_owner);`,
     link: `
     if v_person is not null then
-      insert into ${ctx.table("links")} (${l("tenant")}, ${l("engagement")}, ${l("subjectType")}, ${l("subjectId")}${position})
+      insert into ${ctx.table("links")} (${l("tenant")}, ${l("activity")}, ${l("subjectType")}, ${l("subjectId")}${position})
       values (v_tenant, v_id, ${person}, v_person::text${ranked ? ", 1" : ""})
       on conflict do nothing;
-      insert into ${ctx.table("links")} (${l("tenant")}, ${l("engagement")}, ${l("subjectType")}, ${l("subjectId")}${position})
+      insert into ${ctx.table("links")} (${l("tenant")}, ${l("activity")}, ${l("subjectType")}, ${l("subjectId")}${position})
       select v_tenant, v_id, ${company}, c.${co("id")}::text${ranked ? ", 2" : ""}
       from ${parties.table("links")} k
       join ${parties.table("companies")} c on c.${co("id")} = k.${li("company")}

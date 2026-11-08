@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Overlay } from "../../src/overlay/types.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { defineApi } from "../../src/spec/api.ts";
 import {
@@ -27,7 +27,7 @@ const valid = (overlay: Overlay) =>
     JSON.parse(JSON.stringify(overlay)),
   );
 
-const base = defineApi(defineSupabase(schema), {
+const base = defineApi(createSupabase(schema), {
   info: { title: "CRM", version: "1.0.0" },
   resources: { notes: { operations: ["list", "get"] } },
 }).openapi().document;

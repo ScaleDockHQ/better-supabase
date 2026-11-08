@@ -23,7 +23,7 @@ export interface GenerationContext {
 }
 
 /** What `run` gets to start one generation. */
-export interface GenerationRunArgs<INPUT> {
+export interface GenerationRunOptions<INPUT> {
   /** The prompt of `useCompletion`, or the value `useObject` submitted. */
   readonly input: INPUT;
   /** The request body as sent, for extra fields. */
@@ -58,7 +58,7 @@ export interface GenerationFinish<INPUT> {
 
 export interface GenerationRouteOptions<INPUT> {
   readonly run: (
-    args: GenerationRunArgs<INPUT>,
+    args: GenerationRunOptions<INPUT>,
   ) => GenerationRunResult | PromiseLike<GenerationRunResult>;
   readonly model: string;
   /** The quota check before a generation; an error answers 429. */

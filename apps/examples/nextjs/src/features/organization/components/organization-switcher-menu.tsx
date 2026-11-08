@@ -5,7 +5,6 @@ import { DbException } from "better-supabase";
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState, useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   DropdownMenu,
@@ -18,7 +17,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { useOrganizations } from "@/hooks/use-organizations";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { organizationsConfig } from "@/lib/supabase/blocks/slices";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { OrganizationSummary } from "../organization-queries";
@@ -69,7 +69,7 @@ export function OrganizationSwitcherMenu({
     load: loadOrganizations,
     initial,
     activeId: serverActiveId,
-    schema: blockConfig.organizations.api,
+    schema: organizationsConfig.api,
     onSwitched: () => refreshSession("/"),
   });
 

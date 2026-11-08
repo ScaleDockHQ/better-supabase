@@ -1,114 +1,48 @@
 -- ==== schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:72b41ecfe18c9bee3287ae865ecf371fdb3d5aa6418e95475b76c2d605050f0a
+-- @bsb-hash sha256:97d30bc54d3c49676baf8e5b74fadc6d0ba52b0e7411b1871b049805aa8aa855
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."assignment_queues";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."assignment_queues";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assignment_queues";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."assignment_queues";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assignment_queues";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."assignment_queue_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."assignment_queue_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assignment_queue_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."assignment_queue_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assignment_queue_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Assignment: queues of members that pick an owner for new records, by
 -- round robin or weight, within a territory of rule conditions.
-create table if not exists "better_supabase"."assignment_queues" (
+create table "better_supabase"."assignment_queues" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "strategy" text not null default 'round_robin' check ("strategy" in ('round_robin', 'weighted')),
-  "conditions" jsonb check ("conditions" is null or jsonb_typeof("conditions") = 'object'),
+  "name" text not null constraint bsb_assignment_queues_name_check check (length("name") >= 1 and length("name") <= 200),
+  "subject_type" text not null constraint bsb_assignment_queues_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "strategy" text not null default 'round_robin' constraint bsb_assignment_queues_strategy_check check ("strategy" in ('round_robin', 'weighted')),
+  "conditions" jsonb constraint bsb_assignment_queues_conditions_check check ("conditions" is null or jsonb_typeof("conditions") = 'object'),
   "rank" integer not null default 0,
   "enabled" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "name")
 );
-create index if not exists assignment_queues_order_idx on "better_supabase"."assignment_queues" ("tenant_id", "subject_type", "rank") where "enabled";
+create index assignment_queues_order_idx on "better_supabase"."assignment_queues" ("tenant_id", "subject_type", "rank") where "enabled";
 alter table "better_supabase"."assignment_queues" enable row level security;
 revoke all on "better_supabase"."assignment_queues" from public, anon, authenticated;
 grant select on "better_supabase"."assignment_queues" to authenticated;
 grant all on "better_supabase"."assignment_queues" to service_role;
-create table if not exists "better_supabase"."assignment_queue_members" (
+create table "better_supabase"."assignment_queue_members" (
   "queue_id" uuid not null references "better_supabase"."assignment_queues" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "weight" integer not null default 1 check ("weight" between 1 and 100),
+  "weight" integer not null default 1 constraint bsb_assignment_queue_members_weight_check check ("weight" >= 1 and "weight" <= 100),
   "active" boolean not null default true,
   "credit" bigint not null default 0,
   "assigned_count" integer not null default 0,
   "last_assigned_at" timestamptz,
   primary key ("queue_id", "user_id")
 );
-create index if not exists assignment_queue_members_user_idx on "better_supabase"."assignment_queue_members" ("user_id");
+create index assignment_queue_members_user_idx on "better_supabase"."assignment_queue_members" ("user_id");
 alter table "better_supabase"."assignment_queue_members" enable row level security;
 revoke all on "better_supabase"."assignment_queue_members" from public, anon, authenticated;
 grant select on "better_supabase"."assignment_queue_members" to authenticated;
 grant all on "better_supabase"."assignment_queue_members" to service_role;
-create table if not exists "better_supabase"."assignments" (
+create table "better_supabase"."assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "queue_id" uuid references "better_supabase"."assignment_queues" ("id") on delete set null,
@@ -117,23 +51,20 @@ create table if not exists "better_supabase"."assignments" (
   "user_id" uuid references auth.users (id) on delete set null,
   "assigned_at" timestamptz not null default now()
 );
-create index if not exists assignments_subject_idx on "better_supabase"."assignments" ("tenant_id", "subject_type", "subject_id", "assigned_at" desc);
-create index if not exists assignments_queue_idx on "better_supabase"."assignments" ("queue_id") where "queue_id" is not null;
-create index if not exists assignments_user_idx on "better_supabase"."assignments" ("user_id") where "user_id" is not null;
+create index assignments_subject_idx on "better_supabase"."assignments" ("tenant_id", "subject_type", "subject_id", "assigned_at" desc);
+create index assignments_queue_idx on "better_supabase"."assignments" ("queue_id") where "queue_id" is not null;
+create index assignments_user_idx on "better_supabase"."assignments" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."assignments" enable row level security;
 revoke all on "better_supabase"."assignments" from public, anon, authenticated;
 grant select on "better_supabase"."assignments" to authenticated;
 grant all on "better_supabase"."assignments" to service_role;
-drop policy if exists assignment_queues_read on "better_supabase"."assignment_queues";
-create policy assignment_queues_read on "better_supabase"."assignment_queues"
+create policy bsb_assignment_queues_read on "better_supabase"."assignment_queues"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
-drop policy if exists assignment_queue_members_read on "better_supabase"."assignment_queue_members";
-create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members"
+create policy bsb_assignment_queue_members_read on "better_supabase"."assignment_queue_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
-drop policy if exists assignments_read on "better_supabase"."assignments";
-create policy assignments_read on "better_supabase"."assignments"
+create policy bsb_assignments_read on "better_supabase"."assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 
@@ -422,94 +353,54 @@ grant execute on function "better_supabase"."assignment_history"(uuid, text, tex
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
-    create function better_supabase.member_workspace_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."assignment_queues";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."assignment_queues";
 create policy bsb_tenant_scope_select on "better_supabase"."assignment_queues" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assignment_queues";
 create policy bsb_tenant_scope_insert on "better_supabase"."assignment_queues" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."assignment_queues";
 create policy bsb_tenant_scope_update on "better_supabase"."assignment_queues" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assignment_queues";
 create policy bsb_tenant_scope_delete on "better_supabase"."assignment_queues" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."assignment_queue_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."assignment_queue_members";
 create policy bsb_tenant_scope_select on "better_supabase"."assignment_queue_members" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assignment_queue_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."assignment_queue_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."assignment_queue_members";
 create policy bsb_tenant_scope_update on "better_supabase"."assignment_queue_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assignment_queue_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."assignment_queue_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment

@@ -1,143 +1,22 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:7698e4668c8e9bbd4d26744d5f2eb32a0af7149f5e9e0d7f7c121f1c9575d6a6
+-- @bsb-hash sha256:c6e3bb90b596033d8bab8b8dcf8723a862505ce0d7565710f56294e1462f0b32
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
--- Moves every installed module's rows from record drop to record keep of the
--- subject table subject_table (schema.table): comments, attachments, tags and
--- the rest. Each module marks its handler with a comment, so this finds them
--- without naming them.
-create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_fn regproc;
-begin
-  for v_fn in
-    select p.oid::regproc
-    from pg_catalog.pg_proc p
-    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
-    where d.description = 'better-supabase:subject-merge'
-      -- Only the owner's functions, so a marked function in a schema another
-      -- role can write to never runs with this function's rights.
-      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
-    order by p.oid::regproc::text
-  loop
-    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Companies and people an organization works with, and who works where.
 
-create table if not exists "better_supabase"."payment_terms" (
+create table "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 300),
-  "days" integer not null default 30 check ("days" between 0 and 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000),
-  "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000),
+  "code" text not null constraint bsb_payment_terms_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_payment_terms_name_check check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 constraint bsb_payment_terms_days_check check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 constraint bsb_payment_terms_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 constraint bsb_payment_terms_discount_days_check check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 constraint bsb_payment_terms_credit_restriction_bps_check check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -146,99 +25,100 @@ alter table "better_supabase"."payment_terms" enable row level security;
 revoke all on "better_supabase"."payment_terms" from public, anon, authenticated;
 grant select on "better_supabase"."payment_terms" to authenticated;
 grant all on "better_supabase"."payment_terms" to service_role;
-drop policy if exists payment_terms_read on "better_supabase"."payment_terms";
-create policy payment_terms_read on "better_supabase"."payment_terms"
+create policy bsb_payment_terms_read on "better_supabase"."payment_terms"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."companies" (
+create table "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
-  "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
+  "name" text not null constraint bsb_companies_name_check check (length("name") >= 1 and length("name") <= 300),
+  "domain" text constraint bsb_companies_domain_check check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
+  "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300),
+  "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100),
+  "phone" text,
   "lifecycle" text not null,
-  "owner_user_id" uuid,
-  "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
+  "owner_id" uuid,
+  "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_companies_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_companies_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_companies_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_companies_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_companies_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."companies" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
-create unique index if not exists companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
+create index companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
+create unique index companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index if not exists companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
-create index if not exists companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
-create index if not exists companies_roles_idx on "better_supabase"."companies" using gin ("roles");
-create index if not exists companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
-create index if not exists companies_customer_terms_id_idx on "better_supabase"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
-create index if not exists companies_supplier_terms_id_idx on "better_supabase"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
+create index companies_owner_idx on "better_supabase"."companies" ("owner_id");
+create index companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
+create index companies_roles_idx on "better_supabase"."companies" using gin ("roles");
+create index companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
+create index companies_customer_terms_id_idx on "better_supabase"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
+create index companies_supplier_terms_id_idx on "better_supabase"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "better_supabase"."companies" enable row level security;
 revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
-drop policy if exists companies_read on "better_supabase"."companies";
-create policy companies_read on "better_supabase"."companies"
+create policy bsb_companies_read on "better_supabase"."companies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."people" (
+create table "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "name" text not null constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300),
+  "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
+  "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_people_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_people_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_people_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_people_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_people_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
-create unique index if not exists people_email_idx on "better_supabase"."people" ("tenant_id", "email")
+create index people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
+create unique index people_email_idx on "better_supabase"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
-create index if not exists people_owner_idx on "better_supabase"."people" ("owner_user_id");
-create index if not exists people_user_idx on "better_supabase"."people" ("user_id");
-create index if not exists people_merged_into_idx on "better_supabase"."people" ("merged_into");
-create index if not exists people_roles_idx on "better_supabase"."people" using gin ("roles");
-create index if not exists people_supplier_status_idx on "better_supabase"."people" ("tenant_id", "supplier_status") where "supplier_status" is not null;
-create index if not exists people_customer_terms_id_idx on "better_supabase"."people" ("customer_terms_id") where "customer_terms_id" is not null;
-create index if not exists people_supplier_terms_id_idx on "better_supabase"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
+create index people_owner_idx on "better_supabase"."people" ("owner_id");
+create index people_user_idx on "better_supabase"."people" ("user_id");
+create index people_merged_into_idx on "better_supabase"."people" ("merged_into");
+create index people_roles_idx on "better_supabase"."people" using gin ("roles");
+create index people_supplier_status_idx on "better_supabase"."people" ("tenant_id", "supplier_status") where "supplier_status" is not null;
+create index people_customer_terms_id_idx on "better_supabase"."people" ("customer_terms_id") where "customer_terms_id" is not null;
+create index people_supplier_terms_id_idx on "better_supabase"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "better_supabase"."people" enable row level security;
 revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
-drop policy if exists people_read on "better_supabase"."people";
-create policy people_read on "better_supabase"."people"
+create policy bsb_people_read on "better_supabase"."people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."company_people" (
+create table "better_supabase"."company_people" (
   "tenant_id" uuid not null,
   "company_id" uuid not null references "better_supabase"."companies" ("id") on delete cascade,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
@@ -247,56 +127,53 @@ create table if not exists "better_supabase"."company_people" (
   "created_at" timestamptz not null default now(),
   primary key ("company_id", "person_id")
 );
-create index if not exists company_people_person_idx on "better_supabase"."company_people" ("person_id");
-create unique index if not exists company_people_primary_idx on "better_supabase"."company_people" ("company_id") where "is_primary";
+create index company_people_person_idx on "better_supabase"."company_people" ("person_id");
+create unique index company_people_primary_idx on "better_supabase"."company_people" ("company_id") where "is_primary";
 alter table "better_supabase"."company_people" enable row level security;
 revoke all on "better_supabase"."company_people" from public, anon, authenticated;
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
-drop policy if exists company_people_read on "better_supabase"."company_people";
-create policy company_people_read on "better_supabase"."company_people"
+create policy bsb_company_people_read on "better_supabase"."company_people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."document_delivery_preferences" (
+create table "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") between 1 and 100),
-  "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" between 1 and 20),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "document_type" text not null constraint bsb_document_delivery_preferences_document_type_check check (length("document_type") >= 1 and length("document_type") <= 100),
+  "channel" text not null constraint bsb_document_delivery_preferences_channel_check check ("channel" in ('email', 'post', 'portal')),
+  "copies" integer not null default 1 constraint bsb_document_delivery_preferences_copies_check check ("copies" >= 1 and "copies" <= 20),
+  "email" text constraint bsb_document_delivery_preferences_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "party_id", "document_type", "channel")
 );
-create index if not exists document_delivery_preferences_party_idx on "better_supabase"."document_delivery_preferences" ("party_id");
+create index document_delivery_preferences_party_idx on "better_supabase"."document_delivery_preferences" ("party_id");
 alter table "better_supabase"."document_delivery_preferences" enable row level security;
 revoke all on "better_supabase"."document_delivery_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."document_delivery_preferences" to authenticated;
 grant all on "better_supabase"."document_delivery_preferences" to service_role;
-drop policy if exists document_delivery_preferences_read on "better_supabase"."document_delivery_preferences";
-create policy document_delivery_preferences_read on "better_supabase"."document_delivery_preferences"
+create policy bsb_document_delivery_preferences_read on "better_supabase"."document_delivery_preferences"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."person_identities" (
+create table "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") between 1 and 50),
-  "address" text not null check (length("address") between 1 and 500),
+  "channel" text not null constraint bsb_person_identities_channel_check check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null constraint bsb_person_identities_address_check check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
 );
-create index if not exists person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
+create index person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
 alter table "better_supabase"."person_identities" enable row level security;
 revoke all on "better_supabase"."person_identities" from public, anon, authenticated;
 grant select on "better_supabase"."person_identities" to authenticated;
 grant all on "better_supabase"."person_identities" to service_role;
-drop policy if exists person_identities_read on "better_supabase"."person_identities";
-create policy person_identities_read on "better_supabase"."person_identities"
+create policy bsb_person_identities_read on "better_supabase"."person_identities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -364,18 +241,21 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
       update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
         "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
         "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
         "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "legal_name" = case when save_company.attrs ? 'legalName' then nullif(trim(save_company.attrs ->> 'legalName'), '') else x."legal_name" end,
+        "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
+        "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
@@ -385,7 +265,7 @@ begin
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -440,6 +320,12 @@ begin
   if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
+  if save_person.attrs ? 'mode' and coalesce(lower(trim(save_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
+    raise exception 'a person is external or tenant' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
+  end if;
+  if v_created and lower(trim(save_person.attrs ->> 'mode')) = 'tenant' and nullif(save_person.attrs ->> 'userId', '') is null then
+    raise exception 'a tenant person needs a userId' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
+  end if;
   if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."tenant_id" = save_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
@@ -477,18 +363,19 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."people" x
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
       update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
         "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
         "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
         "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
+        "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
         "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
@@ -498,7 +385,7 @@ begin
         "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -698,7 +585,7 @@ begin
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
@@ -744,7 +631,7 @@ begin
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", l."company_id", merge_people.keep, l."role", false
@@ -765,7 +652,7 @@ grant execute on function "better_supabase"."merge_people"(uuid, uuid) to authen
 -- the name and domain; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "better_supabase"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -784,7 +671,7 @@ begin
         and x."archived_at" is null
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle" = list_companies.lifecycle)
-        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.owner is null or x."owner_id" = list_companies.owner)
         and (list_companies.role is null or list_companies.role = any (x."roles"))
         and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
@@ -801,7 +688,7 @@ grant execute on function "better_supabase"."list_companies"(uuid, text, text, u
 -- the name and email; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "better_supabase"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -820,7 +707,7 @@ begin
         and x."archived_at" is null
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle" = list_people.lifecycle)
-        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.owner is null or x."owner_id" = list_people.owner)
         and (list_people.role is null or list_people.role = any (x."roles"))
         and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
@@ -1462,157 +1349,102 @@ grant execute on function "better_supabase"."find_person_by_identity"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
 create policy bsb_tenant_scope_select on "better_supabase"."companies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
 create policy bsb_tenant_scope_insert on "better_supabase"."companies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
 create policy bsb_tenant_scope_update on "better_supabase"."companies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
 create policy bsb_tenant_scope_delete on "better_supabase"."companies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
 create policy bsb_tenant_scope_select on "better_supabase"."people" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
 create policy bsb_tenant_scope_insert on "better_supabase"."people" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
 create policy bsb_tenant_scope_update on "better_supabase"."people" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
 create policy bsb_tenant_scope_delete on "better_supabase"."people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
 create policy bsb_tenant_scope_select on "better_supabase"."company_people" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
 create policy bsb_tenant_scope_insert on "better_supabase"."company_people" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
 create policy bsb_tenant_scope_update on "better_supabase"."company_people" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
 create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_select on "better_supabase"."payment_terms" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_insert on "better_supabase"."payment_terms" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_update on "better_supabase"."payment_terms" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_delete on "better_supabase"."payment_terms" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_select on "better_supabase"."person_identities" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_insert on "better_supabase"."person_identities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_update on "better_supabase"."person_identities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
@@ -1631,143 +1463,22 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:803d70ec92859bd2e683ee97e1231346e090e146633c637c8b1817ffe95932fa
+-- @bsb-hash sha256:a2026329227b02f2d5793c72292bf9cd39623fb6b854af689b148ab74a20f2c2
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
--- Moves every installed module's rows from record drop to record keep of the
--- subject table subject_table (schema.table): comments, attachments, tags and
--- the rest. Each module marks its handler with a comment, so this finds them
--- without naming them.
-create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_fn regproc;
-begin
-  for v_fn in
-    select p.oid::regproc
-    from pg_catalog.pg_proc p
-    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
-    where d.description = 'better-supabase:subject-merge'
-      -- Only the owner's functions, so a marked function in a schema another
-      -- role can write to never runs with this function's rights.
-      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
-    order by p.oid::regproc::text
-  loop
-    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Companies and people an organization works with, and who works where.
 
-create table if not exists "better_supabase"."payment_terms" (
+create table "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 300),
-  "days" integer not null default 30 check ("days" between 0 and 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000),
-  "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000),
+  "code" text not null constraint bsb_payment_terms_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_payment_terms_name_check check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 constraint bsb_payment_terms_days_check check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 constraint bsb_payment_terms_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 constraint bsb_payment_terms_discount_days_check check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 constraint bsb_payment_terms_credit_restriction_bps_check check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -1776,99 +1487,100 @@ alter table "better_supabase"."payment_terms" enable row level security;
 revoke all on "better_supabase"."payment_terms" from public, anon, authenticated;
 grant select on "better_supabase"."payment_terms" to authenticated;
 grant all on "better_supabase"."payment_terms" to service_role;
-drop policy if exists payment_terms_read on "better_supabase"."payment_terms";
-create policy payment_terms_read on "better_supabase"."payment_terms"
+create policy bsb_payment_terms_read on "better_supabase"."payment_terms"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."companies" (
+create table "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
-  "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
+  "name" text not null constraint bsb_companies_name_check check (length("name") >= 1 and length("name") <= 300),
+  "domain" text constraint bsb_companies_domain_check check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
+  "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300),
+  "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100),
+  "phone" text,
   "lifecycle" text not null,
-  "owner_user_id" uuid,
-  "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
+  "owner_id" uuid,
+  "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_companies_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_companies_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_companies_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_companies_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_companies_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."companies" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
-create unique index if not exists companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
+create index companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
+create unique index companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index if not exists companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
-create index if not exists companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
-create index if not exists companies_roles_idx on "better_supabase"."companies" using gin ("roles");
-create index if not exists companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
-create index if not exists companies_customer_terms_id_idx on "better_supabase"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
-create index if not exists companies_supplier_terms_id_idx on "better_supabase"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
+create index companies_owner_idx on "better_supabase"."companies" ("owner_id");
+create index companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
+create index companies_roles_idx on "better_supabase"."companies" using gin ("roles");
+create index companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
+create index companies_customer_terms_id_idx on "better_supabase"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
+create index companies_supplier_terms_id_idx on "better_supabase"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "better_supabase"."companies" enable row level security;
 revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
-drop policy if exists companies_read on "better_supabase"."companies";
-create policy companies_read on "better_supabase"."companies"
+create policy bsb_companies_read on "better_supabase"."companies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."people" (
+create table "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "name" text not null constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300),
+  "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
+  "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_people_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_people_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_people_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_people_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_people_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
-create unique index if not exists people_email_idx on "better_supabase"."people" ("tenant_id", "email")
+create index people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
+create unique index people_email_idx on "better_supabase"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
-create index if not exists people_owner_idx on "better_supabase"."people" ("owner_user_id");
-create index if not exists people_user_idx on "better_supabase"."people" ("user_id");
-create index if not exists people_merged_into_idx on "better_supabase"."people" ("merged_into");
-create index if not exists people_roles_idx on "better_supabase"."people" using gin ("roles");
-create index if not exists people_supplier_status_idx on "better_supabase"."people" ("tenant_id", "supplier_status") where "supplier_status" is not null;
-create index if not exists people_customer_terms_id_idx on "better_supabase"."people" ("customer_terms_id") where "customer_terms_id" is not null;
-create index if not exists people_supplier_terms_id_idx on "better_supabase"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
+create index people_owner_idx on "better_supabase"."people" ("owner_id");
+create index people_user_idx on "better_supabase"."people" ("user_id");
+create index people_merged_into_idx on "better_supabase"."people" ("merged_into");
+create index people_roles_idx on "better_supabase"."people" using gin ("roles");
+create index people_supplier_status_idx on "better_supabase"."people" ("tenant_id", "supplier_status") where "supplier_status" is not null;
+create index people_customer_terms_id_idx on "better_supabase"."people" ("customer_terms_id") where "customer_terms_id" is not null;
+create index people_supplier_terms_id_idx on "better_supabase"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "better_supabase"."people" enable row level security;
 revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
-drop policy if exists people_read on "better_supabase"."people";
-create policy people_read on "better_supabase"."people"
+create policy bsb_people_read on "better_supabase"."people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."company_people" (
+create table "better_supabase"."company_people" (
   "tenant_id" uuid not null,
   "company_id" uuid not null references "better_supabase"."companies" ("id") on delete cascade,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
@@ -1877,56 +1589,53 @@ create table if not exists "better_supabase"."company_people" (
   "created_at" timestamptz not null default now(),
   primary key ("company_id", "person_id")
 );
-create index if not exists company_people_person_idx on "better_supabase"."company_people" ("person_id");
-create unique index if not exists company_people_primary_idx on "better_supabase"."company_people" ("company_id") where "is_primary";
+create index company_people_person_idx on "better_supabase"."company_people" ("person_id");
+create unique index company_people_primary_idx on "better_supabase"."company_people" ("company_id") where "is_primary";
 alter table "better_supabase"."company_people" enable row level security;
 revoke all on "better_supabase"."company_people" from public, anon, authenticated;
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
-drop policy if exists company_people_read on "better_supabase"."company_people";
-create policy company_people_read on "better_supabase"."company_people"
+create policy bsb_company_people_read on "better_supabase"."company_people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."document_delivery_preferences" (
+create table "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") between 1 and 100),
-  "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" between 1 and 20),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "document_type" text not null constraint bsb_document_delivery_preferences_document_type_check check (length("document_type") >= 1 and length("document_type") <= 100),
+  "channel" text not null constraint bsb_document_delivery_preferences_channel_check check ("channel" in ('email', 'post', 'portal')),
+  "copies" integer not null default 1 constraint bsb_document_delivery_preferences_copies_check check ("copies" >= 1 and "copies" <= 20),
+  "email" text constraint bsb_document_delivery_preferences_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "party_id", "document_type", "channel")
 );
-create index if not exists document_delivery_preferences_party_idx on "better_supabase"."document_delivery_preferences" ("party_id");
+create index document_delivery_preferences_party_idx on "better_supabase"."document_delivery_preferences" ("party_id");
 alter table "better_supabase"."document_delivery_preferences" enable row level security;
 revoke all on "better_supabase"."document_delivery_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."document_delivery_preferences" to authenticated;
 grant all on "better_supabase"."document_delivery_preferences" to service_role;
-drop policy if exists document_delivery_preferences_read on "better_supabase"."document_delivery_preferences";
-create policy document_delivery_preferences_read on "better_supabase"."document_delivery_preferences"
+create policy bsb_document_delivery_preferences_read on "better_supabase"."document_delivery_preferences"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."person_identities" (
+create table "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") between 1 and 50),
-  "address" text not null check (length("address") between 1 and 500),
+  "channel" text not null constraint bsb_person_identities_channel_check check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null constraint bsb_person_identities_address_check check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
 );
-create index if not exists person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
+create index person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
 alter table "better_supabase"."person_identities" enable row level security;
 revoke all on "better_supabase"."person_identities" from public, anon, authenticated;
 grant select on "better_supabase"."person_identities" to authenticated;
 grant all on "better_supabase"."person_identities" to service_role;
-drop policy if exists person_identities_read on "better_supabase"."person_identities";
-create policy person_identities_read on "better_supabase"."person_identities"
+create policy bsb_person_identities_read on "better_supabase"."person_identities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -1994,18 +1703,21 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
       update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
         "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
         "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
         "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "legal_name" = case when save_company.attrs ? 'legalName' then nullif(trim(save_company.attrs ->> 'legalName'), '') else x."legal_name" end,
+        "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
+        "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
@@ -2015,7 +1727,7 @@ begin
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -2030,7 +1742,7 @@ begin
     perform "better_supabase".emit_event('company.updated', jsonb_build_object('organizationId', save_company.tenant, 'companyId', v_id, 'name', v_row ->> 'name'), 'companies/' || v_id::text, (save_company.tenant::text)::text, null, 'better-supabase/contacts');
   end if;
   if v_owner is not null and v_owner is distinct from v_previous_owner then
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (save_company.tenant, v_owner, 'company', v_id::text, 'participating')
     on conflict do nothing;
   end if;
@@ -2075,6 +1787,12 @@ begin
   if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
+  if save_person.attrs ? 'mode' and coalesce(lower(trim(save_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
+    raise exception 'a person is external or tenant' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
+  end if;
+  if v_created and lower(trim(save_person.attrs ->> 'mode')) = 'tenant' and nullif(save_person.attrs ->> 'userId', '') is null then
+    raise exception 'a tenant person needs a userId' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
+  end if;
   if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."tenant_id" = save_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
@@ -2112,18 +1830,19 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."people" x
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
       update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
         "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
         "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
         "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
+        "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
         "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
@@ -2133,7 +1852,7 @@ begin
         "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -2148,7 +1867,7 @@ begin
     perform "better_supabase".emit_event('person.updated', jsonb_build_object('organizationId', save_person.tenant, 'personId', v_id, 'name', v_row ->> 'name'), 'persons/' || v_id::text, (save_person.tenant::text)::text, null, 'better-supabase/contacts');
   end if;
   if v_owner is not null and v_owner is distinct from v_previous_owner then
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (save_person.tenant, v_owner, 'person', v_id::text, 'participating')
     on conflict do nothing;
   end if;
@@ -2338,7 +2057,7 @@ begin
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
@@ -2394,7 +2113,7 @@ begin
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", l."company_id", merge_people.keep, l."role", false
@@ -2427,7 +2146,7 @@ grant execute on function "better_supabase"."merge_people"(uuid, uuid) to authen
 -- the name and domain; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "better_supabase"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -2446,7 +2165,7 @@ begin
         and x."archived_at" is null
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle" = list_companies.lifecycle)
-        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.owner is null or x."owner_id" = list_companies.owner)
         and (list_companies.role is null or list_companies.role = any (x."roles"))
         and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
@@ -2463,7 +2182,7 @@ grant execute on function "better_supabase"."list_companies"(uuid, text, text, u
 -- the name and email; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "better_supabase"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -2482,7 +2201,7 @@ begin
         and x."archived_at" is null
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle" = list_people.lifecycle)
-        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.owner is null or x."owner_id" = list_people.owner)
         and (list_people.role is null or list_people.role = any (x."roles"))
         and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
@@ -3173,10 +2892,9 @@ revoke execute on function "better_supabase"."find_person_by_identity"(uuid, tex
 grant execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) to authenticated, service_role;
 
 -- A conversation's contact and an identity link's contact are people.
-alter table "better_supabase"."inbox_conversations" drop constraint if exists "inbox_conversations_contact_id_fkey";
+
 alter table "better_supabase"."inbox_conversations" add constraint "inbox_conversations_contact_id_fkey"
   foreign key ("contact_id") references "better_supabase"."people" ("id") on delete cascade;
-alter table "better_supabase"."identity_links" drop constraint if exists "identity_links_contact_id_fkey";
 alter table "better_supabase"."identity_links" add constraint "identity_links_contact_id_fkey"
   foreign key ("contact_id") references "better_supabase"."people" ("id") on delete cascade;
 
@@ -3249,165 +2967,106 @@ grant execute on function "better_supabase"."represented_by_me"(uuid) to authent
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
 create policy bsb_tenant_scope_select on "better_supabase"."companies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
 create policy bsb_tenant_scope_insert on "better_supabase"."companies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
 create policy bsb_tenant_scope_update on "better_supabase"."companies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
 create policy bsb_tenant_scope_delete on "better_supabase"."companies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
 create policy bsb_tenant_scope_select on "better_supabase"."people" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
 create policy bsb_tenant_scope_insert on "better_supabase"."people" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
 create policy bsb_tenant_scope_update on "better_supabase"."people" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
 create policy bsb_tenant_scope_delete on "better_supabase"."people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
 create policy bsb_tenant_scope_select on "better_supabase"."company_people" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
 create policy bsb_tenant_scope_insert on "better_supabase"."company_people" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
 create policy bsb_tenant_scope_update on "better_supabase"."company_people" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
 create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_select on "better_supabase"."payment_terms" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_insert on "better_supabase"."payment_terms" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_update on "better_supabase"."payment_terms" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_delete on "better_supabase"."payment_terms" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_select on "better_supabase"."person_identities" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_insert on "better_supabase"."person_identities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_update on "better_supabase"."person_identities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.companies', target_type => 'company', event_prefix => 'company', deferred => true);
-  perform better_supabase.audit('better_supabase.people', target_type => 'person', event_prefix => 'person', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.companies deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"company","event_prefix":"company"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.people deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"person","event_prefix":"person"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
@@ -3426,132 +3085,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:694d17ccac5d2c3db1eef31e699fe9942fb2e28e504f53645b94286848d08313
+-- @bsb-hash sha256:04c511baa2b1b683dd3e4be823fd6a6d790fff148e4334c0444bd4848d617f76
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
--- Moves every installed module's rows from record drop to record keep of the
--- subject table subject_table (schema.table): comments, attachments, tags and
--- the rest. Each module marks its handler with a comment, so this finds them
--- without naming them.
-create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_fn regproc;
-begin
-  for v_fn in
-    select p.oid::regproc
-    from pg_catalog.pg_proc p
-    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
-    where d.description = 'better-supabase:subject-merge'
-      -- Only the owner's functions, so a marked function in a schema another
-      -- role can write to never runs with this function's rights.
-      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
-    order by p.oid::regproc::text
-  loop
-    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."companies";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."companies";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."companies";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."companies";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."companies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."people";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."people";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."people";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."people";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."company_people";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."company_people";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."company_people";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."company_people";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."company_people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."payment_terms";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."payment_terms";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."payment_terms";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."payment_terms";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."payment_terms";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."document_delivery_preferences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."person_identities";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."person_identities";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."person_identities";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."person_identities";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."person_identities";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -3559,15 +3097,15 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Companies and people an organization works with, and who works where.
 
-create table if not exists "app_private"."payment_terms" (
+create table "app_private"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 300),
-  "days" integer not null default 30 check ("days" between 0 and 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000),
-  "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000),
+  "code" text not null constraint bsb_payment_terms_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_payment_terms_name_check check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 constraint bsb_payment_terms_days_check check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 constraint bsb_payment_terms_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 constraint bsb_payment_terms_discount_days_check check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 constraint bsb_payment_terms_credit_restriction_bps_check check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -3576,99 +3114,100 @@ alter table "app_private"."payment_terms" enable row level security;
 revoke all on "app_private"."payment_terms" from public, anon, authenticated;
 grant select on "app_private"."payment_terms" to authenticated;
 grant all on "app_private"."payment_terms" to service_role;
-drop policy if exists payment_terms_read on "app_private"."payment_terms";
-create policy payment_terms_read on "app_private"."payment_terms"
+create policy bsb_payment_terms_read on "app_private"."payment_terms"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "app_private"."companies" (
+create table "app_private"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
-  "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
+  "name" text not null constraint bsb_companies_name_check check (length("name") >= 1 and length("name") <= 300),
+  "domain" text constraint bsb_companies_domain_check check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
+  "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300),
+  "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100),
+  "phone" text,
   "lifecycle" text not null,
-  "owner_user_id" uuid,
-  "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
+  "owner_id" uuid,
+  "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "app_private"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "app_private"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_companies_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_companies_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_companies_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_companies_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_companies_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "app_private"."companies" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists companies_tenant_name_idx on "app_private"."companies" ("tenant_id", lower("name"), "id");
-create unique index if not exists companies_domain_idx on "app_private"."companies" ("tenant_id", "domain")
+create index companies_tenant_name_idx on "app_private"."companies" ("tenant_id", lower("name"), "id");
+create unique index companies_domain_idx on "app_private"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index if not exists companies_owner_idx on "app_private"."companies" ("owner_user_id");
-create index if not exists companies_merged_into_idx on "app_private"."companies" ("merged_into");
-create index if not exists companies_roles_idx on "app_private"."companies" using gin ("roles");
-create index if not exists companies_supplier_status_idx on "app_private"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
-create index if not exists companies_customer_terms_id_idx on "app_private"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
-create index if not exists companies_supplier_terms_id_idx on "app_private"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
+create index companies_owner_idx on "app_private"."companies" ("owner_id");
+create index companies_merged_into_idx on "app_private"."companies" ("merged_into");
+create index companies_roles_idx on "app_private"."companies" using gin ("roles");
+create index companies_supplier_status_idx on "app_private"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
+create index companies_customer_terms_id_idx on "app_private"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
+create index companies_supplier_terms_id_idx on "app_private"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "app_private"."companies" enable row level security;
 revoke all on "app_private"."companies" from public, anon, authenticated;
 grant select on "app_private"."companies" to authenticated;
 grant all on "app_private"."companies" to service_role;
-drop policy if exists companies_read on "app_private"."companies";
-create policy companies_read on "app_private"."companies"
+create policy bsb_companies_read on "app_private"."companies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "app_private"."people" (
+create table "app_private"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "name" text not null constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300),
+  "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
+  "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "app_private"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "app_private"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_people_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_people_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_people_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_people_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_people_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "app_private"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists people_tenant_name_idx on "app_private"."people" ("tenant_id", lower("name"), "id");
-create unique index if not exists people_email_idx on "app_private"."people" ("tenant_id", "email")
+create index people_tenant_name_idx on "app_private"."people" ("tenant_id", lower("name"), "id");
+create unique index people_email_idx on "app_private"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
-create index if not exists people_owner_idx on "app_private"."people" ("owner_user_id");
-create index if not exists people_user_idx on "app_private"."people" ("user_id");
-create index if not exists people_merged_into_idx on "app_private"."people" ("merged_into");
-create index if not exists people_roles_idx on "app_private"."people" using gin ("roles");
-create index if not exists people_supplier_status_idx on "app_private"."people" ("tenant_id", "supplier_status") where "supplier_status" is not null;
-create index if not exists people_customer_terms_id_idx on "app_private"."people" ("customer_terms_id") where "customer_terms_id" is not null;
-create index if not exists people_supplier_terms_id_idx on "app_private"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
+create index people_owner_idx on "app_private"."people" ("owner_id");
+create index people_user_idx on "app_private"."people" ("user_id");
+create index people_merged_into_idx on "app_private"."people" ("merged_into");
+create index people_roles_idx on "app_private"."people" using gin ("roles");
+create index people_supplier_status_idx on "app_private"."people" ("tenant_id", "supplier_status") where "supplier_status" is not null;
+create index people_customer_terms_id_idx on "app_private"."people" ("customer_terms_id") where "customer_terms_id" is not null;
+create index people_supplier_terms_id_idx on "app_private"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "app_private"."people" enable row level security;
 revoke all on "app_private"."people" from public, anon, authenticated;
 grant select on "app_private"."people" to authenticated;
 grant all on "app_private"."people" to service_role;
-drop policy if exists people_read on "app_private"."people";
-create policy people_read on "app_private"."people"
+create policy bsb_people_read on "app_private"."people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "app_private"."company_people" (
+create table "app_private"."company_people" (
   "tenant_id" uuid not null,
   "company_id" uuid not null references "app_private"."companies" ("id") on delete cascade,
   "person_id" uuid not null references "app_private"."people" ("id") on delete cascade,
@@ -3677,56 +3216,53 @@ create table if not exists "app_private"."company_people" (
   "created_at" timestamptz not null default now(),
   primary key ("company_id", "person_id")
 );
-create index if not exists company_people_person_idx on "app_private"."company_people" ("person_id");
-create unique index if not exists company_people_primary_idx on "app_private"."company_people" ("company_id") where "is_primary";
+create index company_people_person_idx on "app_private"."company_people" ("person_id");
+create unique index company_people_primary_idx on "app_private"."company_people" ("company_id") where "is_primary";
 alter table "app_private"."company_people" enable row level security;
 revoke all on "app_private"."company_people" from public, anon, authenticated;
 grant select on "app_private"."company_people" to authenticated;
 grant all on "app_private"."company_people" to service_role;
-drop policy if exists company_people_read on "app_private"."company_people";
-create policy company_people_read on "app_private"."company_people"
+create policy bsb_company_people_read on "app_private"."company_people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "app_private"."document_delivery_preferences" (
+create table "app_private"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") between 1 and 100),
-  "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" between 1 and 20),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "document_type" text not null constraint bsb_document_delivery_preferences_document_type_check check (length("document_type") >= 1 and length("document_type") <= 100),
+  "channel" text not null constraint bsb_document_delivery_preferences_channel_check check ("channel" in ('email', 'post', 'portal')),
+  "copies" integer not null default 1 constraint bsb_document_delivery_preferences_copies_check check ("copies" >= 1 and "copies" <= 20),
+  "email" text constraint bsb_document_delivery_preferences_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "party_id", "document_type", "channel")
 );
-create index if not exists document_delivery_preferences_party_idx on "app_private"."document_delivery_preferences" ("party_id");
+create index document_delivery_preferences_party_idx on "app_private"."document_delivery_preferences" ("party_id");
 alter table "app_private"."document_delivery_preferences" enable row level security;
 revoke all on "app_private"."document_delivery_preferences" from public, anon, authenticated;
 grant select on "app_private"."document_delivery_preferences" to authenticated;
 grant all on "app_private"."document_delivery_preferences" to service_role;
-drop policy if exists document_delivery_preferences_read on "app_private"."document_delivery_preferences";
-create policy document_delivery_preferences_read on "app_private"."document_delivery_preferences"
+create policy bsb_document_delivery_preferences_read on "app_private"."document_delivery_preferences"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "app_private"."person_identities" (
+create table "app_private"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "app_private"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") between 1 and 50),
-  "address" text not null check (length("address") between 1 and 500),
+  "channel" text not null constraint bsb_person_identities_channel_check check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null constraint bsb_person_identities_address_check check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
 );
-create index if not exists person_identities_person_idx on "app_private"."person_identities" ("person_id");
+create index person_identities_person_idx on "app_private"."person_identities" ("person_id");
 alter table "app_private"."person_identities" enable row level security;
 revoke all on "app_private"."person_identities" from public, anon, authenticated;
 grant select on "app_private"."person_identities" to authenticated;
 grant all on "app_private"."person_identities" to service_role;
-drop policy if exists person_identities_read on "app_private"."person_identities";
-create policy person_identities_read on "app_private"."person_identities"
+create policy bsb_person_identities_read on "app_private"."person_identities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -3794,18 +3330,21 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "app_private"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      insert into "app_private"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "app_private"."companies" x
+      select x."owner_id" into v_previous_owner from "app_private"."companies" x
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
       update "app_private"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
         "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
         "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
         "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "legal_name" = case when save_company.attrs ? 'legalName' then nullif(trim(save_company.attrs ->> 'legalName'), '') else x."legal_name" end,
+        "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
+        "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
@@ -3815,7 +3354,7 @@ begin
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -3870,6 +3409,12 @@ begin
   if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
+  if save_person.attrs ? 'mode' and coalesce(lower(trim(save_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
+    raise exception 'a person is external or tenant' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
+  end if;
+  if v_created and lower(trim(save_person.attrs ->> 'mode')) = 'tenant' and nullif(save_person.attrs ->> 'userId', '') is null then
+    raise exception 'a tenant person needs a userId' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
+  end if;
   if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "app_private"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."tenant_id" = save_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
@@ -3907,18 +3452,19 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "app_private"."people" ("tenant_id", "name", "email", "phone", "title", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      insert into "app_private"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "app_private"."people" x
+      select x."owner_id" into v_previous_owner from "app_private"."people" x
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
       update "app_private"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
         "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
         "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
         "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
+        "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
         "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
@@ -3928,7 +3474,7 @@ begin
         "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -4128,7 +3674,7 @@ begin
   update "app_private"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "app_private"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "app_private"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "app_private"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
@@ -4174,7 +3720,7 @@ begin
   update "app_private"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "app_private"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "app_private"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "app_private"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", l."company_id", merge_people.keep, l."role", false
@@ -4195,7 +3741,7 @@ grant execute on function "app_private"."merge_people"(uuid, uuid) to authentica
 -- the name and domain; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "app_private"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "app_private"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -4214,7 +3760,7 @@ begin
         and x."archived_at" is null
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle" = list_companies.lifecycle)
-        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.owner is null or x."owner_id" = list_companies.owner)
         and (list_companies.role is null or list_companies.role = any (x."roles"))
         and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
@@ -4231,7 +3777,7 @@ grant execute on function "app_private"."list_companies"(uuid, text, text, uuid,
 -- the name and email; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "app_private"."list_people"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "app_private"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -4250,7 +3796,7 @@ begin
         and x."archived_at" is null
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle" = list_people.lifecycle)
-        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.owner is null or x."owner_id" = list_people.owner)
         and (list_people.role is null or list_people.role = any (x."roles"))
         and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
@@ -4892,157 +4438,102 @@ grant execute on function "app_private"."find_person_by_identity"(uuid, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."companies";
-drop policy if exists bsb_tenant_scope_select on "app_private"."companies";
 create policy bsb_tenant_scope_select on "app_private"."companies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."companies";
 create policy bsb_tenant_scope_insert on "app_private"."companies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."companies";
 create policy bsb_tenant_scope_update on "app_private"."companies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."companies";
 create policy bsb_tenant_scope_delete on "app_private"."companies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."people";
-drop policy if exists bsb_tenant_scope_select on "app_private"."people";
 create policy bsb_tenant_scope_select on "app_private"."people" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."people";
 create policy bsb_tenant_scope_insert on "app_private"."people" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."people";
 create policy bsb_tenant_scope_update on "app_private"."people" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."people";
 create policy bsb_tenant_scope_delete on "app_private"."people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."company_people";
-drop policy if exists bsb_tenant_scope_select on "app_private"."company_people";
 create policy bsb_tenant_scope_select on "app_private"."company_people" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."company_people";
 create policy bsb_tenant_scope_insert on "app_private"."company_people" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."company_people";
 create policy bsb_tenant_scope_update on "app_private"."company_people" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."company_people";
 create policy bsb_tenant_scope_delete on "app_private"."company_people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."payment_terms";
-drop policy if exists bsb_tenant_scope_select on "app_private"."payment_terms";
 create policy bsb_tenant_scope_select on "app_private"."payment_terms" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."payment_terms";
 create policy bsb_tenant_scope_insert on "app_private"."payment_terms" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."payment_terms";
 create policy bsb_tenant_scope_update on "app_private"."payment_terms" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."payment_terms";
 create policy bsb_tenant_scope_delete on "app_private"."payment_terms" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."document_delivery_preferences";
-drop policy if exists bsb_tenant_scope_select on "app_private"."document_delivery_preferences";
 create policy bsb_tenant_scope_select on "app_private"."document_delivery_preferences" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."document_delivery_preferences";
 create policy bsb_tenant_scope_insert on "app_private"."document_delivery_preferences" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."document_delivery_preferences";
 create policy bsb_tenant_scope_update on "app_private"."document_delivery_preferences" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."document_delivery_preferences";
 create policy bsb_tenant_scope_delete on "app_private"."document_delivery_preferences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."person_identities";
-drop policy if exists bsb_tenant_scope_select on "app_private"."person_identities";
 create policy bsb_tenant_scope_select on "app_private"."person_identities" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."person_identities";
 create policy bsb_tenant_scope_insert on "app_private"."person_identities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."person_identities";
 create policy bsb_tenant_scope_update on "app_private"."person_identities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."person_identities";
 create policy bsb_tenant_scope_delete on "app_private"."person_identities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
@@ -5061,143 +4552,22 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:b4faad9d5adaa62daf773028c08779ae4f41860c2877b21c3f0d8594a0511aa0
+-- @bsb-hash sha256:5d2e17e83017e8b659dc72ea8b773ddf589766a2336444ae5af5f1fa64984437
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
--- Moves every installed module's rows from record drop to record keep of the
--- subject table subject_table (schema.table): comments, attachments, tags and
--- the rest. Each module marks its handler with a comment, so this finds them
--- without naming them.
-create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_fn regproc;
-begin
-  for v_fn in
-    select p.oid::regproc
-    from pg_catalog.pg_proc p
-    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
-    where d.description = 'better-supabase:subject-merge'
-      -- Only the owner's functions, so a marked function in a schema another
-      -- role can write to never runs with this function's rights.
-      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
-    order by p.oid::regproc::text
-  loop
-    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Companies and people an organization works with, and who works where.
 
-create table if not exists "better_supabase"."payment_terms" (
+create table "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 300),
-  "days" integer not null default 30 check ("days" between 0 and 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000),
-  "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000),
+  "code" text not null constraint bsb_payment_terms_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_payment_terms_name_check check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 constraint bsb_payment_terms_days_check check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 constraint bsb_payment_terms_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 constraint bsb_payment_terms_discount_days_check check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 constraint bsb_payment_terms_credit_restriction_bps_check check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -5206,99 +4576,100 @@ alter table "better_supabase"."payment_terms" enable row level security;
 revoke all on "better_supabase"."payment_terms" from public, anon, authenticated;
 grant select on "better_supabase"."payment_terms" to authenticated;
 grant all on "better_supabase"."payment_terms" to service_role;
-drop policy if exists payment_terms_read on "better_supabase"."payment_terms";
-create policy payment_terms_read on "better_supabase"."payment_terms"
+create policy bsb_payment_terms_read on "better_supabase"."payment_terms"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."companies" (
+create table "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
-  "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
+  "name" text not null constraint bsb_companies_name_check check (length("name") >= 1 and length("name") <= 300),
+  "domain" text constraint bsb_companies_domain_check check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
+  "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300),
+  "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100),
+  "phone" text,
   "lifecycle" text not null,
-  "owner_user_id" uuid,
-  "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
+  "owner_id" uuid,
+  "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_companies_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_companies_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_companies_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_companies_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_companies_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."companies" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
-create unique index if not exists companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
+create index companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
+create unique index companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index if not exists companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
-create index if not exists companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
-create index if not exists companies_roles_idx on "better_supabase"."companies" using gin ("roles");
-create index if not exists companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
-create index if not exists companies_customer_terms_id_idx on "better_supabase"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
-create index if not exists companies_supplier_terms_id_idx on "better_supabase"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
+create index companies_owner_idx on "better_supabase"."companies" ("owner_id");
+create index companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
+create index companies_roles_idx on "better_supabase"."companies" using gin ("roles");
+create index companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
+create index companies_customer_terms_id_idx on "better_supabase"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
+create index companies_supplier_terms_id_idx on "better_supabase"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "better_supabase"."companies" enable row level security;
 revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
-drop policy if exists companies_read on "better_supabase"."companies";
-create policy companies_read on "better_supabase"."companies"
+create policy bsb_companies_read on "better_supabase"."companies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."people" (
+create table "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "name" text not null constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300),
+  "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
+  "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_people_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_people_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_people_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_people_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_people_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
-create unique index if not exists people_email_idx on "better_supabase"."people" ("tenant_id", "email")
+create index people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
+create unique index people_email_idx on "better_supabase"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
-create index if not exists people_owner_idx on "better_supabase"."people" ("owner_user_id");
-create index if not exists people_user_idx on "better_supabase"."people" ("user_id");
-create index if not exists people_merged_into_idx on "better_supabase"."people" ("merged_into");
-create index if not exists people_roles_idx on "better_supabase"."people" using gin ("roles");
-create index if not exists people_supplier_status_idx on "better_supabase"."people" ("tenant_id", "supplier_status") where "supplier_status" is not null;
-create index if not exists people_customer_terms_id_idx on "better_supabase"."people" ("customer_terms_id") where "customer_terms_id" is not null;
-create index if not exists people_supplier_terms_id_idx on "better_supabase"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
+create index people_owner_idx on "better_supabase"."people" ("owner_id");
+create index people_user_idx on "better_supabase"."people" ("user_id");
+create index people_merged_into_idx on "better_supabase"."people" ("merged_into");
+create index people_roles_idx on "better_supabase"."people" using gin ("roles");
+create index people_supplier_status_idx on "better_supabase"."people" ("tenant_id", "supplier_status") where "supplier_status" is not null;
+create index people_customer_terms_id_idx on "better_supabase"."people" ("customer_terms_id") where "customer_terms_id" is not null;
+create index people_supplier_terms_id_idx on "better_supabase"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "better_supabase"."people" enable row level security;
 revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
-drop policy if exists people_read on "better_supabase"."people";
-create policy people_read on "better_supabase"."people"
+create policy bsb_people_read on "better_supabase"."people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."company_people" (
+create table "better_supabase"."company_people" (
   "tenant_id" uuid not null,
   "company_id" uuid not null references "better_supabase"."companies" ("id") on delete cascade,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
@@ -5307,56 +4678,53 @@ create table if not exists "better_supabase"."company_people" (
   "created_at" timestamptz not null default now(),
   primary key ("company_id", "person_id")
 );
-create index if not exists company_people_person_idx on "better_supabase"."company_people" ("person_id");
-create unique index if not exists company_people_primary_idx on "better_supabase"."company_people" ("company_id") where "is_primary";
+create index company_people_person_idx on "better_supabase"."company_people" ("person_id");
+create unique index company_people_primary_idx on "better_supabase"."company_people" ("company_id") where "is_primary";
 alter table "better_supabase"."company_people" enable row level security;
 revoke all on "better_supabase"."company_people" from public, anon, authenticated;
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
-drop policy if exists company_people_read on "better_supabase"."company_people";
-create policy company_people_read on "better_supabase"."company_people"
+create policy bsb_company_people_read on "better_supabase"."company_people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."document_delivery_preferences" (
+create table "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") between 1 and 100),
-  "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" between 1 and 20),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "document_type" text not null constraint bsb_document_delivery_preferences_document_type_check check (length("document_type") >= 1 and length("document_type") <= 100),
+  "channel" text not null constraint bsb_document_delivery_preferences_channel_check check ("channel" in ('email', 'post', 'portal')),
+  "copies" integer not null default 1 constraint bsb_document_delivery_preferences_copies_check check ("copies" >= 1 and "copies" <= 20),
+  "email" text constraint bsb_document_delivery_preferences_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "party_id", "document_type", "channel")
 );
-create index if not exists document_delivery_preferences_party_idx on "better_supabase"."document_delivery_preferences" ("party_id");
+create index document_delivery_preferences_party_idx on "better_supabase"."document_delivery_preferences" ("party_id");
 alter table "better_supabase"."document_delivery_preferences" enable row level security;
 revoke all on "better_supabase"."document_delivery_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."document_delivery_preferences" to authenticated;
 grant all on "better_supabase"."document_delivery_preferences" to service_role;
-drop policy if exists document_delivery_preferences_read on "better_supabase"."document_delivery_preferences";
-create policy document_delivery_preferences_read on "better_supabase"."document_delivery_preferences"
+create policy bsb_document_delivery_preferences_read on "better_supabase"."document_delivery_preferences"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."person_identities" (
+create table "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") between 1 and 50),
-  "address" text not null check (length("address") between 1 and 500),
+  "channel" text not null constraint bsb_person_identities_channel_check check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null constraint bsb_person_identities_address_check check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
 );
-create index if not exists person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
+create index person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
 alter table "better_supabase"."person_identities" enable row level security;
 revoke all on "better_supabase"."person_identities" from public, anon, authenticated;
 grant select on "better_supabase"."person_identities" to authenticated;
 grant all on "better_supabase"."person_identities" to service_role;
-drop policy if exists person_identities_read on "better_supabase"."person_identities";
-create policy person_identities_read on "better_supabase"."person_identities"
+create policy bsb_person_identities_read on "better_supabase"."person_identities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -5424,18 +4792,21 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
       update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
         "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
         "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
         "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "legal_name" = case when save_company.attrs ? 'legalName' then nullif(trim(save_company.attrs ->> 'legalName'), '') else x."legal_name" end,
+        "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
+        "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
@@ -5445,7 +4816,7 @@ begin
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -5500,6 +4871,12 @@ begin
   if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
+  if save_person.attrs ? 'mode' and coalesce(lower(trim(save_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
+    raise exception 'a person is external or tenant' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
+  end if;
+  if v_created and lower(trim(save_person.attrs ->> 'mode')) = 'tenant' and nullif(save_person.attrs ->> 'userId', '') is null then
+    raise exception 'a tenant person needs a userId' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
+  end if;
   if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."tenant_id" = save_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
@@ -5537,18 +4914,19 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."people" x
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
       update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
         "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
         "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
         "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
+        "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
         "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
@@ -5558,7 +4936,7 @@ begin
         "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -5758,7 +5136,7 @@ begin
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
@@ -5804,7 +5182,7 @@ begin
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", l."company_id", merge_people.keep, l."role", false
@@ -5825,7 +5203,7 @@ grant execute on function "better_supabase"."merge_people"(uuid, uuid) to authen
 -- the name and domain; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "better_supabase"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -5844,7 +5222,7 @@ begin
         and x."archived_at" is null
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle" = list_companies.lifecycle)
-        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.owner is null or x."owner_id" = list_companies.owner)
         and (list_companies.role is null or list_companies.role = any (x."roles"))
         and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
@@ -5861,7 +5239,7 @@ grant execute on function "better_supabase"."list_companies"(uuid, text, text, u
 -- the name and email; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "better_supabase"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -5880,7 +5258,7 @@ begin
         and x."archived_at" is null
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle" = list_people.lifecycle)
-        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.owner is null or x."owner_id" = list_people.owner)
         and (list_people.role is null or list_people.role = any (x."roles"))
         and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
@@ -6522,141 +5900,99 @@ grant execute on function "better_supabase"."find_person_by_identity"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
 create policy bsb_tenant_scope_select on "better_supabase"."companies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
 create policy bsb_tenant_scope_insert on "better_supabase"."companies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
 create policy bsb_tenant_scope_update on "better_supabase"."companies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
 create policy bsb_tenant_scope_delete on "better_supabase"."companies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
 create policy bsb_tenant_scope_select on "better_supabase"."people" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
 create policy bsb_tenant_scope_insert on "better_supabase"."people" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
 create policy bsb_tenant_scope_update on "better_supabase"."people" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
 create policy bsb_tenant_scope_delete on "better_supabase"."people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
 create policy bsb_tenant_scope_select on "better_supabase"."company_people" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
 create policy bsb_tenant_scope_insert on "better_supabase"."company_people" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
 create policy bsb_tenant_scope_update on "better_supabase"."company_people" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
 create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_select on "better_supabase"."payment_terms" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_insert on "better_supabase"."payment_terms" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_update on "better_supabase"."payment_terms" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_delete on "better_supabase"."payment_terms" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_select on "better_supabase"."person_identities" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_insert on "better_supabase"."person_identities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_update on "better_supabase"."person_identities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -6666,29 +6002,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."resolve_person"(uuid, jsonb);
 
-drop function if exists "api"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
-drop function if exists "api"."list_people"(uuid, text, text, uuid, text, uuid, integer);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."save_company"(tenant uuid, company uuid, attrs jsonb)
 returns jsonb
@@ -6933,19 +6247,6 @@ as $$ select "better_supabase"."find_person_by_identity"($1, $2, $3) $$;
 revoke execute on function "api"."find_person_by_identity"(uuid, text, text) from public, anon;
 grant execute on function "api"."find_person_by_identity"(uuid, text, text) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
@@ -6963,165 +6264,28 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:fea9ac370d38cdb9a38d24a326d64235f898bd6a5b1d5a6873bdd7d11bcf8689
+-- @bsb-hash sha256:770dc3b78c9cdb74a7e173e540c5128375ea534a6c66fcad1e772e7189662d05
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
--- Moves every installed module's rows from record drop to record keep of the
--- subject table subject_table (schema.table): comments, attachments, tags and
--- the rest. Each module marks its handler with a comment, so this finds them
--- without naming them.
-create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_fn regproc;
-begin
-  for v_fn in
-    select p.oid::regproc
-    from pg_catalog.pg_proc p
-    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
-    where d.description = 'better-supabase:subject-merge'
-      -- Only the owner's functions, so a marked function in a schema another
-      -- role can write to never runs with this function's rights.
-      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
-    order by p.oid::regproc::text
-  loop
-    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Companies and people an organization works with, and who works where.
 
 -- better_supabase.payment_terms is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."payment_terms" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."payment_terms" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."payment_terms" add column if not exists "code" text check (length("code") between 1 and 50);
-alter table "better_supabase"."payment_terms" add column if not exists "name" text check (length("name") between 1 and 300);
-alter table "better_supabase"."payment_terms" add column if not exists "days" integer not null default 30 check ("days" between 0 and 3650);
-alter table "better_supabase"."payment_terms" add column if not exists "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000);
-alter table "better_supabase"."payment_terms" add column if not exists "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650);
-alter table "better_supabase"."payment_terms" add column if not exists "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000);
+alter table "better_supabase"."payment_terms" add column if not exists "code" text constraint bsb_payment_terms_code_check check (length("code") >= 1 and length("code") <= 50);
+alter table "better_supabase"."payment_terms" add column if not exists "name" text constraint bsb_payment_terms_name_check check (length("name") >= 1 and length("name") <= 300);
+alter table "better_supabase"."payment_terms" add column if not exists "days" integer not null default 30 constraint bsb_payment_terms_days_check check ("days" >= 0 and "days" <= 3650);
+alter table "better_supabase"."payment_terms" add column if not exists "discount_bps" integer not null default 0 constraint bsb_payment_terms_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000);
+alter table "better_supabase"."payment_terms" add column if not exists "discount_days" integer not null default 0 constraint bsb_payment_terms_discount_days_check check ("discount_days" >= 0 and "discount_days" <= 3650);
+alter table "better_supabase"."payment_terms" add column if not exists "credit_restriction_bps" integer not null default 0 constraint bsb_payment_terms_credit_restriction_bps_check check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000);
 alter table "better_supabase"."payment_terms" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."payment_terms" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "payment_terms_tenant_id_code_key" on "better_supabase"."payment_terms" ("tenant_id", "code");
 alter table "better_supabase"."payment_terms" enable row level security;
 grant select on "better_supabase"."payment_terms" to authenticated;
 grant all on "better_supabase"."payment_terms" to service_role;
-drop policy if exists bsb_payment_terms_select on "better_supabase"."payment_terms";
 create policy bsb_payment_terms_select on "better_supabase"."payment_terms"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
@@ -7129,21 +6293,24 @@ create policy bsb_payment_terms_select on "better_supabase"."payment_terms"
 -- better_supabase.companies is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."companies" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."companies" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."companies" add column if not exists "name" text check (length("name") between 1 and 300);
-alter table "better_supabase"."companies" add column if not exists "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$');
+alter table "better_supabase"."companies" add column if not exists "name" text constraint bsb_companies_name_check check (length("name") >= 1 and length("name") <= 300);
+alter table "better_supabase"."companies" add column if not exists "domain" text constraint bsb_companies_domain_check check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$');
 alter table "better_supabase"."companies" add column if not exists "website" text;
 alter table "better_supabase"."companies" add column if not exists "vat_id" text;
+alter table "better_supabase"."companies" add column if not exists "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300);
+alter table "better_supabase"."companies" add column if not exists "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100);
+alter table "better_supabase"."companies" add column if not exists "phone" text;
 alter table "better_supabase"."companies" add column if not exists "lifecycle" text;
-alter table "better_supabase"."companies" add column if not exists "owner_user_id" uuid;
-alter table "better_supabase"."companies" add column if not exists "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object');
+alter table "better_supabase"."companies" add column if not exists "owner_id" uuid;
+alter table "better_supabase"."companies" add column if not exists "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object');
 alter table "better_supabase"."companies" add column if not exists "roles" text[] not null default '{}'::text[];
 alter table "better_supabase"."companies" add column if not exists "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null;
 alter table "better_supabase"."companies" add column if not exists "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null;
-alter table "better_supabase"."companies" add column if not exists "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."companies" add column if not exists "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1);
-alter table "better_supabase"."companies" add column if not exists "credit_block" text check ("credit_block" in ('none', 'soft', 'hard'));
-alter table "better_supabase"."companies" add column if not exists "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked'));
-alter table "better_supabase"."companies" add column if not exists "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$');
+alter table "better_supabase"."companies" add column if not exists "credit_currency" text constraint bsb_companies_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."companies" add column if not exists "credit_limit" bigint constraint bsb_companies_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1);
+alter table "better_supabase"."companies" add column if not exists "credit_block" text constraint bsb_companies_credit_block_check check ("credit_block" in ('none', 'soft', 'hard'));
+alter table "better_supabase"."companies" add column if not exists "supplier_status" text constraint bsb_companies_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked'));
+alter table "better_supabase"."companies" add column if not exists "language" text constraint bsb_companies_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$');
 alter table "better_supabase"."companies" add column if not exists "merged_into" uuid references "better_supabase"."companies" ("id");
 alter table "better_supabase"."companies" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."companies" add column if not exists "created_by" uuid;
@@ -7152,7 +6319,7 @@ alter table "better_supabase"."companies" add column if not exists "updated_at" 
 create index if not exists companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
 create unique index if not exists companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index if not exists companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
+create index if not exists companies_owner_idx on "better_supabase"."companies" ("owner_id");
 create index if not exists companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
 create index if not exists companies_roles_idx on "better_supabase"."companies" using gin ("roles");
 create index if not exists companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
@@ -7161,7 +6328,6 @@ create index if not exists companies_supplier_terms_id_idx on "better_supabase".
 alter table "better_supabase"."companies" enable row level security;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
-drop policy if exists bsb_companies_select on "better_supabase"."companies";
 create policy bsb_companies_select on "better_supabase"."companies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
@@ -7169,23 +6335,24 @@ create policy bsb_companies_select on "better_supabase"."companies"
 -- better_supabase.people is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."people" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."people" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."people" add column if not exists "name" text check (length("name") between 1 and 300);
-alter table "better_supabase"."people" add column if not exists "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
+alter table "better_supabase"."people" add column if not exists "name" text constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300);
+alter table "better_supabase"."people" add column if not exists "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
 alter table "better_supabase"."people" add column if not exists "phone" text;
 alter table "better_supabase"."people" add column if not exists "title" text;
-alter table "better_supabase"."people" add column if not exists "lifecycle" text;
-alter table "better_supabase"."people" add column if not exists "owner_user_id" uuid;
 alter table "better_supabase"."people" add column if not exists "user_id" uuid;
+alter table "better_supabase"."people" add column if not exists "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null));
+alter table "better_supabase"."people" add column if not exists "lifecycle" text;
+alter table "better_supabase"."people" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."people" add column if not exists "avatar_url" text;
-alter table "better_supabase"."people" add column if not exists "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."people" add column if not exists "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."people" add column if not exists "roles" text[] not null default '{}'::text[];
 alter table "better_supabase"."people" add column if not exists "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null;
 alter table "better_supabase"."people" add column if not exists "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null;
-alter table "better_supabase"."people" add column if not exists "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."people" add column if not exists "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1);
-alter table "better_supabase"."people" add column if not exists "credit_block" text check ("credit_block" in ('none', 'soft', 'hard'));
-alter table "better_supabase"."people" add column if not exists "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked'));
-alter table "better_supabase"."people" add column if not exists "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$');
+alter table "better_supabase"."people" add column if not exists "credit_currency" text constraint bsb_people_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."people" add column if not exists "credit_limit" bigint constraint bsb_people_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1);
+alter table "better_supabase"."people" add column if not exists "credit_block" text constraint bsb_people_credit_block_check check ("credit_block" in ('none', 'soft', 'hard'));
+alter table "better_supabase"."people" add column if not exists "supplier_status" text constraint bsb_people_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked'));
+alter table "better_supabase"."people" add column if not exists "language" text constraint bsb_people_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$');
 alter table "better_supabase"."people" add column if not exists "merged_into" uuid references "better_supabase"."people" ("id");
 alter table "better_supabase"."people" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."people" add column if not exists "created_by" uuid;
@@ -7194,7 +6361,7 @@ alter table "better_supabase"."people" add column if not exists "updated_at" tim
 create index if not exists people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
 create unique index if not exists people_email_idx on "better_supabase"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
-create index if not exists people_owner_idx on "better_supabase"."people" ("owner_user_id");
+create index if not exists people_owner_idx on "better_supabase"."people" ("owner_id");
 create index if not exists people_user_idx on "better_supabase"."people" ("user_id");
 create index if not exists people_merged_into_idx on "better_supabase"."people" ("merged_into");
 create index if not exists people_roles_idx on "better_supabase"."people" using gin ("roles");
@@ -7204,7 +6371,6 @@ create index if not exists people_supplier_terms_id_idx on "better_supabase"."pe
 alter table "better_supabase"."people" enable row level security;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
-drop policy if exists bsb_people_select on "better_supabase"."people";
 create policy bsb_people_select on "better_supabase"."people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
@@ -7222,7 +6388,6 @@ create unique index if not exists company_people_primary_idx on "better_supabase
 alter table "better_supabase"."company_people" enable row level security;
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
-drop policy if exists bsb_company_people_select on "better_supabase"."company_people";
 create policy bsb_company_people_select on "better_supabase"."company_people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
@@ -7231,10 +6396,10 @@ create policy bsb_company_people_select on "better_supabase"."company_people"
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "party_id" uuid;
-alter table "better_supabase"."document_delivery_preferences" add column if not exists "document_type" text check (length("document_type") between 1 and 100);
-alter table "better_supabase"."document_delivery_preferences" add column if not exists "channel" text check ("channel" in ('email', 'post', 'portal'));
-alter table "better_supabase"."document_delivery_preferences" add column if not exists "copies" integer not null default 1 check ("copies" between 1 and 20);
-alter table "better_supabase"."document_delivery_preferences" add column if not exists "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
+alter table "better_supabase"."document_delivery_preferences" add column if not exists "document_type" text constraint bsb_document_delivery_preferences_document_type_check check (length("document_type") >= 1 and length("document_type") <= 100);
+alter table "better_supabase"."document_delivery_preferences" add column if not exists "channel" text constraint bsb_document_delivery_preferences_channel_check check ("channel" in ('email', 'post', 'portal'));
+alter table "better_supabase"."document_delivery_preferences" add column if not exists "copies" integer not null default 1 constraint bsb_document_delivery_preferences_copies_check check ("copies" >= 1 and "copies" <= 20);
+alter table "better_supabase"."document_delivery_preferences" add column if not exists "email" text constraint bsb_document_delivery_preferences_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "document_delivery_preferences_tenant_id_party_id_document_type_" on "better_supabase"."document_delivery_preferences" ("tenant_id", "party_id", "document_type", "channel");
@@ -7242,7 +6407,6 @@ create index if not exists document_delivery_preferences_party_idx on "better_su
 alter table "better_supabase"."document_delivery_preferences" enable row level security;
 grant select on "better_supabase"."document_delivery_preferences" to authenticated;
 grant all on "better_supabase"."document_delivery_preferences" to service_role;
-drop policy if exists bsb_document_delivery_preferences_select on "better_supabase"."document_delivery_preferences";
 create policy bsb_document_delivery_preferences_select on "better_supabase"."document_delivery_preferences"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
@@ -7251,8 +6415,8 @@ create policy bsb_document_delivery_preferences_select on "better_supabase"."doc
 alter table "better_supabase"."person_identities" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."person_identities" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."person_identities" add column if not exists "person_id" uuid references "better_supabase"."people" ("id") on delete cascade;
-alter table "better_supabase"."person_identities" add column if not exists "channel" text check (length("channel") between 1 and 50);
-alter table "better_supabase"."person_identities" add column if not exists "address" text check (length("address") between 1 and 500);
+alter table "better_supabase"."person_identities" add column if not exists "channel" text constraint bsb_person_identities_channel_check check (length("channel") >= 1 and length("channel") <= 50);
+alter table "better_supabase"."person_identities" add column if not exists "address" text constraint bsb_person_identities_address_check check (length("address") >= 1 and length("address") <= 500);
 alter table "better_supabase"."person_identities" add column if not exists "verified_at" timestamptz;
 alter table "better_supabase"."person_identities" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "person_identities_tenant_id_channel_address_key" on "better_supabase"."person_identities" ("tenant_id", "channel", "address");
@@ -7260,7 +6424,6 @@ create index if not exists person_identities_person_idx on "better_supabase"."pe
 alter table "better_supabase"."person_identities" enable row level security;
 grant select on "better_supabase"."person_identities" to authenticated;
 grant all on "better_supabase"."person_identities" to service_role;
-drop policy if exists bsb_person_identities_select on "better_supabase"."person_identities";
 create policy bsb_person_identities_select on "better_supabase"."person_identities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
@@ -7329,18 +6492,21 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), better_supabase.as_column_type(coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), (null::"better_supabase"."companies")."lifecycle"), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), better_supabase.as_column_type(coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), (null::"better_supabase"."companies")."lifecycle"), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
       update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
         "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
         "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
         "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "legal_name" = case when save_company.attrs ? 'legalName' then nullif(trim(save_company.attrs ->> 'legalName'), '') else x."legal_name" end,
+        "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
+        "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(better_supabase.as_column_type(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), (null::"better_supabase"."companies")."lifecycle"), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
@@ -7350,7 +6516,7 @@ begin
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -7405,6 +6571,12 @@ begin
   if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
+  if save_person.attrs ? 'mode' and coalesce(lower(trim(save_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
+    raise exception 'a person is external or tenant' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
+  end if;
+  if v_created and lower(trim(save_person.attrs ->> 'mode')) = 'tenant' and nullif(save_person.attrs ->> 'userId', '') is null then
+    raise exception 'a tenant person needs a userId' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
+  end if;
   if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."tenant_id" = save_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
@@ -7442,18 +6614,19 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), better_supabase.as_column_type(coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), (null::"better_supabase"."people")."lifecycle"), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), better_supabase.as_column_type(coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), (null::"better_supabase"."people")."lifecycle"), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."people" x
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
       update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
         "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
         "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
         "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
+        "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(better_supabase.as_column_type(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), (null::"better_supabase"."people")."lifecycle"), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
         "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
@@ -7463,7 +6636,7 @@ begin
         "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -7663,7 +6836,7 @@ begin
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
@@ -7709,7 +6882,7 @@ begin
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", l."company_id", merge_people.keep, l."role", false
@@ -7730,7 +6903,7 @@ grant execute on function "better_supabase"."merge_people"(uuid, uuid) to authen
 -- the name and domain; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "better_supabase"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -7749,7 +6922,7 @@ begin
         and x."archived_at" is null
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle"::text = list_companies.lifecycle)
-        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.owner is null or x."owner_id" = list_companies.owner)
         and (list_companies.role is null or list_companies.role = any (x."roles"))
         and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
@@ -7766,7 +6939,7 @@ grant execute on function "better_supabase"."list_companies"(uuid, text, text, u
 -- the name and email; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "better_supabase"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -7785,7 +6958,7 @@ begin
         and x."archived_at" is null
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle"::text = list_people.lifecycle)
-        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.owner is null or x."owner_id" = list_people.owner)
         and (list_people.role is null or list_people.role = any (x."roles"))
         and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
@@ -8427,157 +7600,102 @@ grant execute on function "better_supabase"."find_person_by_identity"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
 create policy bsb_tenant_scope_select on "better_supabase"."companies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
 create policy bsb_tenant_scope_insert on "better_supabase"."companies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
 create policy bsb_tenant_scope_update on "better_supabase"."companies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
 create policy bsb_tenant_scope_delete on "better_supabase"."companies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
 create policy bsb_tenant_scope_select on "better_supabase"."people" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
 create policy bsb_tenant_scope_insert on "better_supabase"."people" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
 create policy bsb_tenant_scope_update on "better_supabase"."people" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
 create policy bsb_tenant_scope_delete on "better_supabase"."people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
 create policy bsb_tenant_scope_select on "better_supabase"."company_people" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
 create policy bsb_tenant_scope_insert on "better_supabase"."company_people" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
 create policy bsb_tenant_scope_update on "better_supabase"."company_people" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
 create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_select on "better_supabase"."payment_terms" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_insert on "better_supabase"."payment_terms" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_update on "better_supabase"."payment_terms" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_delete on "better_supabase"."payment_terms" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_select on "better_supabase"."person_identities" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_insert on "better_supabase"."person_identities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_update on "better_supabase"."person_identities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
@@ -8596,143 +7714,22 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:150291b0c121217c815e3fa64ceff60ede4c2c58eefef01a084b8eab0ec5450d
+-- @bsb-hash sha256:a4c0900377c80a6ec06edde4947d2fee83d0398102c9a4144705a86ff437865a
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
--- Moves every installed module's rows from record drop to record keep of the
--- subject table subject_table (schema.table): comments, attachments, tags and
--- the rest. Each module marks its handler with a comment, so this finds them
--- without naming them.
-create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_fn regproc;
-begin
-  for v_fn in
-    select p.oid::regproc
-    from pg_catalog.pg_proc p
-    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
-    where d.description = 'better-supabase:subject-merge'
-      -- Only the owner's functions, so a marked function in a schema another
-      -- role can write to never runs with this function's rights.
-      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
-    order by p.oid::regproc::text
-  loop
-    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Companies and people an organization works with, and who works where.
 
-create table if not exists "better_supabase"."payment_terms" (
+create table "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "name" text not null check (length("name") between 1 and 300),
-  "days" integer not null default 30 check ("days" between 0 and 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" between 0 and 10000),
-  "discount_days" integer not null default 0 check ("discount_days" between 0 and 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" between 0 and 10000),
+  "code" text not null constraint bsb_payment_terms_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_payment_terms_name_check check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 constraint bsb_payment_terms_days_check check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 constraint bsb_payment_terms_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 constraint bsb_payment_terms_discount_days_check check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 constraint bsb_payment_terms_credit_restriction_bps_check check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "code")
@@ -8741,99 +7738,100 @@ alter table "better_supabase"."payment_terms" enable row level security;
 revoke all on "better_supabase"."payment_terms" from public, anon, authenticated;
 grant select on "better_supabase"."payment_terms" to authenticated;
 grant all on "better_supabase"."payment_terms" to service_role;
-drop policy if exists payment_terms_read on "better_supabase"."payment_terms";
-create policy payment_terms_read on "better_supabase"."payment_terms"
+create policy bsb_payment_terms_read on "better_supabase"."payment_terms"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."companies" (
+create table "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
-  "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
+  "name" text not null constraint bsb_companies_name_check check (length("name") >= 1 and length("name") <= 300),
+  "domain" text constraint bsb_companies_domain_check check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
+  "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300),
+  "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100),
+  "phone" text,
   "lifecycle" text not null,
-  "owner_user_id" uuid,
-  "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
+  "owner_id" uuid,
+  "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_companies_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_companies_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_companies_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_companies_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_companies_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."companies" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists companies_tenant_name_idx on "better_supabase"."companies" ("org_id", lower("name"), "id");
-create unique index if not exists companies_domain_idx on "better_supabase"."companies" ("org_id", "domain")
+create index companies_tenant_name_idx on "better_supabase"."companies" ("org_id", lower("name"), "id");
+create unique index companies_domain_idx on "better_supabase"."companies" ("org_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index if not exists companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
-create index if not exists companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
-create index if not exists companies_roles_idx on "better_supabase"."companies" using gin ("roles");
-create index if not exists companies_supplier_status_idx on "better_supabase"."companies" ("org_id", "supplier_status") where "supplier_status" is not null;
-create index if not exists companies_customer_terms_id_idx on "better_supabase"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
-create index if not exists companies_supplier_terms_id_idx on "better_supabase"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
+create index companies_owner_idx on "better_supabase"."companies" ("owner_id");
+create index companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
+create index companies_roles_idx on "better_supabase"."companies" using gin ("roles");
+create index companies_supplier_status_idx on "better_supabase"."companies" ("org_id", "supplier_status") where "supplier_status" is not null;
+create index companies_customer_terms_id_idx on "better_supabase"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
+create index companies_supplier_terms_id_idx on "better_supabase"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "better_supabase"."companies" enable row level security;
 revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
-drop policy if exists companies_read on "better_supabase"."companies";
-create policy companies_read on "better_supabase"."companies"
+create policy bsb_companies_read on "better_supabase"."companies"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."people" (
+create table "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "name" text not null constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300),
+  "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
+  "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_people_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_people_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_people_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_people_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_people_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists people_tenant_name_idx on "better_supabase"."people" ("org_id", lower("name"), "id");
-create unique index if not exists people_email_idx on "better_supabase"."people" ("org_id", "email")
+create index people_tenant_name_idx on "better_supabase"."people" ("org_id", lower("name"), "id");
+create unique index people_email_idx on "better_supabase"."people" ("org_id", "email")
   where "email" is not null and "archived_at" is null;
-create index if not exists people_owner_idx on "better_supabase"."people" ("owner_user_id");
-create index if not exists people_user_idx on "better_supabase"."people" ("user_id");
-create index if not exists people_merged_into_idx on "better_supabase"."people" ("merged_into");
-create index if not exists people_roles_idx on "better_supabase"."people" using gin ("roles");
-create index if not exists people_supplier_status_idx on "better_supabase"."people" ("org_id", "supplier_status") where "supplier_status" is not null;
-create index if not exists people_customer_terms_id_idx on "better_supabase"."people" ("customer_terms_id") where "customer_terms_id" is not null;
-create index if not exists people_supplier_terms_id_idx on "better_supabase"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
+create index people_owner_idx on "better_supabase"."people" ("owner_id");
+create index people_user_idx on "better_supabase"."people" ("user_id");
+create index people_merged_into_idx on "better_supabase"."people" ("merged_into");
+create index people_roles_idx on "better_supabase"."people" using gin ("roles");
+create index people_supplier_status_idx on "better_supabase"."people" ("org_id", "supplier_status") where "supplier_status" is not null;
+create index people_customer_terms_id_idx on "better_supabase"."people" ("customer_terms_id") where "customer_terms_id" is not null;
+create index people_supplier_terms_id_idx on "better_supabase"."people" ("supplier_terms_id") where "supplier_terms_id" is not null;
 alter table "better_supabase"."people" enable row level security;
 revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
-drop policy if exists people_read on "better_supabase"."people";
-create policy people_read on "better_supabase"."people"
+create policy bsb_people_read on "better_supabase"."people"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."company_people" (
+create table "better_supabase"."company_people" (
   "org_id" uuid not null,
   "company_id" uuid not null references "better_supabase"."companies" ("id") on delete cascade,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
@@ -8842,56 +7840,53 @@ create table if not exists "better_supabase"."company_people" (
   "created_at" timestamptz not null default now(),
   primary key ("company_id", "person_id")
 );
-create index if not exists company_people_person_idx on "better_supabase"."company_people" ("person_id");
-create unique index if not exists company_people_primary_idx on "better_supabase"."company_people" ("company_id") where "is_primary";
+create index company_people_person_idx on "better_supabase"."company_people" ("person_id");
+create unique index company_people_primary_idx on "better_supabase"."company_people" ("company_id") where "is_primary";
 alter table "better_supabase"."company_people" enable row level security;
 revoke all on "better_supabase"."company_people" from public, anon, authenticated;
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
-drop policy if exists company_people_read on "better_supabase"."company_people";
-create policy company_people_read on "better_supabase"."company_people"
+create policy bsb_company_people_read on "better_supabase"."company_people"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."document_delivery_preferences" (
+create table "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") between 1 and 100),
-  "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" between 1 and 20),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "document_type" text not null constraint bsb_document_delivery_preferences_document_type_check check (length("document_type") >= 1 and length("document_type") <= 100),
+  "channel" text not null constraint bsb_document_delivery_preferences_channel_check check ("channel" in ('email', 'post', 'portal')),
+  "copies" integer not null default 1 constraint bsb_document_delivery_preferences_copies_check check ("copies" >= 1 and "copies" <= 20),
+  "email" text constraint bsb_document_delivery_preferences_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "party_id", "document_type", "channel")
 );
-create index if not exists document_delivery_preferences_party_idx on "better_supabase"."document_delivery_preferences" ("party_id");
+create index document_delivery_preferences_party_idx on "better_supabase"."document_delivery_preferences" ("party_id");
 alter table "better_supabase"."document_delivery_preferences" enable row level security;
 revoke all on "better_supabase"."document_delivery_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."document_delivery_preferences" to authenticated;
 grant all on "better_supabase"."document_delivery_preferences" to service_role;
-drop policy if exists document_delivery_preferences_read on "better_supabase"."document_delivery_preferences";
-create policy document_delivery_preferences_read on "better_supabase"."document_delivery_preferences"
+create policy bsb_document_delivery_preferences_read on "better_supabase"."document_delivery_preferences"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
-create table if not exists "better_supabase"."person_identities" (
+create table "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") between 1 and 50),
-  "address" text not null check (length("address") between 1 and 500),
+  "channel" text not null constraint bsb_person_identities_channel_check check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null constraint bsb_person_identities_address_check check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("org_id", "channel", "address")
 );
-create index if not exists person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
+create index person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
 alter table "better_supabase"."person_identities" enable row level security;
 revoke all on "better_supabase"."person_identities" from public, anon, authenticated;
 grant select on "better_supabase"."person_identities" to authenticated;
 grant all on "better_supabase"."person_identities" to service_role;
-drop policy if exists person_identities_read on "better_supabase"."person_identities";
-create policy person_identities_read on "better_supabase"."person_identities"
+create policy bsb_person_identities_read on "better_supabase"."person_identities"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -8959,18 +7954,21 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."companies" ("org_id", "name", "domain", "website", "vat_id", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      insert into "better_supabase"."companies" ("org_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
       where x."id" = save_company.company and x."org_id" = save_company.tenant;
       update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
         "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
         "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
         "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "legal_name" = case when save_company.attrs ? 'legalName' then nullif(trim(save_company.attrs ->> 'legalName'), '') else x."legal_name" end,
+        "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
+        "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
@@ -8980,7 +7978,7 @@ begin
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."org_id" = save_company.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -9035,6 +8033,12 @@ begin
   if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
+  if save_person.attrs ? 'mode' and coalesce(lower(trim(save_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
+    raise exception 'a person is external or tenant' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
+  end if;
+  if v_created and lower(trim(save_person.attrs ->> 'mode')) = 'tenant' and nullif(save_person.attrs ->> 'userId', '') is null then
+    raise exception 'a tenant person needs a userId' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
+  end if;
   if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."org_id" = save_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
@@ -9072,18 +8076,19 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."people" ("org_id", "name", "email", "phone", "title", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      insert into "better_supabase"."people" ("org_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."people" x
       where x."id" = save_person.person and x."org_id" = save_person.tenant;
       update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
         "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
         "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
         "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
+        "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
         "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
@@ -9093,7 +8098,7 @@ begin
         "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."org_id" = save_person.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -9293,7 +8298,7 @@ begin
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "better_supabase"."company_people" ("org_id", "company_id", "person_id", "role", "is_primary")
   select l."org_id", merge_companies.keep, l."person_id", l."role", false
@@ -9339,7 +8344,7 @@ begin
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "better_supabase"."company_people" ("org_id", "company_id", "person_id", "role", "is_primary")
   select l."org_id", l."company_id", merge_people.keep, l."role", false
@@ -9360,7 +8365,7 @@ grant execute on function "better_supabase"."merge_people"(uuid, uuid) to authen
 -- the name and domain; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "better_supabase"."list_companies"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -9379,7 +8384,7 @@ begin
         and x."archived_at" is null
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle" = list_companies.lifecycle)
-        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.owner is null or x."owner_id" = list_companies.owner)
         and (list_companies.role is null or list_companies.role = any (x."roles"))
         and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
@@ -9396,7 +8401,7 @@ grant execute on function "better_supabase"."list_companies"(uuid, text, text, u
 -- the name and email; after_name and after_id continue after the
 -- last row of the previous page. role keeps the ones with that role, and
 -- supplier_status the suppliers in that status.
-drop function if exists "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer);
+
 create or replace function "better_supabase"."list_people"(tenant uuid, search text, lifecycle text, owner uuid, after_name text, after_id uuid, page_size integer, role text default null, supplier_status text default null)
 returns jsonb
 language plpgsql
@@ -9415,7 +8420,7 @@ begin
         and x."archived_at" is null
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle" = list_people.lifecycle)
-        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.owner is null or x."owner_id" = list_people.owner)
         and (list_people.role is null or list_people.role = any (x."roles"))
         and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
@@ -10057,157 +9062,102 @@ grant execute on function "better_supabase"."find_person_by_identity"(uuid, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."companies";
 create policy bsb_tenant_scope_select on "better_supabase"."companies" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."companies";
 create policy bsb_tenant_scope_insert on "better_supabase"."companies" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."companies";
 create policy bsb_tenant_scope_update on "better_supabase"."companies" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."companies";
 create policy bsb_tenant_scope_delete on "better_supabase"."companies" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."people";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."people";
 create policy bsb_tenant_scope_select on "better_supabase"."people" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."people";
 create policy bsb_tenant_scope_insert on "better_supabase"."people" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."people";
 create policy bsb_tenant_scope_update on "better_supabase"."people" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."people";
 create policy bsb_tenant_scope_delete on "better_supabase"."people" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."company_people";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."company_people";
 create policy bsb_tenant_scope_select on "better_supabase"."company_people" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."company_people";
 create policy bsb_tenant_scope_insert on "better_supabase"."company_people" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."company_people";
 create policy bsb_tenant_scope_update on "better_supabase"."company_people" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
 create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payment_terms";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_select on "better_supabase"."payment_terms" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_insert on "better_supabase"."payment_terms" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_update on "better_supabase"."payment_terms" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_terms";
 create policy bsb_tenant_scope_delete on "better_supabase"."payment_terms" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_delivery_preferences";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_select on "better_supabase"."document_delivery_preferences" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_delivery_preferences" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_update on "better_supabase"."document_delivery_preferences" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_delivery_preferences" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_select on "better_supabase"."person_identities" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_insert on "better_supabase"."person_identities" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_update on "better_supabase"."person_identities" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
 create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts

@@ -1,6 +1,6 @@
 # 0045: Run the CLI from one command tree, with agent mode
 
-- Status: accepted; amends 0003
+- Status: accepted; amends 0003; exit codes, consent and the envelope superseded by 0290
 - Date: 2026-10-19
 
 ## Context

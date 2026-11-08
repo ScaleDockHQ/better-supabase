@@ -9,9 +9,9 @@ Put domain queries next to the table they belong to. `defineRepository`
 returns a plugin that adds methods to one table only:
 
 ```ts title="src/lib/supabase/index.ts"
-import { defineRepository, defineSupabase } from "better-supabase";
+import { defineRepository, createSupabase } from "better-supabase";
 
-const base = defineSupabase(schema);
+const base = createSupabase(schema);
 
 const customers = defineRepository(base, "customers", (repo) => ({
   active: () =>

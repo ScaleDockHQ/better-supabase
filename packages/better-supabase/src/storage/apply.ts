@@ -5,7 +5,7 @@ import { AsyncResult, err, ok } from "../core/result.ts";
 import { fromStorageError } from "./errors.ts";
 import { lifecycleAbsent } from "./versioning.ts";
 
-export interface BucketSettings {
+export interface StorageBucketOptions {
   readonly id: string;
   readonly public: boolean;
   readonly fileSizeLimit: number | undefined;
@@ -25,7 +25,7 @@ export interface AppliedBucket {
  * `bucket.sql()` can't write them.
  */
 export function applyBucket(
-  settings: BucketSettings,
+  settings: StorageBucketOptions,
   client: StorageAdminClient,
 ): AsyncResult<AppliedBucket> {
   const storage = client.storage;

@@ -12,11 +12,11 @@ insert into better_supabase.messages (id, tenant_id, conversation_id, author_id,
   ('00000000-0000-4000-8000-0000000cc001', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000cf001', '00000000-0000-4000-8000-0000000000a1', 'Admin note'),
   ('00000000-0000-4000-8000-0000000cc002', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000cf001', '00000000-0000-4000-8000-0000000000a2', 'Member note'),
   ('00000000-0000-4000-8000-0000000cc003', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000cf002', null, 'Globex note');
-insert into better_supabase.timeline_entries (organization_id, event_id, type) values
+insert into better_supabase.timeline_entries (tenant_id, event_id, type) values
   ('00000000-0000-4000-8000-000000000002', 'globex-event', 'customer.created');
-insert into better_supabase.organization_settings (organization_id, key, value) values
+insert into better_supabase.organization_settings (tenant_id, key, value) values
   ('00000000-0000-4000-8000-000000000002', 'theme', '"light"');
-insert into better_supabase.audit_events (op, organization_id, event_type) values
+insert into better_supabase.audit_events (op, tenant_id, event_type) values
   ('event', '00000000-0000-4000-8000-000000000001', 'customer.created');
 
 select set_config(
@@ -88,12 +88,12 @@ select is(
   'the member reads no Globex comments'
 );
 select is(
-  (select count(*)::int from better_supabase.timeline_entries where organization_id = '00000000-0000-4000-8000-000000000002'),
+  (select count(*)::int from better_supabase.timeline_entries where tenant_id = '00000000-0000-4000-8000-000000000002'),
   0,
   'the member reads no Globex activity'
 );
 select is(
-  (select count(*)::int from better_supabase.organization_settings where organization_id = '00000000-0000-4000-8000-000000000002'),
+  (select count(*)::int from better_supabase.organization_settings where tenant_id = '00000000-0000-4000-8000-000000000002'),
   0,
   'the member reads no Globex settings'
 );

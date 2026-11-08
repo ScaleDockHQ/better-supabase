@@ -24,11 +24,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { sessionChanged } from "@/features/user/user-actions";
 import { Link } from "@/i18n/navigation";
-import { useSupabase } from "@/lib/hooks";
+import { loadBrowserClient } from "@/lib/supabase/load-client";
 
 import { safeNext } from "../safe-next";
 
-type State = { readonly error: string } | { readonly confirm: string } | null;
+type State =
+  | {
+      readonly error: string;
+      readonly fullName: string;
+      readonly email: string;
+    }
+  | { readonly confirm: string }
+  | null;
 
 /**
  * `full_name` goes to `raw_user_meta_data`, which the profiles module copies
@@ -39,25 +46,27 @@ export function SignupForm() {
   const t = useExtracted("auth");
   const fieldId = useId();
   const locale = useLocale();
-  const supabase = useSupabase();
   const router = useRouter();
   const changeSession = useSessionChange(sessionChanged, router);
 
   const [state, submit, pending] = useActionState(
     async (_previous: State, form: FormData): Promise<State> => {
       const email = String(form.get("email"));
+      const fullName = String(form.get("fullName"));
 
-      const { data, error } = await supabase.auth.signUp({
+      const bsb = await loadBrowserClient();
+
+      const { data, error } = await bsb.supabase.auth.signUp({
         email,
         password: String(form.get("password")),
         options: {
-          data: { full_name: String(form.get("fullName")) },
+          data: { full_name: fullName },
           emailRedirectTo: `${window.location.origin}/${locale}`,
         },
       });
 
       if (error) {
-        return { error: error.message };
+        return { error: error.message, fullName, email };
       }
 
       // With email confirmations on, there is no session until the link is opened.
@@ -88,7 +97,8 @@ export function SignupForm() {
     );
   }
 
-  const error = state && "error" in state ? state.error : null;
+  const kept = state && "error" in state ? state : null;
+  const error = kept?.error ?? null;
 
   return (
     <Card>
@@ -108,6 +118,7 @@ export function SignupForm() {
               <Input
                 id={`${fieldId}-full-name`}
                 name="fullName"
+                defaultValue={kept?.fullName}
                 autoComplete="name"
                 required
                 maxLength={80}
@@ -119,6 +130,7 @@ export function SignupForm() {
                 id={`${fieldId}-email`}
                 name="email"
                 type="email"
+                defaultValue={kept?.email}
                 autoComplete="email"
                 required
               />

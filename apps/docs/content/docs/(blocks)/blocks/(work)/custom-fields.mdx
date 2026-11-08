@@ -49,6 +49,14 @@ subject, a `RecordRef` (`{ type, id }`): `readValues(subject)` and
 a call without one fails with `invalid_request` and the hint
 `TENANT_REQUIRED`.
 
+Setting a value again replaces it, so `setValue` never fails on the key of
+record and field, and an encrypted value is sealed once. `updateValue({ id,
+value })` changes one value row by its id and `deleteValue(id)` removes it. Both
+need `custom_fields.manage` and the record's `fields` action, and fail with
+`FIELD_VALUE_NOT_FOUND` for an unknown id; `updateValue` also fails with
+`FIELD_VALUE_INVALID` for a value the field's format refuses. The SQL functions
+are `update_field_value(value_id, value)` and `delete_field_value(value_id)`.
+
 ## Types
 
 `CUSTOM_FIELD_TYPES` lists the types a definition takes. A value is stored as text whatever the type; the type tells the form and the UI what it holds. The names match the [app table formats](/docs/repository/tables), so a field and a column that hold the same thing use the same word.
@@ -109,14 +117,14 @@ blocks: {
 
 ## Entities are registered subject types
 
-In the normalized layout, `entity` names a subject type that the app registers: a key of [`config.subjects`](/docs/blocks/sql#actions-granted-per-row) or a type an installed block registers (`blocks.custom-fields.on` narrows the list). `save_field_definition` and `install_field_pack` fail with `FIELD_ENTITY_UNKNOWN` (SQLSTATE `22023`) for any other value. Without registered types the entity stays free text, so a project that has no subjects keeps working.
+In the normalized layout, `entity` names a subject type that the app registers: a key of [`config.recordTypes`](/docs/blocks/sql#actions-granted-per-row) or a type an installed block registers (`blocks.custom-fields.on` narrows the list). `save_field_definition` and `install_field_pack` fail with `FIELD_ENTITY_UNKNOWN` (SQLSTATE `22023`) for any other value. Without registered types the entity stays free text, so a project that has no subjects keeps working.
 
 The list of registered types is one function, `better_supabase.subject_types()`, which returns `text[]`. Code that needs to ask the database which types exist calls it instead of keeping its own list.
 
 Definitions that were saved with a free-text entity need a registered name before the block upgrades. `blocks.custom-fields.options.entityMap` maps each stored value to its replacement, and the upgrade renames the definitions and the value rows that point at them:
 
 ```ts title="better-supabase.config.ts"
-subjects: { sales_invoice: { table: "public.invoices", idType: "uuid" } },
+recordTypes: { sales_invoice: { table: "public.invoices", idType: "uuid" } },
 blocks: {
   "custom-fields": { options: { entityMap: { invoice: "sales_invoice" } } },
 },
@@ -135,7 +143,7 @@ export const contactsPack = defineFieldPack({
   apiVersion: 1,
   key: "contacts-basics",
   version: 1,
-  subjects: {
+  recordTypes: {
     customer: [
       { key: "tier", label: "Tier", type: "option" },
       { key: "referral_code", label: "Referral code", type: "text" },
@@ -190,7 +198,7 @@ three functions instead of the definition ones:
 The client calls them as `setField(record, { key, label, type, value, rank?,
 ifAbsent? })`, `readFields(record)` and `deleteValue(id)`. Writing needs
 `custom_fields.manage`, a record that exists in the tenant, and the record's
-`fields` action when [`config.subjects`](/docs/blocks/sql#actions-granted-per-row)
+`fields` action when [`config.recordTypes`](/docs/blocks/sql#actions-granted-per-row)
 declares one (such as `fields: "product.update"`); a value that doesn't fit its type fails with
 `FIELD_VALUE_INVALID`.
 
@@ -267,7 +275,7 @@ not checked. It needs the `subjects` block. The keyed layout has no sensitive
 values, so `permissions.sensitive` is not checked either.
 
 To check only some records, set `readAccess: "record"` on their type in
-`config.subjects` (or in `on`) instead of the option. Values of those types
+`config.recordTypes` (or in `on`) instead of the option. Values of those types
 follow the record's `read` entry, and the other types keep the tenant key.
 `driveSubject()` sets it for `drive_node`, so a member without a grant on a
 node can't read its field values. This works in every layout; in the

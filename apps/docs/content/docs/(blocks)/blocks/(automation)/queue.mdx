@@ -84,7 +84,7 @@ await jobs.enqueue(
 `visibleUntil` and `receivedAt` as `Temporal.Instant` too (see
 [Temporal](/docs/concepts/temporal)). The third argument takes `temporal`, for
 runtimes without a global `Temporal`, and `now`, the clock for `runAt` delays
-and schedule runs. Pass the same `now` you give `defineSupabase` so jobs and
+and schedule runs. Pass the same `now` you give `createSupabase` so jobs and
 repositories share one clock in tests.
 
 Any number of workers can run side by side: pgmq hides a claimed message for
@@ -1142,7 +1142,7 @@ await chat.store({ id: event.id, type: event.type, payload: event });
 
 ## Your own columns
 
-Add columns to the webhook inbox message table with `blocks.webhook-inbox.options.extraColumns`
+Add columns to the webhook inbox message table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `store` validates and writes them, and `list` and the messages `process` hands the handler return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

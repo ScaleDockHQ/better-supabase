@@ -54,44 +54,6 @@ const dataOf = (config: AccessBlockConfig, layout: object = {}): string =>
   }).find((file) => file.module === "permissions" && file.kind === "data")
     ?.contents ?? "";
 
-describe("stored permission key renames", () => {
-  it("moves the catalog's old keys to the new ones", () => {
-    const sql = dataOf({ model: "catalog" });
-
-    expect(sql).toContain(
-      "('parties.read', array['contacts.read']::text[], true)",
-    );
-    expect(sql).toContain(
-      "('ai.read', array['agents.read', 'connectors.read', 'knowledge.read', 'memory.read']::text[], true)",
-    );
-    expect(sql).toContain(
-      "('members.invite', array['waitlist.invite']::text[], false)",
-    );
-    expect(sql).toContain(
-      "to_regprocedure('better_supabase.bump_authz_versions(uuid[])')",
-    );
-  });
-
-  it("renders nothing for the roles and provider models", () => {
-    expect(dataOf({})).not.toContain("naming convention");
-    expect(
-      dataOf({ model: "provider" }, { accessProvider: PROVIDER }),
-    ).not.toContain("naming convention");
-  });
-});
-
-describe("configured roles", () => {
-  it("grant the new keys next to an old one", () => {
-    const sql = access({
-      roles: { owner: ["*"], sales: ["parties.read", "ai.read"] },
-    });
-
-    expect(sql).toContain(
-      "'parties.read', 'contacts.read', 'ai.read', 'agents.read'",
-    );
-  });
-});
-
 describe("access module", () => {
   it("renders the roles model from the default roles", () => {
     const sql = SQL_MODULES["permissions"]!.sql;
@@ -156,16 +118,12 @@ describe("access module", () => {
       tables: { overrides: null, platformAssignments: null },
     });
 
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."roles"',
-    );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."role_permissions"',
-    );
+    expect(sql).toContain('create table "better_supabase"."roles"');
+    expect(sql).toContain('create table "better_supabase"."role_permissions"');
     expect(sql).not.toContain("permission_overrides");
     expect(sql).not.toContain("platform_roles");
     expect(access({ model: "catalog" })).toContain(
-      'create table if not exists "better_supabase"."platform_roles"',
+      'create table "better_supabase"."platform_roles"',
     );
   });
 
@@ -199,6 +157,27 @@ describe("access module", () => {
     expect(sql).toContain("authz.ids_tenant(permission)");
     expect(sql).toContain("can(scope text, scope_id text, permission text)");
     expect(sql).not.toContain("ids_organization");
+  });
+
+  it("renders permission_matches by the provider's wildcard setting", () => {
+    const matches = (wildcards?: "all" | "prefix" | "none") =>
+      provider({}, { ...PROVIDER, ...(wildcards ? { wildcards } : {}) });
+
+    expect(matches()).toContain("select granted = '*' or granted = wanted");
+    expect(matches("all")).toBe(matches());
+
+    const prefix = matches("prefix");
+
+    expect(prefix).not.toContain("granted = '*'");
+    expect(prefix).toContain("right(granted, 2) = '.*'");
+
+    const none = matches("none");
+
+    expect(none).toContain("select granted = wanted\n$$;");
+    expect(none).not.toContain("starts_with");
+
+    // The roles model gives the owner `*`, so it never reads the setting.
+    expect(access({})).toContain("select granted = '*' or granted = wanted");
   });
 
   it("disables tenants and users from the provider's suspension rows", () => {
@@ -547,9 +526,6 @@ describe("access module", () => {
     expect(sql).toContain("PERMISSIONS_SELF_LOCKOUT");
 
     const roles = access({ model: "roles" });
-    expect(roles).toContain(
-      'drop function if exists "better_supabase"."list_roles"(uuid);',
-    );
     expect(roles).not.toContain(
       'function "better_supabase"."list_roles"(tenant',
     );
@@ -647,9 +623,6 @@ describe("catalog roles", () => {
     );
     expect(sql).toContain(
       'where not exists (select 1 from "better_supabase"."roles" x where x."key" = v.k)',
-    );
-    expect(sql.indexOf("insert into")).toBeLessThan(
-      sql.indexOf("naming convention"),
     );
   });
 

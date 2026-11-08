@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
 import { ACCOUNTING } from "../../../src/sql/modules/accounting.ts";
-import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { customContracts } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -84,7 +85,7 @@ describe("accounting module", () => {
     const sql = sqlOf();
 
     expect(sql).toContain("pg_advisory_xact_lock");
-    expect(sql).toContain("FISCAL_YEAR_CLOSED");
+    expect(sql).toContain("PERIOD_CLOSED");
     expect(sql).toContain("ACCOUNTING_ENTRY_UNBALANCED");
   });
 

@@ -12,7 +12,7 @@ import { sqlIdent } from "../../core/template.ts";
 import { guestOr } from "../guest-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN } from "../rank-sql.ts";
-import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import { lockTable, schemaPreamble } from "../shared.ts";
 import { carePlanFlowFunctions } from "./care-plans-flow.ts";
 import { carePlanFunctions } from "./care-plans-functions.ts";
 import {
@@ -110,7 +110,7 @@ const NAMES: BlockSqlNames = {
     "before_care_plan_evaluation_create",
     "after_care_plan_evaluation_create",
   ],
-  options: ["codeSystems", "guestRead", "measureKinds", "extraColumns"],
+  options: ["codeSystems", "guestRead", "measureKinds"],
   tables: {
     plans: {
       name: "care_plans",
@@ -257,7 +257,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const guest = ctx.scope.guest(
@@ -319,7 +319,7 @@ create table if not exists ${plans} (
   unique (${p("tenant")}, ${p("id")}),
   check (${p("status")} = 'draft' or ${p("publishedAt")} is not null),
   check (${p("status")} <> 'archived' or ${p("archivedAt")} is not null)
-);${addExtraColumns(plans, q.extras)}${appKey("plans", "tenant_id", `${p("tenant")}, ${p("id")}`)}
+);${appKey("plans", "tenant_id", `${p("tenant")}, ${p("id")}`)}
 create unique index if not exists ${name("plans", "active_key")} on ${plans} (${p("subjectType")}, ${p("subjectId")}) where ${p("status")} = 'active';
 create index if not exists ${name("plans", "subject_idx")} on ${plans} (${p("tenant")}, ${p("subjectType")}, ${p("subjectId")}, ${p("version")} desc);
 create index if not exists ${name("plans", "review_idx")} on ${plans} (${p("reviewOn")}) where ${p("status")} = 'active';

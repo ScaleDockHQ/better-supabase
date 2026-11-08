@@ -1,151 +1,96 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:e22b57d29e6f4b05ebda4f2fe0571e457201c73942c5f2ca478cf706802b116f
+-- @bsb-hash sha256:9b9ec12ffb931c65bd106431dff17763851f4cd12d8d94fdd35382ef4f3cc84e
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Settings as key-value rows. The app validates values with defineSettings();
 -- keys with a JSON Schema also get a pg_jsonschema check below.
-create table if not exists "better_supabase"."user_settings" (
+create table "better_supabase"."user_settings" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
   primary key ("user_id", "key")
 );
-create index if not exists user_settings_updated_by_idx on "better_supabase"."user_settings" ("updated_by");
+create index user_settings_updated_by_idx on "better_supabase"."user_settings" ("updated_by");
 alter table "better_supabase"."user_settings" enable row level security;
 revoke all on "better_supabase"."user_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
-drop policy if exists "user_settings_own" on "better_supabase"."user_settings";
-drop policy if exists "user_settings_own_read" on "better_supabase"."user_settings";
-create policy "user_settings_own_read" on "better_supabase"."user_settings" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "user_settings_own_insert" on "better_supabase"."user_settings";
-create policy "user_settings_own_insert" on "better_supabase"."user_settings" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "user_settings_own_update" on "better_supabase"."user_settings";
-create policy "user_settings_own_update" on "better_supabase"."user_settings" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "user_settings_own_delete" on "better_supabase"."user_settings";
-create policy "user_settings_own_delete" on "better_supabase"."user_settings" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_read on "better_supabase"."user_settings"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+create policy bsb_user_settings_own_insert on "better_supabase"."user_settings"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_update on "better_supabase"."user_settings"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_delete on "better_supabase"."user_settings"
+  for delete to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-create table if not exists "better_supabase"."organization_settings" (
-  "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+create table "better_supabase"."organization_settings" (
+  "tenant_id" uuid not null,
+  "key" text not null constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
-  primary key ("organization_id", "key")
+  primary key ("tenant_id", "key")
 );
-create index if not exists organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
+create index organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
 alter table "better_supabase"."organization_settings" enable row level security;
 revoke all on "better_supabase"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
-drop policy if exists organization_settings_read on "better_supabase"."organization_settings";
-create policy organization_settings_read on "better_supabase"."organization_settings"
+create policy bsb_organization_settings_read on "better_supabase"."organization_settings"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
-drop policy if exists organization_settings_insert on "better_supabase"."organization_settings";
-create policy organization_settings_insert on "better_supabase"."organization_settings"
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
+create policy bsb_organization_settings_insert on "better_supabase"."organization_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
-drop policy if exists organization_settings_update on "better_supabase"."organization_settings";
-create policy organization_settings_update on "better_supabase"."organization_settings"
+  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
+create policy bsb_organization_settings_update on "better_supabase"."organization_settings"
   for update to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
-  with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
-drop policy if exists organization_settings_delete on "better_supabase"."organization_settings";
-create policy organization_settings_delete on "better_supabase"."organization_settings"
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
+create policy bsb_organization_settings_delete on "better_supabase"."organization_settings"
   for delete to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
-create table if not exists "better_supabase"."platform_settings" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+create table "better_supabase"."platform_settings" (
+  "key" text primary key constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
+create index platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
 alter table "better_supabase"."platform_settings" enable row level security;
 revoke all on "better_supabase"."platform_settings" from public, anon, authenticated;
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
-drop policy if exists platform_settings_read on "better_supabase"."platform_settings";
-create policy platform_settings_read on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_read on "better_supabase"."platform_settings"
   for select to authenticated
   using (true);
-drop policy if exists platform_settings_read_public on "better_supabase"."platform_settings";
-create policy platform_settings_read_public on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_read_public on "better_supabase"."platform_settings"
   for select to anon
   using (false);
-drop policy if exists platform_settings_insert on "better_supabase"."platform_settings";
-create policy platform_settings_insert on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_insert on "better_supabase"."platform_settings"
   for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists platform_settings_update on "better_supabase"."platform_settings";
-create policy platform_settings_update on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_update on "better_supabase"."platform_settings"
   for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists platform_settings_delete on "better_supabase"."platform_settings";
-create policy platform_settings_delete on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_delete on "better_supabase"."platform_settings"
   for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
@@ -199,7 +144,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_object_agg(s."key", s."value"), '{}'::jsonb)
   from "better_supabase"."organization_settings" s
-  where s."organization_id" = get_organization_settings.tenant
+  where s."tenant_id" = get_organization_settings.tenant
 $$;
 
 create or replace function "better_supabase"."set_organization_setting"(tenant uuid, key text, value jsonb)
@@ -208,9 +153,9 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into "better_supabase"."organization_settings" ("organization_id", "key", "value", "updated_by", "updated_at")
+  insert into "better_supabase"."organization_settings" ("tenant_id", "key", "value", "updated_by", "updated_at")
   values (set_organization_setting.tenant, set_organization_setting.key, coalesce(set_organization_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
-  on conflict ("organization_id", "key") do update
+  on conflict ("tenant_id", "key") do update
     set "value" = excluded."value", "updated_by" = auth.uid(), "updated_at" = now()
   returning "value"
 $$;
@@ -223,7 +168,7 @@ set search_path = ''
 as $$
   with removed as (
     delete from "better_supabase"."organization_settings" s
-    where s."organization_id" = reset_organization_setting.tenant and s."key" = reset_organization_setting.key
+    where s."tenant_id" = reset_organization_setting.tenant and s."key" = reset_organization_setting.key
     returning 1
   )
   select exists (select 1 from removed)
@@ -240,7 +185,7 @@ set search_path = ''
 as $$
   select s."value"
   from "better_supabase"."organization_settings" s
-  where s."organization_id" = organization_setting.tenant and s."key" = organization_setting.key
+  where s."tenant_id" = organization_setting.tenant and s."key" = organization_setting.key
 $$;
 
 create or replace function "better_supabase"."get_platform_settings"()
@@ -303,72 +248,38 @@ grant execute on function "better_supabase"."organization_setting"(uuid, text) t
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
-drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
-drop function if exists "better_supabase"."record_organization_setting"();
-drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
-drop function if exists "better_supabase"."record_platform_setting"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_select on "better_supabase"."organization_settings" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_insert on "better_supabase"."organization_settings" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_delete on "better_supabase"."organization_settings" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
@@ -387,151 +298,96 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:ac2d69dd4a8876ce98c0c586d38281ec1fcd096547e2793dd3d53402ede4afe3
+-- @bsb-hash sha256:ff9c24e4fbfcbeb4183831ffaeb6b54c35ac54a725e1e40107729fef598ead3b
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Settings as key-value rows. The app validates values with defineSettings();
 -- keys with a JSON Schema also get a pg_jsonschema check below.
-create table if not exists "better_supabase"."user_settings" (
+create table "better_supabase"."user_settings" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
   primary key ("user_id", "key")
 );
-create index if not exists user_settings_updated_by_idx on "better_supabase"."user_settings" ("updated_by");
+create index user_settings_updated_by_idx on "better_supabase"."user_settings" ("updated_by");
 alter table "better_supabase"."user_settings" enable row level security;
 revoke all on "better_supabase"."user_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
-drop policy if exists "user_settings_own" on "better_supabase"."user_settings";
-drop policy if exists "user_settings_own_read" on "better_supabase"."user_settings";
-create policy "user_settings_own_read" on "better_supabase"."user_settings" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "user_settings_own_insert" on "better_supabase"."user_settings";
-create policy "user_settings_own_insert" on "better_supabase"."user_settings" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "user_settings_own_update" on "better_supabase"."user_settings";
-create policy "user_settings_own_update" on "better_supabase"."user_settings" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "user_settings_own_delete" on "better_supabase"."user_settings";
-create policy "user_settings_own_delete" on "better_supabase"."user_settings" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_read on "better_supabase"."user_settings"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+create policy bsb_user_settings_own_insert on "better_supabase"."user_settings"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_update on "better_supabase"."user_settings"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_delete on "better_supabase"."user_settings"
+  for delete to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-create table if not exists "better_supabase"."organization_settings" (
-  "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+create table "better_supabase"."organization_settings" (
+  "tenant_id" uuid not null,
+  "key" text not null constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
-  primary key ("organization_id", "key")
+  primary key ("tenant_id", "key")
 );
-create index if not exists organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
+create index organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
 alter table "better_supabase"."organization_settings" enable row level security;
 revoke all on "better_supabase"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
-drop policy if exists organization_settings_read on "better_supabase"."organization_settings";
-create policy organization_settings_read on "better_supabase"."organization_settings"
+create policy bsb_organization_settings_read on "better_supabase"."organization_settings"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
-drop policy if exists organization_settings_insert on "better_supabase"."organization_settings";
-create policy organization_settings_insert on "better_supabase"."organization_settings"
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
+create policy bsb_organization_settings_insert on "better_supabase"."organization_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
-drop policy if exists organization_settings_update on "better_supabase"."organization_settings";
-create policy organization_settings_update on "better_supabase"."organization_settings"
+  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
+create policy bsb_organization_settings_update on "better_supabase"."organization_settings"
   for update to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
-  with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
-drop policy if exists organization_settings_delete on "better_supabase"."organization_settings";
-create policy organization_settings_delete on "better_supabase"."organization_settings"
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
+create policy bsb_organization_settings_delete on "better_supabase"."organization_settings"
   for delete to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
-create table if not exists "better_supabase"."platform_settings" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+create table "better_supabase"."platform_settings" (
+  "key" text primary key constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
+create index platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
 alter table "better_supabase"."platform_settings" enable row level security;
 revoke all on "better_supabase"."platform_settings" from public, anon, authenticated;
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
-drop policy if exists platform_settings_read on "better_supabase"."platform_settings";
-create policy platform_settings_read on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_read on "better_supabase"."platform_settings"
   for select to authenticated
   using (true);
-drop policy if exists platform_settings_read_public on "better_supabase"."platform_settings";
-create policy platform_settings_read_public on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_read_public on "better_supabase"."platform_settings"
   for select to anon
   using (false);
-drop policy if exists platform_settings_insert on "better_supabase"."platform_settings";
-create policy platform_settings_insert on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_insert on "better_supabase"."platform_settings"
   for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists platform_settings_update on "better_supabase"."platform_settings";
-create policy platform_settings_update on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_update on "better_supabase"."platform_settings"
   for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists platform_settings_delete on "better_supabase"."platform_settings";
-create policy platform_settings_delete on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_delete on "better_supabase"."platform_settings"
   for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
@@ -585,7 +441,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_object_agg(s."key", s."value"), '{}'::jsonb)
   from "better_supabase"."organization_settings" s
-  where s."organization_id" = get_organization_settings.tenant
+  where s."tenant_id" = get_organization_settings.tenant
 $$;
 
 create or replace function "better_supabase"."set_organization_setting"(tenant uuid, key text, value jsonb)
@@ -594,9 +450,9 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into "better_supabase"."organization_settings" ("organization_id", "key", "value", "updated_by", "updated_at")
+  insert into "better_supabase"."organization_settings" ("tenant_id", "key", "value", "updated_by", "updated_at")
   values (set_organization_setting.tenant, set_organization_setting.key, coalesce(set_organization_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
-  on conflict ("organization_id", "key") do update
+  on conflict ("tenant_id", "key") do update
     set "value" = excluded."value", "updated_by" = auth.uid(), "updated_at" = now()
   returning "value"
 $$;
@@ -609,7 +465,7 @@ set search_path = ''
 as $$
   with removed as (
     delete from "better_supabase"."organization_settings" s
-    where s."organization_id" = reset_organization_setting.tenant and s."key" = reset_organization_setting.key
+    where s."tenant_id" = reset_organization_setting.tenant and s."key" = reset_organization_setting.key
     returning 1
   )
   select exists (select 1 from removed)
@@ -626,7 +482,7 @@ set search_path = ''
 as $$
   select s."value"
   from "better_supabase"."organization_settings" s
-  where s."organization_id" = organization_setting.tenant and s."key" = organization_setting.key
+  where s."tenant_id" = organization_setting.tenant and s."key" = organization_setting.key
 $$;
 
 create or replace function "better_supabase"."get_platform_settings"()
@@ -700,34 +556,34 @@ declare
 begin
   if tg_op = 'DELETE' then
     v_row := old;
-    perform "better_supabase".emit_event('organization_setting.reset', jsonb_build_object('organizationId', v_row."organization_id"::text, 'key', v_row."key"), 'organizations/' || v_row."organization_id"::text || '/settings/' || v_row."key", (v_row."organization_id")::text, null, 'better-supabase/settings');
+    perform "better_supabase".emit_event('organization_setting.reset', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'key', v_row."key"), 'organizations/' || v_row."tenant_id"::text || '/settings/' || v_row."key", (v_row."tenant_id")::text, null, 'better-supabase/settings');
   perform better_supabase.audit_event(
     event_type => 'organization_setting.reset',
     category => 'configuration',
     target_type => 'setting',
     record_id => v_row."key",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'key', v_row."key")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'key', v_row."key")
   );
   else
     v_row := new;
-    perform "better_supabase".emit_event('organization_setting.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'key', v_row."key"), 'organizations/' || v_row."organization_id"::text || '/settings/' || v_row."key", (v_row."organization_id")::text, null, 'better-supabase/settings');
+    perform "better_supabase".emit_event('organization_setting.updated', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'key', v_row."key"), 'organizations/' || v_row."tenant_id"::text || '/settings/' || v_row."key", (v_row."tenant_id")::text, null, 'better-supabase/settings');
   perform better_supabase.audit_event(
     event_type => 'organization_setting.updated',
     category => 'configuration',
     target_type => 'setting',
     record_id => v_row."key",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'key', v_row."key")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'key', v_row."key")
   );
   end if;
   return null;
 end;
 $$;
 revoke execute on function "better_supabase"."record_organization_setting"() from public, anon, authenticated;
-drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
 create trigger "bsb_record_organization_setting" after insert or update or delete on "better_supabase"."organization_settings"
-  for each row execute function "better_supabase"."record_organization_setting"();
+  for each row
+  execute function "better_supabase"."record_organization_setting"();
 create or replace function "better_supabase"."record_platform_setting"()
 returns trigger
 language plpgsql
@@ -762,71 +618,41 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."record_platform_setting"() from public, anon, authenticated;
-drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
 create trigger "bsb_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
-  for each row execute function "better_supabase"."record_platform_setting"();
+  for each row
+  execute function "better_supabase"."record_platform_setting"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_select on "better_supabase"."organization_settings" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_insert on "better_supabase"."organization_settings" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_delete on "better_supabase"."organization_settings" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
@@ -845,61 +671,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:27dc966120f79eb393e304a2bdb5c69415e601421da806b27a3e3f30c5a82f06
+-- @bsb-hash sha256:5fd7177af9410f03b0670f41166226c8dc870670ecfc3d4f239feaebe425e505
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."organization_settings";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."organization_settings";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."organization_settings";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."organization_settings";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."organization_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -907,94 +683,89 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Settings as key-value rows. The app validates values with defineSettings();
 -- keys with a JSON Schema also get a pg_jsonschema check below.
-create table if not exists "app_private"."user_settings" (
+create table "app_private"."user_settings" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
   primary key ("user_id", "key")
 );
-create index if not exists user_settings_updated_by_idx on "app_private"."user_settings" ("updated_by");
+create index user_settings_updated_by_idx on "app_private"."user_settings" ("updated_by");
 alter table "app_private"."user_settings" enable row level security;
 revoke all on "app_private"."user_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "app_private"."user_settings" to authenticated;
 grant all on "app_private"."user_settings" to service_role;
-drop policy if exists "user_settings_own" on "app_private"."user_settings";
-drop policy if exists "user_settings_own_read" on "app_private"."user_settings";
-create policy "user_settings_own_read" on "app_private"."user_settings" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "user_settings_own_insert" on "app_private"."user_settings";
-create policy "user_settings_own_insert" on "app_private"."user_settings" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "user_settings_own_update" on "app_private"."user_settings";
-create policy "user_settings_own_update" on "app_private"."user_settings" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "user_settings_own_delete" on "app_private"."user_settings";
-create policy "user_settings_own_delete" on "app_private"."user_settings" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_read on "app_private"."user_settings"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+create policy bsb_user_settings_own_insert on "app_private"."user_settings"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_update on "app_private"."user_settings"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_delete on "app_private"."user_settings"
+  for delete to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-create table if not exists "app_private"."organization_settings" (
-  "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+create table "app_private"."organization_settings" (
+  "tenant_id" uuid not null,
+  "key" text not null constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
-  primary key ("organization_id", "key")
+  primary key ("tenant_id", "key")
 );
-create index if not exists organization_settings_updated_by_idx on "app_private"."organization_settings" ("updated_by");
+create index organization_settings_updated_by_idx on "app_private"."organization_settings" ("updated_by");
 alter table "app_private"."organization_settings" enable row level security;
 revoke all on "app_private"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "app_private"."organization_settings" to authenticated;
 grant all on "app_private"."organization_settings" to service_role;
-drop policy if exists organization_settings_read on "app_private"."organization_settings";
-create policy organization_settings_read on "app_private"."organization_settings"
+create policy bsb_organization_settings_read on "app_private"."organization_settings"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
-drop policy if exists organization_settings_insert on "app_private"."organization_settings";
-create policy organization_settings_insert on "app_private"."organization_settings"
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
+create policy bsb_organization_settings_insert on "app_private"."organization_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
-drop policy if exists organization_settings_update on "app_private"."organization_settings";
-create policy organization_settings_update on "app_private"."organization_settings"
+  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
+create policy bsb_organization_settings_update on "app_private"."organization_settings"
   for update to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
-  with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
-drop policy if exists organization_settings_delete on "app_private"."organization_settings";
-create policy organization_settings_delete on "app_private"."organization_settings"
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
+create policy bsb_organization_settings_delete on "app_private"."organization_settings"
   for delete to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
-create table if not exists "app_private"."platform_settings" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+create table "app_private"."platform_settings" (
+  "key" text primary key constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists platform_settings_updated_by_idx on "app_private"."platform_settings" ("updated_by");
+create index platform_settings_updated_by_idx on "app_private"."platform_settings" ("updated_by");
 alter table "app_private"."platform_settings" enable row level security;
 revoke all on "app_private"."platform_settings" from public, anon, authenticated;
 grant select on "app_private"."platform_settings" to anon;
 grant select, insert, update, delete on "app_private"."platform_settings" to authenticated;
 grant all on "app_private"."platform_settings" to service_role;
-drop policy if exists platform_settings_read on "app_private"."platform_settings";
-create policy platform_settings_read on "app_private"."platform_settings"
+create policy bsb_platform_settings_read on "app_private"."platform_settings"
   for select to authenticated
   using (true);
-drop policy if exists platform_settings_read_public on "app_private"."platform_settings";
-create policy platform_settings_read_public on "app_private"."platform_settings"
+create policy bsb_platform_settings_read_public on "app_private"."platform_settings"
   for select to anon
   using (false);
-drop policy if exists platform_settings_insert on "app_private"."platform_settings";
-create policy platform_settings_insert on "app_private"."platform_settings"
+create policy bsb_platform_settings_insert on "app_private"."platform_settings"
   for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists platform_settings_update on "app_private"."platform_settings";
-create policy platform_settings_update on "app_private"."platform_settings"
+create policy bsb_platform_settings_update on "app_private"."platform_settings"
   for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists platform_settings_delete on "app_private"."platform_settings";
-create policy platform_settings_delete on "app_private"."platform_settings"
+create policy bsb_platform_settings_delete on "app_private"."platform_settings"
   for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
@@ -1048,7 +819,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_object_agg(s."key", s."value"), '{}'::jsonb)
   from "app_private"."organization_settings" s
-  where s."organization_id" = get_organization_settings.tenant
+  where s."tenant_id" = get_organization_settings.tenant
 $$;
 
 create or replace function "app_private"."set_organization_setting"(tenant uuid, key text, value jsonb)
@@ -1057,9 +828,9 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into "app_private"."organization_settings" ("organization_id", "key", "value", "updated_by", "updated_at")
+  insert into "app_private"."organization_settings" ("tenant_id", "key", "value", "updated_by", "updated_at")
   values (set_organization_setting.tenant, set_organization_setting.key, coalesce(set_organization_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
-  on conflict ("organization_id", "key") do update
+  on conflict ("tenant_id", "key") do update
     set "value" = excluded."value", "updated_by" = auth.uid(), "updated_at" = now()
   returning "value"
 $$;
@@ -1072,7 +843,7 @@ set search_path = ''
 as $$
   with removed as (
     delete from "app_private"."organization_settings" s
-    where s."organization_id" = reset_organization_setting.tenant and s."key" = reset_organization_setting.key
+    where s."tenant_id" = reset_organization_setting.tenant and s."key" = reset_organization_setting.key
     returning 1
   )
   select exists (select 1 from removed)
@@ -1089,7 +860,7 @@ set search_path = ''
 as $$
   select s."value"
   from "app_private"."organization_settings" s
-  where s."organization_id" = organization_setting.tenant and s."key" = organization_setting.key
+  where s."tenant_id" = organization_setting.tenant and s."key" = organization_setting.key
 $$;
 
 create or replace function "app_private"."get_platform_settings"()
@@ -1152,72 +923,38 @@ grant execute on function "app_private"."organization_setting"(uuid, text) to se
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
-drop trigger if exists "bsb_record_organization_setting" on "app_private"."organization_settings";
-drop function if exists "app_private"."record_organization_setting"();
-drop trigger if exists "bsb_record_platform_setting" on "app_private"."platform_settings";
-drop function if exists "app_private"."record_platform_setting"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."organization_settings";
-drop policy if exists bsb_tenant_scope_select on "app_private"."organization_settings";
 create policy bsb_tenant_scope_select on "app_private"."organization_settings" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."organization_settings";
 create policy bsb_tenant_scope_insert on "app_private"."organization_settings" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
   );
-drop policy if exists bsb_tenant_scope_update on "app_private"."organization_settings";
 create policy bsb_tenant_scope_update on "app_private"."organization_settings" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
-drop policy if exists bsb_tenant_scope_delete on "app_private"."organization_settings";
 create policy bsb_tenant_scope_delete on "app_private"."organization_settings" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
@@ -1236,151 +973,96 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:5672cb76aac9c1b17cca672e5f038f91d9ab323ce867f217300e9fc96396609e
+-- @bsb-hash sha256:0631e84e3b6816d39fb163759930bf8af6be5a2153ae49cba471514327a7d267
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Settings as key-value rows. The app validates values with defineSettings();
 -- keys with a JSON Schema also get a pg_jsonschema check below.
-create table if not exists "better_supabase"."user_settings" (
+create table "better_supabase"."user_settings" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
   primary key ("user_id", "key")
 );
-create index if not exists user_settings_updated_by_idx on "better_supabase"."user_settings" ("updated_by");
+create index user_settings_updated_by_idx on "better_supabase"."user_settings" ("updated_by");
 alter table "better_supabase"."user_settings" enable row level security;
 revoke all on "better_supabase"."user_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
-drop policy if exists "user_settings_own" on "better_supabase"."user_settings";
-drop policy if exists "user_settings_own_read" on "better_supabase"."user_settings";
-create policy "user_settings_own_read" on "better_supabase"."user_settings" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "user_settings_own_insert" on "better_supabase"."user_settings";
-create policy "user_settings_own_insert" on "better_supabase"."user_settings" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "user_settings_own_update" on "better_supabase"."user_settings";
-create policy "user_settings_own_update" on "better_supabase"."user_settings" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "user_settings_own_delete" on "better_supabase"."user_settings";
-create policy "user_settings_own_delete" on "better_supabase"."user_settings" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_read on "better_supabase"."user_settings"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+create policy bsb_user_settings_own_insert on "better_supabase"."user_settings"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_update on "better_supabase"."user_settings"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_delete on "better_supabase"."user_settings"
+  for delete to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-create table if not exists "better_supabase"."organization_settings" (
-  "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+create table "better_supabase"."organization_settings" (
+  "tenant_id" uuid not null,
+  "key" text not null constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
-  primary key ("organization_id", "key")
+  primary key ("tenant_id", "key")
 );
-create index if not exists organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
+create index organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
 alter table "better_supabase"."organization_settings" enable row level security;
 revoke all on "better_supabase"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
-drop policy if exists organization_settings_read on "better_supabase"."organization_settings";
-create policy organization_settings_read on "better_supabase"."organization_settings"
+create policy bsb_organization_settings_read on "better_supabase"."organization_settings"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
-drop policy if exists organization_settings_insert on "better_supabase"."organization_settings";
-create policy organization_settings_insert on "better_supabase"."organization_settings"
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
+create policy bsb_organization_settings_insert on "better_supabase"."organization_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
-drop policy if exists organization_settings_update on "better_supabase"."organization_settings";
-create policy organization_settings_update on "better_supabase"."organization_settings"
+  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
+create policy bsb_organization_settings_update on "better_supabase"."organization_settings"
   for update to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
-  with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
-drop policy if exists organization_settings_delete on "better_supabase"."organization_settings";
-create policy organization_settings_delete on "better_supabase"."organization_settings"
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
+create policy bsb_organization_settings_delete on "better_supabase"."organization_settings"
   for delete to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
-create table if not exists "better_supabase"."platform_settings" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+create table "better_supabase"."platform_settings" (
+  "key" text primary key constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
+create index platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
 alter table "better_supabase"."platform_settings" enable row level security;
 revoke all on "better_supabase"."platform_settings" from public, anon, authenticated;
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
-drop policy if exists platform_settings_read on "better_supabase"."platform_settings";
-create policy platform_settings_read on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_read on "better_supabase"."platform_settings"
   for select to authenticated
   using (true);
-drop policy if exists platform_settings_read_public on "better_supabase"."platform_settings";
-create policy platform_settings_read_public on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_read_public on "better_supabase"."platform_settings"
   for select to anon
   using (false);
-drop policy if exists platform_settings_insert on "better_supabase"."platform_settings";
-create policy platform_settings_insert on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_insert on "better_supabase"."platform_settings"
   for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists platform_settings_update on "better_supabase"."platform_settings";
-create policy platform_settings_update on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_update on "better_supabase"."platform_settings"
   for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists platform_settings_delete on "better_supabase"."platform_settings";
-create policy platform_settings_delete on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_delete on "better_supabase"."platform_settings"
   for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
@@ -1434,7 +1116,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_object_agg(s."key", s."value"), '{}'::jsonb)
   from "better_supabase"."organization_settings" s
-  where s."organization_id" = get_organization_settings.tenant
+  where s."tenant_id" = get_organization_settings.tenant
 $$;
 
 create or replace function "better_supabase"."set_organization_setting"(tenant uuid, key text, value jsonb)
@@ -1443,9 +1125,9 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into "better_supabase"."organization_settings" ("organization_id", "key", "value", "updated_by", "updated_at")
+  insert into "better_supabase"."organization_settings" ("tenant_id", "key", "value", "updated_by", "updated_at")
   values (set_organization_setting.tenant, set_organization_setting.key, coalesce(set_organization_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
-  on conflict ("organization_id", "key") do update
+  on conflict ("tenant_id", "key") do update
     set "value" = excluded."value", "updated_by" = auth.uid(), "updated_at" = now()
   returning "value"
 $$;
@@ -1458,7 +1140,7 @@ set search_path = ''
 as $$
   with removed as (
     delete from "better_supabase"."organization_settings" s
-    where s."organization_id" = reset_organization_setting.tenant and s."key" = reset_organization_setting.key
+    where s."tenant_id" = reset_organization_setting.tenant and s."key" = reset_organization_setting.key
     returning 1
   )
   select exists (select 1 from removed)
@@ -1475,7 +1157,7 @@ set search_path = ''
 as $$
   select s."value"
   from "better_supabase"."organization_settings" s
-  where s."organization_id" = organization_setting.tenant and s."key" = organization_setting.key
+  where s."tenant_id" = organization_setting.tenant and s."key" = organization_setting.key
 $$;
 
 create or replace function "better_supabase"."get_platform_settings"()
@@ -1538,82 +1220,42 @@ grant execute on function "better_supabase"."organization_setting"(uuid, text) t
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
-drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
-drop function if exists "better_supabase"."record_organization_setting"();
-drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
-drop function if exists "better_supabase"."record_platform_setting"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_select on "better_supabase"."organization_settings" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_insert on "better_supabase"."organization_settings" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_delete on "better_supabase"."organization_settings" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 
 -- blocks.settings.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."get_platform_settings"()
 returns jsonb
@@ -1709,19 +1351,6 @@ as $$ select "better_supabase"."organization_setting"($1, $2) $$;
 revoke execute on function "api"."organization_setting"(uuid, text) from public, anon, authenticated;
 grant execute on function "api"."organization_setting"(uuid, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block-data settings
@@ -1739,66 +1368,16 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:52fead40392658652bf8c0c87faadebd4acbec4081d17411c92666204f7cc4e2
+-- @bsb-hash sha256:932e74be8c788399cad41dcf62b3180e68ae17c4376978acf888ee664f955e17
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Settings as key-value rows. The app validates values with defineSettings();
 -- keys with a JSON Schema also get a pg_jsonschema check below.
 -- better_supabase.user_settings is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."user_settings" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."user_settings" add column if not exists "key" text check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
+alter table "better_supabase"."user_settings" add column if not exists "key" text constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
 alter table "better_supabase"."user_settings" add column if not exists "value" jsonb;
 alter table "better_supabase"."user_settings" add column if not exists "updated_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."user_settings" add column if not exists "updated_at" timestamptz not null default now();
@@ -1807,49 +1386,50 @@ create unique index if not exists "bsb_user_settings_key" on "better_supabase"."
 alter table "better_supabase"."user_settings" enable row level security;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
-drop policy if exists bsb_user_settings_select on "better_supabase"."user_settings";
-create policy bsb_user_settings_select on "better_supabase"."user_settings" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists bsb_user_settings_insert on "better_supabase"."user_settings";
-create policy bsb_user_settings_insert on "better_supabase"."user_settings" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_user_settings_update on "better_supabase"."user_settings";
-create policy bsb_user_settings_update on "better_supabase"."user_settings" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_user_settings_delete on "better_supabase"."user_settings";
-create policy bsb_user_settings_delete on "better_supabase"."user_settings" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_select on "better_supabase"."user_settings"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+create policy bsb_user_settings_insert on "better_supabase"."user_settings"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_update on "better_supabase"."user_settings"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_delete on "better_supabase"."user_settings"
+  for delete to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 -- better_supabase.organization_settings is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."organization_settings" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."organization_settings" add column if not exists "key" text check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
+alter table "better_supabase"."organization_settings" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."organization_settings" add column if not exists "key" text constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
 alter table "better_supabase"."organization_settings" add column if not exists "value" jsonb;
 alter table "better_supabase"."organization_settings" add column if not exists "updated_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."organization_settings" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
-create unique index if not exists "bsb_organization_settings_key" on "better_supabase"."organization_settings" ("organization_id", "key");
+create unique index if not exists "bsb_organization_settings_key" on "better_supabase"."organization_settings" ("tenant_id", "key");
 alter table "better_supabase"."organization_settings" enable row level security;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
-drop policy if exists bsb_organization_settings_select on "better_supabase"."organization_settings";
 create policy bsb_organization_settings_select on "better_supabase"."organization_settings"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
-drop policy if exists bsb_organization_settings_insert on "better_supabase"."organization_settings";
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
 create policy bsb_organization_settings_insert on "better_supabase"."organization_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_organization_settings_update on "better_supabase"."organization_settings";
+  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
 create policy bsb_organization_settings_update on "better_supabase"."organization_settings"
   for update to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
-  with check (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_organization_settings_delete on "better_supabase"."organization_settings";
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 create policy bsb_organization_settings_delete on "better_supabase"."organization_settings"
   for delete to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
 -- better_supabase.platform_settings is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."platform_settings" add column if not exists "key" text check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
+alter table "better_supabase"."platform_settings" add column if not exists "key" text constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
 alter table "better_supabase"."platform_settings" add column if not exists "value" jsonb;
 alter table "better_supabase"."platform_settings" add column if not exists "updated_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."platform_settings" add column if not exists "updated_at" timestamptz not null default now();
@@ -1859,24 +1439,19 @@ alter table "better_supabase"."platform_settings" enable row level security;
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
-drop policy if exists bsb_platform_settings_select_read on "better_supabase"."platform_settings";
 create policy bsb_platform_settings_select_read on "better_supabase"."platform_settings"
   for select to authenticated
   using (true);
-drop policy if exists bsb_platform_settings_select_read_public on "better_supabase"."platform_settings";
 create policy bsb_platform_settings_select_read_public on "better_supabase"."platform_settings"
   for select to anon
   using (false);
-drop policy if exists bsb_platform_settings_insert on "better_supabase"."platform_settings";
 create policy bsb_platform_settings_insert on "better_supabase"."platform_settings"
   for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_platform_settings_update on "better_supabase"."platform_settings";
 create policy bsb_platform_settings_update on "better_supabase"."platform_settings"
   for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_platform_settings_delete on "better_supabase"."platform_settings";
 create policy bsb_platform_settings_delete on "better_supabase"."platform_settings"
   for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
@@ -1931,7 +1506,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_object_agg(s."key", s."value"), '{}'::jsonb)
   from "better_supabase"."organization_settings" s
-  where s."organization_id" = get_organization_settings.tenant
+  where s."tenant_id" = get_organization_settings.tenant
 $$;
 
 create or replace function "better_supabase"."set_organization_setting"(tenant uuid, key text, value jsonb)
@@ -1940,9 +1515,9 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into "better_supabase"."organization_settings" ("organization_id", "key", "value", "updated_by", "updated_at")
+  insert into "better_supabase"."organization_settings" ("tenant_id", "key", "value", "updated_by", "updated_at")
   values (set_organization_setting.tenant, set_organization_setting.key, coalesce(set_organization_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
-  on conflict ("organization_id", "key") do update
+  on conflict ("tenant_id", "key") do update
     set "value" = excluded."value", "updated_by" = auth.uid(), "updated_at" = now()
   returning "value"
 $$;
@@ -1955,7 +1530,7 @@ set search_path = ''
 as $$
   with removed as (
     delete from "better_supabase"."organization_settings" s
-    where s."organization_id" = reset_organization_setting.tenant and s."key" = reset_organization_setting.key
+    where s."tenant_id" = reset_organization_setting.tenant and s."key" = reset_organization_setting.key
     returning 1
   )
   select exists (select 1 from removed)
@@ -1972,7 +1547,7 @@ set search_path = ''
 as $$
   select s."value"
   from "better_supabase"."organization_settings" s
-  where s."organization_id" = organization_setting.tenant and s."key" = organization_setting.key
+  where s."tenant_id" = organization_setting.tenant and s."key" = organization_setting.key
 $$;
 
 create or replace function "better_supabase"."get_platform_settings"()
@@ -2035,72 +1610,38 @@ grant execute on function "better_supabase"."organization_setting"(uuid, text) t
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
-drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
-drop function if exists "better_supabase"."record_organization_setting"();
-drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
-drop function if exists "better_supabase"."record_platform_setting"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_select on "better_supabase"."organization_settings" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_insert on "better_supabase"."organization_settings" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_delete on "better_supabase"."organization_settings" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
@@ -2119,151 +1660,96 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:f6f3a2cfbf722a57f8603f775f59a3daf0dbad12bd4e8dd8e7501cefdf691270
+-- @bsb-hash sha256:cbdf822a800de6db85031f5d5d0102cbdf51d481bc7fb226ff81bcb5843090cb
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Settings as key-value rows. The app validates values with defineSettings();
 -- keys with a JSON Schema also get a pg_jsonschema check below.
-create table if not exists "better_supabase"."user_settings" (
+create table "better_supabase"."user_settings" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
   primary key ("user_id", "key")
 );
-create index if not exists user_settings_updated_by_idx on "better_supabase"."user_settings" ("updated_by");
+create index user_settings_updated_by_idx on "better_supabase"."user_settings" ("updated_by");
 alter table "better_supabase"."user_settings" enable row level security;
 revoke all on "better_supabase"."user_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
-drop policy if exists "user_settings_own" on "better_supabase"."user_settings";
-drop policy if exists "user_settings_own_read" on "better_supabase"."user_settings";
-create policy "user_settings_own_read" on "better_supabase"."user_settings" for select to authenticated using ("user_id" = (select auth.uid()));
-drop policy if exists "user_settings_own_insert" on "better_supabase"."user_settings";
-create policy "user_settings_own_insert" on "better_supabase"."user_settings" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "user_settings_own_update" on "better_supabase"."user_settings";
-create policy "user_settings_own_update" on "better_supabase"."user_settings" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-drop policy if exists "user_settings_own_delete" on "better_supabase"."user_settings";
-create policy "user_settings_own_delete" on "better_supabase"."user_settings" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_read on "better_supabase"."user_settings"
+  for select to authenticated
+  using ("user_id" = (select auth.uid()));
+create policy bsb_user_settings_own_insert on "better_supabase"."user_settings"
+  for insert to authenticated
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_update on "better_supabase"."user_settings"
+  for update to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+create policy bsb_user_settings_own_delete on "better_supabase"."user_settings"
+  for delete to authenticated
+  using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-create table if not exists "better_supabase"."organization_settings" (
+create table "better_supabase"."organization_settings" (
   "org_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "key")
 );
-create index if not exists organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
+create index organization_settings_updated_by_idx on "better_supabase"."organization_settings" ("updated_by");
 alter table "better_supabase"."organization_settings" enable row level security;
 revoke all on "better_supabase"."organization_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."organization_settings" to authenticated;
 grant all on "better_supabase"."organization_settings" to service_role;
-drop policy if exists organization_settings_read on "better_supabase"."organization_settings";
-create policy organization_settings_read on "better_supabase"."organization_settings"
+create policy bsb_organization_settings_read on "better_supabase"."organization_settings"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('settings.read')));
-drop policy if exists organization_settings_insert on "better_supabase"."organization_settings";
-create policy organization_settings_insert on "better_supabase"."organization_settings"
+create policy bsb_organization_settings_insert on "better_supabase"."organization_settings"
   for insert to authenticated
   with check ((coalesce(better_supabase.can('tenant', "org_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
-drop policy if exists organization_settings_update on "better_supabase"."organization_settings";
-create policy organization_settings_update on "better_supabase"."organization_settings"
+create policy bsb_organization_settings_update on "better_supabase"."organization_settings"
   for update to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
   with check (("org_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
-drop policy if exists organization_settings_delete on "better_supabase"."organization_settings";
-create policy organization_settings_delete on "better_supabase"."organization_settings"
+create policy bsb_organization_settings_delete on "better_supabase"."organization_settings"
   for delete to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
-create table if not exists "better_supabase"."platform_settings" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+create table "better_supabase"."platform_settings" (
+  "key" text primary key constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
+create index platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
 alter table "better_supabase"."platform_settings" enable row level security;
 revoke all on "better_supabase"."platform_settings" from public, anon, authenticated;
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
-drop policy if exists platform_settings_read on "better_supabase"."platform_settings";
-create policy platform_settings_read on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_read on "better_supabase"."platform_settings"
   for select to authenticated
   using (true);
-drop policy if exists platform_settings_read_public on "better_supabase"."platform_settings";
-create policy platform_settings_read_public on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_read_public on "better_supabase"."platform_settings"
   for select to anon
   using (false);
-drop policy if exists platform_settings_insert on "better_supabase"."platform_settings";
-create policy platform_settings_insert on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_insert on "better_supabase"."platform_settings"
   for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists platform_settings_update on "better_supabase"."platform_settings";
-create policy platform_settings_update on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_update on "better_supabase"."platform_settings"
   for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-drop policy if exists platform_settings_delete on "better_supabase"."platform_settings";
-create policy platform_settings_delete on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_delete on "better_supabase"."platform_settings"
   for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 
@@ -2421,42 +1907,22 @@ grant execute on function "better_supabase"."organization_setting"(uuid, text) t
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
-drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
-drop function if exists "better_supabase"."record_organization_setting"();
-drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
-drop function if exists "better_supabase"."record_platform_setting"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."organization_settings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_select on "better_supabase"."organization_settings" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('settings.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_insert on "better_supabase"."organization_settings" as restrictive
   for insert to public
   with check (
     "org_id" in (select better_supabase.member_organization_ids())
     or (coalesce(better_supabase.can('tenant', "org_id", 'settings.update'), false))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
   for update to public
   using (
@@ -2467,26 +1933,12 @@ create policy bsb_tenant_scope_update on "better_supabase"."organization_setting
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_settings";
 create policy bsb_tenant_scope_delete on "better_supabase"."organization_settings" as restrictive
   for delete to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_029_settings.sql
 -- better-supabase module: settings

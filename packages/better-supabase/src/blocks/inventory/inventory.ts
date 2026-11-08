@@ -5,7 +5,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../queue/types.ts";
-import type { BlockOptions } from "../shared.ts";
+import type { BlockCall, BlockOptions } from "../shared.ts";
 import type { InventoryCounts } from "./counts.ts";
 import type { InventoryProcurement } from "./procurement.ts";
 import type { InventoryReads } from "./reads.ts";
@@ -65,9 +65,9 @@ export interface InventoryOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the locations' extra columns
-   * (`blocks.inventory.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on `saveLocation` and validates the ones it writes.
+   * A Standard Schema for the locations' extra columns (columns the app's
+   * schema files add to the table), keyed by column name. It types and parses
+   * `fields` on `saveLocation` and validates the ones it writes.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around any inventory method. */
@@ -107,8 +107,8 @@ export interface SavedLocation<F extends object = Record<never, never>> {
   readonly code: string;
   readonly active: boolean;
   /**
-   * The app's extra columns (`options.extraColumns`), by column name; absent
-   * without any.
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name; absent without any.
    */
   readonly fields?: Readonly<Record<string, unknown>> & F;
 }
@@ -257,6 +257,15 @@ export interface Inventory<F extends object = Record<never, never>>
     locationId: string;
     reorderPoint: number;
   }): AsyncResult<boolean>;
+  /**
+   * How much to order when available stock reaches the reorder point. `null`
+   * clears it.
+   */
+  setReorderQuantity(input: {
+    variantId: string;
+    locationId: string;
+    reorderQuantity: number | null;
+  }): AsyncResult<boolean>;
   /** Holds stock until it is committed, released or expires. */
   reserve(input: {
     variantId: string;
@@ -297,6 +306,14 @@ export interface Inventory<F extends object = Record<never, never>>
 }
 
 const isTrue = (value: unknown): boolean => value === true;
+
+const reorderCall = (
+  call: BlockCall,
+  name: string,
+  variant: string,
+  location: string,
+  args: Record<string, number | null>,
+): AsyncResult<boolean> => call(name, { variant, location, ...args }, isTrue);
 
 function stockChangeOf(value: unknown): StockChange {
   const row = recordOf(value, "adjust_stock");
@@ -450,15 +467,13 @@ export function createInventory<
         },
       ),
     setReorderPoint: ({ variantId, locationId, reorderPoint }) =>
-      call(
-        "set_reorder_point",
-        {
-          variant: variantId,
-          location: locationId,
-          reorder_point: reorderPoint,
-        },
-        isTrue,
-      ),
+      reorderCall(call, "set_reorder_point", variantId, locationId, {
+        reorder_point: reorderPoint,
+      }),
+    setReorderQuantity: ({ variantId, locationId, reorderQuantity }) =>
+      reorderCall(call, "set_reorder_quantity", variantId, locationId, {
+        reorder_quantity: reorderQuantity,
+      }),
     reserve: ({ variantId, locationId, input }) =>
       call(
         "reserve_stock",

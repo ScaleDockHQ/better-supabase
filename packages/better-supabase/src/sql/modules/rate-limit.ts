@@ -55,7 +55,7 @@ const NAMES: BlockSqlNames = {
         maxRequests: "max_requests",
         period: "period",
         keyClaim: "key_claim",
-        organization: "organization_id",
+        organization: "tenant_id",
       },
     },
     counters: {
@@ -64,7 +64,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         scope: "scope",
         key: "key",
-        windowStart: "window_start",
+        windowStart: "window_started_at",
         hits: "hits",
         period: "period",
       },
@@ -91,8 +91,8 @@ function build(ctx: BlockSqlContext): string {
 
   // One global rule per scope and one rule per scope and organization.
   const scopeIndex = `
-create unique index if not exists ${sqlIdent(`bsb_${ruleTable}_scope_global`)} on ${rules} (${r("scope")}) where ${r("organization")} is null;
-create unique index if not exists ${sqlIdent(`bsb_${ruleTable}_scope_org`)} on ${rules} (${r("scope")}, ${r("organization")}) where ${r("organization")} is not null;`;
+create unique index if not exists ${sqlIdent(`bsb_${ruleTable}_scope_global_key`)} on ${rules} (${r("scope")}) where ${r("organization")} is null;
+create unique index if not exists ${sqlIdent(`bsb_${ruleTable}_scope_org_key`)} on ${rules} (${r("scope")}, ${r("organization")}) where ${r("organization")} is not null;`;
 
   return `${schemaPreamble(ctx)}
 

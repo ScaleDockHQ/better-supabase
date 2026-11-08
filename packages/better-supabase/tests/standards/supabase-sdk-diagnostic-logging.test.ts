@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Logger } from "../../src/core/logger.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -45,7 +45,7 @@ describe("Supabase SDK diagnostic logging", () => {
 
   it("emits nothing and registers no handler unless diagnostics is on", async () => {
     const logger = recording();
-    const betterSupabase = defineSupabase(schema, { logger });
+    const betterSupabase = createSupabase(schema, { logger });
     expect(betterSupabase.events.has("query")).toBe(false);
     const db = betterSupabase.connect(conflict().client);
     await db.contacts.list({ select: ["id"], where: { email: SECRET } });
@@ -56,7 +56,7 @@ describe("Supabase SDK diagnostic logging", () => {
   it("logs request outcomes with timing at debug level", async () => {
     const logger = recording();
 
-    const db = defineSupabase(schema, { logger, diagnostics: true }).connect(
+    const db = createSupabase(schema, { logger, diagnostics: true }).connect(
       conflict().client,
     );
 
@@ -84,7 +84,7 @@ describe("Supabase SDK diagnostic logging", () => {
   it("never logs values, filters or database messages, and never changes the outcome", async () => {
     const logger = recording();
 
-    const db = defineSupabase(schema, { logger, diagnostics: true }).connect(
+    const db = createSupabase(schema, { logger, diagnostics: true }).connect(
       conflict().client,
     );
 
@@ -110,7 +110,7 @@ describe("Supabase SDK diagnostic logging", () => {
   it("logs session refreshes and auth resolution without user ids", () => {
     const logger = recording();
 
-    const betterSupabase = defineSupabase(schema, {
+    const betterSupabase = createSupabase(schema, {
       logger,
       diagnostics: true,
     });
@@ -141,7 +141,7 @@ describe("Supabase SDK diagnostic logging", () => {
 
     const logger = { debug: fail, info: fail, warn: fail, error: fail };
 
-    const db = defineSupabase(schema, { logger, diagnostics: true }).connect(
+    const db = createSupabase(schema, { logger, diagnostics: true }).connect(
       conflict().client,
     );
 
@@ -152,7 +152,7 @@ describe("Supabase SDK diagnostic logging", () => {
   it("keeps one set of handlers on derived definitions", () => {
     const logger = recording();
 
-    const derived = defineSupabase(schema, {
+    const derived = createSupabase(schema, {
       logger,
       diagnostics: true,
     }).mapError((error) => new Error(error.message));

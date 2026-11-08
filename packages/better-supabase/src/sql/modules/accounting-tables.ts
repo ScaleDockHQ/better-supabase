@@ -2,12 +2,11 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, fail, SERVICE_CALLER } from "../shared.ts";
+import { fail, SERVICE_CALLER } from "../shared.ts";
 import {
   ACCOUNT_ROLES,
   ACCOUNT_TYPES,
   accountingSql,
-  ENTRY_RESERVED,
   JOURNAL_TYPES,
   sqlList,
 } from "./accounting-shared.ts";
@@ -67,7 +66,6 @@ export function accountingTables(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
   const { read } = accountingSql(ctx);
-  const extras = ctx.extraColumns("entries", ENTRY_RESERVED);
 
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
@@ -82,7 +80,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: ctx.scope.check(tenant, read),
   }),
-  { drop: true, target: ctx.table(logical) },
+  { target: ctx.table(logical) },
 )}`;
 
   const currency = (column: string): string =>
@@ -205,7 +203,7 @@ create table if not exists ${entries} (
   ${e("updatedAt")} timestamptz not null default now(),
   check ((${e("sourceType")} is null) = (${e("sourceId")} is null)),
   check (${e("status")} = 'draft' or (${e("number")} is not null and ${e("period")} is not null and ${e("postedAt")} is not null))
-);${addExtraColumns(entries, extras)}
+);
 create unique index if not exists ${name("entries", "number_idx")} on ${entries} (${e("journal")}, ${e("fiscalYear")}, ${e("sequence")}) where ${e("sequence")} is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
 create unique index if not exists ${name("entries", "source_idx")} on ${entries} (${e("tenant")}, ${e("sourceType")}, ${e("sourceId")}) where ${e("sourceType")} is not null and ${e("status")} <> 'reversed';

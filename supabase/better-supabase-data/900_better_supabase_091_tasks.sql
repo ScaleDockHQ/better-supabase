@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:d49c9b43ed3274dbbf2dbee0335592eebc00b95950f6db25f675be7ff36600a9
+-- @bsb-hash sha256:a51c1de97450918610ac4e8e04e1c48429df7fcb4bd811317c87788a9fd10ce7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -10,9 +10,6 @@
 select "better_supabase"."accounting_sync_dimension_value"(x."tenant_id", 'project', 'Project', x."id"::text, x."key" || ' ' || x."name", x."archived_at" is not null)
 from "better_supabase"."work_projects" x
 where exists (select 1 from "better_supabase"."accounting_settings" s where s."tenant_id" = x."tenant_id");
-
--- Realtime for the module's entities (subject.realtime)
-select better_supabase.track_realtime('better_supabase.work_items', tenant_column => 'tenant_id');
 
 insert into better_supabase.blocks (name, version, mode)
 values ('tasks', 5, 'managed')

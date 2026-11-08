@@ -29,7 +29,7 @@ import { automationsBlock } from "better-supabase/blocks/automations";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { teamsBlock } from "better-supabase/blocks/teams";
-import { timeTrackingBlock } from "better-supabase/blocks/time-tracking";
+import { timeEntriesBlock } from "better-supabase/blocks/time-entries";
 
 import { blockConfig } from "./people.blocks.generated.ts";
 
@@ -61,7 +61,7 @@ export const blockSet = defineBlocks(blockConfig, {
   settings: settingsBlock,
   subjects: subjectsBlock,
   teams: teamsBlock,
-  timeTracking: timeTrackingBlock,
+  timeEntries: timeEntriesBlock,
 });
 
 /**

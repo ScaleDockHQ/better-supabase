@@ -22,9 +22,9 @@ import {
 const sqlite = new DatabaseSync(":memory:");
 
 sqlite.exec(`
-  CREATE TABLE engagement_subjects (activity_id TEXT, subject_type TEXT, subject_id TEXT, position INTEGER);
+  CREATE TABLE activity_subjects (activity_id TEXT, subject_type TEXT, subject_id TEXT, position INTEGER);
   CREATE TABLE observation_definitions (id TEXT, "key" TEXT, value_type TEXT);
-  INSERT INTO engagement_subjects VALUES ('n1', 'case', 'c2', 1), ('n1', 'client', 'c1', 0);
+  INSERT INTO activity_subjects VALUES ('n1', 'case', 'c2', 1), ('n1', 'client', 'c1', 0);
   INSERT INTO observation_definitions VALUES ('d1', 'heart_rate', 'number'), ('d2', 'blood_pressure', 'components');
 `);
 

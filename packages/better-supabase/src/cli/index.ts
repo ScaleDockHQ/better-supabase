@@ -5,7 +5,7 @@ export type { Cli, CreateCliOptions, RunOptions } from "./core/run.ts";
 export { defineCliCommand, list } from "./core/command.ts";
 
 export type {
-  CliArgs,
+  CliValues,
   CliCommand,
   CliCommandDef,
   CliContext,

@@ -38,10 +38,10 @@ const rows = useTrash({ limit: 50 });
 
 ## Configure subjects
 
-Every [`config.subjects`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column can be trashed; `title` names the column the trash list shows. Per subject, `unique` lists the columns no live row in the organization may share when the row is restored, `children` lists the subjects trashed with it, and `held` names a `timestamptz` column whose future value keeps the batch from being purged.
+Every [`config.recordTypes`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column can be trashed; `title` names the column the trash list shows. Per subject, `unique` lists the columns no live row in the organization may share when the row is restored, `children` lists the subjects trashed with it, and `held` names a `timestamptz` column whose future value keeps the batch from being purged.
 
 ```ts title="better-supabase.config.ts"
-subjects: {
+recordTypes: {
   project: { table: "public.projects", idType: "uuid", title: "name", deletedAt: "deleted_at" },
   task: { table: "public.tasks", idType: "uuid", title: "title", deletedAt: "deleted_at" },
 },
@@ -85,7 +85,7 @@ The [subject registry](/docs/blocks/sql#subject-registry) functions (`can_subjec
 `gen` installs the block's repository extension in the generated schema, so repository reads hide trashed rows and `delete()` sets the column:
 
 ```ts
-const db = defineSupabase(schema).connect(supabase);
+const db = createSupabase(schema).connect(supabase);
 
 await db.customers.delete(id); // sets deleted_at
 await db.customers.get(id); // not_found
@@ -99,7 +99,7 @@ The extension and the block share the column and not the bin: a repository `dele
 
 ### Which column
 
-`gen` picks one column per table. A table bound to a [`config.subjects`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column uses that column, so the repository, search, metrics and the trash all read the same one. Every other table uses `blocks.trash.options.deletedAt` (default `deleted_at`) when it has that column. Either column must be `timestamptz` or `timestamp`, or `gen` fails.
+`gen` picks one column per table. A table bound to a [`config.recordTypes`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column uses that column, so the repository, search, metrics and the trash all read the same one. Every other table uses `blocks.trash.options.deletedAt` (default `deleted_at`) when it has that column. Either column must be `timestamptz` or `timestamp`, or `gen` fails.
 
 ### Where trashed rows are hidden
 
@@ -136,7 +136,7 @@ Doctor's [BS218](/docs/cli/doctor#bs218) points at tables with the column and wi
 
 ### Deletes and RLS
 
-A soft delete is an `UPDATE ... SET deleted_at = now()` without `RETURNING`. The time comes from `defineSupabase(schema, { now })`, or from the system clock in a runtime without Temporal. That matters: a common policy hides trashed rows from `SELECT`, and PostgREST checks returned rows against it, so an update that returns the row fails with `forbidden`. The extension never asks for the row back. `better-supabase doctor` flags tables where this would bite.
+A soft delete is an `UPDATE ... SET deleted_at = now()` without `RETURNING`. The time comes from `createSupabase(schema, { now })`, or from the system clock in a runtime without Temporal. That matters: a common policy hides trashed rows from `SELECT`, and PostgREST checks returned rows against it, so an update that returns the row fails with `forbidden`. The extension never asks for the row back. `better-supabase doctor` flags tables where this would bite.
 
 Deleting a row that is already trashed returns `not_found`. `{ hard: true }` deletes regardless of the column.
 
@@ -158,7 +158,7 @@ A bin page renders `list()` in a ReUI data grid, with restore and delete-forever
 
 ## Your own columns
 
-Add columns to the trash item, such as a reason, table with `blocks.trash.options.extraColumns`
+Add columns to the trash item, such as a reason, table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `trash` (the last argument) validates and writes them, and `list` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

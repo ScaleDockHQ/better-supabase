@@ -4,6 +4,7 @@ import { modulePermissionKeys } from "../../../src/sql/introspect.ts";
 import { resolveBlocks } from "../../../src/sql/registry.ts";
 import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { entryOf } from "../../fixtures/block-entry.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 describe("webhooks-in module", () => {
   it("stores hashed tokens, hides secrets and checks the access contract", () => {
@@ -16,11 +17,11 @@ describe("webhooks-in module", () => {
       },
     })!;
 
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."incoming_webhooks"',
-    );
+    expect(sql).toContain('create table "better_supabase"."incoming_webhooks"');
     expect(sql).toContain("token_hash text not null unique");
-    expect(sql).toContain("default 65536 check (max_body_bytes > 0)");
+    expect(unnamedChecks(sql)).toContain(
+      "default 65536 check (max_body_bytes > 0)",
+    );
     expect(sql).toContain("'integrations.manage'");
     expect(sql).toContain("tenant_ids_with('webhooks.read')");
     expect(sql).not.toMatch(/grant select \([^)]*\bsecret\b/);
@@ -170,8 +171,9 @@ describe("webhooks-in module", () => {
   it("accepts a shared secret header mode with its own default header", () => {
     const sql = moduleBody("webhooks-in")!;
     expect(sql).toContain(
-      "add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));",
+      "check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'))",
     );
+    expect(sql).not.toContain("add constraint incoming_webhooks_verify_check");
     expect(sql).toContain(
       "when 'shared-secret' then coalesce(signature_header, null, 'x-webhook-secret')",
     );

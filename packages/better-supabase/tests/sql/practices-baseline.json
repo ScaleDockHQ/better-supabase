@@ -1,0 +1,581 @@
+{
+  "access-requests": {
+    "security-definer-functions": 41
+  },
+  "accounting": {
+    "security-definer-functions": 234,
+    "row-triggers": 24
+  },
+  "acknowledgements": {
+    "security-definer-functions": 66
+  },
+  "activities": {
+    "security-definer-functions": 37
+  },
+  "advisories": {
+    "security-definer-functions": 114
+  },
+  "agent-checkout": {
+    "security-definer-functions": 60
+  },
+  "agents": {
+    "security-definer-functions": 36
+  },
+  "ai-cache": {
+    "security-definer-functions": 24
+  },
+  "ai-chat": {
+    "security-definer-functions": 380
+  },
+  "ai-evals": {
+    "security-definer-functions": 72
+  },
+  "ai-files": {
+    "security-definer-functions": 78,
+    "row-triggers": 6
+  },
+  "ai-guardrails": {
+    "security-definer-functions": 30
+  },
+  "ai-keys": {
+    "security-definer-functions": 48
+  },
+  "ai-schedules": {
+    "security-definer-functions": 36
+  },
+  "announcements": {
+    "security-definer-functions": 30,
+    "row-triggers": 5
+  },
+  "api-keys": {
+    "security-definer-functions": 30
+  },
+  "appraisals": {
+    "security-definer-functions": 99
+  },
+  "approvals": {
+    "security-definer-functions": 145
+  },
+  "assets": {
+    "security-definer-functions": 122,
+    "row-triggers": 6
+  },
+  "assignment": {
+    "security-definer-functions": 36
+  },
+  "attachments": {
+    "security-definer-functions": 71,
+    "row-triggers": 17
+  },
+  "audit": {
+    "security-definer-functions": 80,
+    "row-triggers": 5
+  },
+  "automations": {
+    "security-definer-functions": 96
+  },
+  "banking": {
+    "security-definer-functions": 96
+  },
+  "billable-time": {
+    "security-definer-functions": 73,
+    "row-triggers": 12
+  },
+  "billing": {
+    "security-definer-functions": 120
+  },
+  "bookings": {
+    "security-definer-functions": 88
+  },
+  "bulk-actions": {
+    "security-definer-functions": 6
+  },
+  "calendar": {
+    "security-definer-functions": 97,
+    "row-triggers": 12
+  },
+  "care-plans": {
+    "security-definer-functions": 134,
+    "row-triggers": 1
+  },
+  "cases": {
+    "security-definer-functions": 151,
+    "row-triggers": 6
+  },
+  "catalog": {
+    "security-definer-functions": 340
+  },
+  "channels": {
+    "security-definer-functions": 36
+  },
+  "clinical-decision-support": {
+    "security-definer-functions": 54
+  },
+  "collections": {
+    "security-definer-functions": 78
+  },
+  "comments": {
+    "security-definer-functions": 7
+  },
+  "commissions": {
+    "security-definer-functions": 108
+  },
+  "compliance": {
+    "security-definer-functions": 78
+  },
+  "connectors": {
+    "security-definer-functions": 66
+  },
+  "consents": {
+    "security-definer-functions": 84
+  },
+  "contacts": {
+    "security-definer-functions": 140
+  },
+  "content": {
+    "security-definer-functions": 72
+  },
+  "contracts": {
+    "security-definer-functions": 66,
+    "row-triggers": 6
+  },
+  "courses": {
+    "security-definer-functions": 139
+  },
+  "created-by": {
+    "security-definer-functions": 4
+  },
+  "credentials": {
+    "security-definer-functions": 16,
+    "row-triggers": 1
+  },
+  "custom-fields": {
+    "security-definer-functions": 56
+  },
+  "dam": {
+    "security-definer-functions": 42
+  },
+  "data-lifecycle": {
+    "security-definer-functions": 114
+  },
+  "deadlines": {
+    "security-definer-functions": 78,
+    "row-triggers": 6
+  },
+  "deals": {
+    "security-definer-functions": 72,
+    "row-triggers": 6
+  },
+  "dispatch": {
+    "security-definer-functions": 78
+  },
+  "document-templates": {
+    "security-definer-functions": 61,
+    "row-triggers": 6
+  },
+  "documents": {
+    "security-definer-functions": 64
+  },
+  "domains": {
+    "security-definer-functions": 42
+  },
+  "donations": {
+    "security-definer-functions": 109
+  },
+  "drive-files": {
+    "security-definer-functions": 28,
+    "row-triggers": 4
+  },
+  "drive": {
+    "security-definer-functions": 223,
+    "row-triggers": 12
+  },
+  "e-prescribing": {
+    "security-definer-functions": 48
+  },
+  "employees": {
+    "security-definer-functions": 75,
+    "row-triggers": 14
+  },
+  "enrichment": {
+    "security-definer-functions": 24
+  },
+  "enrollments": {
+    "security-definer-functions": 126
+  },
+  "entitlements": {
+    "security-definer-functions": 9
+  },
+  "expenses": {
+    "security-definer-functions": 92
+  },
+  "field-encryption": {
+    "security-definer-functions": 24
+  },
+  "field-history": {
+    "security-definer-functions": 6
+  },
+  "flags": {
+    "security-definer-functions": 78
+  },
+  "forecasts": {
+    "security-definer-functions": 24
+  },
+  "forms": {
+    "security-definer-functions": 86
+  },
+  "funding": {
+    "security-definer-functions": 62
+  },
+  "goals": {
+    "security-definer-functions": 6
+  },
+  "guests": {
+    "security-definer-functions": 66
+  },
+  "hiring": {
+    "security-definer-functions": 36,
+    "row-triggers": 6
+  },
+  "housekeeping": {
+    "security-definer-functions": 15
+  },
+  "identities": {
+    "security-definer-functions": 30
+  },
+  "impersonation": {
+    "security-definer-functions": 68
+  },
+  "imports": {
+    "security-definer-functions": 72
+  },
+  "inbox": {
+    "security-definer-functions": 246,
+    "row-triggers": 54
+  },
+  "incidents": {
+    "security-definer-functions": 99
+  },
+  "inspections": {
+    "security-definer-functions": 127,
+    "row-triggers": 1
+  },
+  "inventory": {
+    "security-definer-functions": 307
+  },
+  "invitations": {
+    "security-definer-functions": 72,
+    "row-triggers": 6
+  },
+  "invoices": {
+    "security-definer-functions": 315
+  },
+  "knowledge": {
+    "security-definer-functions": 85
+  },
+  "lead-scoring": {
+    "security-definer-functions": 27,
+    "row-triggers": 9
+  },
+  "leases": {
+    "security-definer-functions": 56
+  },
+  "leave": {
+    "security-definer-functions": 117,
+    "row-triggers": 2
+  },
+  "ledger": {
+    "security-definer-functions": 120,
+    "row-triggers": 18
+  },
+  "legal-entities": {
+    "security-definer-functions": 36
+  },
+  "lims": {
+    "security-definer-functions": 66
+  },
+  "mail-sync": {
+    "security-definer-functions": 80
+  },
+  "maintenance": {
+    "security-definer-functions": 67,
+    "row-triggers": 7
+  },
+  "manufacturing": {
+    "security-definer-functions": 151
+  },
+  "medications": {
+    "security-definer-functions": 78
+  },
+  "meetings": {
+    "security-definer-functions": 103,
+    "row-triggers": 1
+  },
+  "memberships-many-roles": {
+    "security-definer-functions": 54,
+    "row-triggers": 6
+  },
+  "memberships": {
+    "security-definer-functions": 44,
+    "row-triggers": 6
+  },
+  "memory": {
+    "security-definer-functions": 120
+  },
+  "messaging": {
+    "security-definer-functions": 117,
+    "row-triggers": 14
+  },
+  "metrics": {
+    "security-definer-functions": 18
+  },
+  "mfa": {
+    "security-definer-functions": 4
+  },
+  "moderation": {
+    "security-definer-functions": 121
+  },
+  "notifications": {
+    "security-definer-functions": 169,
+    "row-triggers": 24
+  },
+  "numbering": {
+    "security-definer-functions": 48
+  },
+  "oauth-server": {
+    "security-definer-functions": 105
+  },
+  "observations": {
+    "security-definer-functions": 57,
+    "row-triggers": 1
+  },
+  "onboarding": {
+    "security-definer-functions": 12
+  },
+  "option-sets": {
+    "security-definer-functions": 43,
+    "row-triggers": 1
+  },
+  "orders": {
+    "security-definer-functions": 223
+  },
+  "organizations": {
+    "security-definer-functions": 81,
+    "row-triggers": 10
+  },
+  "outbox": {
+    "security-definer-functions": 60
+  },
+  "passes": {
+    "security-definer-functions": 43
+  },
+  "payroll-export": {
+    "security-definer-functions": 42
+  },
+  "periods": {
+    "security-definer-functions": 42
+  },
+  "permissions": {
+    "security-definer-functions": 90
+  },
+  "pgtap": {
+    "security-definer-functions": 9
+  },
+  "pipelines": {
+    "security-definer-functions": 50,
+    "row-triggers": 7
+  },
+  "posts": {
+    "security-definer-functions": 60,
+    "row-triggers": 24
+  },
+  "profiles": {
+    "security-definer-functions": 30,
+    "row-triggers": 5
+  },
+  "promotions": {
+    "security-definer-functions": 66
+  },
+  "prompts": {
+    "security-definer-functions": 24
+  },
+  "push": {
+    "security-definer-functions": 24
+  },
+  "qualifications": {
+    "security-definer-functions": 55,
+    "row-triggers": 1
+  },
+  "queue": {
+    "security-definer-functions": 100
+  },
+  "quotes": {
+    "security-definer-functions": 133,
+    "row-triggers": 6
+  },
+  "rank": {
+    "security-definer-functions": 4
+  },
+  "rate-limit": {
+    "security-definer-functions": 35
+  },
+  "reactions": {
+    "security-definer-functions": 30,
+    "row-triggers": 18
+  },
+  "realtime-tables": {
+    "security-definer-functions": 8
+  },
+  "referrals": {
+    "security-definer-functions": 42
+  },
+  "relations": {
+    "security-definer-functions": 12
+  },
+  "reminders": {
+    "security-definer-functions": 30
+  },
+  "reviews": {
+    "security-definer-functions": 84,
+    "row-triggers": 12
+  },
+  "rfqs": {
+    "security-definer-functions": 78
+  },
+  "risks": {
+    "security-definer-functions": 84
+  },
+  "saved-views": {
+    "security-definer-functions": 36
+  },
+  "scores": {
+    "security-definer-functions": 48
+  },
+  "search": {
+    "security-definer-functions": 42
+  },
+  "security-events": {
+    "security-definer-functions": 78,
+    "row-triggers": 6
+  },
+  "seeds": {
+    "security-definer-functions": 4
+  },
+  "segments": {
+    "security-definer-functions": 54
+  },
+  "sequences": {
+    "security-definer-functions": 91,
+    "row-triggers": 1
+  },
+  "service-accounts": {
+    "security-definer-functions": 24
+  },
+  "sessions-authz-versions": {
+    "security-definer-functions": 5,
+    "row-triggers": 1
+  },
+  "sessions-provider-versions": {
+    "security-definer-functions": 1
+  },
+  "sessions": {
+    "security-definer-functions": 24
+  },
+  "settings": {
+    "security-definer-functions": 8,
+    "row-triggers": 2
+  },
+  "share-links": {
+    "security-definer-functions": 40
+  },
+  "shifts": {
+    "security-definer-functions": 91
+  },
+  "shipments": {
+    "security-definer-functions": 75,
+    "row-triggers": 6
+  },
+  "signatures": {
+    "security-definer-functions": 42
+  },
+  "signing-keys": {
+    "security-definer-functions": 40,
+    "row-triggers": 5
+  },
+  "sla": {
+    "security-definer-functions": 24
+  },
+  "sso": {
+    "security-definer-functions": 66
+  },
+  "streams": {
+    "security-definer-functions": 6
+  },
+  "subjects": {
+    "security-definer-functions": 55
+  },
+  "tags": {
+    "security-definer-functions": 54
+  },
+  "tasks": {
+    "security-definer-functions": 82,
+    "row-triggers": 6
+  },
+  "tax": {
+    "security-definer-functions": 67
+  },
+  "teams": {
+    "security-definer-functions": 48
+  },
+  "templates": {
+    "security-definer-functions": 77,
+    "row-triggers": 1
+  },
+  "tills": {
+    "security-definer-functions": 62
+  },
+  "time-entries": {
+    "security-definer-functions": 96,
+    "row-triggers": 6
+  },
+  "trash": {
+    "security-definer-functions": 54
+  },
+  "usage": {
+    "security-definer-functions": 110
+  },
+  "vercel-marketplace": {
+    "security-definer-functions": 102,
+    "row-triggers": 24
+  },
+  "versions": {
+    "security-definer-functions": 49
+  },
+  "waitlist": {
+    "security-definer-functions": 60
+  },
+  "warehouse": {
+    "security-definer-functions": 180
+  },
+  "webhooks-in": {
+    "security-definer-functions": 50,
+    "row-triggers": 9
+  },
+  "webhooks-out": {
+    "security-definer-functions": 84,
+    "row-triggers": 18
+  },
+  "workflow-editor": {
+    "security-definer-functions": 120,
+    "row-triggers": 6
+  },
+  "workflow-sdk": {
+    "serial-column": 4,
+    "security-definer-functions": 28,
+    "row-triggers": 4
+  },
+  "workflows": {
+    "security-definer-functions": 30,
+    "row-triggers": 6
+  }
+}

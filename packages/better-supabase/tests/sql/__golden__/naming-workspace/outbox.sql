@@ -1,44 +1,12 @@
 -- ==== schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:eb04614e1f92f3e2824c3e2039a89251ef96e3c04e66fcc225015bfe8a4d2459
+-- @bsb-hash sha256:6ad179974b2ffc805c969ca7b4f371c441d894379c822098cd07fc5574ce10b5
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."outbox_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."outbox_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."outbox_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."outbox_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."outbox_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."outbox_events" (
+create table "better_supabase"."outbox_events" (
   "id" uuid primary key default gen_random_uuid(),
   "position" bigint generated always as identity unique,
   "type" text not null,
@@ -51,16 +19,16 @@ create table if not exists "better_supabase"."outbox_events" (
   "created_at" timestamptz not null default now(),
   "xid" xid8 not null default pg_current_xact_id()
 );
-create unique index if not exists outbox_events_key_idx on "better_supabase"."outbox_events" ("key", "workspace_id") nulls not distinct where "key" is not null;
-create index if not exists outbox_events_subject_idx on "better_supabase"."outbox_events" ("subject", "position");
-create index if not exists outbox_events_type_idx on "better_supabase"."outbox_events" ("type", "position");
-create index if not exists outbox_events_created_idx on "better_supabase"."outbox_events" ("created_at");
-create index if not exists outbox_events_xid_idx on "better_supabase"."outbox_events" ("xid", "position");
+create unique index outbox_events_key_idx on "better_supabase"."outbox_events" ("key", "workspace_id") nulls not distinct where "key" is not null;
+create index outbox_events_subject_idx on "better_supabase"."outbox_events" ("subject", "position");
+create index outbox_events_type_idx on "better_supabase"."outbox_events" ("type", "position");
+create index outbox_events_created_idx on "better_supabase"."outbox_events" ("created_at");
+create index outbox_events_xid_idx on "better_supabase"."outbox_events" ("xid", "position");
 alter table "better_supabase"."outbox_events" enable row level security;
 revoke all on "better_supabase"."outbox_events" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_events" to service_role;
 
-create table if not exists "better_supabase"."outbox_consumers" (
+create table "better_supabase"."outbox_consumers" (
   "name" text primary key,
   -- The last event passed, ordered by (transaction id, position). Without
   -- the xid column, cursor_xid stays 0 and the position alone orders.
@@ -69,23 +37,20 @@ create table if not exists "better_supabase"."outbox_consumers" (
   -- Type patterns ('organization.*', 'invoice.paid'); null takes every event.
   "types" text[],
   "lease_owner" text,
-  "lease_until" timestamptz,
+  "lease_expires_at" timestamptz,
   -- Failed claims in a row since the cursor last moved, and when to try again.
   "attempts" integer not null default 0,
   "last_error" text,
   "retry_at" timestamptz,
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."outbox_consumers" add column if not exists "attempts" integer not null default 0;
-alter table "better_supabase"."outbox_consumers" add column if not exists "last_error" text;
-alter table "better_supabase"."outbox_consumers" add column if not exists "retry_at" timestamptz;
 alter table "better_supabase"."outbox_consumers" enable row level security;
 revoke all on "better_supabase"."outbox_consumers" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_consumers" to service_role;
 
 -- Events a consumer skipped after max_attempts failures, with a copy of the
 -- event, so one bad event can't stop the consumer.
-create table if not exists "better_supabase"."outbox_dead_letters" (
+create table "better_supabase"."outbox_dead_letters" (
   "consumer" text not null references "better_supabase"."outbox_consumers" ("name") on delete cascade,
   "position" bigint not null,
   "event_id" text not null,
@@ -96,14 +61,14 @@ create table if not exists "better_supabase"."outbox_dead_letters" (
   "dead_at" timestamptz not null default now(),
   primary key ("consumer", "position")
 );
-create index if not exists outbox_dead_letters_dead_at_idx on "better_supabase"."outbox_dead_letters" ("dead_at");
+create index outbox_dead_letters_dead_at_idx on "better_supabase"."outbox_dead_letters" ("dead_at");
 alter table "better_supabase"."outbox_dead_letters" enable row level security;
 revoke all on "better_supabase"."outbox_dead_letters" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_dead_letters" to service_role;
 
 
 -- create or replace can't change the return type of an earlier install.
-drop function if exists "better_supabase"."emit_event"(text, jsonb, text, text, text, text);
+
 -- Appends an event in the caller's transaction, so it exists only if the
 -- transaction commits, and returns its id. A repeated key (per tenant)
 -- returns the first event's id.
@@ -164,10 +129,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."emit_event"(text, jsonb, text, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."emit_event"(text, jsonb, text, text, text, text) to service_role;
-
-drop function if exists "better_supabase"."purge_outbox"(interval);
 -- The signature before purge_outbox could pass over idle consumers.
-drop function if exists "better_supabase"."purge_outbox"(interval, integer);
+
 
 -- Registers a consumer. A new one starts after the latest event, or at the
 -- first with from_start. Registering again changes only its types.
@@ -223,9 +186,9 @@ declare
   events jsonb;
 begin
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = owner, "lease_until" = now() + lease, "updated_at" = now()
+  set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
   where k."name" = consumer
-    and (k."lease_until" is null or k."lease_until" < now() or k."lease_owner" = owner)
+    and (k."lease_expires_at" is null or k."lease_expires_at" < now() or k."lease_owner" = owner)
     and (k."retry_at" is null or k."retry_at" <= now())
   returning k.* into c;
   if not found then
@@ -289,7 +252,7 @@ begin
       select e."xid", e."position" from "better_supabase"."outbox_events" e where e."position" = upto
     ),
     "attempts" = 0, "last_error" = null, "retry_at" = null,
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
     and upto is not null
     and exists (select 1 from "better_supabase"."outbox_events" e where e."position" = upto and (e."xid", e."position") > (k."cursor_xid", k."cursor_position"));
@@ -297,7 +260,7 @@ begin
     return true;
   end if;
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+  set "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner;
   return found;
 end;
@@ -328,7 +291,7 @@ declare
 begin
   update "better_supabase"."outbox_consumers" k
   set "attempts" = k."attempts" + 1, "last_error" = left(error, 4000),
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
   returning k.* into c;
   if not found then
@@ -535,380 +498,14 @@ end;
 $$;
 revoke execute on function "better_supabase"."track_events"(regclass, text, text) from public, anon, authenticated;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:5acf345602c65fa5d8b14b27584db06d6781e8b7baa395bf3edb3a329343acee
+-- @bsb-hash sha256:2b0f8a1684a74c737ad8d391f145e3c8f00a9f3a334a12823cc6bc018ca50b62
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "better_supabase"."outbox_events" t set "type" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."type" = m.old_type;
-
-update "better_supabase"."outbox_dead_letters" t set "type" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."type" = m.old_type;
-
-with m(old_type, next_types) as (values
-  ('access.*', array['access_request.*']::text[]),
-  ('access.ended', array['access_request.ended']::text[]),
-  ('access.request_approved', array['access_request.approved']::text[]),
-  ('access.requested', array['access_request.requested']::text[]),
-  ('agent.saved', array['agent.created', 'agent.updated']::text[]),
-  ('ai_provider_key.saved', array['ai_provider_key.created', 'ai_provider_key.updated']::text[]),
-  ('ai_tool_policy.set', array['ai_tool_policy.updated']::text[]),
-  ('announcement.saved', array['announcement.created', 'announcement.updated']::text[]),
-  ('approval_policy.removed', array['approval_policy.deleted']::text[]),
-  ('approval_policy.saved', array['approval_policy.created', 'approval_policy.updated']::text[]),
-  ('compliance_policy.acknowledged', array['acknowledgement.created']::text[]),
-  ('connector.saved', array['connector.created', 'connector.updated']::text[]),
-  ('control.saved', array['control.created', 'control.updated']::text[]),
-  ('course.saved', array['course.created', 'course.updated']::text[]),
-  ('credential.set', array['credential.updated']::text[]),
-  ('custom_field.*', array['field_definition.*']::text[]),
-  ('custom_field.deleted', array['field_definition.deleted']::text[]),
-  ('custom_field.saved', array['field_definition.created', 'field_definition.updated']::text[]),
-  ('drive.*', array['drive_node.*']::text[]),
-  ('drive.node_created', array['drive_node.created']::text[]),
-  ('drive.node_document_saved', array['drive_node.document_saved']::text[]),
-  ('drive.node_download_blocked_changed', array['drive_node.download_blocked_changed']::text[]),
-  ('drive.node_hold_placed', array['drive_node.hold_placed']::text[]),
-  ('drive.node_hold_released', array['drive_node.hold_released']::text[]),
-  ('drive.node_locked', array['drive_node.locked']::text[]),
-  ('drive.node_moved', array['drive_node.moved']::text[]),
-  ('drive.node_obsoleted', array['drive_node.obsoleted']::text[]),
-  ('drive.node_ownership_transferred', array['drive_node.ownership_transferred']::text[]),
-  ('drive.node_purged', array['drive_node.purged']::text[]),
-  ('drive.node_released', array['drive_node.released']::text[]),
-  ('drive.node_renamed', array['drive_node.renamed']::text[]),
-  ('drive.node_review_requested', array['drive_node.review_requested']::text[]),
-  ('drive.node_reviewed', array['drive_node.reviewed']::text[]),
-  ('drive.node_shared', array['drive_node.shared']::text[]),
-  ('drive.node_submitted', array['drive_node.submitted']::text[]),
-  ('drive.node_unlocked', array['drive_node.unlocked']::text[]),
-  ('drive.node_unshared', array['drive_node.unshared']::text[]),
-  ('engagement.*', array['activity.*']::text[]),
-  ('engagement.amended', array['activity.amended']::text[]),
-  ('engagement.completed', array['activity.completed']::text[]),
-  ('engagement.deleted', array['activity.deleted']::text[]),
-  ('engagement.error_marked', array['activity.error_marked']::text[]),
-  ('engagement.logged', array['activity.logged']::text[]),
-  ('engagement.recorded', array['activity.recorded']::text[]),
-  ('engagement.summarized', array['activity.summarized']::text[]),
-  ('engagement.transcribed', array['activity.transcribed']::text[]),
-  ('engagement.updated', array['activity.updated']::text[]),
-  ('enrollment_program.saved', array['enrollment_program.created', 'enrollment_program.updated']::text[]),
-  ('flag.override_set', array['flag.override_changed']::text[]),
-  ('flag.saved', array['flag.created', 'flag.updated']::text[]),
-  ('forecast.*', array['forecast_snapshot.*']::text[]),
-  ('forecast.snapshotted', array['forecast_snapshot.created']::text[]),
-  ('hostname.primary_set', array['hostname.primary_changed']::text[]),
-  ('hostname.removed', array['hostname.deleted']::text[]),
-  ('incoming_webhook.enabled_set', array['incoming_webhook.enabled_changed']::text[]),
-  ('job.*', array['job_opening.*']::text[]),
-  ('job.closed', array['job_opening.closed']::text[]),
-  ('job.opened', array['job_opening.opened']::text[]),
-  ('leave.*', array['leave_request.*', 'leave_balance.*']::text[]),
-  ('leave.adjusted', array['leave_balance.adjusted']::text[]),
-  ('leave.approved', array['leave_request.approved']::text[]),
-  ('leave.cancelled', array['leave_request.cancelled']::text[]),
-  ('leave.rejected', array['leave_request.rejected']::text[]),
-  ('leave.requested', array['leave_request.requested']::text[]),
-  ('leave.split', array['leave_request.split']::text[]),
-  ('leave.updated', array['leave_request.updated']::text[]),
-  ('marketplace_installation.removed', array['marketplace_installation.deleted']::text[]),
-  ('marketplace_installation.upserted', array['marketplace_installation.created', 'marketplace_installation.updated']::text[]),
-  ('marketplace_invoice.state_changed', array['marketplace_invoice.status_changed']::text[]),
-  ('obligation.*', array['contract_obligation.*']::text[]),
-  ('obligation.saved', array['contract_obligation.created', 'contract_obligation.updated']::text[]),
-  ('obligation.status_changed', array['contract_obligation.status_changed']::text[]),
-  ('organization.*', array['sso_domain.*']::text[]),
-  ('organization.domain_added', array['sso_domain.created']::text[]),
-  ('organization.domain_removed', array['sso_domain.deleted']::text[]),
-  ('organization.domain_updated', array['sso_domain.updated']::text[]),
-  ('organization.domain_verified', array['sso_domain.verified']::text[]),
-  ('party.*', array['company.enriched', 'person.enriched']::text[]),
-  ('party.enriched', array['company.enriched', 'person.enriched']::text[]),
-  ('pipeline_stage.saved', array['pipeline_stage.created', 'pipeline_stage.updated']::text[]),
-  ('policy.*', array['compliance_policy.*']::text[]),
-  ('policy.acknowledged', array['acknowledgement.created']::text[]),
-  ('policy.published', array['compliance_policy.published']::text[]),
-  ('post_board.saved', array['post_board.created', 'post_board.updated']::text[]),
-  ('postmortem.*', array['incident_postmortem.*']::text[]),
-  ('postmortem.published', array['incident_postmortem.published']::text[]),
-  ('rule.*', array['automation.*']::text[]),
-  ('rule.disabled', array['automation.disabled']::text[]),
-  ('rule.enabled', array['automation.enabled']::text[]),
-  ('rule.matched', array['automation.matched']::text[]),
-  ('rule.removed', array['automation.deleted']::text[]),
-  ('rule.saved', array['automation.created', 'automation.updated']::text[]),
-  ('saved_view.saved', array['saved_view.created', 'saved_view.updated']::text[]),
-  ('scim_group.saved', array['scim_group.created', 'scim_group.updated']::text[]),
-  ('scim_user.saved', array['scim_user.created', 'scim_user.updated']::text[]),
-  ('score_model.saved', array['score_model.created', 'score_model.updated']::text[]),
-  ('segment.removed', array['segment.deleted']::text[]),
-  ('segment.saved', array['segment.created', 'segment.updated']::text[]),
-  ('sequence.saved', array['sequence.created', 'sequence.updated']::text[]),
-  ('sequence_enrollment.*', array['enrollment.*']::text[]),
-  ('sequence_enrollment.completed', array['enrollment.completed']::text[]),
-  ('sequence_enrollment.created', array['enrollment.created']::text[]),
-  ('sequence_enrollment.exited', array['enrollment.cancelled']::text[]),
-  ('sequence_enrollment.paused', array['enrollment.paused']::text[]),
-  ('sequence_enrollment.resumed', array['enrollment.resumed']::text[]),
-  ('sequence_enrollment.step_completed', array['enrollment.step_completed']::text[]),
-  ('signature.*', array['signature_request.*']::text[]),
-  ('signature.cancelled', array['signature_request.cancelled']::text[]),
-  ('signature.completed', array['signature_request.completed']::text[]),
-  ('signature.declined', array['signature_request.declined']::text[]),
-  ('signature.requested', array['signature_request.requested']::text[]),
-  ('signature.signed', array['signature_request.signed']::text[]),
-  ('support.*', array['support_session.*']::text[]),
-  ('support.denied', array['support_session.denied']::text[]),
-  ('support.ended', array['support_session.ended']::text[]),
-  ('support.started', array['support_session.started']::text[]),
-  ('time.*', array['time_entry.*']::text[]),
-  ('time.invoiced', array['time_entry.invoiced']::text[]),
-  ('variant.*', array['product_variant.*']::text[]),
-  ('variant.created', array['product_variant.created']::text[]),
-  ('variant.deleted', array['product_variant.deleted']::text[]),
-  ('variant.updated', array['product_variant.updated']::text[]),
-  ('waitlist.*', array['waitlist_entry.*']::text[]),
-  ('waitlist.approved', array['waitlist_entry.approved']::text[]),
-  ('waitlist.rejected', array['waitlist_entry.rejected']::text[]),
-  ('webhook.*', array['webhook_endpoint.*']::text[]),
-  ('webhook.delivered', array['webhook_endpoint.delivered']::text[]),
-  ('webhook.disabled', array['webhook_endpoint.disabled']::text[]),
-  ('webhook.failed', array['webhook_endpoint.failed']::text[]),
-  ('webhook.secret_rotated', array['webhook_endpoint.secret_rotated']::text[]),
-  ('work_item.*', array['task.*']::text[]),
-  ('work_item.archived', array['task.archived']::text[]),
-  ('work_item.assigned', array['task.assigned']::text[]),
-  ('work_item.closed', array['task.closed']::text[]),
-  ('work_item.created', array['task.created']::text[]),
-  ('work_item.deleted', array['task.deleted']::text[]),
-  ('work_item.reopened', array['task.reopened']::text[]),
-  ('work_item.updated', array['task.updated']::text[]),
-  ('workflow.*', array['workflow_definition.*']::text[]),
-  ('workflow.published', array['workflow_definition.published']::text[])
-)
-update "better_supabase"."outbox_consumers" t set "types" = array(
-  select distinct x from unnest(t."types" || array(
-    select n from unnest(t."types") o join m on m.old_type = o
-    cross join unnest(m.next_types) n
-  )) x order by x
-)
-where t."types" && array(select old_type from m);
 
 insert into better_supabase.blocks (name, version, mode)
 values ('outbox', 5, 'managed')

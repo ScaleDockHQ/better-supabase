@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { WorkItem, Tasks } from "../../../src/blocks/tasks/index.ts";
+import type { Task, Tasks } from "../../../src/blocks/tasks/index.ts";
 
 import {
-  nextWorkItemOccurrence,
-  workItemRecurrenceSink,
+  nextTaskOccurrence,
+  taskRecurrenceSink,
 } from "../../../src/blocks/tasks/index.ts";
 import { dbError } from "../../../src/core/errors.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
@@ -25,42 +25,40 @@ const closed = (data: Record<string, unknown>, type = "task.closed") => ({
   data,
 });
 
-function stub(item: Partial<WorkItem> | undefined) {
-  const get = vi.fn((_id: string): AsyncResult<WorkItem | undefined> =>
+function stub(item: Partial<Task> | undefined) {
+  const get = vi.fn((_id: string): AsyncResult<Task | undefined> =>
     AsyncResult.ok(
-      item === undefined ? undefined : ({ id: "w1", ...item } as WorkItem),
+      item === undefined ? undefined : ({ id: "w1", ...item } as Task),
     ),
   );
 
   const repeat = vi.fn(
-    (_input: {
-      workItemId: string;
-      dueAt: Temporal.Instant;
-    }): AsyncResult<WorkItem> => AsyncResult.ok({ id: "w2" } as WorkItem),
+    (_input: { taskId: string; dueAt: Temporal.Instant }): AsyncResult<Task> =>
+      AsyncResult.ok({ id: "w2" } as Task),
   );
 
   return { get, repeat } satisfies Pick<Tasks, "get" | "repeat">;
 }
 
-describe("nextWorkItemOccurrence", () => {
+describe("nextTaskOccurrence", () => {
   it("finds the next occurrence and stops when the rule ends", () => {
     expect(
-      nextWorkItemOccurrence(RULE, instant("2026-10-19T08:00:00Z"))?.toString(),
+      nextTaskOccurrence(RULE, instant("2026-10-19T08:00:00Z"))?.toString(),
     ).toBe("2026-10-26T09:00:00Z");
     expect(
-      nextWorkItemOccurrence(RULE, instant("2026-11-02T09:00:00Z")),
+      nextTaskOccurrence(RULE, instant("2026-11-02T09:00:00Z")),
     ).toBeUndefined();
   });
 });
 
-describe("workItemRecurrenceSink", () => {
+describe("taskRecurrenceSink", () => {
   it("repeats a completed item at its next occurrence, once per event", async () => {
     const items = stub({
       recurrence: RULE,
       dueAt: instant("2026-10-19T08:00:00Z"),
     });
 
-    await workItemRecurrenceSink(items).send([
+    await taskRecurrenceSink(items).send([
       closed({ subjectId: "w1", state: "completed" }),
       closed({ subjectId: "w1", state: "canceled" }),
       closed({ subjectId: "w1", state: "completed" }, "task.reopened"),
@@ -84,11 +82,9 @@ describe("workItemRecurrenceSink", () => {
       "task.closed",
     );
 
-    await workItemRecurrenceSink(plain, { type: "task.closed" }).send([event]);
-    await workItemRecurrenceSink(gone, { type: "task.closed" }).send([event]);
-    await workItemRecurrenceSink(ended, { type: "task.closed", now }).send([
-      event,
-    ]);
+    await taskRecurrenceSink(plain, { type: "task.closed" }).send([event]);
+    await taskRecurrenceSink(gone, { type: "task.closed" }).send([event]);
+    await taskRecurrenceSink(ended, { type: "task.closed", now }).send([event]);
 
     expect(plain.get).toHaveBeenCalledOnce();
     expect(
@@ -103,7 +99,7 @@ describe("workItemRecurrenceSink", () => {
       AsyncResult.err(dbError("not_found", "down")),
     );
 
-    await expect(workItemRecurrenceSink(broken).send([event])).rejects.toThrow(
+    await expect(taskRecurrenceSink(broken).send([event])).rejects.toThrow(
       "reading w1 failed: down",
     );
 
@@ -112,7 +108,7 @@ describe("workItemRecurrenceSink", () => {
       AsyncResult.err(dbError("not_found", "nope")),
     );
 
-    await expect(workItemRecurrenceSink(stuck).send([event])).rejects.toThrow(
+    await expect(taskRecurrenceSink(stuck).send([event])).rejects.toThrow(
       "repeating w1 failed: nope",
     );
   });

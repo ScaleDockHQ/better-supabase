@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { dirname, relative, resolve, sep } from "node:path";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
@@ -7,10 +6,7 @@ import type { GeneratorInput } from "../../src/config/index.ts";
 import type { ColumnMeta, TableMeta } from "../../src/schema/types.ts";
 
 import { resolveConfig } from "../../src/config/index.ts";
-import {
-  buildJsonSchema,
-  jsonSchema,
-} from "../../src/generators/json-schema.ts";
+import { toJsonSchema, jsonSchema } from "../../src/generators/json-schema.ts";
 import { standardSchema } from "../../src/generators/standard-schema.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
@@ -19,12 +15,6 @@ import * as standardSchemas from "../fixtures/generated-camel.standard.ts";
 import * as valibotSchemas from "../fixtures/generated-camel.valibot.ts";
 import * as zodMiniSchemas from "../fixtures/generated-camel.zod-mini.ts";
 import * as zodSchemas from "../fixtures/generated-camel.zod.ts";
-
-function importPath(fromFile: string, toFile: string): string {
-  const path = relative(dirname(fromFile), toFile).split(sep).join("/");
-
-  return path.startsWith(".") ? path : `./${path}`;
-}
 
 const customer = {
   organizationId: "00000000-0000-4000-8000-000000000001",
@@ -242,7 +232,7 @@ const root = "/project";
 const config = resolveConfig(
   {
     gen: {
-      output: "src/generated.ts",
+      file: "src/generated.ts",
       json: { "events.meta": { type: "{ a: number }" } },
     },
   },
@@ -298,8 +288,7 @@ const input: GeneratorInput = {
   introspection: snapshotFixture.generator,
   extras: { tables: [], buckets: [], realtime: [] },
   config,
-  output: resolve(root, config.output),
-  importPath: (from, to) => importPath(resolve(root, from), resolve(root, to)),
+  imports: { runtime: "better-supabase" },
   model: { tables: [], enums: [], functions: [], blocks: [] },
 };
 
@@ -493,9 +482,9 @@ describe("standardSchema()", () => {
     expect(file!.contents).not.toContain("eventViewInsert");
   });
 
-  it("matches buildJsonSchema for every variant", async () => {
+  it("matches toJsonSchema for every variant", async () => {
     const [file] = await standardSchema().generate(input);
-    const defs = buildJsonSchema(input)["$defs"] as Record<string, unknown>;
+    const defs = toJsonSchema(input)["$defs"] as Record<string, unknown>;
 
     for (const name of Object.keys(defs)) {
       expect(file!.contents).toContain(`export const ${name}: TableSchema<`);

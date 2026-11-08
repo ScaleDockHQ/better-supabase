@@ -3,10 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
-import { resolveConfig } from "../../src/config/resolve.ts";
 import { pluralOf } from "../../src/core/entity-naming.ts";
 import { entityRenamePlan, renderBlocks } from "../../src/sql/index.ts";
-import { moduleLayout } from "../../src/sql/layout.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const BLOCKS = ["memberships", "permissions", "outbox", "tasks"];
@@ -25,9 +23,7 @@ describe("blocks.<name>.entities in the SQL", () => {
   it("renames tables, functions, events, permission keys and hooks", () => {
     const sql = body("tasks", TASKS);
 
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."tickets"',
-    );
+    expect(sql).toContain('create table "better_supabase"."tickets"');
     expect(sql).toContain('"better_supabase"."initiatives"');
     expect(sql).toContain('"better_supabase"."create_ticket"(');
     expect(sql).toContain("'ticket.created'");
@@ -188,9 +184,6 @@ describe("blocks.<name>.entities in the SQL", () => {
           singular: entity.singular,
           plural: entity.plural ?? pluralOf(entity.singular),
         },
-        ...(entity.formerly === undefined
-          ? []
-          : [{ singular: entity.formerly, plural: pluralOf(entity.formerly) }]),
       ]);
 
       // Parameter names keep the default nouns (`document`, `document_id`).
@@ -246,6 +239,8 @@ describe("blocks.<name>.entities in the SQL", () => {
               new RegExp(String.raw`bsb_${name}_\w+|/${name}/`, "g"),
               "",
             )
+            // A check's name carries its table and column (`bsb_<table>_<column>_check`).
+            .replaceAll(/constraint bsb_\w+_check/g, "")
             // The default privileges name every object kind, not an entity.
             .replaceAll(
               /alter default privileges in schema \w+ revoke all on \w+ from[^;]*;/g,
@@ -336,47 +331,6 @@ describe("entityRenamePlan", () => {
 
   it("plans nothing when the names didn't change", () => {
     expect(sql({})).toEqual([]);
-  });
-
-  it("reads a 0.46 marker's entity keys at their 0.47 key", () => {
-    const renamed = renderBlocks(BLOCKS, TASKS)
-      .map((file) => file.contents)
-      .join("\n")
-      .replace("@bsb-names tasks task=", "@bsb-names tasks work_item=");
-
-    expect(entityRenamePlan(BLOCKS, modules, renamed, TASKS).steps).toEqual([]);
-  });
-
-  it("keeps an instance whose 0.46 marker names the same entities", () => {
-    const config = resolveConfig(
-      {
-        blocks: {
-          tasks: {},
-          facilities: { block: "tasks", entities: { task: "request" } },
-        },
-      },
-      "/app",
-    );
-
-    const layout = moduleLayout(config);
-
-    const installed = renderBlocks(config.blockNames, layout)
-      .map((file) => file.contents)
-      .join("\n")
-      .replace(
-        "@bsb-names facilities task=",
-        "@bsb-names facilities work_item=",
-      );
-
-    expect(installed).toContain("@bsb-names facilities work_item=");
-    expect(
-      entityRenamePlan(
-        config.blockNames,
-        [...config.blockNames, "facilities"],
-        installed,
-        layout,
-      ),
-    ).toEqual({ steps: [], refused: [] });
   });
 
   it("plans the way back from the installed names", () => {

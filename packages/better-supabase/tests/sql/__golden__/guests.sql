@@ -1,82 +1,24 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:26b3f57629a7894c6308ef7b074dc16deabfb809d442c3cfce32e37ce3f595de
+-- @bsb-hash sha256:fa6492d6d6e01878975e727bb0de9e9fd282208815011d3466e2157b1104f2cd
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Guests: people outside the organization (a client, a contractor) who reach
 -- the records they are granted, and portal access for the party they act for.
 -- A guest is never a member; policies add them through ctx.scope.guest.
 
-create table if not exists "better_supabase"."guests" (
+create table "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") between 1 and 200),
+  "email" text not null constraint bsb_guests_email_check check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
+  "name" text constraint bsb_guests_name_check check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
-  "status" text not null default 'invited' check ("status" in ('invited', 'active', 'revoked')),
+  "status" text not null default 'invited' constraint bsb_guests_status_check check ("status" in ('invited', 'active', 'revoked')),
   "token_hash" text unique,
   "invited_by" uuid,
   "expires_at" timestamptz,
@@ -84,41 +26,39 @@ create table if not exists "better_supabase"."guests" (
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("party_type" is null) = ("party_id" is null)),
-  check ("status" <> 'active' or "user_id" is not null)
+  constraint bsb_guests_check check (("party_type" is null) = ("party_id" is null)),
+  constraint bsb_guests_check1 check ("status" <> 'active' or "user_id" is not null)
 );
-create unique index if not exists "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
-create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
+create unique index "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
+create unique index "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
+create index "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
 revoke all on "better_supabase"."guests" from public, anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
 grant all on "better_supabase"."guests" to service_role;
-drop policy if exists "guests_read" on "better_supabase"."guests";
-create policy guests_read on "better_supabase"."guests"
+create policy bsb_guests_read on "better_supabase"."guests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()));
 
-create table if not exists "better_supabase"."guest_grants" (
+create table "better_supabase"."guest_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
+  "subject_type" text not null constraint bsb_guest_grants_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_guest_grants_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "actions" text[] not null constraint bsb_guest_grants_actions_check check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("guest_id", "subject_type", "subject_id")
 );
-create index if not exists "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("tenant_id", "subject_type", "subject_id");
+create index "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."guest_grants" enable row level security;
 revoke all on "better_supabase"."guest_grants" from public, anon, authenticated;
 grant select on "better_supabase"."guest_grants" to authenticated;
 grant all on "better_supabase"."guest_grants" to service_role;
-drop policy if exists "guest_grants_read" on "better_supabase"."guest_grants";
-create policy guest_grants_read on "better_supabase"."guest_grants"
+create policy bsb_guest_grants_read on "better_supabase"."guest_grants"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "better_supabase"."guests" x where x."user_id" = (select auth.uid())));
@@ -494,41 +434,22 @@ grant execute on function "better_supabase"."my_guest_access"() to authenticated
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."guests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."guests";
 create policy bsb_tenant_scope_select on "better_supabase"."guests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guests";
 create policy bsb_tenant_scope_insert on "better_supabase"."guests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."guests";
 create policy bsb_tenant_scope_update on "better_supabase"."guests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guests";
 create policy bsb_tenant_scope_delete on "better_supabase"."guests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."guest_grants";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_select on "better_supabase"."guest_grants" as restrictive
   for select to public
   using (
@@ -536,32 +457,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."guest_grants" as res
     or ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "better_supabase"."guests" x where x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_insert on "better_supabase"."guest_grants" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_update on "better_supabase"."guest_grants" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
@@ -580,82 +485,24 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:e82be57b68c3be4f247d2e6f2cd59cdd8488ecae3185f52b6a84928da7c178c7
+-- @bsb-hash sha256:2af25eefb115e5f9d9148d741be0f66d751b41be0022eb4a2897632b75382ceb
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Guests: people outside the organization (a client, a contractor) who reach
 -- the records they are granted, and portal access for the party they act for.
 -- A guest is never a member; policies add them through ctx.scope.guest.
 
-create table if not exists "better_supabase"."guests" (
+create table "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") between 1 and 200),
+  "email" text not null constraint bsb_guests_email_check check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
+  "name" text constraint bsb_guests_name_check check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
-  "status" text not null default 'invited' check ("status" in ('invited', 'active', 'revoked')),
+  "status" text not null default 'invited' constraint bsb_guests_status_check check ("status" in ('invited', 'active', 'revoked')),
   "token_hash" text unique,
   "invited_by" uuid,
   "expires_at" timestamptz,
@@ -663,41 +510,39 @@ create table if not exists "better_supabase"."guests" (
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("party_type" is null) = ("party_id" is null)),
-  check ("status" <> 'active' or "user_id" is not null)
+  constraint bsb_guests_check check (("party_type" is null) = ("party_id" is null)),
+  constraint bsb_guests_check1 check ("status" <> 'active' or "user_id" is not null)
 );
-create unique index if not exists "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
-create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
+create unique index "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
+create unique index "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
+create index "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
 revoke all on "better_supabase"."guests" from public, anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
 grant all on "better_supabase"."guests" to service_role;
-drop policy if exists "guests_read" on "better_supabase"."guests";
-create policy guests_read on "better_supabase"."guests"
+create policy bsb_guests_read on "better_supabase"."guests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()));
 
-create table if not exists "better_supabase"."guest_grants" (
+create table "better_supabase"."guest_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
+  "subject_type" text not null constraint bsb_guest_grants_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_guest_grants_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "actions" text[] not null constraint bsb_guest_grants_actions_check check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("guest_id", "subject_type", "subject_id")
 );
-create index if not exists "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("tenant_id", "subject_type", "subject_id");
+create index "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."guest_grants" enable row level security;
 revoke all on "better_supabase"."guest_grants" from public, anon, authenticated;
 grant select on "better_supabase"."guest_grants" to authenticated;
 grant all on "better_supabase"."guest_grants" to service_role;
-drop policy if exists "guest_grants_read" on "better_supabase"."guest_grants";
-create policy guest_grants_read on "better_supabase"."guest_grants"
+create policy bsb_guest_grants_read on "better_supabase"."guest_grants"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "better_supabase"."guests" x where x."user_id" = (select auth.uid())));
@@ -1129,41 +974,22 @@ grant execute on function "better_supabase"."my_guest_access"() to authenticated
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."guests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."guests";
 create policy bsb_tenant_scope_select on "better_supabase"."guests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guests";
 create policy bsb_tenant_scope_insert on "better_supabase"."guests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."guests";
 create policy bsb_tenant_scope_update on "better_supabase"."guests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guests";
 create policy bsb_tenant_scope_delete on "better_supabase"."guests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."guest_grants";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_select on "better_supabase"."guest_grants" as restrictive
   for select to public
   using (
@@ -1171,40 +997,20 @@ create policy bsb_tenant_scope_select on "better_supabase"."guest_grants" as res
     or ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "better_supabase"."guests" x where x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_insert on "better_supabase"."guest_grants" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_update on "better_supabase"."guest_grants" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.guests', target_type => 'guest', event_prefix => 'guest', deferred => true);
-  perform better_supabase.audit('better_supabase.guest_grants', target_type => 'guest_grant', event_prefix => 'guest_grant', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.guests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest","event_prefix":"guest"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.guest_grants deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest_grant","event_prefix":"guest_grant"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
@@ -1223,69 +1029,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:11e81d806cf46c9ef5eb4c1868fcbf999ae5aa4a3e7d5899bd6f930a64346572
+-- @bsb-hash sha256:887b9750142bf6a2a2a42aac469df66c0f0f07701a368bd37e87d8440687ef49
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."guests";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."guests";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."guests";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."guests";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."guests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."guest_grants";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."guest_grants";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."guest_grants";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."guest_grants";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."guest_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -1295,15 +1043,15 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- the records they are granted, and portal access for the party they act for.
 -- A guest is never a member; policies add them through ctx.scope.guest.
 
-create table if not exists "app_private"."guests" (
+create table "app_private"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") between 1 and 200),
+  "email" text not null constraint bsb_guests_email_check check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
+  "name" text constraint bsb_guests_name_check check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
-  "status" text not null default 'invited' check ("status" in ('invited', 'active', 'revoked')),
+  "status" text not null default 'invited' constraint bsb_guests_status_check check ("status" in ('invited', 'active', 'revoked')),
   "token_hash" text unique,
   "invited_by" uuid,
   "expires_at" timestamptz,
@@ -1311,41 +1059,39 @@ create table if not exists "app_private"."guests" (
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("party_type" is null) = ("party_id" is null)),
-  check ("status" <> 'active' or "user_id" is not null)
+  constraint bsb_guests_check check (("party_type" is null) = ("party_id" is null)),
+  constraint bsb_guests_check1 check ("status" <> 'active' or "user_id" is not null)
 );
-create unique index if not exists "guests_email_idx" on "app_private"."guests" ("tenant_id", lower("email"));
-create unique index if not exists "guests_user_idx" on "app_private"."guests" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists "guests_user_id_idx" on "app_private"."guests" ("user_id");
+create unique index "guests_email_idx" on "app_private"."guests" ("tenant_id", lower("email"));
+create unique index "guests_user_idx" on "app_private"."guests" ("tenant_id", "user_id") where "user_id" is not null;
+create index "guests_user_id_idx" on "app_private"."guests" ("user_id");
 alter table "app_private"."guests" enable row level security;
 revoke all on "app_private"."guests" from public, anon, authenticated;
 grant select on "app_private"."guests" to authenticated;
 grant all on "app_private"."guests" to service_role;
-drop policy if exists "guests_read" on "app_private"."guests";
-create policy guests_read on "app_private"."guests"
+create policy bsb_guests_read on "app_private"."guests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()));
 
-create table if not exists "app_private"."guest_grants" (
+create table "app_private"."guest_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "app_private"."guests" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
+  "subject_type" text not null constraint bsb_guest_grants_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_guest_grants_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "actions" text[] not null constraint bsb_guest_grants_actions_check check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("guest_id", "subject_type", "subject_id")
 );
-create index if not exists "guest_grants_subject_idx" on "app_private"."guest_grants" ("tenant_id", "subject_type", "subject_id");
+create index "guest_grants_subject_idx" on "app_private"."guest_grants" ("tenant_id", "subject_type", "subject_id");
 alter table "app_private"."guest_grants" enable row level security;
 revoke all on "app_private"."guest_grants" from public, anon, authenticated;
 grant select on "app_private"."guest_grants" to authenticated;
 grant all on "app_private"."guest_grants" to service_role;
-drop policy if exists "guest_grants_read" on "app_private"."guest_grants";
-create policy guest_grants_read on "app_private"."guest_grants"
+create policy bsb_guest_grants_read on "app_private"."guest_grants"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "app_private"."guests" x where x."user_id" = (select auth.uid())));
@@ -1721,41 +1467,22 @@ grant execute on function "app_private"."my_guest_access"() to authenticated, se
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."guests";
-drop policy if exists bsb_tenant_scope_select on "app_private"."guests";
 create policy bsb_tenant_scope_select on "app_private"."guests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."guests";
 create policy bsb_tenant_scope_insert on "app_private"."guests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."guests";
 create policy bsb_tenant_scope_update on "app_private"."guests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."guests";
 create policy bsb_tenant_scope_delete on "app_private"."guests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."guest_grants";
-drop policy if exists bsb_tenant_scope_select on "app_private"."guest_grants";
 create policy bsb_tenant_scope_select on "app_private"."guest_grants" as restrictive
   for select to public
   using (
@@ -1763,32 +1490,16 @@ create policy bsb_tenant_scope_select on "app_private"."guest_grants" as restric
     or ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "app_private"."guests" x where x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."guest_grants";
 create policy bsb_tenant_scope_insert on "app_private"."guest_grants" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."guest_grants";
 create policy bsb_tenant_scope_update on "app_private"."guest_grants" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."guest_grants";
 create policy bsb_tenant_scope_delete on "app_private"."guest_grants" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
@@ -1807,82 +1518,24 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:56ede8fd661eec87586357cc4d3b8d91ba10e3146d02143f9b9696b7d33f589a
+-- @bsb-hash sha256:9a3972af1af3fc81c04bbdc0723c587bb31448a5ec16bd79639d772d1c46a0c0
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Guests: people outside the organization (a client, a contractor) who reach
 -- the records they are granted, and portal access for the party they act for.
 -- A guest is never a member; policies add them through ctx.scope.guest.
 
-create table if not exists "better_supabase"."guests" (
+create table "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") between 1 and 200),
+  "email" text not null constraint bsb_guests_email_check check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
+  "name" text constraint bsb_guests_name_check check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
-  "status" text not null default 'invited' check ("status" in ('invited', 'active', 'revoked')),
+  "status" text not null default 'invited' constraint bsb_guests_status_check check ("status" in ('invited', 'active', 'revoked')),
   "token_hash" text unique,
   "invited_by" uuid,
   "expires_at" timestamptz,
@@ -1890,41 +1543,39 @@ create table if not exists "better_supabase"."guests" (
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("party_type" is null) = ("party_id" is null)),
-  check ("status" <> 'active' or "user_id" is not null)
+  constraint bsb_guests_check check (("party_type" is null) = ("party_id" is null)),
+  constraint bsb_guests_check1 check ("status" <> 'active' or "user_id" is not null)
 );
-create unique index if not exists "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
-create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
+create unique index "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
+create unique index "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
+create index "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
 revoke all on "better_supabase"."guests" from public, anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
 grant all on "better_supabase"."guests" to service_role;
-drop policy if exists "guests_read" on "better_supabase"."guests";
-create policy guests_read on "better_supabase"."guests"
+create policy bsb_guests_read on "better_supabase"."guests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()));
 
-create table if not exists "better_supabase"."guest_grants" (
+create table "better_supabase"."guest_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
+  "subject_type" text not null constraint bsb_guest_grants_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_guest_grants_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "actions" text[] not null constraint bsb_guest_grants_actions_check check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("guest_id", "subject_type", "subject_id")
 );
-create index if not exists "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("tenant_id", "subject_type", "subject_id");
+create index "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."guest_grants" enable row level security;
 revoke all on "better_supabase"."guest_grants" from public, anon, authenticated;
 grant select on "better_supabase"."guest_grants" to authenticated;
 grant all on "better_supabase"."guest_grants" to service_role;
-drop policy if exists "guest_grants_read" on "better_supabase"."guest_grants";
-create policy guest_grants_read on "better_supabase"."guest_grants"
+create policy bsb_guest_grants_read on "better_supabase"."guest_grants"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "better_supabase"."guests" x where x."user_id" = (select auth.uid())));
@@ -2300,41 +1951,22 @@ grant execute on function "better_supabase"."my_guest_access"() to authenticated
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."guests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."guests";
 create policy bsb_tenant_scope_select on "better_supabase"."guests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guests";
 create policy bsb_tenant_scope_insert on "better_supabase"."guests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."guests";
 create policy bsb_tenant_scope_update on "better_supabase"."guests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guests";
 create policy bsb_tenant_scope_delete on "better_supabase"."guests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."guest_grants";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_select on "better_supabase"."guest_grants" as restrictive
   for select to public
   using (
@@ -2342,16 +1974,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."guest_grants" as res
     or ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "better_supabase"."guests" x where x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_insert on "better_supabase"."guest_grants" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_update on "better_supabase"."guest_grants" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2359,25 +1988,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as res
 -- blocks.guests.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."portal_subjects"(action text)
 returns table (tenant text, subject_type text, subject_id text)
@@ -2484,19 +2094,6 @@ as $$ select "better_supabase"."my_guest_access"() $$;
 revoke execute on function "api"."my_guest_access"() from public, anon;
 grant execute on function "api"."my_guest_access"() to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block-data guests
@@ -2514,85 +2111,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:d42568c54ddc560577913fcf7a3c84f6b71cd7191561e789e8ba3d8a3f460e19
+-- @bsb-hash sha256:1de071791c2fe08ef0ae4c749d7c68cc2ff1e53ca0932206e26ad80156da18db
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Guests: people outside the organization (a client, a contractor) who reach
 -- the records they are granted, and portal access for the party they act for.
 -- A guest is never a member; policies add them through ctx.scope.guest.
@@ -2600,12 +2123,12 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.guests is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."guests" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."guests" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."guests" add column if not exists "email" text check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1);
-alter table "better_supabase"."guests" add column if not exists "name" text check ("name" is null or length("name") between 1 and 200);
+alter table "better_supabase"."guests" add column if not exists "email" text constraint bsb_guests_email_check check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1);
+alter table "better_supabase"."guests" add column if not exists "name" text constraint bsb_guests_name_check check ("name" is null or length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."guests" add column if not exists "user_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."guests" add column if not exists "party_type" text;
 alter table "better_supabase"."guests" add column if not exists "party_id" text;
-alter table "better_supabase"."guests" add column if not exists "status" text not null default 'invited' check ("status" in ('invited', 'active', 'revoked'));
+alter table "better_supabase"."guests" add column if not exists "status" text not null default 'invited' constraint bsb_guests_status_check check ("status" in ('invited', 'active', 'revoked'));
 alter table "better_supabase"."guests" add column if not exists "token_hash" text;
 alter table "better_supabase"."guests" add column if not exists "invited_by" uuid;
 alter table "better_supabase"."guests" add column if not exists "expires_at" timestamptz;
@@ -2619,7 +2142,6 @@ create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("
 alter table "better_supabase"."guests" enable row level security;
 grant select on "better_supabase"."guests" to authenticated;
 grant all on "better_supabase"."guests" to service_role;
-drop policy if exists bsb_guests_select on "better_supabase"."guests";
 create policy bsb_guests_select on "better_supabase"."guests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()));
@@ -2628,9 +2150,9 @@ create policy bsb_guests_select on "better_supabase"."guests"
 alter table "better_supabase"."guest_grants" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."guest_grants" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."guest_grants" add column if not exists "guest_id" uuid references "better_supabase"."guests" ("id") on delete cascade;
-alter table "better_supabase"."guest_grants" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."guest_grants" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
-alter table "better_supabase"."guest_grants" add column if not exists "actions" text[] check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions"));
+alter table "better_supabase"."guest_grants" add column if not exists "subject_type" text constraint bsb_guest_grants_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."guest_grants" add column if not exists "subject_id" text constraint bsb_guest_grants_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."guest_grants" add column if not exists "actions" text[] constraint bsb_guest_grants_actions_check check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions"));
 alter table "better_supabase"."guest_grants" add column if not exists "granted_by" uuid;
 alter table "better_supabase"."guest_grants" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."guest_grants" add column if not exists "created_at" timestamptz not null default now();
@@ -2640,7 +2162,6 @@ create index if not exists "guest_grants_subject_idx" on "better_supabase"."gues
 alter table "better_supabase"."guest_grants" enable row level security;
 grant select on "better_supabase"."guest_grants" to authenticated;
 grant all on "better_supabase"."guest_grants" to service_role;
-drop policy if exists bsb_guest_grants_select on "better_supabase"."guest_grants";
 create policy bsb_guest_grants_select on "better_supabase"."guest_grants"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
@@ -3017,41 +2538,22 @@ grant execute on function "better_supabase"."my_guest_access"() to authenticated
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."guests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."guests";
 create policy bsb_tenant_scope_select on "better_supabase"."guests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guests";
 create policy bsb_tenant_scope_insert on "better_supabase"."guests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."guests";
 create policy bsb_tenant_scope_update on "better_supabase"."guests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guests";
 create policy bsb_tenant_scope_delete on "better_supabase"."guests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."guest_grants";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_select on "better_supabase"."guest_grants" as restrictive
   for select to public
   using (
@@ -3059,32 +2561,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."guest_grants" as res
     or ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "better_supabase"."guests" x where x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_insert on "better_supabase"."guest_grants" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_update on "better_supabase"."guest_grants" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
@@ -3103,82 +2589,24 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:d705fd084acb19bbf951c2059a977bddeae70766e681938793bbcdafdcd9cd5b
+-- @bsb-hash sha256:f0e034ff5e43f3f0861f911274bf8b05f1010f10d61ba220211916bb66f6697c
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guest_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Guests: people outside the organization (a client, a contractor) who reach
 -- the records they are granted, and portal access for the party they act for.
 -- A guest is never a member; policies add them through ctx.scope.guest.
 
-create table if not exists "better_supabase"."guests" (
+create table "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") between 1 and 200),
+  "email" text not null constraint bsb_guests_email_check check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
+  "name" text constraint bsb_guests_name_check check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
-  "status" text not null default 'invited' check ("status" in ('invited', 'active', 'revoked')),
+  "status" text not null default 'invited' constraint bsb_guests_status_check check ("status" in ('invited', 'active', 'revoked')),
   "token_hash" text unique,
   "invited_by" uuid,
   "expires_at" timestamptz,
@@ -3186,41 +2614,39 @@ create table if not exists "better_supabase"."guests" (
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("party_type" is null) = ("party_id" is null)),
-  check ("status" <> 'active' or "user_id" is not null)
+  constraint bsb_guests_check check (("party_type" is null) = ("party_id" is null)),
+  constraint bsb_guests_check1 check ("status" <> 'active' or "user_id" is not null)
 );
-create unique index if not exists "guests_email_idx" on "better_supabase"."guests" ("org_id", lower("email"));
-create unique index if not exists "guests_user_idx" on "better_supabase"."guests" ("org_id", "user_id") where "user_id" is not null;
-create index if not exists "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
+create unique index "guests_email_idx" on "better_supabase"."guests" ("org_id", lower("email"));
+create unique index "guests_user_idx" on "better_supabase"."guests" ("org_id", "user_id") where "user_id" is not null;
+create index "guests_user_id_idx" on "better_supabase"."guests" ("user_id");
 alter table "better_supabase"."guests" enable row level security;
 revoke all on "better_supabase"."guests" from public, anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
 grant all on "better_supabase"."guests" to service_role;
-drop policy if exists "guests_read" on "better_supabase"."guests";
-create policy guests_read on "better_supabase"."guests"
+create policy bsb_guests_read on "better_supabase"."guests"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()));
 
-create table if not exists "better_supabase"."guest_grants" (
+create table "better_supabase"."guest_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
+  "subject_type" text not null constraint bsb_guest_grants_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_guest_grants_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "actions" text[] not null constraint bsb_guest_grants_actions_check check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("guest_id", "subject_type", "subject_id")
 );
-create index if not exists "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("org_id", "subject_type", "subject_id");
+create index "guest_grants_subject_idx" on "better_supabase"."guest_grants" ("org_id", "subject_type", "subject_id");
 alter table "better_supabase"."guest_grants" enable row level security;
 revoke all on "better_supabase"."guest_grants" from public, anon, authenticated;
 grant select on "better_supabase"."guest_grants" to authenticated;
 grant all on "better_supabase"."guest_grants" to service_role;
-drop policy if exists "guest_grants_read" on "better_supabase"."guest_grants";
-create policy guest_grants_read on "better_supabase"."guest_grants"
+create policy bsb_guest_grants_read on "better_supabase"."guest_grants"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "better_supabase"."guests" x where x."user_id" = (select auth.uid())));
@@ -3596,41 +3022,22 @@ grant execute on function "better_supabase"."my_guest_access"() to authenticated
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."guests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."guests";
 create policy bsb_tenant_scope_select on "better_supabase"."guests" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guests";
 create policy bsb_tenant_scope_insert on "better_supabase"."guests" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."guests";
 create policy bsb_tenant_scope_update on "better_supabase"."guests" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guests";
 create policy bsb_tenant_scope_delete on "better_supabase"."guests" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."guest_grants";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_select on "better_supabase"."guest_grants" as restrictive
   for select to public
   using (
@@ -3638,32 +3045,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."guest_grants" as res
     or ("org_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "better_supabase"."guests" x where x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_insert on "better_supabase"."guest_grants" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_update on "better_supabase"."guest_grants" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guest_grants";
 create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
 -- better-supabase module: guests

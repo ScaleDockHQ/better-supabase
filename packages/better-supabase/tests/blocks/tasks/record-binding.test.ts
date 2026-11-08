@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ChecklistItem, Tasks } from "../../../src/blocks/tasks/index.ts";
 
 import {
-  workItemChecklistOptimistic,
+  taskChecklistOptimistic,
   taskChecklistBinding,
   tasksBlock,
 } from "../../../src/blocks/tasks/index.ts";
@@ -11,7 +11,7 @@ import { AsyncResult } from "../../../src/core/result.ts";
 
 const item = (id: string, rank: string, done = false): ChecklistItem => ({
   id,
-  workItemId: "w1",
+  taskId: "w1",
   title: id,
   done,
   rank,
@@ -41,13 +41,13 @@ describe("taskChecklistBinding", () => {
     const state = [item("a", "a0"), item("c", "a2")];
 
     expect(
-      workItemChecklistOptimistic(state, {
+      taskChecklistOptimistic(state, {
         type: "save",
         item: item("b", "a1"),
       }).map((row) => row.id),
     ).toEqual(["a", "b", "c"]);
     expect(
-      workItemChecklistOptimistic(state, {
+      taskChecklistOptimistic(state, {
         type: "save",
         item: item("a", "a3", true),
       }).map((row) => [row.id, row.done]),
@@ -56,22 +56,22 @@ describe("taskChecklistBinding", () => {
       ["a", true],
     ]);
     expect(
-      workItemChecklistOptimistic([item("x", "a0"), item("y", "a0")], {
+      taskChecklistOptimistic([item("x", "a0"), item("y", "a0")], {
         type: "save",
         item: item("z", "a0"),
       }).map((row) => row.id),
     ).toEqual(["x", "y", "z"]);
     expect(
-      workItemChecklistOptimistic(state, { type: "remove", id: "a" }).map(
+      taskChecklistOptimistic(state, { type: "remove", id: "a" }).map(
         (row) => row.id,
       ),
     ).toEqual(["c"]);
     expect(
-      workItemChecklistOptimistic(
+      taskChecklistOptimistic(
         state,
         // SAFETY: an action outside the union reaches the exhaustive default.
         { type: "unknown" } as unknown as Parameters<
-          typeof workItemChecklistOptimistic
+          typeof taskChecklistOptimistic
         >[1],
       ),
     ).toEqual({ type: "unknown" });

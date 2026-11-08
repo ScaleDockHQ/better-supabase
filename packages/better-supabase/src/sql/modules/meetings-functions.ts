@@ -756,7 +756,7 @@ begin
   values ((v_task ->> 'id')::uuid, v_row.${m("tenant")}, v_row.${m("id")}, add_meeting_action_item.agenda_item_id, add_meeting_action_item.decision_id);
   ${ctx.record({
     type: "meeting_action_item.created",
-    payload: `jsonb_build_object('organizationId', v_row.${m("tenant")}, 'meetingId', v_row.${m("id")}, 'workItemId', (v_task ->> 'id')::uuid, 'title', v_task ->> 'title')`,
+    payload: `jsonb_build_object('organizationId', v_row.${m("tenant")}, 'meetingId', v_row.${m("id")}, 'taskId', (v_task ->> 'id')::uuid, 'title', v_task ->> 'title')`,
     subject: `'meetings/' || v_row.${m("id")}::text`,
     tenant: `v_row.${m("tenant")}`,
     audit: false,

@@ -112,7 +112,7 @@ insert into better_supabase.usage_quotas (plan, meter, "limit", period) values
   ('pro', 'customers.created', 1000, 'month'),
   ('enterprise', 'customers.created', null, 'month');
 
-insert into better_supabase.usage_counters (organization_id, meter, day, value) values
+insert into better_supabase.usage_counters (tenant_id, meter, day, value) values
   ('00000000-0000-4000-8000-000000000001', 'api.calls', current_date, 12840),
   ('00000000-0000-4000-8000-000000000001', 'customers.created', current_date, 2),
   ('00000000-0000-4000-8000-000000000002', 'api.calls', current_date, 412),
@@ -120,7 +120,7 @@ insert into better_supabase.usage_counters (organization_id, meter, day, value) 
 
 -- An open invitation to Acme. Its token is `seed-invitation-acme`
 -- (/invite/seed-invitation-acme); only the SHA-256 hash is stored.
-insert into better_supabase.invitations (organization_id, email, role, token_hash, invited_by, expires_at) values
+insert into better_supabase.invitations (tenant_id, email, role, token_hash, invited_by, expires_at) values
   ('00000000-0000-4000-8000-000000000001', 'new@acme.test', 'member',
    encode(extensions.digest('seed-invitation-acme', 'sha256'), 'hex'),
    '00000000-0000-4000-8000-0000000000a1', now() + interval '7 days');
@@ -131,7 +131,7 @@ insert into better_supabase.flags (key, description, default_variant) values
 -- The proxy reads this one for signed-out visitors: on, /signup shows the waitlist.
 insert into better_supabase.flags (key, description, default_variant) values
   ('signup-waitlist', 'Sends sign-ups to the waitlist', 'off');
-insert into better_supabase.flag_overrides (flag_key, organization_id, variant) values
+insert into better_supabase.flag_overrides (flag_key, tenant_id, variant) values
   ('beta-page', '00000000-0000-4000-8000-000000000001', 'on');
 
 insert into better_supabase.announcements (title, body, severity, href, created_by) values
@@ -177,7 +177,7 @@ select better_supabase.record_inbound(jsonb_build_object(
 -- create_task numbers them (TASK-<n> per organization). The items insert
 -- runs without triggers, since the state machine would start every item in
 -- triage; the closed items set closed_at and close_reason here.
-insert into better_supabase.work_projects (id, tenant_id, key, name, owner_user_id, status, start_on, target_on) values
+insert into better_supabase.work_projects (id, tenant_id, key, name, owner_id, status, start_on, target_on) values
   ('00000000-0000-4000-8000-00000000f001', '00000000-0000-4000-8000-000000000001', 'WEB', 'Website relaunch', '00000000-0000-4000-8000-0000000000a1', 'active', current_date - 14, current_date + 30),
   ('00000000-0000-4000-8000-00000000f002', '00000000-0000-4000-8000-000000000001', 'ONB', 'Customer onboarding', '00000000-0000-4000-8000-0000000000a2', 'planned', current_date + 7, current_date + 60);
 

@@ -13,7 +13,6 @@ import { employeeKeyBackfillSql, employeeKeySql } from "../employee-key-sql.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   addForeignKey,
   fail,
   lockTable,
@@ -106,9 +105,6 @@ const NAMES: BlockSqlNames = {
   ],
   options: [
     "employmentTypes",
-    "extraColumns",
-    "privateDetailsExtraColumns",
-    "contractExtraColumns",
     "name",
     "privateDetails",
     "contracts",
@@ -310,9 +306,9 @@ create unique index if not exists ${ctx.naming.rename("employees_user_idx")} on 
 create index if not exists ${ctx.naming.rename("employees_account_idx")} on ${t("employees")} (${e("user")}) where ${e("user")} is not null;
 create unique index if not exists ${ctx.naming.rename("employees_origin_idx")} on ${t("employees")} (${e("tenant")}, ${e("originType")}, ${e("originId")}) where ${e("originId")} is not null;
 create index if not exists ${ctx.naming.rename("employees_tenant_status_idx")} on ${t("employees")} (${e("tenant")}, ${e("status")});
-create index if not exists ${ctx.naming.rename("employees_manager_idx")} on ${t("employees")} (${e("manager")}) where ${e("manager")} is not null;${addExtraColumns(t("employees"), ctx.extraColumns("employees", RESERVED))}
+create index if not exists ${ctx.naming.rename("employees_manager_idx")} on ${t("employees")} (${e("manager")}) where ${e("manager")} is not null;
 ${lockTable(t("employees"), { read: true })}
-${renderPolicy(makePolicy({ table: t("employees"), name: ctx.naming.rename("employees_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(e("tenant"), n.read)} or ${e("user")} = (select auth.uid())` }), { drop: true, target: t("employees") })}
+${renderPolicy(makePolicy({ table: t("employees"), name: ctx.naming.rename("employees_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(e("tenant"), n.read)} or ${e("user")} = (select auth.uid())` }), { target: t("employees") })}
 
 -- Private details stay out of the directory: readable with
 -- employees.view_sensitive and by the employee.
@@ -336,7 +332,7 @@ ${ctx.has("privateDetails", "address") ? `  ${p("address")} jsonb check (${p("ad
   ${p("anonymizedAt")} timestamptz,
   ${p("updatedAt")} timestamptz not null default now(),
   ${p("updatedBy")} uuid
-);${addExtraColumns(t("privateDetails"), ctx.extraColumns("privateDetails", [], "privateDetailsExtraColumns"))}
+);
 ${ctx.has("privateDetails", "user") ? `create index if not exists ${ctx.naming.rename("employee_private_details_user_idx")} on ${t("privateDetails")} (${p("user")}) where ${p("user")} is not null;\n` : ""}${lockTable(t("privateDetails"), { read: true })}
 ${renderPolicy(
   makePolicy({
@@ -351,7 +347,7 @@ ${renderPolicy(
   select 1 from ${t("employees")} x where x.${e("id")} = ${p("employee")} and x.${e("user")} = (select auth.uid()))`
     }`,
   }),
-  { drop: true, target: t("privateDetails") },
+  { target: t("privateDetails") },
 )}
 
 -- Contract history: a new contract ends the one before it, and rows are
@@ -371,7 +367,7 @@ create table if not exists ${t("contracts")} (
   ${k("createdAt")} timestamptz not null default now(),
   check (${k("endsOn")} is null or ${k("endsOn")} >= ${k("startsOn")}),
   check ((${k("salary")} is null) = (${k("currency")} is null))
-);${addExtraColumns(t("contracts"), ctx.extraColumns("contracts", [], "contractExtraColumns"))}
+);
 create index if not exists ${ctx.naming.rename("employee_contracts_employee_idx")} on ${t("contracts")} (${k("employee")}, ${k("startsOn")} desc);
 ${lockTable(t("contracts"), { read: true })}
 ${renderPolicy(
@@ -383,7 +379,7 @@ ${renderPolicy(
     using: `${ctx.scope.check(k("tenant"), n.contractsRead)} or exists (
   select 1 from ${t("employees")} x where x.${e("id")} = ${k("employee")} and x.${e("user")} = (select auth.uid()))`,
   }),
-  { drop: true, target: t("contracts") },
+  { target: t("contracts") },
 )}
 `;
 }
@@ -541,19 +537,19 @@ function build(ctx: BlockSqlContext): string {
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
 -- behind employees.view_sensitive.
-${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}${timeTrackingSql(ctx)}`;
+${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}${timeEntriesSql(ctx)}`;
 }
 
 const timeByEmployee = (ctx: BlockSqlContext): boolean =>
-  ctx.installed("time-tracking") &&
-  ctx.of("time-tracking").option("owner") === "employee";
+  ctx.installed("time-entries") &&
+  ctx.of("time-entries").option("owner") === "employee";
 
-function timeTrackingSql(ctx: BlockSqlContext): string {
-  if (!ctx.installed("time-tracking")) {
+function timeEntriesSql(ctx: BlockSqlContext): string {
+  if (!ctx.installed("time-entries")) {
     return "";
   }
 
-  const time = ctx.of("time-tracking");
+  const time = ctx.of("time-entries");
 
   if (!timeByEmployee(ctx)) {
     return employeeKeySql(ctx, { owner: time, table: "entries" });
@@ -644,9 +640,9 @@ export const EMPLOYEES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Employees",
   description:
-    "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.",
+    "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "relations", "hiring", "time-tracking", "approvals"],
+  integrates: ["outbox", "relations", "hiring", "time-entries", "approvals"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,
@@ -654,14 +650,14 @@ export const EMPLOYEES: BlockSqlDefinition = {
     {
       from: 1,
       description:
-        "With time-tracking, time entries gain employee_id, backfilled and kept current by triggers.",
+        "With time-entries, time entries gain employee_id, backfilled and kept current by triggers.",
       sql: (ctx) =>
-        ctx.installed("time-tracking") && !timeByEmployee(ctx)
+        ctx.installed("time-entries") && !timeByEmployee(ctx)
           ? employeeKeyBackfillSql(ctx, {
-              owner: ctx.of("time-tracking"),
+              owner: ctx.of("time-entries"),
               table: "entries",
               quiet: [
-                ctx.of("time-tracking").naming.rename("bsb_time_entry_guard"),
+                ctx.of("time-entries").naming.rename("bsb_time_entry_guard"),
               ],
             })
           : "",

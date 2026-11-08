@@ -40,7 +40,7 @@ create table public.calendars (
   organization_id uuid not null,
   name text not null,
   timezone text not null default 'UTC',
-  owner_user_id uuid,
+  owner_id uuid,
   visibility public.calendar_visibility not null default 'team',
   is_default boolean not null default false,
   position integer,
@@ -60,11 +60,11 @@ create table public.events (
   timezone text not null default 'UTC',
   status public.event_status not null default 'busy',
   recurrence_id uuid references public.events (id) on delete cascade,
-  original_start timestamptz,
+  original_starts_at timestamptz,
   visibility public.event_visibility not null default 'normal',
   transparency public.event_transparency not null default 'opaque',
   source text not null default 'local',
-  owner_user_id uuid,
+  owner_id uuid,
   created_by uuid,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -139,7 +139,7 @@ const CALENDAR: AnyBlocksConfig[string] = {
       tz: "timezone",
       color: null,
       ownerType: null,
-      ownerId: "owner_user_id",
+      ownerId: "owner_id",
       rank: "position",
     },
     events: {
@@ -155,7 +155,7 @@ const CALENDAR: AnyBlocksConfig[string] = {
       color: null,
       kind: null,
       autoDecline: null,
-      owner: "owner_user_id",
+      owner: "owner_id",
     },
     attendees: {
       tenant: "organization_id",
@@ -364,7 +364,7 @@ begin
     raise exception 'bob reads alice''s private calendar';
   end if;
   v_secret := (better_supabase.save_calendar_event(v_team, '{"title": "Interview", "visibility": "private", "startsAt": "2026-03-03T09:00:00Z", "endsAt": "2026-03-03T10:00:00Z"}') ->> 'id')::uuid;
-  if (select visibility::text || '/' || owner_user_id::text from public.events where id = v_secret) <> 'secret/${BOB}' then
+  if (select visibility::text || '/' || owner_id::text from public.events where id = v_secret) <> 'secret/${BOB}' then
     raise exception 'secret %', (select to_jsonb(e) from public.events e where id = v_secret);
   end if;
   execute 'set local role authenticated';

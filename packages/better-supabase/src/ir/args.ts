@@ -226,7 +226,7 @@ export type SelectArg<
   T extends keyof M,
 > = readonly Extract<keyof Row<M, T>, string>[];
 
-export interface IncludeArgs<M extends AnyModels, T extends keyof M> {
+export interface IncludeOptions<M extends AnyModels, T extends keyof M> {
   readonly select?: SelectArg<M, T>;
   readonly include?: IncludeArg<M, T>;
   readonly where?: WhereInput<M, T>;
@@ -239,7 +239,7 @@ export interface IncludeArgs<M extends AnyModels, T extends keyof M> {
 export type IncludeArg<M extends AnyModels, T extends keyof M> = {
   readonly [R in keyof Relations<M, T>]?:
     | true
-    | IncludeArgs<M, Extract<TargetOf<Relations<M, T>[R]>, keyof M>>;
+    | IncludeOptions<M, Extract<TargetOf<Relations<M, T>[R]>, keyof M>>;
 } & {
   /** Counts related rows: `_count: { notes: true }` returns `_count.notes`. */
   readonly _count?: CountArg<M, T>;
@@ -304,7 +304,7 @@ export type CountArg<M extends AnyModels, T extends keyof M> = {
 type TargetOf<R> = R extends { readonly table: infer X } ? X : never;
 
 /** Per-call request settings every repository method takes. */
-export interface RequestArgs {
+export interface ApiRequestParams {
   readonly signal?: AbortSignal;
   /**
    * Fails the call with a `timeout` error after this many milliseconds,
@@ -320,10 +320,10 @@ export interface RequestArgs {
   readonly retry?: boolean;
 }
 
-export interface ReadArgs<
+export interface ReadOptions<
   M extends AnyModels,
   T extends keyof M,
-> extends RequestArgs {
+> extends ApiRequestParams {
   readonly select?: SelectArg<M, T>;
   readonly include?: IncludeArg<M, T>;
   /** Related counts go inside `include`: `include: { _count: { notes: true } }`. */
@@ -335,10 +335,10 @@ export interface ReadArgs<
   readonly _max?: never;
 }
 
-export interface ListArgs<
+export interface ListParams<
   M extends AnyModels,
   T extends keyof M,
-> extends ReadArgs<M, T> {
+> extends ReadOptions<M, T> {
   readonly where?: WhereArg<M, T>;
   readonly orderBy?: OrderByArg<M, T>;
   readonly limit?: number;
@@ -346,26 +346,26 @@ export interface ListArgs<
 }
 
 /** `get()` options. */
-export interface GetArgs<
+export interface GetOptions<
   M extends AnyModels,
   T extends keyof M,
-> extends ReadArgs<M, T> {
+> extends ReadOptions<M, T> {
   /** Resolve to `null` instead of a `not_found` error when no row matches. */
   readonly optional?: boolean;
 }
 
-export interface CountArgs<
+export interface CountOptions<
   M extends AnyModels,
   T extends keyof M,
-> extends RequestArgs {
+> extends ApiRequestParams {
   readonly where?: WhereArg<M, T>;
   readonly mode?: "exact" | "planned" | "estimated";
 }
 
-export interface AggregateArgs<
+export interface AggregateOptions<
   M extends AnyModels,
   T extends keyof M,
-> extends RequestArgs {
+> extends ApiRequestParams {
   readonly where?: WhereArg<M, T>;
   /** One result per distinct combination; without it, one result. */
   readonly groupBy?: SelectArg<M, T>;

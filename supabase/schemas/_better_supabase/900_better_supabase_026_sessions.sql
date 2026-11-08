@@ -1,46 +1,9 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:57e6bd6723b72963d7c84aaaef65eaa0cee27f422f71a34d3331be3222c54ec8
+-- @bsb-hash sha256:e3ed60e9984ab4a540b2ead6739df8e185e0ca29b88a23ecfa295a0ee2c4917d
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- An access token stays valid until it expires, even after its session is
 -- signed out or its user is deleted. This checks the session behind it.
@@ -222,82 +185,66 @@ grant execute on function better_supabase.sessions_overview() to authenticated;
 
 -- blocks['sessions'].options.policies: every table in the schema files,
 -- except blocks['sessions'].options.exclude. `upgrade` rewrites these.
-drop policy if exists bsb_session_active on "public"."change_requests";
 create policy bsb_session_active on "public"."change_requests" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."client_notes";
 create policy bsb_session_active on "public"."client_notes" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."contacts";
 create policy bsb_session_active on "public"."contacts" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."customer_tags";
 create policy bsb_session_active on "public"."customer_tags" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."customers";
 create policy bsb_session_active on "public"."customers" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."locations";
 create policy bsb_session_active on "public"."locations" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."memberships";
 create policy bsb_session_active on "public"."memberships" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."notes";
 create policy bsb_session_active on "public"."notes" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."organizations";
 create policy bsb_session_active on "public"."organizations" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."plan_features";
 create policy bsb_session_active on "public"."plan_features" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."plans";
 create policy bsb_session_active on "public"."plans" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."projects";
 create policy bsb_session_active on "public"."projects" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."saved_views";
 create policy bsb_session_active on "public"."saved_views" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."subscriptions";
 create policy bsb_session_active on "public"."subscriptions" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."tags";
 create policy bsb_session_active on "public"."tags" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "public"."tasks";
 create policy bsb_session_active on "public"."tasks" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
@@ -306,7 +253,7 @@ create policy bsb_session_active on "public"."tasks" as restrictive
 -- blocks['sessions'].options.authzVersions: one authorization version per
 -- user. Attach better_supabase.bump_authz_version() to the tables a user's
 -- access comes from; the access token hook reads better_supabase.authz_version().
-create table if not exists better_supabase.user_authz_versions (
+create table better_supabase.user_authz_versions (
   user_id uuid primary key references auth.users on delete cascade,
   version bigint not null default 1,
   updated_at timestamptz not null default now()
@@ -318,7 +265,6 @@ revoke all on better_supabase.user_authz_versions from public, anon, authenticat
 grant select on better_supabase.user_authz_versions to supabase_auth_admin;
 grant all on better_supabase.user_authz_versions to service_role;
 
-drop policy if exists bsb_authz_versions_auth_admin on better_supabase.user_authz_versions;
 create policy bsb_authz_versions_auth_admin on better_supabase.user_authz_versions
   for select to supabase_auth_admin
   using (true);
@@ -399,22 +345,13 @@ end;
 $$;
 
 revoke execute on function better_supabase.broadcast_authz_version() from public, anon, authenticated;
-
-drop trigger if exists bsb_authz_versions_broadcast on better_supabase.user_authz_versions;
 create trigger bsb_authz_versions_broadcast
   after insert or update on better_supabase.user_authz_versions
   for each row execute function better_supabase.broadcast_authz_version();
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-    drop policy if exists bsb_authz_versions_receive on realtime.messages;
 create policy bsb_authz_versions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'authz:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- The caller's own authorization version, null without a signed-in user.
 -- Clients compare it with the token's authz_ver to catch up on a broadcast
@@ -476,27 +413,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."session_active"();
-drop function if exists "api"."session_end_reason"();
 
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."last_sign_ins"(p_users uuid[])
 returns table (user_id uuid, last_sign_in_at timestamptz)
@@ -583,16 +500,3 @@ set search_path = ''
 as $$ select "better_supabase"."bootstrap_islands"($1) $$;
 revoke execute on function "api"."bootstrap_islands"(jsonb) from public, anon, service_role;
 grant execute on function "api"."bootstrap_islands"(jsonb) to authenticated;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

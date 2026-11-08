@@ -1,7 +1,6 @@
 import { CalendarXIcon, ChevronRightIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 import { notFound } from "next/navigation";
-import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { buttonVariants } from "@/components/ui/button";
@@ -30,15 +29,13 @@ import { SlotPicker } from "./slot-picker";
 // #region recipe:booking-page
 /** The public page of a booking link: open slots for a week, then a form. */
 export async function BookingPage({
-  params,
-  searchParams,
+  token,
+  query,
 }: {
-  params: Promise<{ token: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  token: string;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [{ token }, query, t, format] = await Promise.all([
-    params,
-    searchParams,
+  const [t, format] = await Promise.all([
     getExtracted("bookings"),
     getFormatter(),
   ]);

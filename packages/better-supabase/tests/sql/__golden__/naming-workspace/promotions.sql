@@ -1,164 +1,87 @@
 -- ==== schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:a4d96c54533fd2d81aec9b209d5371a4f9dfc9a613cb043166bb07b31d7ccc5d
+-- @bsb-hash sha256:ecaa65553098ab37ab1fe26be106d599ab52b73d537c9cc62cd44be8b9d7b7dc
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."promotions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."promotions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."promotions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."promotions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."promotion_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."promotion_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."promotion_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."promotion_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotion_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."cart_promotion_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."cart_promotion_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."cart_promotion_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."cart_promotion_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."cart_promotion_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."promotion_redemptions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."promotion_redemptions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."promotion_redemptions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."promotion_redemptions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotion_redemptions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Promotions (percentage, fixed or free shipping), automatic or by code,
 -- with usage limits and stacking rules; orders prices carts with them.
 
-create table if not exists "better_supabase"."promotions" (
+create table "better_supabase"."promotions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
-  "kind" text not null check ("kind" in ('percentage', 'fixed', 'free_shipping')),
-  "percent" numeric(5, 2) check ("percent" > 0 and "percent" <= 100),
-  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
-  "amount" bigint check ("amount" > 0),
-  "min_subtotal" bigint check ("min_subtotal" > 0),
-  "scope" text not null default 'order' check ("scope" in ('order', 'products', 'categories', 'collections')),
+  "name" text not null constraint bsb_promotions_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_promotions_description_check check (length("description") <= 2000),
+  "kind" text not null constraint bsb_promotions_kind_check check ("kind" in ('percentage', 'fixed', 'free_shipping')),
+  "percent" numeric(5, 2) constraint bsb_promotions_percent_check check ("percent" > 0 and "percent" <= 100),
+  "currency" char(3) constraint bsb_promotions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint constraint bsb_promotions_amount_check check ("amount" > 0),
+  "min_subtotal" bigint constraint bsb_promotions_min_subtotal_check check ("min_subtotal" > 0),
+  "scope" text not null default 'order' constraint bsb_promotions_scope_check check ("scope" in ('order', 'products', 'categories', 'collections')),
   "target_ids" uuid[] not null default '{}',
   "starts_at" timestamptz,
   "ends_at" timestamptz,
-  "usage_limit" integer check ("usage_limit" > 0),
-  "per_customer_limit" integer check ("per_customer_limit" > 0),
-  "redemptions" integer not null default 0 check ("redemptions" >= 0),
+  "usage_limit" integer constraint bsb_promotions_usage_limit_check check ("usage_limit" > 0),
+  "per_customer_limit" integer constraint bsb_promotions_per_customer_limit_check check ("per_customer_limit" > 0),
+  "redemptions" integer not null default 0 constraint bsb_promotions_redemptions_check check ("redemptions" >= 0),
   "stackable" boolean not null default false,
   "priority" integer not null default 0,
   "automatic" boolean not null default false,
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("kind" = 'percentage') = ("percent" is not null)),
-  check (("kind" = 'fixed') = ("amount" is not null)),
-  check (("amount" is null and "min_subtotal" is null) or "currency" is not null),
-  check ("ends_at" is null or "starts_at" is null or "ends_at" > "starts_at")
+  constraint bsb_promotions_check check (("kind" = 'percentage') = ("percent" is not null)),
+  constraint bsb_promotions_check1 check (("kind" = 'fixed') = ("amount" is not null)),
+  constraint bsb_promotions_check2 check (("amount" is null and "min_subtotal" is null) or "currency" is not null),
+  constraint bsb_promotions_check3 check ("ends_at" is null or "starts_at" is null or "ends_at" > "starts_at")
 );
-create index if not exists promotions_tenant_idx on "better_supabase"."promotions" ("tenant_id", "active", "automatic");
+create index promotions_tenant_idx on "better_supabase"."promotions" ("tenant_id", "active", "automatic");
 alter table "better_supabase"."promotions" enable row level security;
 revoke all on "better_supabase"."promotions" from public, anon, authenticated;
 grant select on "better_supabase"."promotions" to authenticated;
 grant all on "better_supabase"."promotions" to service_role;
-drop policy if exists promotions_read on "better_supabase"."promotions";
-create policy promotions_read on "better_supabase"."promotions"
+create policy bsb_promotions_read on "better_supabase"."promotions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
-create table if not exists "better_supabase"."promotion_codes" (
+create table "better_supabase"."promotion_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "promotion_id" uuid not null references "better_supabase"."promotions" ("id") on delete cascade,
-  "code" text not null check ("code" ~ '^[A-Z0-9_-]{3,40}$'),
-  "usage_limit" integer check ("usage_limit" > 0),
-  "redemptions" integer not null default 0 check ("redemptions" >= 0),
+  "code" text not null constraint bsb_promotion_codes_code_check check ("code" ~ '^[A-Z0-9_-]{3,40}$'),
+  "usage_limit" integer constraint bsb_promotion_codes_usage_limit_check check ("usage_limit" > 0),
+  "redemptions" integer not null default 0 constraint bsb_promotion_codes_redemptions_check check ("redemptions" >= 0),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
 );
-create index if not exists promotion_codes_promotion_idx on "better_supabase"."promotion_codes" ("promotion_id");
+create index promotion_codes_promotion_idx on "better_supabase"."promotion_codes" ("promotion_id");
 alter table "better_supabase"."promotion_codes" enable row level security;
 revoke all on "better_supabase"."promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_codes" to authenticated;
 grant all on "better_supabase"."promotion_codes" to service_role;
-drop policy if exists promotion_codes_read on "better_supabase"."promotion_codes";
-create policy promotion_codes_read on "better_supabase"."promotion_codes"
+create policy bsb_promotion_codes_read on "better_supabase"."promotion_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
-create table if not exists "better_supabase"."cart_promotion_codes" (
+create table "better_supabase"."cart_promotion_codes" (
   "tenant_id" uuid not null,
   "cart_id" uuid not null references "better_supabase"."carts" ("id") on delete cascade,
   "code_id" uuid not null references "better_supabase"."promotion_codes" ("id") on delete cascade,
   "created_at" timestamptz not null default now(),
   primary key ("cart_id", "code_id")
 );
-create index if not exists cart_promotion_codes_code_idx on "better_supabase"."cart_promotion_codes" ("code_id");
+create index cart_promotion_codes_code_idx on "better_supabase"."cart_promotion_codes" ("code_id");
 alter table "better_supabase"."cart_promotion_codes" enable row level security;
 revoke all on "better_supabase"."cart_promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."cart_promotion_codes" to authenticated;
 grant all on "better_supabase"."cart_promotion_codes" to service_role;
-drop policy if exists cart_promotion_codes_read on "better_supabase"."cart_promotion_codes";
-create policy cart_promotion_codes_read on "better_supabase"."cart_promotion_codes"
+create policy bsb_cart_promotion_codes_read on "better_supabase"."cart_promotion_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."promotion_redemptions" (
+create table "better_supabase"."promotion_redemptions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "promotion_id" uuid not null references "better_supabase"."promotions" ("id"),
@@ -166,22 +89,21 @@ create table if not exists "better_supabase"."promotion_redemptions" (
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "customer_id" uuid references auth.users (id) on delete set null,
   "email" text,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "amount" bigint not null check ("amount" >= 0),
-  "status" text not null default 'redeemed' check ("status" in ('redeemed', 'released')),
+  "currency" char(3) not null constraint bsb_promotion_redemptions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null constraint bsb_promotion_redemptions_amount_check check ("amount" >= 0),
+  "status" text not null default 'redeemed' constraint bsb_promotion_redemptions_status_check check ("status" in ('redeemed', 'released')),
   "created_at" timestamptz not null default now(),
   "released_at" timestamptz,
   unique ("order_id", "promotion_id")
 );
-create index if not exists promotion_redemptions_promotion_idx on "better_supabase"."promotion_redemptions" ("promotion_id", "status");
-create index if not exists promotion_redemptions_customer_idx on "better_supabase"."promotion_redemptions" ("customer_id");
-create index if not exists promotion_redemptions_code_idx on "better_supabase"."promotion_redemptions" ("code_id");
+create index promotion_redemptions_promotion_idx on "better_supabase"."promotion_redemptions" ("promotion_id", "status");
+create index promotion_redemptions_customer_idx on "better_supabase"."promotion_redemptions" ("customer_id");
+create index promotion_redemptions_code_idx on "better_supabase"."promotion_redemptions" ("code_id");
 alter table "better_supabase"."promotion_redemptions" enable row level security;
 revoke all on "better_supabase"."promotion_redemptions" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_redemptions" to authenticated;
 grant all on "better_supabase"."promotion_redemptions" to service_role;
-drop policy if exists promotion_redemptions_read on "better_supabase"."promotion_redemptions";
-create policy promotion_redemptions_read on "better_supabase"."promotion_redemptions"
+create policy bsb_promotion_redemptions_read on "better_supabase"."promotion_redemptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or "customer_id" = (select auth.uid()));
 
@@ -190,7 +112,7 @@ create policy promotion_redemptions_read on "better_supabase"."promotion_redempt
 -- minSubtotal (minor units as text), scope (order, products, categories or
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
-drop function if exists "better_supabase"."save_promotion"(uuid, uuid, jsonb, jsonb);
+
 create or replace function "better_supabase"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language plpgsql
@@ -849,115 +771,70 @@ revoke execute on function "better_supabase"."move_cart_codes"(uuid, uuid) from 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
-    create function better_supabase.member_workspace_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."promotions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."promotions";
 create policy bsb_tenant_scope_select on "better_supabase"."promotions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."promotions";
 create policy bsb_tenant_scope_insert on "better_supabase"."promotions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."promotions";
 create policy bsb_tenant_scope_update on "better_supabase"."promotions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotions";
 create policy bsb_tenant_scope_delete on "better_supabase"."promotions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."promotion_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."promotion_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."promotion_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."promotion_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."promotion_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."promotion_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."promotion_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotion_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."promotion_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."cart_promotion_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."cart_promotion_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."cart_promotion_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."cart_promotion_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."cart_promotion_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."cart_promotion_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."cart_promotion_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."cart_promotion_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."cart_promotion_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."promotion_redemptions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."promotion_redemptions";
 create policy bsb_tenant_scope_select on "better_supabase"."promotion_redemptions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or "customer_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."promotion_redemptions";
 create policy bsb_tenant_scope_insert on "better_supabase"."promotion_redemptions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."promotion_redemptions";
 create policy bsb_tenant_scope_update on "better_supabase"."promotion_redemptions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."promotion_redemptions";
 create policy bsb_tenant_scope_delete on "better_supabase"."promotion_redemptions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions

@@ -16,23 +16,19 @@ import type { AssetsSqlOptions } from "./assets/options.ts";
 import type { AttachmentsSqlOptions } from "./attachments/options.ts";
 import type { AuditSqlOptions } from "./audit/options.ts";
 import type { AutomationsSqlOptions } from "./automations/options.ts";
-import type { BankingSqlOptions } from "./banking/options.ts";
 import type { BillingSqlOptions } from "./billing/options.ts";
 import type { BookingsSqlOptions } from "./bookings/options.ts";
-import type { BulkSqlOptions } from "./bulk/options.ts";
+import type { BulkActionsSqlOptions } from "./bulk-actions/options.ts";
 import type { CalendarSqlOptions } from "./calendar/options.ts";
 import type { CarePlansSqlOptions } from "./care-plans/options.ts";
 import type { CasesSqlOptions } from "./cases/options.ts";
 import type { CatalogSqlOptions } from "./catalog/options.ts";
-import type { CollectionsSqlOptions } from "./collections/options.ts";
 import type { CommentsSqlOptions } from "./comments/options.ts";
 import type { CommissionsSqlOptions } from "./commissions/options.ts";
-import type { ComplianceSqlOptions } from "./compliance/options.ts";
 import type { ConnectorsSqlOptions } from "./connectors/options.ts";
 import type { ContactsSqlOptions } from "./contacts/options.ts";
 import type { ContentSqlOptions } from "./content/options.ts";
 import type { ContractsSqlOptions } from "./contracts/options.ts";
-import type { CoursesSqlOptions } from "./courses/options.ts";
 import type { CreatedBySqlOptions } from "./created-by/options.ts";
 import type { CredentialsSqlOptions } from "./credentials/options.ts";
 import type { CustomFieldsSqlOptions } from "./custom-fields/options.ts";
@@ -42,7 +38,6 @@ import type { DispatchSqlOptions } from "./dispatch/options.ts";
 import type { DocumentTemplatesSqlOptions } from "./document-templates/options.ts";
 import type { DocumentsSqlOptions } from "./documents/options.ts";
 import type { DomainsSqlOptions } from "./domains/options.ts";
-import type { DonationsSqlOptions } from "./donations/options.ts";
 import type { DriveSqlOptions } from "./drive/options.ts";
 import type { EmployeesSqlOptions } from "./employees/options.ts";
 import type { EnrollmentsSqlOptions } from "./enrollments/options.ts";
@@ -51,7 +46,6 @@ import type { FieldHistorySqlOptions } from "./field-history/options.ts";
 import type { FlagsSqlOptions } from "./flags/options.ts";
 import type { FormsSqlOptions } from "./forms/options.ts";
 import type { FundingSqlOptions } from "./funding/options.ts";
-import type { GoalsSqlOptions } from "./goals/options.ts";
 import type { GrantsSqlOptions } from "./grants/options.ts";
 import type { GuestsSqlOptions } from "./guests/options.ts";
 import type { HiringSqlOptions } from "./hiring/options.ts";
@@ -59,7 +53,6 @@ import type { IdentitiesSqlOptions } from "./identities/options.ts";
 import type { ImpersonationSqlOptions } from "./impersonation/options.ts";
 import type { ImportsSqlOptions } from "./imports/options.ts";
 import type { InboxSqlOptions } from "./inbox/options.ts";
-import type { IncidentsSqlOptions } from "./incidents/options.ts";
 import type { InspectionsSqlOptions } from "./inspections/options.ts";
 import type { InventorySqlOptions } from "./inventory/options.ts";
 import type { InvoicesSqlOptions } from "./invoices/options.ts";
@@ -97,15 +90,9 @@ import type { PermissionsSqlOptions } from "./permissions/options.ts";
 import type { PipelinesSqlOptions } from "./pipelines/options.ts";
 import type { PostsSqlOptions } from "./posts/options.ts";
 import type { ProfilesSqlOptions } from "./profiles/options.ts";
-import type { PromotionsSqlOptions } from "./promotions/options.ts";
 import type { PromptsSqlOptions } from "./prompts/options.ts";
-import type { PushSqlOptions } from "./push/options.ts";
 import type { QualificationsSqlOptions } from "./qualifications/options.ts";
-import type {
-  QueueSqlOptions,
-  RateLimitSqlOptions,
-  WebhookInboxSqlOptions,
-} from "./queue/options.ts";
+import type { QueueSqlOptions, RateLimitSqlOptions } from "./queue/options.ts";
 import type { QuotesSqlOptions } from "./quotes/options.ts";
 import type { ReactionsSqlOptions } from "./reactions/options.ts";
 import type { ReferralsSqlOptions } from "./referrals/options.ts";
@@ -114,18 +101,15 @@ import type { RemindersSqlOptions } from "./reminders/options.ts";
 import type { ReservedSlugsSqlOptions } from "./reserved-slugs/options.ts";
 import type { ReviewsSqlOptions } from "./reviews/options.ts";
 import type { RisksSqlOptions } from "./risks/options.ts";
-import type { SavedViewsSqlOptions } from "./saved-views/options.ts";
 import type { ScoresSqlOptions } from "./scores/options.ts";
 import type { SearchSqlOptions } from "./search/options.ts";
 import type { SecurityEventsSqlOptions } from "./security-events/options.ts";
 import type { SegmentsSqlOptions } from "./segments/options.ts";
 import type { SequencesSqlOptions } from "./sequences/options.ts";
-import type { ServiceAccountsSqlOptions } from "./service-accounts/options.ts";
 import type { SessionsSqlOptions } from "./sessions/options.ts";
 import type { SettingsSqlOptions } from "./settings/options.ts";
 import type { ShareLinksSqlOptions } from "./share-links/options.ts";
 import type { ShiftsSqlOptions } from "./shifts/options.ts";
-import type { ShipmentsSqlOptions } from "./shipments/options.ts";
 import type { SignaturesSqlOptions } from "./signatures/options.ts";
 import type { SigningKeysSqlOptions } from "./signing-keys/options.ts";
 import type { SlaSqlOptions } from "./sla/options.ts";
@@ -137,7 +121,7 @@ import type { TagsSqlOptions } from "./tags/options.ts";
 import type { TasksSqlOptions } from "./tasks/options.ts";
 import type { TeamsSqlOptions } from "./teams/options.ts";
 import type { TemplatesSqlOptions } from "./templates/options.ts";
-import type { TimeTrackingSqlOptions } from "./time-tracking/options.ts";
+import type { TimeEntriesSqlOptions } from "./time-entries/options.ts";
 import type { TrashSqlOptions } from "./trash/options.ts";
 import type { UpdatedAtSqlOptions } from "./updated-at/options.ts";
 import type { UsageSqlOptions } from "./usage/options.ts";
@@ -149,9 +133,7 @@ import type {
   WebhooksOutSqlOptions,
   WebhooksInSqlOptions,
 } from "./webhooks/options.ts";
-import type { WorkflowEditorSqlOptions } from "./workflow-editor/options.ts";
 import type { WorkflowSdkSqlOptions } from "./workflow-sdk/options.ts";
-import type { WorkflowsSqlOptions } from "./workflows/options.ts";
 
 import { accessRequestsSqlOptions } from "./access-requests/options.ts";
 import { accountingSqlOptions } from "./accounting/options.ts";
@@ -171,23 +153,19 @@ import { assetsSqlOptions } from "./assets/options.ts";
 import { attachmentsSqlOptions } from "./attachments/options.ts";
 import { auditSqlOptions } from "./audit/options.ts";
 import { automationsSqlOptions } from "./automations/options.ts";
-import { bankingSqlOptions } from "./banking/options.ts";
 import { billingSqlOptions } from "./billing/options.ts";
 import { bookingsSqlOptions } from "./bookings/options.ts";
-import { bulkSqlOptions } from "./bulk/options.ts";
+import { bulkActionsSqlOptions } from "./bulk-actions/options.ts";
 import { calendarSqlOptions } from "./calendar/options.ts";
 import { carePlansSqlOptions } from "./care-plans/options.ts";
 import { casesSqlOptions } from "./cases/options.ts";
 import { catalogSqlOptions } from "./catalog/options.ts";
-import { collectionsSqlOptions } from "./collections/options.ts";
 import { commentsSqlOptions } from "./comments/options.ts";
 import { commissionsSqlOptions } from "./commissions/options.ts";
-import { complianceSqlOptions } from "./compliance/options.ts";
 import { connectorsSqlOptions } from "./connectors/options.ts";
 import { contactsSqlOptions } from "./contacts/options.ts";
 import { contentSqlOptions } from "./content/options.ts";
 import { contractsSqlOptions } from "./contracts/options.ts";
-import { coursesSqlOptions } from "./courses/options.ts";
 import { createdBySqlOptions } from "./created-by/options.ts";
 import { credentialsSqlOptions } from "./credentials/options.ts";
 import { customFieldsSqlOptions } from "./custom-fields/options.ts";
@@ -197,7 +175,6 @@ import { dispatchSqlOptions } from "./dispatch/options.ts";
 import { documentTemplatesSqlOptions } from "./document-templates/options.ts";
 import { documentsSqlOptions } from "./documents/options.ts";
 import { domainsSqlOptions } from "./domains/options.ts";
-import { donationsSqlOptions } from "./donations/options.ts";
 import { driveSqlOptions } from "./drive/options.ts";
 import { employeesSqlOptions } from "./employees/options.ts";
 import { enrollmentsSqlOptions } from "./enrollments/options.ts";
@@ -206,7 +183,6 @@ import { fieldHistorySqlOptions } from "./field-history/options.ts";
 import { flagsSqlOptions } from "./flags/options.ts";
 import { formsSqlOptions } from "./forms/options.ts";
 import { fundingSqlOptions } from "./funding/options.ts";
-import { goalsSqlOptions } from "./goals/options.ts";
 import { grantsSqlOptions } from "./grants/options.ts";
 import { guestsSqlOptions } from "./guests/options.ts";
 import { hiringSqlOptions } from "./hiring/options.ts";
@@ -214,7 +190,6 @@ import { identitiesSqlOptions } from "./identities/options.ts";
 import { impersonationSqlOptions } from "./impersonation/options.ts";
 import { importsSqlOptions } from "./imports/options.ts";
 import { inboxSqlOptions } from "./inbox/options.ts";
-import { incidentsSqlOptions } from "./incidents/options.ts";
 import { inspectionsSqlOptions } from "./inspections/options.ts";
 import { inventorySqlOptions } from "./inventory/options.ts";
 import { invoicesSqlOptions } from "./invoices/options.ts";
@@ -252,15 +227,9 @@ import { permissionsSqlOptions } from "./permissions/options.ts";
 import { pipelinesSqlOptions } from "./pipelines/options.ts";
 import { postsSqlOptions } from "./posts/options.ts";
 import { profilesSqlOptions } from "./profiles/options.ts";
-import { promotionsSqlOptions } from "./promotions/options.ts";
 import { promptsSqlOptions } from "./prompts/options.ts";
-import { pushSqlOptions } from "./push/options.ts";
 import { qualificationsSqlOptions } from "./qualifications/options.ts";
-import {
-  queueSqlOptions,
-  rateLimitSqlOptions,
-  webhookInboxSqlOptions,
-} from "./queue/options.ts";
+import { queueSqlOptions, rateLimitSqlOptions } from "./queue/options.ts";
 import { quotesSqlOptions } from "./quotes/options.ts";
 import { reactionsSqlOptions } from "./reactions/options.ts";
 import { referralsSqlOptions } from "./referrals/options.ts";
@@ -269,18 +238,15 @@ import { remindersSqlOptions } from "./reminders/options.ts";
 import { reservedSlugsSqlOptions } from "./reserved-slugs/options.ts";
 import { reviewsSqlOptions } from "./reviews/options.ts";
 import { risksSqlOptions } from "./risks/options.ts";
-import { savedViewsSqlOptions } from "./saved-views/options.ts";
 import { scoresSqlOptions } from "./scores/options.ts";
 import { searchSqlOptions } from "./search/options.ts";
 import { securityEventsSqlOptions } from "./security-events/options.ts";
 import { segmentsSqlOptions } from "./segments/options.ts";
 import { sequencesSqlOptions } from "./sequences/options.ts";
-import { serviceAccountsSqlOptions } from "./service-accounts/options.ts";
 import { sessionsSqlOptions } from "./sessions/options.ts";
 import { settingsSqlOptions } from "./settings/options.ts";
 import { shareLinksSqlOptions } from "./share-links/options.ts";
 import { shiftsSqlOptions } from "./shifts/options.ts";
-import { shipmentsSqlOptions } from "./shipments/options.ts";
 import { signaturesSqlOptions } from "./signatures/options.ts";
 import { signingKeysSqlOptions } from "./signing-keys/options.ts";
 import { slaSqlOptions } from "./sla/options.ts";
@@ -292,7 +258,7 @@ import { tagsSqlOptions } from "./tags/options.ts";
 import { tasksSqlOptions } from "./tasks/options.ts";
 import { teamsSqlOptions } from "./teams/options.ts";
 import { templatesSqlOptions } from "./templates/options.ts";
-import { timeTrackingSqlOptions } from "./time-tracking/options.ts";
+import { timeEntriesSqlOptions } from "./time-entries/options.ts";
 import { trashSqlOptions } from "./trash/options.ts";
 import { updatedAtSqlOptions } from "./updated-at/options.ts";
 import { usageSqlOptions } from "./usage/options.ts";
@@ -304,9 +270,7 @@ import {
   webhooksOutSqlOptions,
   webhooksInSqlOptions,
 } from "./webhooks/options.ts";
-import { workflowEditorSqlOptions } from "./workflow-editor/options.ts";
 import { workflowSdkSqlOptions } from "./workflow-sdk/options.ts";
-import { workflowsSqlOptions } from "./workflows/options.ts";
 
 type None = Record<never, never>;
 
@@ -337,28 +301,28 @@ export interface BlockOptionsRegistry {
   readonly attachments: AttachmentsSqlOptions;
   readonly audit: AuditSqlOptions;
   readonly automations: AutomationsSqlOptions;
-  readonly banking: BankingSqlOptions;
+  readonly banking: None;
   readonly tax: Record<never, never>;
   readonly "document-templates": DocumentTemplatesSqlOptions;
   readonly "payroll-export": PayrollExportSqlOptions;
   readonly "billable-time": None;
   readonly billing: BillingSqlOptions;
   readonly bookings: BookingsSqlOptions;
-  readonly bulk: BulkSqlOptions;
+  readonly "bulk-actions": BulkActionsSqlOptions;
   readonly calendar: CalendarSqlOptions;
   readonly "care-plans": CarePlansSqlOptions;
   readonly catalog: CatalogSqlOptions;
   readonly channels: None;
   readonly "chat-sdk-state": None;
-  readonly collections: CollectionsSqlOptions;
+  readonly collections: None;
   readonly comments: CommentsSqlOptions;
   readonly commissions: CommissionsSqlOptions;
-  readonly compliance: ComplianceSqlOptions;
+  readonly compliance: None;
   readonly connectors: ConnectorsSqlOptions;
   readonly consents: None;
   readonly contacts: ContactsSqlOptions;
   readonly contracts: ContractsSqlOptions;
-  readonly courses: CoursesSqlOptions;
+  readonly courses: None;
   readonly "created-by": CreatedBySqlOptions;
   readonly credentials: CredentialsSqlOptions;
   readonly "custom-fields": CustomFieldsSqlOptions;
@@ -368,7 +332,7 @@ export interface BlockOptionsRegistry {
   readonly dispatch: DispatchSqlOptions;
   readonly documents: DocumentsSqlOptions;
   readonly domains: DomainsSqlOptions;
-  readonly donations: DonationsSqlOptions;
+  readonly donations: None;
   readonly drive: DriveSqlOptions;
   readonly "drive-files": None;
   readonly employees: EmployeesSqlOptions;
@@ -380,7 +344,7 @@ export interface BlockOptionsRegistry {
   readonly "field-history": FieldHistorySqlOptions;
   readonly forecasts: None;
   readonly forms: FormsSqlOptions;
-  readonly goals: GoalsSqlOptions;
+  readonly goals: None;
   readonly grants: GrantsSqlOptions;
   readonly guests: GuestsSqlOptions;
   readonly hiring: HiringSqlOptions;
@@ -391,7 +355,7 @@ export interface BlockOptionsRegistry {
   readonly impersonation: ImpersonationSqlOptions;
   readonly imports: ImportsSqlOptions;
   readonly inbox: InboxSqlOptions;
-  readonly incidents: IncidentsSqlOptions;
+  readonly incidents: None;
   readonly inspections: InspectionsSqlOptions;
   readonly meetings: MeetingsSqlOptions;
   readonly maintenance: Record<never, never>;
@@ -444,8 +408,8 @@ export interface BlockOptionsRegistry {
   readonly shifts: ShiftsSqlOptions;
   readonly medications: MedicationsSqlOptions;
   readonly profiles: ProfilesSqlOptions;
-  readonly promotions: PromotionsSqlOptions;
-  readonly push: PushSqlOptions;
+  readonly promotions: None;
+  readonly push: None;
   readonly queue: QueueSqlOptions;
   readonly quotes: QuotesSqlOptions;
   readonly rank: None;
@@ -463,17 +427,17 @@ export interface BlockOptionsRegistry {
   readonly cases: CasesSqlOptions;
   readonly observations: ObservationsSqlOptions;
   readonly "rls-guard": None;
-  readonly "saved-views": SavedViewsSqlOptions;
+  readonly "saved-views": None;
   readonly scores: ScoresSqlOptions;
   readonly search: SearchSqlOptions;
   readonly "security-events": SecurityEventsSqlOptions;
   readonly segments: SegmentsSqlOptions;
   readonly sequences: SequencesSqlOptions;
-  readonly "service-accounts": ServiceAccountsSqlOptions;
+  readonly "service-accounts": None;
   readonly sessions: SessionsSqlOptions;
   readonly settings: SettingsSqlOptions;
   readonly "share-links": ShareLinksSqlOptions;
-  readonly shipments: ShipmentsSqlOptions;
+  readonly shipments: None;
   readonly signatures: SignaturesSqlOptions;
   readonly "signing-keys": SigningKeysSqlOptions;
   readonly sla: SlaSqlOptions;
@@ -485,7 +449,7 @@ export interface BlockOptionsRegistry {
   readonly tasks: TasksSqlOptions;
   readonly teams: TeamsSqlOptions;
   readonly templates: TemplatesSqlOptions;
-  readonly "time-tracking": TimeTrackingSqlOptions;
+  readonly "time-entries": TimeEntriesSqlOptions;
   readonly timeline: None;
   readonly trash: TrashSqlOptions;
   readonly "updated-at": UpdatedAtSqlOptions;
@@ -494,12 +458,12 @@ export interface BlockOptionsRegistry {
   readonly "vercel-marketplace": VercelMarketplaceSqlOptions;
   readonly versions: VersionsSqlOptions;
   readonly waitlist: WaitlistSqlOptions;
-  readonly "webhook-inbox": WebhookInboxSqlOptions;
+  readonly "webhook-inbox": None;
   readonly "webhooks-in": WebhooksInSqlOptions;
   readonly "webhooks-out": WebhooksOutSqlOptions;
-  readonly "workflow-editor": WorkflowEditorSqlOptions;
+  readonly "workflow-editor": None;
   readonly "workflow-sdk": WorkflowSdkSqlOptions;
-  readonly workflows: WorkflowsSqlOptions;
+  readonly workflows: None;
 }
 
 /** The options schema of every SQL module, keyed by module name. */
@@ -532,28 +496,28 @@ export const BLOCK_OPTION_SCHEMAS: {
   attachments: attachmentsSqlOptions,
   audit: auditSqlOptions,
   automations: automationsSqlOptions,
-  banking: bankingSqlOptions,
+  banking: NO_OPTIONS,
   tax: NO_OPTIONS,
   "document-templates": documentTemplatesSqlOptions,
   "payroll-export": payrollExportSqlOptions,
   "billable-time": NO_OPTIONS,
   billing: billingSqlOptions,
   bookings: bookingsSqlOptions,
-  bulk: bulkSqlOptions,
+  "bulk-actions": bulkActionsSqlOptions,
   calendar: calendarSqlOptions,
   "care-plans": carePlansSqlOptions,
   catalog: catalogSqlOptions,
   channels: NO_OPTIONS,
   "chat-sdk-state": NO_OPTIONS,
-  collections: collectionsSqlOptions,
+  collections: NO_OPTIONS,
   comments: commentsSqlOptions,
   commissions: commissionsSqlOptions,
-  compliance: complianceSqlOptions,
+  compliance: NO_OPTIONS,
   connectors: connectorsSqlOptions,
   consents: NO_OPTIONS,
   contacts: contactsSqlOptions,
   contracts: contractsSqlOptions,
-  courses: coursesSqlOptions,
+  courses: NO_OPTIONS,
   "created-by": createdBySqlOptions,
   credentials: credentialsSqlOptions,
   "custom-fields": customFieldsSqlOptions,
@@ -562,7 +526,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   dispatch: dispatchSqlOptions,
   documents: documentsSqlOptions,
   domains: domainsSqlOptions,
-  donations: donationsSqlOptions,
+  donations: NO_OPTIONS,
   drive: driveSqlOptions,
   grants: grantsSqlOptions,
   "drive-files": NO_OPTIONS,
@@ -576,7 +540,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "field-history": fieldHistorySqlOptions,
   forecasts: NO_OPTIONS,
   forms: formsSqlOptions,
-  goals: goalsSqlOptions,
+  goals: NO_OPTIONS,
   guests: guestsSqlOptions,
   hiring: hiringSqlOptions,
   housekeeping: NO_OPTIONS,
@@ -585,7 +549,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   impersonation: impersonationSqlOptions,
   imports: importsSqlOptions,
   inbox: inboxSqlOptions,
-  incidents: incidentsSqlOptions,
+  incidents: NO_OPTIONS,
   inspections: inspectionsSqlOptions,
   meetings: meetingsSqlOptions,
   inventory: inventorySqlOptions,
@@ -636,8 +600,8 @@ export const BLOCK_OPTION_SCHEMAS: {
   shifts: shiftsSqlOptions,
   medications: medicationsSqlOptions,
   profiles: profilesSqlOptions,
-  promotions: promotionsSqlOptions,
-  push: pushSqlOptions,
+  promotions: NO_OPTIONS,
+  push: NO_OPTIONS,
   queue: queueSqlOptions,
   quotes: quotesSqlOptions,
   rank: NO_OPTIONS,
@@ -655,17 +619,17 @@ export const BLOCK_OPTION_SCHEMAS: {
   cases: casesSqlOptions,
   observations: observationsSqlOptions,
   "rls-guard": NO_OPTIONS,
-  "saved-views": savedViewsSqlOptions,
+  "saved-views": NO_OPTIONS,
   scores: scoresSqlOptions,
   search: searchSqlOptions,
   "security-events": securityEventsSqlOptions,
   segments: segmentsSqlOptions,
   sequences: sequencesSqlOptions,
-  "service-accounts": serviceAccountsSqlOptions,
+  "service-accounts": NO_OPTIONS,
   sessions: sessionsSqlOptions,
   settings: settingsSqlOptions,
   "share-links": shareLinksSqlOptions,
-  shipments: shipmentsSqlOptions,
+  shipments: NO_OPTIONS,
   signatures: signaturesSqlOptions,
   "signing-keys": signingKeysSqlOptions,
   sla: slaSqlOptions,
@@ -677,7 +641,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   tasks: tasksSqlOptions,
   teams: teamsSqlOptions,
   templates: templatesSqlOptions,
-  "time-tracking": timeTrackingSqlOptions,
+  "time-entries": timeEntriesSqlOptions,
   timeline: NO_OPTIONS,
   trash: trashSqlOptions,
   "updated-at": updatedAtSqlOptions,
@@ -686,12 +650,12 @@ export const BLOCK_OPTION_SCHEMAS: {
   "vercel-marketplace": vercelMarketplaceSqlOptions,
   versions: versionsSqlOptions,
   waitlist: waitlistSqlOptions,
-  "webhook-inbox": webhookInboxSqlOptions,
+  "webhook-inbox": NO_OPTIONS,
   "webhooks-in": webhooksInSqlOptions,
   "webhooks-out": webhooksOutSqlOptions,
-  "workflow-editor": workflowEditorSqlOptions,
+  "workflow-editor": NO_OPTIONS,
   "workflow-sdk": workflowSdkSqlOptions,
-  workflows: workflowsSqlOptions,
+  workflows: NO_OPTIONS,
 };
 
 /** The manifest's options schema of `module`, when it is a built-in module. */

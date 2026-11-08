@@ -123,7 +123,7 @@ select throws_ok(
   'a source without an import run is refused'
 );
 select set_config(
-  'bsb.run',
+  'better_supabase.run',
   (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'erp', '{}'::jsonb) ->> 'id'),
   true
 );
@@ -189,13 +189,13 @@ reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
 
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
 select better_supabase.import_upsert_batch(
-  current_setting('bsb.run')::uuid, 'customer', '[{"key":"c1","data":{"name":"Alpha","kvk":"1"}}]'::jsonb
+  current_setting('better_supabase.run')::uuid, 'customer', '[{"key":"c1","data":{"name":"Alpha","kvk":"1"}}]'::jsonb
 );
 select is(
   (select better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'attachment',
+    current_setting('better_supabase.run')::uuid, 'attachment',
     '[{"key":"f-2","data":{"name":"inv-erp.pdf","mimeType":"application/pdf","size":2048,"subject":{"entity":"customer","key":"c1"},"sourcePath":"/inv/2.pdf","documentType":"invoice","metadata":{"amount":{"amount":990,"currency":"EUR"}}}}]'::jsonb
   ) - 'errors' - 'dryRun'),
   '{"inserted":1,"updated":0,"unchanged":0,"conflicted":0}'::jsonb,
@@ -208,14 +208,14 @@ select is(
 );
 select is(
   (select better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'attachment', '[{"key":"f-3","data":{"name":"x.pdf"}}]'::jsonb
+    current_setting('better_supabase.run')::uuid, 'attachment', '[{"key":"f-3","data":{"name":"x.pdf"}}]'::jsonb
   ) -> 'errors' -> 0 ->> 'code'),
   null,
   'a record without a subject or document type is accepted'
 );
 select is(
   (select better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'attachment', '[{"key":"f-4","data":{"name":"x.pdf","status":"stored"}}]'::jsonb
+    current_setting('better_supabase.run')::uuid, 'attachment', '[{"key":"f-4","data":{"name":"x.pdf","status":"stored"}}]'::jsonb
   ) -> 'errors' -> 0 ->> 'code'),
   'IMPORT_ITEM_INVALID',
   'an import can''t register a stored file'

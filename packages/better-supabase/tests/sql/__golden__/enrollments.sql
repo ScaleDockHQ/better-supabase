@@ -1,87 +1,21 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:3bda4a81d350df0b53d963132297a48c6dbe677353e58272d354450d74c5a9d6
+-- @bsb-hash sha256:858e98a1e2f3765e689cd835fcda3dc511d90c3e2a3975aa602abb7042a8a4ed
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."enrollment_programs" (
+create table "better_supabase"."enrollment_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check ("description" is null or length("description") <= 2000),
+  "key" text not null constraint bsb_enrollment_programs_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_enrollment_programs_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_enrollment_programs_description_check check ("description" is null or length("description") <= 2000),
   -- The subject types it enrolls; empty enrolls any.
   "subject_types" text[] not null default '{}',
   -- [{ id, title, description }], in order.
-  "steps" jsonb not null default '[]'::jsonb check (jsonb_typeof("steps") = 'array'),
+  "steps" jsonb not null default '[]'::jsonb constraint bsb_enrollment_programs_steps_check check (jsonb_typeof("steps") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
   "created_by" uuid,
@@ -92,18 +26,18 @@ create table if not exists "better_supabase"."enrollment_programs" (
 
 -- One per program and subject. A user's own onboarding checklist has no
 -- tenant; user_id is set for user subjects so the row goes with the user.
-create table if not exists "better_supabase"."enrollments" (
+create table "better_supabase"."enrollments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "program" text not null check (length("program") between 1 and 200),
+  "program" text not null constraint bsb_enrollments_program_check check (length("program") >= 1 and length("program") <= 200),
   "program_version" integer,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null constraint bsb_enrollments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_enrollments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   -- The program's step ids when it enrolled or last changed.
   "steps" text[] not null default '{}',
-  "completed_steps" integer not null default 0 check ("completed_steps" >= 0),
-  "status" text not null default 'active' check ("status" in ('active', 'completed', 'cancelled')),
+  "completed_steps" integer not null default 0 constraint bsb_enrollments_completed_steps_check check ("completed_steps" >= 0),
+  "status" text not null default 'active' constraint bsb_enrollments_status_check check ("status" in ('active', 'completed', 'cancelled')),
   "enrolled_by" uuid,
   "enrolled_at" timestamptz not null default now(),
   "starts_at" timestamptz,
@@ -111,54 +45,51 @@ create table if not exists "better_supabase"."enrollments" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "paused_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200),
+  "cancel_reason" text constraint bsb_enrollments_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" = 'user') = ("user_id" is not null)),
-  check ("user_id" is null or "subject_id" = "user_id"::text),
+  constraint bsb_enrollments_check check (("subject_type" = 'user') = ("user_id" is not null)),
+  constraint bsb_enrollments_check1 check ("user_id" is null or "subject_id" = "user_id"::text),
   unique nulls not distinct ("tenant_id", "program", "subject_type", "subject_id")
 );
-create index if not exists "enrollments_program_idx" on "better_supabase"."enrollments" ("tenant_id", "program", "status");
-create index if not exists "enrollments_subject_idx" on "better_supabase"."enrollments" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
+create index "enrollments_program_idx" on "better_supabase"."enrollments" ("tenant_id", "program", "status");
+create index "enrollments_subject_idx" on "better_supabase"."enrollments" ("tenant_id", "subject_type", "subject_id");
+create index "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
 
 -- A completed step, or an open one whose program step has an assignee or a
 -- due date (completed_at is null until it is done).
-create table if not exists "better_supabase"."enrollment_steps" (
+create table "better_supabase"."enrollment_steps" (
   "enrollment_id" uuid not null references "better_supabase"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid,
   "step" text not null,
-  "assignee_role" text check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "assignee_user_id" uuid references auth.users (id) on delete set null,
+  "assignee_role" text constraint bsb_enrollment_steps_assignee_role_check check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_id" uuid references auth.users (id) on delete set null,
   "due_at" timestamptz,
   "completed_by" uuid,
   "completed_at" timestamptz default now(),
   primary key ("enrollment_id", "step")
 );
-create index if not exists "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_user_id", "due_at");
-create index if not exists "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
+create index "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_id", "due_at");
+create index "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
 
 alter table "better_supabase"."enrollment_programs" enable row level security;
 revoke all on "better_supabase"."enrollment_programs" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_programs" to authenticated;
 grant all on "better_supabase"."enrollment_programs" to service_role;
-drop policy if exists "enrollment_programs_read" on "better_supabase"."enrollment_programs";
-create policy enrollment_programs_read on "better_supabase"."enrollment_programs"
+create policy bsb_enrollment_programs_read on "better_supabase"."enrollment_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollments" enable row level security;
 revoke all on "better_supabase"."enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."enrollments" to authenticated;
 grant all on "better_supabase"."enrollments" to service_role;
-drop policy if exists "enrollments_read" on "better_supabase"."enrollments";
-create policy enrollments_read on "better_supabase"."enrollments"
+create policy bsb_enrollments_read on "better_supabase"."enrollments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollment_steps" enable row level security;
 revoke all on "better_supabase"."enrollment_steps" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_steps" to authenticated;
 grant all on "better_supabase"."enrollment_steps" to service_role;
-drop policy if exists "enrollment_steps_read" on "better_supabase"."enrollment_steps";
-create policy enrollment_steps_read on "better_supabase"."enrollment_steps"
+create policy bsb_enrollment_steps_read on "better_supabase"."enrollment_steps"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"));
 
@@ -183,10 +114,10 @@ as $$
     ), '[]'::jsonb),
     'startsAt', x."starts_at", 'endsAt', x."ends_at",
     'schedule', coalesce((
-      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
       from "better_supabase"."enrollment_steps" y
       where y."enrollment_id" = x."id"
-        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
+        and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "better_supabase"."enrollments" x
@@ -289,14 +220,14 @@ begin
   delete from "better_supabase"."enrollment_steps" y
   where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
   update "better_supabase"."enrollment_steps" y
-  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  set "assignee_role" = null, "assignee_id" = null, "due_at" = null
   where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
-    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
-  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+    and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null);
+  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_id", "due_at", "completed_by", "completed_at")
   select v_row."id", v_row."tenant_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
   from jsonb_array_elements(v_plan) as z(value)
   on conflict ("enrollment_id", "step") do update
-  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+  set "assignee_role" = excluded."assignee_role", "assignee_id" = excluded."assignee_id", "due_at" = excluded."due_at";
 end;
 $$;
 revoke execute on function "better_supabase"."enrollment_schedule"(uuid) from public, anon, authenticated;
@@ -808,10 +739,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -1070,7 +1001,7 @@ begin
     from (
       select x."id" as row_id, x."tenant_id" as scope_id, x."program" as program,
         x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
-        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end as assignee, y."due_at" as due_at,
         (select t.value ->> 'title' from "better_supabase"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
           where q."tenant_id" = x."tenant_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
       from "better_supabase"."enrollment_steps" y
@@ -1079,9 +1010,9 @@ begin
         and y."completed_at" is null and x."status" = 'active'
         -- A sequence's open step is its next run, which its runner takes.
         and x."program" not like 'sequence:%'
-        and (v_read or y."assignee_user_id" = auth.uid())
+        and (v_read or y."assignee_id" = auth.uid())
         and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
-        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_id" = open_enrollment_steps.assignee_user)
         and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
       order by y."due_at" nulls last, x."id", y."step"
       limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)
@@ -1095,94 +1026,54 @@ grant execute on function "better_supabase"."open_enrollment_steps"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollment_programs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_programs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollment_programs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_programs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollment_steps" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_steps" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollment_steps" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
@@ -1201,87 +1092,21 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:9d58939be53f89bdc6fa516a9c33aef12b8521a83b717cbee9fdb08ae2316999
+-- @bsb-hash sha256:ca6fe8fde8f2d83eb80158d2409c84411e3e12188385edf8e0d6c64a358e93a7
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."enrollment_programs" (
+create table "better_supabase"."enrollment_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check ("description" is null or length("description") <= 2000),
+  "key" text not null constraint bsb_enrollment_programs_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_enrollment_programs_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_enrollment_programs_description_check check ("description" is null or length("description") <= 2000),
   -- The subject types it enrolls; empty enrolls any.
   "subject_types" text[] not null default '{}',
   -- [{ id, title, description }], in order.
-  "steps" jsonb not null default '[]'::jsonb check (jsonb_typeof("steps") = 'array'),
+  "steps" jsonb not null default '[]'::jsonb constraint bsb_enrollment_programs_steps_check check (jsonb_typeof("steps") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
   "created_by" uuid,
@@ -1292,18 +1117,18 @@ create table if not exists "better_supabase"."enrollment_programs" (
 
 -- One per program and subject. A user's own onboarding checklist has no
 -- tenant; user_id is set for user subjects so the row goes with the user.
-create table if not exists "better_supabase"."enrollments" (
+create table "better_supabase"."enrollments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "program" text not null check (length("program") between 1 and 200),
+  "program" text not null constraint bsb_enrollments_program_check check (length("program") >= 1 and length("program") <= 200),
   "program_version" integer,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null constraint bsb_enrollments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_enrollments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   -- The program's step ids when it enrolled or last changed.
   "steps" text[] not null default '{}',
-  "completed_steps" integer not null default 0 check ("completed_steps" >= 0),
-  "status" text not null default 'active' check ("status" in ('active', 'completed', 'cancelled')),
+  "completed_steps" integer not null default 0 constraint bsb_enrollments_completed_steps_check check ("completed_steps" >= 0),
+  "status" text not null default 'active' constraint bsb_enrollments_status_check check ("status" in ('active', 'completed', 'cancelled')),
   "enrolled_by" uuid,
   "enrolled_at" timestamptz not null default now(),
   "starts_at" timestamptz,
@@ -1311,54 +1136,51 @@ create table if not exists "better_supabase"."enrollments" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "paused_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200),
+  "cancel_reason" text constraint bsb_enrollments_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" = 'user') = ("user_id" is not null)),
-  check ("user_id" is null or "subject_id" = "user_id"::text),
+  constraint bsb_enrollments_check check (("subject_type" = 'user') = ("user_id" is not null)),
+  constraint bsb_enrollments_check1 check ("user_id" is null or "subject_id" = "user_id"::text),
   unique nulls not distinct ("tenant_id", "program", "subject_type", "subject_id")
 );
-create index if not exists "enrollments_program_idx" on "better_supabase"."enrollments" ("tenant_id", "program", "status");
-create index if not exists "enrollments_subject_idx" on "better_supabase"."enrollments" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
+create index "enrollments_program_idx" on "better_supabase"."enrollments" ("tenant_id", "program", "status");
+create index "enrollments_subject_idx" on "better_supabase"."enrollments" ("tenant_id", "subject_type", "subject_id");
+create index "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
 
 -- A completed step, or an open one whose program step has an assignee or a
 -- due date (completed_at is null until it is done).
-create table if not exists "better_supabase"."enrollment_steps" (
+create table "better_supabase"."enrollment_steps" (
   "enrollment_id" uuid not null references "better_supabase"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid,
   "step" text not null,
-  "assignee_role" text check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "assignee_user_id" uuid references auth.users (id) on delete set null,
+  "assignee_role" text constraint bsb_enrollment_steps_assignee_role_check check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_id" uuid references auth.users (id) on delete set null,
   "due_at" timestamptz,
   "completed_by" uuid,
   "completed_at" timestamptz default now(),
   primary key ("enrollment_id", "step")
 );
-create index if not exists "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_user_id", "due_at");
-create index if not exists "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
+create index "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_id", "due_at");
+create index "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
 
 alter table "better_supabase"."enrollment_programs" enable row level security;
 revoke all on "better_supabase"."enrollment_programs" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_programs" to authenticated;
 grant all on "better_supabase"."enrollment_programs" to service_role;
-drop policy if exists "enrollment_programs_read" on "better_supabase"."enrollment_programs";
-create policy enrollment_programs_read on "better_supabase"."enrollment_programs"
+create policy bsb_enrollment_programs_read on "better_supabase"."enrollment_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollments" enable row level security;
 revoke all on "better_supabase"."enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."enrollments" to authenticated;
 grant all on "better_supabase"."enrollments" to service_role;
-drop policy if exists "enrollments_read" on "better_supabase"."enrollments";
-create policy enrollments_read on "better_supabase"."enrollments"
+create policy bsb_enrollments_read on "better_supabase"."enrollments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollment_steps" enable row level security;
 revoke all on "better_supabase"."enrollment_steps" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_steps" to authenticated;
 grant all on "better_supabase"."enrollment_steps" to service_role;
-drop policy if exists "enrollment_steps_read" on "better_supabase"."enrollment_steps";
-create policy enrollment_steps_read on "better_supabase"."enrollment_steps"
+create policy bsb_enrollment_steps_read on "better_supabase"."enrollment_steps"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"));
 
@@ -1383,10 +1205,10 @@ as $$
     ), '[]'::jsonb),
     'startsAt', x."starts_at", 'endsAt', x."ends_at",
     'schedule', coalesce((
-      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
       from "better_supabase"."enrollment_steps" y
       where y."enrollment_id" = x."id"
-        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
+        and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "better_supabase"."enrollments" x
@@ -1495,14 +1317,14 @@ begin
   delete from "better_supabase"."enrollment_steps" y
   where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
   update "better_supabase"."enrollment_steps" y
-  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  set "assignee_role" = null, "assignee_id" = null, "due_at" = null
   where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
-    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
-  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+    and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null);
+  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_id", "due_at", "completed_by", "completed_at")
   select v_row."id", v_row."tenant_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
   from jsonb_array_elements(v_plan) as z(value)
   on conflict ("enrollment_id", "step") do update
-  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+  set "assignee_role" = excluded."assignee_role", "assignee_id" = excluded."assignee_id", "due_at" = excluded."due_at";
 end;
 $$;
 revoke execute on function "better_supabase"."enrollment_schedule"(uuid) from public, anon, authenticated;
@@ -2104,10 +1926,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -2375,7 +2197,7 @@ begin
     from (
       select x."id" as row_id, x."tenant_id" as scope_id, x."program" as program,
         x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
-        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end as assignee, y."due_at" as due_at,
         (select t.value ->> 'title' from "better_supabase"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
           where q."tenant_id" = x."tenant_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
       from "better_supabase"."enrollment_steps" y
@@ -2384,9 +2206,9 @@ begin
         and y."completed_at" is null and x."status" = 'active'
         -- A sequence's open step is its next run, which its runner takes.
         and x."program" not like 'sequence:%'
-        and (v_read or y."assignee_user_id" = auth.uid())
+        and (v_read or y."assignee_id" = auth.uid())
         and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
-        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_id" = open_enrollment_steps.assignee_user)
         and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
       order by y."due_at" nulls last, x."id", y."step"
       limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)
@@ -2400,102 +2222,58 @@ grant execute on function "better_supabase"."open_enrollment_steps"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollment_programs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_programs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollment_programs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_programs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollment_steps" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_steps" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollment_steps" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.enrollment_programs', target_type => 'enrollment_program', event_prefix => 'enrollment_program', deferred => true);
-  perform better_supabase.audit('better_supabase.enrollments', target_type => 'enrollment', event_prefix => 'enrollment', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrollment_programs deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrollment_program","event_prefix":"enrollment_program"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrollments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrollment","event_prefix":"enrollment"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
@@ -2514,92 +2292,26 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:c14c8529977a341663c7c45d3e71262e137e37a83c08223cefe1de8d3d2f6059
+-- @bsb-hash sha256:03d80755a8f301abf7135aa514079bb905fc10a1af50cf22c3e4a2837893c454
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."enrollment_programs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."enrollments";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."enrollments";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."enrollments";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."enrollments";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."enrollments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."enrollment_steps";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."enrollment_programs" (
+create table "app_private"."enrollment_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check ("description" is null or length("description") <= 2000),
+  "key" text not null constraint bsb_enrollment_programs_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_enrollment_programs_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_enrollment_programs_description_check check ("description" is null or length("description") <= 2000),
   -- The subject types it enrolls; empty enrolls any.
   "subject_types" text[] not null default '{}',
   -- [{ id, title, description }], in order.
-  "steps" jsonb not null default '[]'::jsonb check (jsonb_typeof("steps") = 'array'),
+  "steps" jsonb not null default '[]'::jsonb constraint bsb_enrollment_programs_steps_check check (jsonb_typeof("steps") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
   "created_by" uuid,
@@ -2610,18 +2322,18 @@ create table if not exists "app_private"."enrollment_programs" (
 
 -- One per program and subject. A user's own onboarding checklist has no
 -- tenant; user_id is set for user subjects so the row goes with the user.
-create table if not exists "app_private"."enrollments" (
+create table "app_private"."enrollments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "program" text not null check (length("program") between 1 and 200),
+  "program" text not null constraint bsb_enrollments_program_check check (length("program") >= 1 and length("program") <= 200),
   "program_version" integer,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null constraint bsb_enrollments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_enrollments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   -- The program's step ids when it enrolled or last changed.
   "steps" text[] not null default '{}',
-  "completed_steps" integer not null default 0 check ("completed_steps" >= 0),
-  "status" text not null default 'active' check ("status" in ('active', 'completed', 'cancelled')),
+  "completed_steps" integer not null default 0 constraint bsb_enrollments_completed_steps_check check ("completed_steps" >= 0),
+  "status" text not null default 'active' constraint bsb_enrollments_status_check check ("status" in ('active', 'completed', 'cancelled')),
   "enrolled_by" uuid,
   "enrolled_at" timestamptz not null default now(),
   "starts_at" timestamptz,
@@ -2629,54 +2341,51 @@ create table if not exists "app_private"."enrollments" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "paused_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200),
+  "cancel_reason" text constraint bsb_enrollments_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" = 'user') = ("user_id" is not null)),
-  check ("user_id" is null or "subject_id" = "user_id"::text),
+  constraint bsb_enrollments_check check (("subject_type" = 'user') = ("user_id" is not null)),
+  constraint bsb_enrollments_check1 check ("user_id" is null or "subject_id" = "user_id"::text),
   unique nulls not distinct ("tenant_id", "program", "subject_type", "subject_id")
 );
-create index if not exists "enrollments_program_idx" on "app_private"."enrollments" ("tenant_id", "program", "status");
-create index if not exists "enrollments_subject_idx" on "app_private"."enrollments" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "enrollments_user_idx" on "app_private"."enrollments" ("user_id");
+create index "enrollments_program_idx" on "app_private"."enrollments" ("tenant_id", "program", "status");
+create index "enrollments_subject_idx" on "app_private"."enrollments" ("tenant_id", "subject_type", "subject_id");
+create index "enrollments_user_idx" on "app_private"."enrollments" ("user_id");
 
 -- A completed step, or an open one whose program step has an assignee or a
 -- due date (completed_at is null until it is done).
-create table if not exists "app_private"."enrollment_steps" (
+create table "app_private"."enrollment_steps" (
   "enrollment_id" uuid not null references "app_private"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid,
   "step" text not null,
-  "assignee_role" text check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "assignee_user_id" uuid references auth.users (id) on delete set null,
+  "assignee_role" text constraint bsb_enrollment_steps_assignee_role_check check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_id" uuid references auth.users (id) on delete set null,
   "due_at" timestamptz,
   "completed_by" uuid,
   "completed_at" timestamptz default now(),
   primary key ("enrollment_id", "step")
 );
-create index if not exists "enrollment_steps_assignee_idx" on "app_private"."enrollment_steps" ("assignee_user_id", "due_at");
-create index if not exists "enrollment_steps_due_idx" on "app_private"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
+create index "enrollment_steps_assignee_idx" on "app_private"."enrollment_steps" ("assignee_id", "due_at");
+create index "enrollment_steps_due_idx" on "app_private"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
 
 alter table "app_private"."enrollment_programs" enable row level security;
 revoke all on "app_private"."enrollment_programs" from public, anon, authenticated;
 grant select on "app_private"."enrollment_programs" to authenticated;
 grant all on "app_private"."enrollment_programs" to service_role;
-drop policy if exists "enrollment_programs_read" on "app_private"."enrollment_programs";
-create policy enrollment_programs_read on "app_private"."enrollment_programs"
+create policy bsb_enrollment_programs_read on "app_private"."enrollment_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "app_private"."enrollments" enable row level security;
 revoke all on "app_private"."enrollments" from public, anon, authenticated;
 grant select on "app_private"."enrollments" to authenticated;
 grant all on "app_private"."enrollments" to service_role;
-drop policy if exists "enrollments_read" on "app_private"."enrollments";
-create policy enrollments_read on "app_private"."enrollments"
+create policy bsb_enrollments_read on "app_private"."enrollments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "app_private"."enrollment_steps" enable row level security;
 revoke all on "app_private"."enrollment_steps" from public, anon, authenticated;
 grant select on "app_private"."enrollment_steps" to authenticated;
 grant all on "app_private"."enrollment_steps" to service_role;
-drop policy if exists "enrollment_steps_read" on "app_private"."enrollment_steps";
-create policy enrollment_steps_read on "app_private"."enrollment_steps"
+create policy bsb_enrollment_steps_read on "app_private"."enrollment_steps"
   for select to authenticated
   using (exists (select 1 from "app_private"."enrollments" x where x."id" = "app_private"."enrollment_steps"."enrollment_id"));
 
@@ -2701,10 +2410,10 @@ as $$
     ), '[]'::jsonb),
     'startsAt', x."starts_at", 'endsAt', x."ends_at",
     'schedule', coalesce((
-      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
       from "app_private"."enrollment_steps" y
       where y."enrollment_id" = x."id"
-        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
+        and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "app_private"."enrollments" x
@@ -2807,14 +2516,14 @@ begin
   delete from "app_private"."enrollment_steps" y
   where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
   update "app_private"."enrollment_steps" y
-  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  set "assignee_role" = null, "assignee_id" = null, "due_at" = null
   where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
-    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
-  insert into "app_private"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+    and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null);
+  insert into "app_private"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_id", "due_at", "completed_by", "completed_at")
   select v_row."id", v_row."tenant_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
   from jsonb_array_elements(v_plan) as z(value)
   on conflict ("enrollment_id", "step") do update
-  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+  set "assignee_role" = excluded."assignee_role", "assignee_id" = excluded."assignee_id", "due_at" = excluded."due_at";
 end;
 $$;
 revoke execute on function "app_private"."enrollment_schedule"(uuid) from public, anon, authenticated;
@@ -3326,10 +3035,10 @@ declare
   v_row "app_private"."enrollments";
 begin
   select * into v_row from "app_private"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "app_private"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "app_private"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "app_private"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "app_private"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -3588,7 +3297,7 @@ begin
     from (
       select x."id" as row_id, x."tenant_id" as scope_id, x."program" as program,
         x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
-        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end as assignee, y."due_at" as due_at,
         (select t.value ->> 'title' from "app_private"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
           where q."tenant_id" = x."tenant_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
       from "app_private"."enrollment_steps" y
@@ -3597,9 +3306,9 @@ begin
         and y."completed_at" is null and x."status" = 'active'
         -- A sequence's open step is its next run, which its runner takes.
         and x."program" not like 'sequence:%'
-        and (v_read or y."assignee_user_id" = auth.uid())
+        and (v_read or y."assignee_id" = auth.uid())
         and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
-        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_id" = open_enrollment_steps.assignee_user)
         and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
       order by y."due_at" nulls last, x."id", y."step"
       limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)
@@ -3613,94 +3322,54 @@ grant execute on function "app_private"."open_enrollment_steps"(uuid, text, uuid
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."enrollment_programs";
-drop policy if exists bsb_tenant_scope_select on "app_private"."enrollment_programs";
 create policy bsb_tenant_scope_select on "app_private"."enrollment_programs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."enrollment_programs";
 create policy bsb_tenant_scope_insert on "app_private"."enrollment_programs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."enrollment_programs";
 create policy bsb_tenant_scope_update on "app_private"."enrollment_programs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."enrollment_programs";
 create policy bsb_tenant_scope_delete on "app_private"."enrollment_programs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."enrollments";
-drop policy if exists bsb_tenant_scope_select on "app_private"."enrollments";
 create policy bsb_tenant_scope_select on "app_private"."enrollments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."enrollments";
 create policy bsb_tenant_scope_insert on "app_private"."enrollments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."enrollments";
 create policy bsb_tenant_scope_update on "app_private"."enrollments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."enrollments";
 create policy bsb_tenant_scope_delete on "app_private"."enrollments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."enrollment_steps";
-drop policy if exists bsb_tenant_scope_select on "app_private"."enrollment_steps";
 create policy bsb_tenant_scope_select on "app_private"."enrollment_steps" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "app_private"."enrollments" x where x."id" = "app_private"."enrollment_steps"."enrollment_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."enrollment_steps";
 create policy bsb_tenant_scope_insert on "app_private"."enrollment_steps" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."enrollment_steps";
 create policy bsb_tenant_scope_update on "app_private"."enrollment_steps" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."enrollment_steps";
 create policy bsb_tenant_scope_delete on "app_private"."enrollment_steps" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
@@ -3719,87 +3388,21 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:a1a84bada33e93121bfbec3114f3159cd9736e9a8208549409a6933bf8f03a93
+-- @bsb-hash sha256:651c334ed504eae29f96623aec23d2ffd98c29f820b7d86144cb0540864203e5
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."enrollment_programs" (
+create table "better_supabase"."enrollment_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check ("description" is null or length("description") <= 2000),
+  "key" text not null constraint bsb_enrollment_programs_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_enrollment_programs_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_enrollment_programs_description_check check ("description" is null or length("description") <= 2000),
   -- The subject types it enrolls; empty enrolls any.
   "subject_types" text[] not null default '{}',
   -- [{ id, title, description }], in order.
-  "steps" jsonb not null default '[]'::jsonb check (jsonb_typeof("steps") = 'array'),
+  "steps" jsonb not null default '[]'::jsonb constraint bsb_enrollment_programs_steps_check check (jsonb_typeof("steps") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
   "created_by" uuid,
@@ -3810,18 +3413,18 @@ create table if not exists "better_supabase"."enrollment_programs" (
 
 -- One per program and subject. A user's own onboarding checklist has no
 -- tenant; user_id is set for user subjects so the row goes with the user.
-create table if not exists "better_supabase"."enrollments" (
+create table "better_supabase"."enrollments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "program" text not null check (length("program") between 1 and 200),
+  "program" text not null constraint bsb_enrollments_program_check check (length("program") >= 1 and length("program") <= 200),
   "program_version" integer,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null constraint bsb_enrollments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_enrollments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   -- The program's step ids when it enrolled or last changed.
   "steps" text[] not null default '{}',
-  "completed_steps" integer not null default 0 check ("completed_steps" >= 0),
-  "status" text not null default 'active' check ("status" in ('active', 'completed', 'cancelled')),
+  "completed_steps" integer not null default 0 constraint bsb_enrollments_completed_steps_check check ("completed_steps" >= 0),
+  "status" text not null default 'active' constraint bsb_enrollments_status_check check ("status" in ('active', 'completed', 'cancelled')),
   "enrolled_by" uuid,
   "enrolled_at" timestamptz not null default now(),
   "starts_at" timestamptz,
@@ -3829,54 +3432,51 @@ create table if not exists "better_supabase"."enrollments" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "paused_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200),
+  "cancel_reason" text constraint bsb_enrollments_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" = 'user') = ("user_id" is not null)),
-  check ("user_id" is null or "subject_id" = "user_id"::text),
+  constraint bsb_enrollments_check check (("subject_type" = 'user') = ("user_id" is not null)),
+  constraint bsb_enrollments_check1 check ("user_id" is null or "subject_id" = "user_id"::text),
   unique nulls not distinct ("tenant_id", "program", "subject_type", "subject_id")
 );
-create index if not exists "enrollments_program_idx" on "better_supabase"."enrollments" ("tenant_id", "program", "status");
-create index if not exists "enrollments_subject_idx" on "better_supabase"."enrollments" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
+create index "enrollments_program_idx" on "better_supabase"."enrollments" ("tenant_id", "program", "status");
+create index "enrollments_subject_idx" on "better_supabase"."enrollments" ("tenant_id", "subject_type", "subject_id");
+create index "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
 
 -- A completed step, or an open one whose program step has an assignee or a
 -- due date (completed_at is null until it is done).
-create table if not exists "better_supabase"."enrollment_steps" (
+create table "better_supabase"."enrollment_steps" (
   "enrollment_id" uuid not null references "better_supabase"."enrollments" ("id") on delete cascade,
   "tenant_id" uuid,
   "step" text not null,
-  "assignee_role" text check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "assignee_user_id" uuid references auth.users (id) on delete set null,
+  "assignee_role" text constraint bsb_enrollment_steps_assignee_role_check check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_id" uuid references auth.users (id) on delete set null,
   "due_at" timestamptz,
   "completed_by" uuid,
   "completed_at" timestamptz default now(),
   primary key ("enrollment_id", "step")
 );
-create index if not exists "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_user_id", "due_at");
-create index if not exists "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
+create index "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_id", "due_at");
+create index "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
 
 alter table "better_supabase"."enrollment_programs" enable row level security;
 revoke all on "better_supabase"."enrollment_programs" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_programs" to authenticated;
 grant all on "better_supabase"."enrollment_programs" to service_role;
-drop policy if exists "enrollment_programs_read" on "better_supabase"."enrollment_programs";
-create policy enrollment_programs_read on "better_supabase"."enrollment_programs"
+create policy bsb_enrollment_programs_read on "better_supabase"."enrollment_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollments" enable row level security;
 revoke all on "better_supabase"."enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."enrollments" to authenticated;
 grant all on "better_supabase"."enrollments" to service_role;
-drop policy if exists "enrollments_read" on "better_supabase"."enrollments";
-create policy enrollments_read on "better_supabase"."enrollments"
+create policy bsb_enrollments_read on "better_supabase"."enrollments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollment_steps" enable row level security;
 revoke all on "better_supabase"."enrollment_steps" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_steps" to authenticated;
 grant all on "better_supabase"."enrollment_steps" to service_role;
-drop policy if exists "enrollment_steps_read" on "better_supabase"."enrollment_steps";
-create policy enrollment_steps_read on "better_supabase"."enrollment_steps"
+create policy bsb_enrollment_steps_read on "better_supabase"."enrollment_steps"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"));
 
@@ -3901,10 +3501,10 @@ as $$
     ), '[]'::jsonb),
     'startsAt', x."starts_at", 'endsAt', x."ends_at",
     'schedule', coalesce((
-      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
       from "better_supabase"."enrollment_steps" y
       where y."enrollment_id" = x."id"
-        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
+        and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "better_supabase"."enrollments" x
@@ -4007,14 +3607,14 @@ begin
   delete from "better_supabase"."enrollment_steps" y
   where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
   update "better_supabase"."enrollment_steps" y
-  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  set "assignee_role" = null, "assignee_id" = null, "due_at" = null
   where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
-    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
-  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+    and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null);
+  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_id", "due_at", "completed_by", "completed_at")
   select v_row."id", v_row."tenant_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
   from jsonb_array_elements(v_plan) as z(value)
   on conflict ("enrollment_id", "step") do update
-  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+  set "assignee_role" = excluded."assignee_role", "assignee_id" = excluded."assignee_id", "due_at" = excluded."due_at";
 end;
 $$;
 revoke execute on function "better_supabase"."enrollment_schedule"(uuid) from public, anon, authenticated;
@@ -4526,10 +4126,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -4788,7 +4388,7 @@ begin
     from (
       select x."id" as row_id, x."tenant_id" as scope_id, x."program" as program,
         x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
-        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end as assignee, y."due_at" as due_at,
         (select t.value ->> 'title' from "better_supabase"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
           where q."tenant_id" = x."tenant_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
       from "better_supabase"."enrollment_steps" y
@@ -4797,9 +4397,9 @@ begin
         and y."completed_at" is null and x."status" = 'active'
         -- A sequence's open step is its next run, which its runner takes.
         and x."program" not like 'sequence:%'
-        and (v_read or y."assignee_user_id" = auth.uid())
+        and (v_read or y."assignee_id" = auth.uid())
         and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
-        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_id" = open_enrollment_steps.assignee_user)
         and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
       order by y."due_at" nulls last, x."id", y."step"
       limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)
@@ -4813,78 +4413,51 @@ grant execute on function "better_supabase"."open_enrollment_steps"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollment_programs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_programs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollment_programs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_programs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollment_steps" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_steps" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollment_steps" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4892,25 +4465,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as
 -- blocks.enrollments.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."save_enrollment_program"(tenant uuid, program jsonb)
 returns jsonb
@@ -5033,19 +4587,6 @@ as $$ select "better_supabase"."open_enrollment_steps"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) from public, anon;
 grant execute on function "api"."open_enrollment_steps"(uuid, text, uuid, timestamptz, integer) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block-data enrollments
@@ -5063,101 +4604,19 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:1db138dae6d3df3c02c22b90397a343e3c03093c62de4bcab9a48305733e3522
+-- @bsb-hash sha256:a8b8852c687b916031ba94564ff23bca764b5eaede7f941045d76e9e951b4b05
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.enrollment_programs is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."enrollment_programs" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."enrollment_programs" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."enrollment_programs" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."enrollment_programs" add column if not exists "name" text check (length("name") between 1 and 200);
-alter table "better_supabase"."enrollment_programs" add column if not exists "description" text check ("description" is null or length("description") <= 2000);
+alter table "better_supabase"."enrollment_programs" add column if not exists "key" text constraint bsb_enrollment_programs_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."enrollment_programs" add column if not exists "name" text constraint bsb_enrollment_programs_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."enrollment_programs" add column if not exists "description" text constraint bsb_enrollment_programs_description_check check ("description" is null or length("description") <= 2000);
 alter table "better_supabase"."enrollment_programs" add column if not exists "subject_types" text[] not null default '{}';
-alter table "better_supabase"."enrollment_programs" add column if not exists "steps" jsonb not null default '[]'::jsonb check (jsonb_typeof("steps") = 'array');
+alter table "better_supabase"."enrollment_programs" add column if not exists "steps" jsonb not null default '[]'::jsonb constraint bsb_enrollment_programs_steps_check check (jsonb_typeof("steps") = 'array');
 alter table "better_supabase"."enrollment_programs" add column if not exists "enabled" boolean not null default true;
 alter table "better_supabase"."enrollment_programs" add column if not exists "version" integer not null default 1;
 alter table "better_supabase"."enrollment_programs" add column if not exists "created_by" uuid;
@@ -5170,14 +4629,14 @@ create unique index if not exists "bsb_enrollment_programs_key_key" on "better_s
 -- better_supabase.enrollments is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."enrollments" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."enrollments" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."enrollments" add column if not exists "program" text check (length("program") between 1 and 200);
+alter table "better_supabase"."enrollments" add column if not exists "program" text constraint bsb_enrollments_program_check check (length("program") >= 1 and length("program") <= 200);
 alter table "better_supabase"."enrollments" add column if not exists "program_version" integer;
-alter table "better_supabase"."enrollments" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."enrollments" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."enrollments" add column if not exists "subject_type" text constraint bsb_enrollments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."enrollments" add column if not exists "subject_id" text constraint bsb_enrollments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."enrollments" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."enrollments" add column if not exists "steps" text[] not null default '{}';
-alter table "better_supabase"."enrollments" add column if not exists "completed_steps" integer not null default 0 check ("completed_steps" >= 0);
-alter table "better_supabase"."enrollments" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'completed', 'cancelled'));
+alter table "better_supabase"."enrollments" add column if not exists "completed_steps" integer not null default 0 constraint bsb_enrollments_completed_steps_check check ("completed_steps" >= 0);
+alter table "better_supabase"."enrollments" add column if not exists "status" text not null default 'active' constraint bsb_enrollments_status_check check ("status" in ('active', 'completed', 'cancelled'));
 alter table "better_supabase"."enrollments" add column if not exists "enrolled_by" uuid;
 alter table "better_supabase"."enrollments" add column if not exists "enrolled_at" timestamptz not null default now();
 alter table "better_supabase"."enrollments" add column if not exists "starts_at" timestamptz;
@@ -5185,7 +4644,7 @@ alter table "better_supabase"."enrollments" add column if not exists "ends_at" t
 alter table "better_supabase"."enrollments" add column if not exists "completed_at" timestamptz;
 alter table "better_supabase"."enrollments" add column if not exists "cancelled_at" timestamptz;
 alter table "better_supabase"."enrollments" add column if not exists "paused_at" timestamptz;
-alter table "better_supabase"."enrollments" add column if not exists "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200);
+alter table "better_supabase"."enrollments" add column if not exists "cancel_reason" text constraint bsb_enrollments_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200);
 alter table "better_supabase"."enrollments" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_enrollments_subject_key" on "better_supabase"."enrollments" ("tenant_id", "program", "subject_type", "subject_id") nulls not distinct;
 create index if not exists "enrollments_program_idx" on "better_supabase"."enrollments" ("tenant_id", "program", "status");
@@ -5198,33 +4657,30 @@ create index if not exists "enrollments_user_idx" on "better_supabase"."enrollme
 alter table "better_supabase"."enrollment_steps" add column if not exists "enrollment_id" uuid references "better_supabase"."enrollments" ("id") on delete cascade;
 alter table "better_supabase"."enrollment_steps" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."enrollment_steps" add column if not exists "step" text;
-alter table "better_supabase"."enrollment_steps" add column if not exists "assignee_role" text check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."enrollment_steps" add column if not exists "assignee_user_id" uuid references auth.users (id) on delete set null;
+alter table "better_supabase"."enrollment_steps" add column if not exists "assignee_role" text constraint bsb_enrollment_steps_assignee_role_check check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."enrollment_steps" add column if not exists "assignee_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."enrollment_steps" add column if not exists "due_at" timestamptz;
 alter table "better_supabase"."enrollment_steps" add column if not exists "completed_by" uuid;
 alter table "better_supabase"."enrollment_steps" add column if not exists "completed_at" timestamptz default now();
 create unique index if not exists "bsb_enrollment_steps_step_key" on "better_supabase"."enrollment_steps" ("enrollment_id", "step");
-create index if not exists "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_user_id", "due_at");
+create index if not exists "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_id", "due_at");
 create index if not exists "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
 
 alter table "better_supabase"."enrollment_programs" enable row level security;
 grant select on "better_supabase"."enrollment_programs" to authenticated;
 grant all on "better_supabase"."enrollment_programs" to service_role;
-drop policy if exists bsb_enrollment_programs_select on "better_supabase"."enrollment_programs";
 create policy bsb_enrollment_programs_select on "better_supabase"."enrollment_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollments" enable row level security;
 grant select on "better_supabase"."enrollments" to authenticated;
 grant all on "better_supabase"."enrollments" to service_role;
-drop policy if exists bsb_enrollments_select on "better_supabase"."enrollments";
 create policy bsb_enrollments_select on "better_supabase"."enrollments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollment_steps" enable row level security;
 grant select on "better_supabase"."enrollment_steps" to authenticated;
 grant all on "better_supabase"."enrollment_steps" to service_role;
-drop policy if exists bsb_enrollment_steps_select on "better_supabase"."enrollment_steps";
 create policy bsb_enrollment_steps_select on "better_supabase"."enrollment_steps"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"));
@@ -5250,10 +4706,10 @@ as $$
     ), '[]'::jsonb),
     'startsAt', x."starts_at", 'endsAt', x."ends_at",
     'schedule', coalesce((
-      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
       from "better_supabase"."enrollment_steps" y
       where y."enrollment_id" = x."id"
-        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
+        and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "better_supabase"."enrollments" x
@@ -5356,14 +4812,14 @@ begin
   delete from "better_supabase"."enrollment_steps" y
   where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
   update "better_supabase"."enrollment_steps" y
-  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  set "assignee_role" = null, "assignee_id" = null, "due_at" = null
   where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
-    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
-  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+    and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null);
+  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_id", "due_at", "completed_by", "completed_at")
   select v_row."id", v_row."tenant_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
   from jsonb_array_elements(v_plan) as z(value)
   on conflict ("enrollment_id", "step") do update
-  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+  set "assignee_role" = excluded."assignee_role", "assignee_id" = excluded."assignee_id", "due_at" = excluded."due_at";
 end;
 $$;
 revoke execute on function "better_supabase"."enrollment_schedule"(uuid) from public, anon, authenticated;
@@ -5875,10 +5331,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -6137,7 +5593,7 @@ begin
     from (
       select x."id" as row_id, x."tenant_id" as scope_id, x."program" as program,
         x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
-        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end as assignee, y."due_at" as due_at,
         (select t.value ->> 'title' from "better_supabase"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
           where q."tenant_id" = x."tenant_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
       from "better_supabase"."enrollment_steps" y
@@ -6146,9 +5602,9 @@ begin
         and y."completed_at" is null and x."status" = better_supabase.as_column_type('active', (null::"better_supabase"."enrollments")."status")
         -- A sequence's open step is its next run, which its runner takes.
         and x."program" not like 'sequence:%'
-        and (v_read or y."assignee_user_id" = auth.uid())
+        and (v_read or y."assignee_id" = auth.uid())
         and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
-        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_id" = open_enrollment_steps.assignee_user)
         and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
       order by y."due_at" nulls last, x."id", y."step"
       limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)
@@ -6162,94 +5618,54 @@ grant execute on function "better_supabase"."open_enrollment_steps"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollment_programs" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_programs" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollment_programs" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_programs" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollment_steps" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_steps" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollment_steps" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
@@ -6268,87 +5684,21 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:47a0230674f53205e1c7692c2c09755affeee5ca77b099a233219e45291af569
+-- @bsb-hash sha256:7a984f672965e91d7a85fef0d31bc7e92e52cc8e8f287beca82458981895fd94
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."enrollment_programs" (
+create table "better_supabase"."enrollment_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check ("description" is null or length("description") <= 2000),
+  "key" text not null constraint bsb_enrollment_programs_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_enrollment_programs_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_enrollment_programs_description_check check ("description" is null or length("description") <= 2000),
   -- The subject types it enrolls; empty enrolls any.
   "subject_types" text[] not null default '{}',
   -- [{ id, title, description }], in order.
-  "steps" jsonb not null default '[]'::jsonb check (jsonb_typeof("steps") = 'array'),
+  "steps" jsonb not null default '[]'::jsonb constraint bsb_enrollment_programs_steps_check check (jsonb_typeof("steps") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
   "created_by" uuid,
@@ -6359,18 +5709,18 @@ create table if not exists "better_supabase"."enrollment_programs" (
 
 -- One per program and subject. A user's own onboarding checklist has no
 -- tenant; user_id is set for user subjects so the row goes with the user.
-create table if not exists "better_supabase"."enrollments" (
+create table "better_supabase"."enrollments" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
-  "program" text not null check (length("program") between 1 and 200),
+  "program" text not null constraint bsb_enrollments_program_check check (length("program") >= 1 and length("program") <= 200),
   "program_version" integer,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null constraint bsb_enrollments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_enrollments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   -- The program's step ids when it enrolled or last changed.
   "steps" text[] not null default '{}',
-  "completed_steps" integer not null default 0 check ("completed_steps" >= 0),
-  "status" text not null default 'active' check ("status" in ('active', 'completed', 'cancelled')),
+  "completed_steps" integer not null default 0 constraint bsb_enrollments_completed_steps_check check ("completed_steps" >= 0),
+  "status" text not null default 'active' constraint bsb_enrollments_status_check check ("status" in ('active', 'completed', 'cancelled')),
   "enrolled_by" uuid,
   "enrolled_at" timestamptz not null default now(),
   "starts_at" timestamptz,
@@ -6378,54 +5728,51 @@ create table if not exists "better_supabase"."enrollments" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "paused_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200),
+  "cancel_reason" text constraint bsb_enrollments_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") >= 1 and length("cancel_reason") <= 200),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" = 'user') = ("user_id" is not null)),
-  check ("user_id" is null or "subject_id" = "user_id"::text),
+  constraint bsb_enrollments_check check (("subject_type" = 'user') = ("user_id" is not null)),
+  constraint bsb_enrollments_check1 check ("user_id" is null or "subject_id" = "user_id"::text),
   unique nulls not distinct ("org_id", "program", "subject_type", "subject_id")
 );
-create index if not exists "enrollments_program_idx" on "better_supabase"."enrollments" ("org_id", "program", "status");
-create index if not exists "enrollments_subject_idx" on "better_supabase"."enrollments" ("org_id", "subject_type", "subject_id");
-create index if not exists "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
+create index "enrollments_program_idx" on "better_supabase"."enrollments" ("org_id", "program", "status");
+create index "enrollments_subject_idx" on "better_supabase"."enrollments" ("org_id", "subject_type", "subject_id");
+create index "enrollments_user_idx" on "better_supabase"."enrollments" ("user_id");
 
 -- A completed step, or an open one whose program step has an assignee or a
 -- due date (completed_at is null until it is done).
-create table if not exists "better_supabase"."enrollment_steps" (
+create table "better_supabase"."enrollment_steps" (
   "enrollment_id" uuid not null references "better_supabase"."enrollments" ("id") on delete cascade,
   "org_id" uuid,
   "step" text not null,
-  "assignee_role" text check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "assignee_user_id" uuid references auth.users (id) on delete set null,
+  "assignee_role" text constraint bsb_enrollment_steps_assignee_role_check check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_id" uuid references auth.users (id) on delete set null,
   "due_at" timestamptz,
   "completed_by" uuid,
   "completed_at" timestamptz default now(),
   primary key ("enrollment_id", "step")
 );
-create index if not exists "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_user_id", "due_at");
-create index if not exists "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("org_id", "due_at") where "completed_at" is null;
+create index "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_id", "due_at");
+create index "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("org_id", "due_at") where "completed_at" is null;
 
 alter table "better_supabase"."enrollment_programs" enable row level security;
 revoke all on "better_supabase"."enrollment_programs" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_programs" to authenticated;
 grant all on "better_supabase"."enrollment_programs" to service_role;
-drop policy if exists "enrollment_programs_read" on "better_supabase"."enrollment_programs";
-create policy enrollment_programs_read on "better_supabase"."enrollment_programs"
+create policy bsb_enrollment_programs_read on "better_supabase"."enrollment_programs"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollments" enable row level security;
 revoke all on "better_supabase"."enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."enrollments" to authenticated;
 grant all on "better_supabase"."enrollments" to service_role;
-drop policy if exists "enrollments_read" on "better_supabase"."enrollments";
-create policy enrollments_read on "better_supabase"."enrollments"
+create policy bsb_enrollments_read on "better_supabase"."enrollments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollment_steps" enable row level security;
 revoke all on "better_supabase"."enrollment_steps" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_steps" to authenticated;
 grant all on "better_supabase"."enrollment_steps" to service_role;
-drop policy if exists "enrollment_steps_read" on "better_supabase"."enrollment_steps";
-create policy enrollment_steps_read on "better_supabase"."enrollment_steps"
+create policy bsb_enrollment_steps_read on "better_supabase"."enrollment_steps"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"));
 
@@ -6450,10 +5797,10 @@ as $$
     ), '[]'::jsonb),
     'startsAt', x."starts_at", 'endsAt', x."ends_at",
     'schedule', coalesce((
-      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
       from "better_supabase"."enrollment_steps" y
       where y."enrollment_id" = x."id"
-        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
+        and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "better_supabase"."enrollments" x
@@ -6556,14 +5903,14 @@ begin
   delete from "better_supabase"."enrollment_steps" y
   where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
   update "better_supabase"."enrollment_steps" y
-  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  set "assignee_role" = null, "assignee_id" = null, "due_at" = null
   where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
-    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
-  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "org_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+    and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null);
+  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "org_id", "step", "assignee_role", "assignee_id", "due_at", "completed_by", "completed_at")
   select v_row."id", v_row."org_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
   from jsonb_array_elements(v_plan) as z(value)
   on conflict ("enrollment_id", "step") do update
-  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+  set "assignee_role" = excluded."assignee_role", "assignee_id" = excluded."assignee_id", "due_at" = excluded."due_at";
 end;
 $$;
 revoke execute on function "better_supabase"."enrollment_schedule"(uuid) from public, anon, authenticated;
@@ -7075,10 +6422,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -7337,7 +6684,7 @@ begin
     from (
       select x."id" as row_id, x."org_id" as scope_id, x."program" as program,
         x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
-        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end as assignee, y."due_at" as due_at,
         (select t.value ->> 'title' from "better_supabase"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
           where q."org_id" = x."org_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
       from "better_supabase"."enrollment_steps" y
@@ -7346,9 +6693,9 @@ begin
         and y."completed_at" is null and x."status" = 'active'
         -- A sequence's open step is its next run, which its runner takes.
         and x."program" not like 'sequence:%'
-        and (v_read or y."assignee_user_id" = auth.uid())
+        and (v_read or y."assignee_id" = auth.uid())
         and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
-        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_id" = open_enrollment_steps.assignee_user)
         and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
       order by y."due_at" nulls last, x."id", y."step"
       limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)
@@ -7362,94 +6709,54 @@ grant execute on function "better_supabase"."open_enrollment_steps"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_programs";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollment_programs" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_programs" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollment_programs" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_programs";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_programs" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollments" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('enrollments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollments" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollments" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollments";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollments" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrollment_steps";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_select on "better_supabase"."enrollment_steps" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrollment_steps" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_update on "better_supabase"."enrollment_steps" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrollment_steps";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments

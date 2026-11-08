@@ -11,7 +11,7 @@ export interface BlockContributions {
   readonly accounting: AccountingContribution;
   readonly acknowledgements: AcknowledgementContribution;
   readonly approvals: ApprovalContribution;
-  readonly bulk: BulkActionContribution;
+  readonly "bulk-actions": BulkActionContribution;
   readonly consents: ConsentPurposeContribution;
   readonly housekeeping: HousekeepingContribution;
   readonly imports: ImportTargetContribution;
@@ -297,6 +297,11 @@ export interface ShareLinkContribution {
   readonly exists: (subject: ShareLinkSubjectSql) => string;
   /** Statements share-links adds for this subject type, such as wrappers. */
   readonly sql?: string;
+  /**
+   * Statements for the block's data file: rows a schema diff doesn't carry,
+   * such as links copied from the tables a block replaced.
+   */
+  readonly data?: string;
   /**
    * One live link per record and creator: a new link revokes the creator's
    * earlier ones, such as a feed whose old address should stop working.

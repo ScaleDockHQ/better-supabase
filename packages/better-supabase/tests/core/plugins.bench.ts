@@ -10,7 +10,7 @@ import { createdByExtension } from "../../src/blocks/created-by/index.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { ok } from "../../src/core/result.ts";
 import { recommendedGuards, guards } from "../../src/lint/index.ts";
@@ -80,7 +80,7 @@ const results: Record<string, { "connect µs": string; "findMany µs": string }>
 const findMany: Record<string, number> = {};
 
 for (const [label, plugins] of Object.entries(SETS)) {
-  let betterSupabase = defineSupabase(schema);
+  let betterSupabase = createSupabase(schema);
 
   for (const plugin of plugins) {
     betterSupabase = betterSupabase.use(plugin);

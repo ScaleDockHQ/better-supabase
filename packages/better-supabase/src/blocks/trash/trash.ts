@@ -26,9 +26,9 @@ export interface TrashOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the trash item's extra columns
-   * (`blocks.trash.options.extraColumns`), keyed by database name, such as a
-   * reason. It types and parses them on `list`, and validates them on `trash`.
+   * A Standard Schema for the trash item's extra columns (columns the app's
+   * schema files add to the table), keyed by database name, such as a reason.
+   * It types and parses them on `list`, and validates them on `trash`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

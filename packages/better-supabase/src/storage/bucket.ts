@@ -16,15 +16,10 @@ import type {
 } from "./versioning.ts";
 
 import { tenantClaimPaths } from "../core/claims.ts";
-import { DbException, dbError } from "../core/errors.ts";
-import { err, ok, toDbError } from "../core/result.ts";
 import { slug, sqlIdent, claimSql, sqlString } from "../core/template.ts";
 import { applyBucket } from "./apply.ts";
-import { connectBucket } from "./connect.ts";
-import { pathLayouts } from "./layouts.ts";
+import { createBucketBase, sizeLabel } from "./client-bucket.ts";
 import { policyChecks } from "./policy.ts";
-import { tenantGuard } from "./tenant-scope.ts";
-import { checkVariants } from "./variants.ts";
 import { lifecyclePayload, sameLifecycle } from "./versioning.ts";
 
 export type BucketPolicy = BucketPolicyName | AccessBucketPolicy;
@@ -122,6 +117,8 @@ export type ObjectTarget<P extends string, Id extends string = string> =
   | PathIn<Id>;
 
 export { TTL, type TtlPreset } from "./ttl.ts";
+
+export { parseSize } from "./client-bucket.ts";
 
 /**
  * A Storage image transformation. With both `width` and `height`, `cover` (the
@@ -339,7 +336,7 @@ export interface BucketClient<
   Id extends string = string,
   V extends string = never,
 > {
-  readonly bucket: Bucket<P, Id, V>;
+  readonly bucket: ClientBucket<P, Id, V>;
   /**
    * The object path, checked against the template and, with `tenant`, the
    * caller's tenant.
@@ -461,7 +458,11 @@ export interface BucketClient<
   sweep(options: SweepOptions<P>): AsyncResult<SweepResult>;
 }
 
-export interface Bucket<
+/**
+ * What client code needs of a bucket: paths, limits, variants and `connect`.
+ * `Bucket` adds the SQL, `config.toml`, drift and admin methods.
+ */
+export interface ClientBucket<
   P extends string,
   Id extends string = string,
   V extends string = never,
@@ -503,6 +504,17 @@ export interface Bucket<
   prefix(values?: Partial<TemplateValues<P>>): string;
   /** Checks a size and content type against the bucket limits. */
   check(file: { size?: number; type?: string }): DbError | undefined;
+  connect(
+    client: StorageClient,
+    options?: BucketConnectOptions,
+  ): BucketClient<P, Id, V>;
+}
+
+export interface Bucket<
+  P extends string,
+  Id extends string = string,
+  V extends string = never,
+> extends ClientBucket<P, Id, V> {
   /** `insert into storage.buckets` plus `storage.objects` policies. Idempotent. */
   sql(): string;
   /** A `[storage.buckets.<id>]` section for `supabase/config.toml`. */
@@ -514,10 +526,6 @@ export interface Bucket<
    * Idempotent.
    */
   apply(client: StorageAdminClient): AsyncResult<AppliedBucket>;
-  connect(
-    client: StorageClient,
-    options?: BucketConnectOptions,
-  ): BucketClient<P, Id, V>;
 }
 
 export interface BucketConnectOptions {
@@ -541,32 +549,6 @@ export interface BucketConnectOptions {
   readonly allTenants?: boolean;
 }
 
-const SIZE_UNITS: Readonly<Record<string, number>> = {
-  b: 1,
-  kb: 1000,
-  kib: 1024,
-  mb: 1000 ** 2,
-  mib: 1024 ** 2,
-  gb: 1000 ** 3,
-  gib: 1024 ** 3,
-};
-
-export function parseSize(value: string | number): number {
-  if (typeof value === "number") {
-    return value;
-  }
-
-  const match = /^\s*(\d+(?:\.\d+)?)\s*([a-z]*)\s*$/i.exec(value);
-  // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty unit means bytes.
-  const unit = SIZE_UNITS[(match?.[2] || "b").toLowerCase()];
-
-  if (!match || unit === undefined) {
-    throw new TypeError(`Invalid size "${value}"`);
-  }
-
-  return Math.round(Number(match[1]) * unit);
-}
-
 /**
  * Path segment `index` equals `value`. A first segment also bounds `name` to
  * the `value/` prefix in the "C" collation, the storage name indexes', so
@@ -579,32 +561,6 @@ function segmentCheck(index: number, value: string): string {
   return index === 1
     ? `name collate "C" >= (${value} || '/') and name collate "C" < (${value} || '0') and ${equal}`
     : equal;
-}
-
-function mimeAllowed(allowed: readonly string[], type: string): boolean {
-  const base = type.split(";")[0]!.trim().toLowerCase();
-
-  return allowed.some((entry) => {
-    const pattern = entry.toLowerCase();
-
-    return pattern.endsWith("/*")
-      ? base.startsWith(pattern.slice(0, -1))
-      : base === pattern;
-  });
-}
-
-function sizeLabel(bytes: number): string {
-  for (const [unit, size] of [
-    ["GiB", 1024 ** 3],
-    ["MiB", 1024 ** 2],
-    ["KiB", 1024],
-  ] as const) {
-    if (bytes >= size && bytes % size === 0) {
-      return `${String(bytes / size)}${unit}`;
-    }
-  }
-
-  return `${String(bytes)}B`;
 }
 
 /**
@@ -627,23 +583,8 @@ export function defineBucket<
   const Id extends string = string,
   const V extends string = never,
 >(config: BucketConfig<P, Id, V>): Bucket<P, Id, V> {
-  const layouts = pathLayouts(config.id, config.path, sqlString);
-  const policy = config.policy ?? "none";
-
-  // SAFETY: without config.variants the bucket has no variant names.
-  const variants = Object.freeze({ ...config.variants }) as Readonly<
-    Record<V, TransformOptions>
-  >;
-
-  checkVariants(config.id, variants);
-
-  const fileSizeLimit =
-    config.fileSizeLimit === undefined
-      ? undefined
-      : parseSize(config.fileSizeLimit);
-
-  const allowedMimeTypes = config.allowedMimeTypes;
-  const versioning = config.versioning ?? false;
+  const { bucket: base, layouts } = createBucketBase(config, sqlString);
+  const { policy, fileSizeLimit, allowedMimeTypes, versioning } = base;
 
   if (config.lifecycle && !versioning) {
     throw new TypeError(
@@ -658,15 +599,6 @@ export function defineBucket<
   const segmentFor = (param: string, kind: string): number =>
     layouts.segmentOf(param, kind);
 
-  const tenantParam = config.tenant
-    ? (config.tenant.param ?? "organizationId")
-    : undefined;
-
-  if (tenantParam !== undefined) {
-    layouts.requireParam(tenantParam, "tenant.param");
-  }
-
-  const tenantClaim = config.tenant?.claim;
   const mode = typeof policy === "string" ? policy : "access";
 
   const accessCheck = ((): string | undefined => {
@@ -709,88 +641,9 @@ export function defineBucket<
     segmentFor(config.tenant?.param ?? "organizationId", kind),
   );
 
-  const resolve = (target: ObjectTarget<P, Id>): StoragePath<Id> => {
-    if (typeof target !== "string") {
-      // SAFETY: a template builds the path from typed values, so it matches
-      // the bucket's paths.
-      return layouts.build(target) as StoragePath<Id>;
-    }
-
-    if (!layouts.match(target)) {
-      throw new DbException(
-        dbError(
-          "invalid_input",
-          `Path "${target}" does not match "${layouts.sources.join('" or "')}"`,
-        ),
-      );
-    }
-
-    // SAFETY: template.match accepted the path above.
-    return target as StoragePath<Id>;
-  };
-
-  const check = (file: {
-    size?: number;
-    type?: string;
-  }): DbError | undefined => {
-    if (
-      fileSizeLimit !== undefined &&
-      file.size !== undefined &&
-      file.size > fileSizeLimit
-    ) {
-      return dbError(
-        "invalid_input",
-        `File is larger than ${sizeLabel(fileSizeLimit)}`,
-        { status: 413 },
-      );
-    }
-
-    if (
-      allowedMimeTypes &&
-      file.type &&
-      !mimeAllowed(allowedMimeTypes, file.type)
-    ) {
-      return dbError("invalid_input", `File type ${file.type} is not allowed`, {
-        status: 415,
-      });
-    }
-
-    return undefined;
-  };
-
-  // SAFETY: the template parser returns the parameter names written in P,
-  // and sources holds the templates of P.
-  const bucket: Bucket<P, Id, V> = {
-    id: config.id,
-    template: layouts.sources[0] as P,
-    templates: layouts.sources as readonly P[],
-    params: layouts.params as TemplateParams<P>[],
-    owner:
-      policy === "owner"
-        ? (config.owner?.param ?? "userId")
-        : layouts.params.includes("userId")
-          ? "userId"
-          : undefined,
-    tenant: tenantParam,
-    public: config.public ?? false,
-    policy,
-    fileSizeLimit,
-    allowedMimeTypes,
-    versioning,
-    lifecycle: config.lifecycle,
-    variants,
-    path: (values) => {
-      try {
-        // SAFETY: the template builds the path from typed values.
-        return ok(layouts.build(values) as StoragePath<Id>);
-      } catch (cause) {
-        return err(toDbError(cause));
-      }
-    },
-    // SAFETY: match returns the parameters of P.
-    match: (path) => layouts.match(path) as PathValues<P> | null,
-    prefix: (values = {}) => layouts.prefix(values),
-    check,
+  // The server methods join the object `connect` already closed over, so
+  // `client.bucket` is the bucket itself.
+  const server: Omit<Bucket<P, Id, V>, keyof ClientBucket<P, Id, V>> = {
     sql() {
       const id = sqlString(config.id);
       const name = slug(config.id);
@@ -798,7 +651,7 @@ export function defineBucket<
       const lines = [
         `-- better-supabase: bucket ${config.id} (${layouts.sources.join(", ")})`,
         "insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)",
-        `values (${id}, ${id}, ${String(bucket.public)}, ${fileSizeLimit === undefined ? "null" : String(fileSizeLimit)}, ${
+        `values (${id}, ${id}, ${String(base.public)}, ${fileSizeLimit === undefined ? "null" : String(fileSizeLimit)}, ${
           allowedMimeTypes
             ? `array[${allowedMimeTypes.map(sqlString).join(", ")}]`
             : "null"
@@ -827,7 +680,7 @@ export function defineBucket<
           ["update", "update", "authenticated", using, write],
           ["delete", "delete", "authenticated", using, undefined],
         );
-      } else if (policy === "public" && bucket.public) {
+      } else if (policy === "public" && base.public) {
         lines.push(
           "-- Public URLs serve objects without a policy; a select policy would also let anyone list them.",
         );
@@ -918,7 +771,7 @@ export function defineBucket<
     toml() {
       const lines = [
         `[storage.buckets.${config.id}]`,
-        `public = ${String(bucket.public)}`,
+        `public = ${String(base.public)}`,
       ];
 
       if (config.fileSizeLimit !== undefined) {
@@ -949,10 +802,10 @@ export function defineBucket<
 
       const issues: BucketDrift[] = [];
 
-      if (actual.public !== bucket.public) {
+      if (actual.public !== base.public) {
         issues.push({
           field: "public",
-          expected: bucket.public,
+          expected: base.public,
           actual: actual.public,
           message: `Bucket "${config.id}" public is ${String(actual.public)}`,
         });
@@ -1010,7 +863,7 @@ export function defineBucket<
       applyBucket(
         {
           id: config.id,
-          public: bucket.public,
+          public: base.public,
           fileSizeLimit,
           allowedMimeTypes,
           versioning,
@@ -1018,21 +871,7 @@ export function defineBucket<
         },
         client,
       ),
-    connect: (client, options = {}) =>
-      connectBucket(
-        bucket,
-        client,
-        resolve,
-        options,
-        tenantGuard(
-          bucket.id,
-          tenantParam,
-          tenantClaim,
-          (path) => bucket.match(path),
-          options,
-        ),
-      ),
   };
 
-  return bucket;
+  return Object.assign(base, server);
 }

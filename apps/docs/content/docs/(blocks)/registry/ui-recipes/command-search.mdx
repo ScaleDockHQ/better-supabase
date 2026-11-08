@@ -34,10 +34,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { useCommandSearch } from "@/hooks/use-search";
 import { Link, toAppHref } from "@/i18n/navigation";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { searchConfig } from "@/lib/supabase/blocks/slices";
 
 /** The API schema `gen` wrote for the search block. */
-const API_SCHEMA = blockConfig.search.api;
+const API_SCHEMA = searchConfig.api;
 
 /** Cmd+K over the search index: customers by name, plus recents and favorites. */
 export function CommandSearch() {

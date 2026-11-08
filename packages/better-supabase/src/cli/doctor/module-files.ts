@@ -4,7 +4,11 @@ import { resolve } from "node:path";
 import type { BlockSqlFile } from "../../sql/index.ts";
 import type { DoctorContext } from "./rules.ts";
 
-import { moduleFileVersion, renderBlocks } from "../../sql/index.ts";
+import {
+  moduleFileVersion,
+  PRELUDE_MODULE,
+  UNSCOPED_MODULE,
+} from "../../sql/index.ts";
 import { migrationsDir, moduleLayoutFor } from "../sql-layout.ts";
 import {
   latestMigration,
@@ -12,6 +16,7 @@ import {
   migrationModules,
   MODULES_SUFFIX,
 } from "../sql/module-migration.ts";
+import { renderBlocksCached } from "../sql/render-cache.ts";
 import { accessModule } from "./app-tables.ts";
 import { entitlementsModule } from "./authorization.ts";
 import { permissionCatalogKeys, workflowOf } from "./shared.ts";
@@ -58,7 +63,8 @@ export async function moduleFiles(
   let rendered: BlockSqlFile[];
 
   try {
-    rendered = renderBlocks(
+    rendered = await renderBlocksCached(
+      context.config,
       context.config.blockNames,
       await moduleLayoutFor(context.config, {
         names: context.config.blockNames,
@@ -75,9 +81,22 @@ export async function moduleFiles(
     return [];
   }
 
-  const files = rendered.filter(
+  const kept = rendered.filter(
     (file) => !(skipped && file.module === "read-sets"),
   );
+
+  // The prelude only serves the modules that render beside it.
+  const files = kept.some(
+    (file) =>
+      file.kind === "schema" &&
+      file.module !== PRELUDE_MODULE &&
+      file.module !== UNSCOPED_MODULE,
+  )
+    ? kept
+    : kept.filter(
+        (file) =>
+          file.module !== PRELUDE_MODULE && file.module !== UNSCOPED_MODULE,
+      );
 
   if (workflowOf(context) === "migrations") {
     const latest = await latestMigration(context.config, MODULES_SUFFIX);

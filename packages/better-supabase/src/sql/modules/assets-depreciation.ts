@@ -97,7 +97,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: ctx.scope.check(d("tenant"), read),
   }),
-  { drop: true, target: depreciations },
+  { target: depreciations },
 )}
 `;
 }

@@ -11,15 +11,10 @@ import type {
 import type { SessionEncoding } from "../auth/session.ts";
 import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthzVersionCache, RequestMemo } from "../core/authorizer.ts";
-import type {
-  DelegationPermissions,
-  TicketSubject,
-} from "../core/contracts/authorization-hooks.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { PostgrestClientLike } from "../core/postgrest-executor.ts";
 import type { Db } from "../core/repository-types.ts";
-import type { Result } from "../core/result.ts";
 import type { BetterSupabaseEnv, EnvSource } from "../env/index.ts";
 import type { SqlClient } from "../postgres/executor.ts";
 import type { SessionOptions, SqlClaims } from "../postgres/pool.ts";
@@ -41,11 +36,7 @@ import type { ActiveSupport } from "./support.ts";
 import type { AccountTransport } from "./suspend-account.ts";
 
 import { authContext } from "../auth/context.ts";
-import {
-  contextClaims,
-  delegatedClaims,
-  narrowCap,
-} from "../auth/delegation.ts";
+import { contextClaims, narrowCap } from "../auth/delegation.ts";
 import { actClaim, userContext } from "../auth/impersonation.ts";
 import { prefetchJwks, resolveAuth } from "../auth/resolve.ts";
 import { sessionCookieName } from "../auth/session.ts";
@@ -61,6 +52,7 @@ import { loadEnv } from "../env/index.ts";
 import { serverAudit } from "./audit.ts";
 import { bootstrapSchema, serverBootstrap } from "./bootstrap.ts";
 import { createClients } from "./clients.ts";
+import { delegationCap, ticketSubject } from "./delegation.ts";
 import { deleteAccount } from "./delete-account.ts";
 import { withServerContext } from "./entries/context.ts";
 import { CALL, callOf, registerCore, shareCore } from "./entries/core.ts";
@@ -809,6 +801,14 @@ export function createServer<
    * One context per request and `refresh`/`cookies` pair: Server Components ask
    * repeatedly.
    */
+  /**
+   * Without `tenant` and `support` there is nothing for the entries to compose,
+   * so `context()` resolves and builds the context directly; the fold stays for
+   * servers that configure either.
+   */
+  const straight =
+    options.tenant === undefined && options.support === undefined;
+
   const contextMemo = new WeakMap<
     Request,
     Map<string, Promise<ServerContext<M, F, E, C, P, B>>>
@@ -913,13 +913,24 @@ export function createServer<
         return known;
       }
 
-      const resolving = (async () => {
-        const call: CallState = { options: contextOptions };
-        await fold(request, { ...seedContext(), [CALL]: call });
+      const resolving = straight
+        ? (async () =>
+            fromResolution(
+              await resolve(request, {
+                refresh: refresh ?? false,
+                ...(cookies === undefined ? {} : { cookies }),
+              }),
+              request,
+              contextOptions,
+              contextOptions.tenant,
+            ))()
+        : (async () => {
+            const call: CallState = { options: contextOptions };
+            await fold(request, { ...seedContext(), [CALL]: call });
 
-        // SAFETY: the fold's terminal stored this call's ServerContext.
-        return call.context as ServerContext<M, F, E, C, P, B>;
-      })();
+            // SAFETY: the fold's terminal stored this call's ServerContext.
+            return call.context as ServerContext<M, F, E, C, P, B>;
+          })();
 
       if (key) {
         if (!byOptions) {
@@ -1139,91 +1150,4 @@ export function createServer<
   );
 
   return server;
-}
-
-/**
- * The permission keys the provider's `delegation.permissions` hook grants a
- * delegated context, `undefined` for a context that is not delegated or without
- * the hook. A throw or an answer that is not a list of strings grants nothing.
- */
-async function delegationCap(
-  context: RequestContext,
-  userId: string,
-  permissions: DelegationPermissions | undefined,
-): Promise<readonly string[] | undefined> {
-  if (permissions === undefined) {
-    return undefined;
-  }
-
-  const delegated = delegatedClaims(context.claims ?? {});
-
-  if (!delegated.ok || delegated.delegation === undefined) {
-    return undefined;
-  }
-
-  const { client_id, scope, authorization_details } = delegated.delegation;
-
-  try {
-    const keys: unknown = await permissions({
-      userId,
-      ...(context.tenant === undefined ? {} : { tenant: context.tenant }),
-      ...(client_id === undefined ? {} : { clientId: client_id }),
-      scopes: scope === undefined ? [] : scope.split(" "),
-      ...(authorization_details === undefined
-        ? {}
-        : { authorizationDetails: authorization_details }),
-    });
-
-    return Array.isArray(keys) &&
-      keys.every((key): key is string => typeof key === "string")
-      ? keys
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-/**
- * The context `forContext` runs as: `context` itself, or for a context with a
- * ticket, the context `resolve` returns for it. A ticket without a resolver, a
- * `null` answer and a throw are `forbidden`; none of them fall back to the
- * recorded actor.
- */
-async function ticketSubject(
-  context: RequestContext,
-  resolve: TicketSubject | undefined,
-): Promise<Result<RequestContext>> {
-  const ticket = context["ticket"];
-
-  if (ticket === undefined) {
-    return ok(context);
-  }
-
-  if (typeof ticket !== "string" || ticket === "") {
-    return err(dbError("forbidden", "forContext got an invalid ticket"));
-  }
-
-  if (resolve === undefined) {
-    return err(
-      dbError(
-        "forbidden",
-        "forContext got a ticket but no ticket resolver: pass { ticket } or authorization.tickets.subject",
-      ),
-    );
-  }
-
-  let resolved: unknown;
-
-  try {
-    resolved = await resolve(ticket);
-  } catch {
-    resolved = null;
-  }
-
-  if (typeof resolved !== "object" || resolved === null) {
-    return err(dbError("forbidden", "The ticket resolver refused the ticket"));
-  }
-
-  // SAFETY: TicketSubject returns a RequestContext or null; null and non-objects were refused above.
-  return ok(resolved as RequestContext);
 }

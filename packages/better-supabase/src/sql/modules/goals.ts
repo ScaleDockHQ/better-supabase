@@ -9,7 +9,6 @@ import { sqlString, sqlIdent } from "../../core/template.ts";
 import { int8Text } from "../money-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   fail,
   lockTable,
   schemaPreamble,
@@ -17,21 +16,14 @@ import {
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import { invoiceLedger } from "./invoices-ledger.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("goals", 1),
   entities: {
-    goal: {
-      table: "targets",
-      singular: "goal",
-      formerly: "target",
-      primary: true,
-    },
+    goal: { table: "targets", singular: "goal", keyed: true, primary: true },
   },
-  options: ["extraColumns"],
+  options: [],
   tables: {
     targets: {
       name: "goals",
@@ -42,7 +34,7 @@ const NAMES: BlockSqlNames = {
         tenant: "tenant_id",
         name: "name",
         metric: "metric",
-        owner: "owner_user_id",
+        owner: "owner_id",
         team: "team_id",
         periodStart: "period_start",
         periodEnd: "period_end",
@@ -85,8 +77,7 @@ function metrics(
     const items = ctx.of("tasks");
     const w = (column: string): string => `w.${items.col("items", column)}`;
     const a = (column: string): string => `a.${items.col("assignees", column)}`;
-    out["work_items.completed"] =
-      `(select count(*) from ${items.table("items")} w
+    out["tasks.completed"] = `(select count(*) from ${items.table("items")} w
       where ${w("tenant")} = x.${c("tenant")} and ${w("state")} = 'completed' and ${window(w("closedAt"))}${
         ctx.has("targets", "team")
           ? `
@@ -168,10 +159,10 @@ ${
   ${c("goal")} bigint not null check (${c("goal")} > 0),
   ${c("actual")} bigint not null default 0,${optional("archivedAt", "timestamptz")}${optional("createdAt", "timestamptz not null default now()")}${optional("updatedAt", "timestamptz not null default now()")}
   check (${c("periodEnd")} >= ${c("periodStart")})
-);${addExtraColumns(t, extras)}
+);
 create index if not exists ${sqlIdent(`${ctx.tableName("targets").name}_period_idx`)} on ${t} (${c("tenant")}, ${c("periodStart")}, ${c("periodEnd")})${has("archivedAt") ? ` where ${c("archivedAt")} is null` : ""};
 ${lockTable(t, { read: true })}
-${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("targets").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("targets").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { target: t })}
 `
     : ""
 }

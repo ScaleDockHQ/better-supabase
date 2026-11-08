@@ -20,7 +20,7 @@ import type {
 
 import { openapiFormat } from "../openapi/format.ts";
 import { publishedBlocks } from "./build-blocks.ts";
-import { buildApiModel, publishedResources } from "./build.ts";
+import { defineApiModel, publishedResources } from "./build.ts";
 
 /**
  * Applies Overlay documents in order to a rendered document and reports what it
@@ -128,7 +128,7 @@ interface Lowered {
 }
 
 /**
- * The API model for a `defineSupabase()` result, and the documents it renders.
+ * The API model for a `createSupabase()` result, and the documents it renders.
  * The model is built once per options object; each format and version is
  * lowered once and copied for every render.
  *
@@ -152,7 +152,7 @@ export function defineApi<Ref = string>(
   source: ApiSource,
   options: DefineApiOptions<Ref>,
 ): Api {
-  const built = buildApiModel(source, options);
+  const built = defineApiModel(source, options);
   const lowered = new WeakMap<AnyDocumentFormat, Map<string, Lowered>>();
 
   const lower = (format: AnyDocumentFormat, version: string): Lowered => {

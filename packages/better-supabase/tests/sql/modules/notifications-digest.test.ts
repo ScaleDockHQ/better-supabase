@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { moduleBody } from "../../../src/sql/render.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const body = (): string => moduleBody("notifications", { modules: {} })!;
 
@@ -8,7 +9,7 @@ describe("notification digests", () => {
   it("adds a cadence to the preferences", () => {
     const sql = body();
 
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `"cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off'))`,
     );
     expect(sql).toContain("'cadence', p.\"cadence\"");
@@ -27,7 +28,7 @@ describe("notification digests", () => {
   it("folds held deliveries into one digest per member and channel", () => {
     const sql = body();
 
-    expect(sql).toContain("create table if not exists");
+    expect(sql).toContain("create table");
     expect(sql).toContain('"notification_digests"');
     expect(sql).toContain("run_notification_digests");
     expect(sql).toContain(`"status" = 'digested'`);

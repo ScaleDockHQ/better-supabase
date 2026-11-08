@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AuditSqlOptions } from "../../../src/blocks/audit/options.ts";
 import type { AdvisorSource, Lint } from "../../../src/cli/doctor/advisors.ts";
-import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
+import type { DoctorContext, TextFile } from "../../../src/cli/doctor/rules.ts";
 import type {
   Catalog,
   CatalogTable,
@@ -27,7 +28,10 @@ import {
   moduleLayout,
   SQL_MODULES,
 } from "../../../src/sql/index.ts";
-import { stubProvider } from "../../fixtures/authorization-provider.ts";
+import {
+  stubProvider,
+  withProvider,
+} from "../../fixtures/authorization-provider.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
 const base = await parseSnapshot(fixture);
@@ -259,6 +263,59 @@ describe("BS107 without the tenant plugin", () => {
     );
 
     expect(excluded.map((finding) => finding.target)).toEqual(["public.notes"]);
+  });
+
+  it("counts a policy that calls one of the provider's functions as tenant-scoped", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").policies = [
+        policy("notes_read", "select", "true", {
+          functions: ["authz.can_read"],
+        }),
+      ];
+    });
+
+    const config = {
+      auth: {
+        authorization: withProvider({
+          requires: [
+            { function: "authz.can_read", args: "uuid", role: "authenticated" },
+          ],
+        }),
+      },
+    };
+
+    expect(
+      (await run("BS107", context(snap, {}, config))).map(
+        (finding) => finding.target,
+      ),
+    ).toEqual(["public.notes"]);
+    expect(await run("BS107", context(snap))).toEqual([]);
+  });
+
+  it("counts a restrictive with check (false) policy as covering insert", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").policies = [
+        policy("notes_read", "select", "is_member(organization_id)"),
+        {
+          name: "notes_no_insert",
+          command: "insert",
+          roles: ["authenticated"],
+          permissive: false,
+          using: null,
+          check: "false",
+        },
+        ...(["update", "delete"] as const).map((command) => ({
+          name: `notes_no_${command}`,
+          command,
+          roles: ["authenticated"],
+          permissive: false,
+          using: "false",
+          check: null,
+        })),
+      ];
+    });
+
+    expect(await run("BS107", context(snap))).toEqual([]);
   });
 
   it("counts a restrictive using (false) policy as covering the command", async () => {
@@ -588,7 +645,8 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(missing.map((finding) => finding.target)).toEqual(
       files.map((file) => file.path),
     );
-    expect(missing[0]!.message).toMatch(/\(updated-at\) is missing\./);
+    expect(missing[0]!.message).toMatch(/\(prelude\) is missing\./);
+    expect(missing[1]!.message).toMatch(/\(updated-at\) is missing\./);
     expect(missing[0]!.message).toContain(
       "then `supabase db schema declarative sync`.",
     );
@@ -625,7 +683,7 @@ describe("generated and module files (BS303, BS304)", () => {
 
     await write(
       audit!.path,
-      audit!.contents.replace("create schema", "-- changed\ncreate schema"),
+      audit!.contents.replace("create table", "-- changed\ncreate table"),
     );
     expect(await run("BS304", ctx)).toEqual([
       expect.objectContaining({
@@ -688,16 +746,16 @@ describe("generated and module files (BS303, BS304)", () => {
 
     const missing = await run("BS304", ctx);
     expect(missing.map((finding) => finding.message)).toEqual(
-      ["updated-at", "memberships", "mfa"].map(
+      ["prelude", "updated-at", "memberships", "mfa"].map(
         (module) =>
           `${module} in supabase/migrations/<stamp>_better_supabase_modules.sql is missing. Run \`better-supabase upgrade\`, then \`supabase migration up\`.`,
       ),
     );
 
-    const files = renderBlocks(
-      ["memberships", "mfa"],
-      moduleLayout(ctx.config),
-    );
+    const files = renderBlocks(["memberships", "mfa"], {
+      ...moduleLayout(ctx.config),
+      rerunnable: true,
+    });
 
     const name =
       "supabase/migrations/20200101000000_better_supabase_modules.sql";
@@ -1166,18 +1224,31 @@ describe("audit registrations of dropped tables (BS322)", () => {
 });
 
 describe("flags past their expiry (BS336)", () => {
-  const withExpiry = (extraColumns: Record<string, string>) => ({
-    blocks: { flags: { options: { extraColumns } } },
+  /** The app schema file that adds `columns` to the flags table. */
+  const withExpiry = (columns: Record<string, string>) => ({
+    config: { blocks: ["flags"] },
+    sqlFiles: [
+      {
+        path: "supabase/schemas/flags.sql",
+        text: Object.entries(columns)
+          .map(
+            ([name, type]) =>
+              `alter table "better_supabase"."flags" add column "${name}" ${type};\n`,
+          )
+          .join(""),
+      },
+    ],
   });
 
   const live = (
-    config: Parameters<typeof context>[2],
+    app: { config: Parameters<typeof context>[2]; sqlFiles?: TextFile[] },
     rows: Record<string, unknown>[] | Error,
     queries: string[] = [],
   ): Parameters<typeof run>[1] =>
     context(
       base,
       {
+        ...(app.sqlFiles === undefined ? {} : { sqlFiles: app.sqlFiles }),
         database: {
           describe: "test",
           session: true,
@@ -1190,7 +1261,7 @@ describe("flags past their expiry (BS336)", () => {
           },
         },
       },
-      config,
+      app.config,
     );
 
   it("reports each expired flag with its owner", async () => {
@@ -1239,7 +1310,9 @@ describe("flags past their expiry (BS336)", () => {
     expect(
       await run("BS336", live(withExpiry({ owner: "text" }), rows)),
     ).toEqual([]);
-    expect(await run("BS336", live({ blocks: ["audit"] }, rows))).toEqual([]);
+    expect(
+      await run("BS336", live({ config: { blocks: ["audit"] } }, rows)),
+    ).toEqual([]);
     expect(
       await run(
         "BS336",
@@ -1249,7 +1322,7 @@ describe("flags past their expiry (BS336)", () => {
     expect(
       await run(
         "BS336",
-        context(base, {}, withExpiry({ expires_at: "timestamptz" })),
+        context(base, {}, withExpiry({ expires_at: "timestamptz" }).config),
       ),
     ).toEqual([]);
   });
@@ -2281,7 +2354,7 @@ describe("subject registry (BS331, BS332)", () => {
         base,
         {},
         {
-          subjects: {
+          recordTypes: {
             note: { table: "notes", title: "headline", url: "/n/{slug}" },
             ghost: { table: "public.ghosts" },
             other: { table: "elsewhere.things" },
@@ -2311,7 +2384,7 @@ describe("subject registry (BS331, BS332)", () => {
           base,
           {},
           {
-            subjects: {
+            recordTypes: {
               note: { table: "notes", title: "body", url: "/n/{id}" },
             },
           },
@@ -2321,7 +2394,7 @@ describe("subject registry (BS331, BS332)", () => {
   });
 
   it("warns about a subject table without RLS", async () => {
-    const config = { subjects: { note: { table: "notes" } } };
+    const config = { recordTypes: { note: { table: "notes" } } };
     expect(await run("BS332", context(base, {}, config))).toEqual([]);
 
     const open = snapshot((tables) => {
@@ -2369,7 +2442,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
     subjects: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
     registry: Readonly<Record<string, { table: string }>> = {},
   ): BetterSupabaseConfig => ({
-    subjects: registry,
+    recordTypes: registry,
     blocks: { attachments: { on: subjects } },
   });
 
@@ -2446,7 +2519,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
           snap,
           {},
           {
-            subjects: {
+            recordTypes: {
               note: { table: "notes", permissions: { read: "notes.read" } },
             },
             blocks: { attachments: {} },
@@ -2463,7 +2536,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
         withPolicies(strict, tenantOnly),
         {},
         {
-          subjects: {
+          recordTypes: {
             note: { table: "public.notes" },
             ghost: { table: "missing" },
           },
@@ -2497,7 +2570,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
             forAll,
             {},
             {
-              subjects: { note: { table: "notes" } },
+              recordTypes: { note: { table: "notes" } },
               // SAFETY: malformed on values, which the rule skips.
               blocks: { attachments: { on: subjects as never } },
             },
@@ -2560,7 +2633,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
           snap,
           {},
           {
-            subjects: {
+            recordTypes: {
               note: { table: "notes", permissions: { upload: "notes.edit" } },
             },
             blocks: { attachments: {} },
@@ -2575,7 +2648,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
           snap,
           {},
           {
-            subjects: { note: { table: "notes" } },
+            recordTypes: { note: { table: "notes" } },
             blocks: { attachments: {} },
           },
         ),
@@ -2596,7 +2669,7 @@ describe("block on names an unknown record type (BS346)", () => {
         base,
         {},
         {
-          subjects: { deal: { table: "deals" } },
+          recordTypes: { deal: { table: "deals" } },
           blocks: {
             tags: { on: ["deal", "ghost"] },
             attachments: { on: { memo: {} } },
@@ -2619,7 +2692,7 @@ describe("block on names an unknown record type (BS346)", () => {
           base,
           {},
           {
-            subjects: { deal: { table: "deals" } },
+            recordTypes: { deal: { table: "deals" } },
             blocks: { tags: { on: ["deal"] }, comments: {} },
           },
         ),
@@ -2635,7 +2708,7 @@ describe("block on names an unknown record type (BS346)", () => {
           base,
           {},
           {
-            subjects: { "purchase-order": { table: "purchase_orders" } },
+            recordTypes: { "purchase-order": { table: "purchase_orders" } },
             blocks: {
               notifications: { on: { "purchase-order": {} } },
               attachments: { on: ["purchase-order"] },
@@ -3513,6 +3586,52 @@ describe("tables without an audit trigger (BS315)", () => {
     expect(await run("BS315", context(base))).toEqual([]);
   });
 
+  it("skips the tables without a tenant column when the exempt list names that class", async () => {
+    const untenanted = snapshot((tables) => {
+      const names = tables.filter((entry) => entry.schema === "public");
+
+      for (const entry of names) {
+        entry.columns = entry.columns.filter(
+          (column) => column.name !== "organization_id",
+        );
+      }
+    });
+
+    const config = (exempt: NonNullable<AuditSqlOptions["exempt"]>) => ({
+      blocks: { audit: { options: { exempt } } },
+    });
+
+    expect(
+      await run(
+        "BS315",
+        context(
+          untenanted,
+          {},
+          config([
+            { class: "no-tenant-column", reason: "no tenant to audit by" },
+          ]),
+        ),
+      ),
+    ).toEqual([]);
+
+    const unexplained = await run(
+      "BS315",
+      context(
+        untenanted,
+        {},
+        config([{ class: "no-tenant-column", reason: " " }]),
+      ),
+    );
+
+    expect(unexplained.map((finding) => finding.target)).toEqual([
+      "blocks.audit.options.exempt:class no-tenant-column",
+    ]);
+    expect(
+      (await run("BS315", context(untenanted, {}, { blocks: ["audit"] })))
+        .length,
+    ).toBeGreaterThan(0);
+  });
+
   it("asks for a reason when an exemption is a bare glob", async () => {
     const findings = await run(
       "BS315",
@@ -3715,7 +3834,7 @@ describe("soft-delete columns reactions read (BS213)", () => {
             base,
             {},
             {
-              subjects: {
+              recordTypes: {
                 project: { table: "projects", deletedAt: "deleted_at" },
               },
             },
@@ -4608,6 +4727,77 @@ describe("pg-delta packages (BS239)", () => {
   });
 });
 
+describe("columns entries the render refuses (BS379)", () => {
+  const withView = snapshot((tables) => {
+    const template = tables.find((entry) => entry.kind === "table")!;
+
+    tables.push({
+      ...structuredClone(template),
+      schema: "public",
+      name: "organization_memberships",
+      kind: "view",
+      rls: false,
+      forceRls: false,
+      insertable: true,
+      updatable: true,
+      policies: [],
+      triggers: [],
+      foreignKeys: [],
+      columns: ["organization_id", "user_id", "role", "created_at"].map(
+        (name) => ({ ...structuredClone(template.columns[0]!), name }),
+      ),
+    });
+  });
+
+  it("reports a null for a column the view lacks and names the codemod", async () => {
+    const findings = await run(
+      "BS379",
+      context(
+        withView,
+        {},
+        {
+          blocks: {
+            memberships: {
+              tables: { memberships: "public.organization_memberships" },
+              columns: { memberships: { updatedAt: null, role: "role" } },
+            },
+          },
+        },
+      ),
+    );
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        target: "blocks.memberships.columns.memberships.updatedAt",
+        message: expect.stringContaining("codemod config"),
+      }),
+    ]);
+  });
+
+  it("reports a tenant entry that repeats sql.tenantColumn", async () => {
+    const findings = await run(
+      "BS379",
+      context(
+        base,
+        {},
+        {
+          database: { sql: { tenantColumn: "org_id" } },
+          blocks: { tags: { columns: { tags: { tenant: "org_id" } } } },
+        },
+      ),
+    );
+
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "blocks.tags.columns.tags.tenant",
+    ]);
+  });
+
+  it("passes a project without either", async () => {
+    expect(await run("BS379", context(base))).toEqual([]);
+  });
+});
+
 describe("block writes through a view Postgres can't update (BS349)", () => {
   const VIEW = "organization_memberships";
 
@@ -4634,12 +4824,7 @@ describe("block writes through a view Postgres can't update (BS349)", () => {
     });
 
   const config: BetterSupabaseConfig = {
-    blocks: {
-      memberships: {
-        tables: { memberships: `public.${VIEW}` },
-        columns: { memberships: { updatedAt: null, lastUsedAt: null } },
-      },
-    },
+    blocks: { memberships: { tables: { memberships: `public.${VIEW}` } } },
   };
 
   it("reports a block table on a view that is not auto-updatable", async () => {
@@ -4721,5 +4906,72 @@ describe("update policy checks a read permission (BS362)", () => {
         ),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("a block adds a column to a table the app creates (BS622)", () => {
+  let root: string;
+
+  const APP = `create table public.reminders (id uuid primary key, organization_id uuid not null);
+create table public.reminder_rules (id uuid primary key, organization_id uuid not null);
+create table public.reminder_deliveries (id uuid primary key, organization_id uuid not null);`;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "better-supabase-bs622-"));
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(join(root, "supabase/schemas/app.sql"), APP);
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const rooted = (files: readonly TextFile[]): DoctorContext => ({
+    ...context(),
+    config: resolveConfig(
+      {
+        blocks: {
+          reminders: {
+            tables: {
+              rules: "public.reminder_rules",
+              reminders: "public.reminders",
+              deliveries: "public.reminder_deliveries",
+            },
+          },
+        },
+      },
+      root,
+    ),
+    sqlFiles: files,
+  });
+
+  it("warns for a column the app's files don't declare, and not once they do", async () => {
+    const found = await run(
+      "BS622",
+      rooted([{ path: "supabase/schemas/app.sql", text: APP }]),
+    );
+
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        severity: "warning",
+        target: "public.reminders.remind_at",
+        message: expect.stringContaining("codemod owned-columns"),
+      }),
+    );
+
+    const declared = await run(
+      "BS622",
+      rooted([
+        {
+          path: "supabase/schemas/app.sql",
+          text: `${APP}\nalter table public.reminders add column remind_at timestamptz;`,
+        },
+      ]),
+    );
+
+    expect(declared.map((finding) => finding.target)).not.toContain(
+      "public.reminders.remind_at",
+    );
+    expect(declared).toHaveLength(found.length - 1);
   });
 });

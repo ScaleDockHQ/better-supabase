@@ -4,7 +4,7 @@ export {
   type SettingEntries,
   type SettingEntry,
   type SettingInputs,
-  type Settings,
+  type SettingsClient,
   type SettingsDefinition,
   type SettingsOptions,
   type SettingsSpec,

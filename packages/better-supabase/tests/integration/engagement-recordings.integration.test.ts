@@ -36,7 +36,7 @@ const MODULES = [
 const hint = (result: Result<unknown>): string =>
   result.ok ? "ok" : (result.error.hint ?? result.error.message);
 
-// SAFETY: the engagements block only signs and reads files.
+// SAFETY: the activities block only signs and reads files.
 const files = {
   files: {
     sign: (file: string) => AsyncResult.ok(`https://files.test/${file}`),
@@ -75,7 +75,7 @@ const noteTaker: NoteTaker = {
   }),
 };
 
-describe.skipIf(!live)("engagement recordings", () => {
+describe.skipIf(!live)("activity recordings", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
 
   afterAll(() => pool.end());
@@ -92,7 +92,7 @@ describe.skipIf(!live)("engagement recordings", () => {
       await s.organization(stranger);
       const transport = sqlTransport(s.sql);
 
-      const engagements = createActivities({
+      const activities = createActivities({
         transport,
         files,
         transcriber,
@@ -105,7 +105,7 @@ describe.skipIf(!live)("engagement recordings", () => {
         .saveCompany({ organizationId: org, input: { name: "Acme" } })
         .orThrow();
 
-      const call = await engagements
+      const call = await activities
         .log({
           organizationId: org,
           input: { type: "call", title: "Discovery call" },
@@ -117,7 +117,7 @@ describe.skipIf(!live)("engagement recordings", () => {
 
       const file = async (userId: string, status = "ready") => {
         const [row] = await s.rows<{ id: string }>(
-          `insert into better_supabase.ai_files (organization_id, owner_id, bucket, filename, media_type, byte_size, status)
+          `insert into better_supabase.ai_files (tenant_id, owner_id, bucket, filename, media_type, byte_size, status)
            values ($1, $2, 'ai-files', 'call.webm', 'audio/webm', 3, $3) returning id`,
           [org, userId, status],
         );
@@ -132,16 +132,12 @@ describe.skipIf(!live)("engagement recordings", () => {
 
       await s.asRole(rep);
 
-      const recording = await engagements
-        .attachRecording({
-          engagementId: call.id,
-          fileId: mine,
-          language: "en",
-        })
+      const recording = await activities
+        .attachRecording({ activityId: call.id, fileId: mine, language: "en" })
         .orThrow();
 
       expect(recording).toMatchObject({
-        engagementId: call.id,
+        activityId: call.id,
         fileId: mine,
         filename: "call.webm",
         mediaType: "audio/webm",
@@ -151,30 +147,30 @@ describe.skipIf(!live)("engagement recordings", () => {
       });
       expect(
         hint(
-          await engagements.attachRecording({
-            engagementId: call.id,
+          await activities.attachRecording({
+            activityId: call.id,
             fileId: mine,
           }),
         ),
       ).toBe("ACTIVITY_RECORDING_EXISTS");
       expect(
         hint(
-          await engagements.attachRecording({
-            engagementId: call.id,
+          await activities.attachRecording({
+            activityId: call.id,
             fileId: pending,
           }),
         ),
       ).toBe("AI_FILE_NOT_FOUND");
       expect(
         hint(
-          await engagements.attachRecording({
-            engagementId: call.id,
+          await activities.attachRecording({
+            activityId: call.id,
             fileId: owners,
           }),
         ),
       ).toBe("AI_FILE_NOT_FOUND");
 
-      const invalid = await engagements.saveTranscript({
+      const invalid = await activities.saveTranscript({
         recordingId: recording.id,
         transcript: { segments: [{ startMs: 5, endMs: 1, text: "backwards" }] },
       });
@@ -183,7 +179,7 @@ describe.skipIf(!live)("engagement recordings", () => {
 
       await s.service();
 
-      const transcribed = await engagements
+      const transcribed = await activities
         .transcribe({ recordingId: recording.id })
         .orThrow();
 
@@ -202,7 +198,7 @@ describe.skipIf(!live)("engagement recordings", () => {
 
       await s.asRole(owner);
 
-      const transcript = await engagements
+      const transcript = await activities
         .transcript({ recordingId: recording.id, limit: 1 })
         .orThrow();
 
@@ -216,15 +212,15 @@ describe.skipIf(!live)("engagement recordings", () => {
         },
       ]);
       expect(
-        await engagements
+        await activities
           .transcript({ recordingId: recording.id, after: 1 })
           .orThrow(),
       ).toMatchObject([{ position: 2, confidence: 0.82 }]);
 
       await s.asRole(rep);
 
-      const notes = await engagements
-        .summarize({ engagementId: call.id })
+      const notes = await activities
+        .summarize({ activityId: call.id })
         .orThrow();
 
       expect(notes).toMatchObject({
@@ -234,9 +230,9 @@ describe.skipIf(!live)("engagement recordings", () => {
       });
       expect(notes.actionTaskIds).toHaveLength(1);
 
-      const edited = await engagements
+      const edited = await activities
         .saveNotes({
-          engagementId: call.id,
+          activityId: call.id,
           notes: { summary: "Proposal due Friday." },
         })
         .orThrow();
@@ -248,47 +244,47 @@ describe.skipIf(!live)("engagement recordings", () => {
       expect(edited.model).toBeUndefined();
       expect(
         hint(
-          await engagements.saveNotes({
-            engagementId: call.id,
+          await activities.saveNotes({
+            activityId: call.id,
             notes: { summary: "" },
           }),
         ),
       ).toBe("ACTIVITY_NOTES_INVALID");
 
       await s.asRole(stranger);
-      expect(await engagements.recordings(call.id).orThrow()).toEqual([]);
-      expect(await engagements.notes(call.id).orThrow()).toBeUndefined();
+      expect(await activities.recordings(call.id).orThrow()).toEqual([]);
+      expect(await activities.notes(call.id).orThrow()).toBeUndefined();
       expect(
-        await engagements.transcript({ recordingId: recording.id }).orThrow(),
+        await activities.transcript({ recordingId: recording.id }).orThrow(),
       ).toEqual([]);
       expect(
         hint(
-          await engagements.attachRecording({
-            engagementId: call.id,
+          await activities.attachRecording({
+            activityId: call.id,
             fileId: mine,
           }),
         ),
       ).toBe("ACTIVITY_NOT_FOUND");
       expect(
         hint(
-          await engagements.saveNotes({
-            engagementId: call.id,
+          await activities.saveNotes({
+            activityId: call.id,
             notes: { summary: "x" },
           }),
         ),
       ).toBe("ACTIVITY_NOT_FOUND");
 
       await s.asRole(rep);
-      await engagements
-        .attachRecording({ engagementId: call.id, fileId: second })
+      await activities
+        .attachRecording({ activityId: call.id, fileId: second })
         .orThrow();
       await s.service();
-      expect(await engagements.drainRecordings().orThrow()).toBe(1);
-      expect(await engagements.drainRecordings().orThrow()).toBe(0);
+      expect(await activities.drainRecordings().orThrow()).toBe(1);
+      expect(await activities.drainRecordings().orThrow()).toBe(0);
       expect(
         await s.value<string[]>(
           `(select array_agg(type order by type) from better_supabase.outbox_events
-           where type like 'activity.%' and payload ->> 'engagementId' = $1)`,
+           where type like 'activity.%' and payload ->> 'activityId' = $1)`,
           [call.id],
         ),
       ).toEqual([
@@ -302,12 +298,12 @@ describe.skipIf(!live)("engagement recordings", () => {
       ]);
 
       await s.asRole(owner);
-      const all = await engagements.recordings(call.id).orThrow();
+      const all = await activities.recordings(call.id).orThrow();
       expect(all.map((item) => item.status)).toEqual([
         "transcribed",
         "transcribed",
       ]);
-      expect((await engagements.notes(call.id).orThrow())?.summary).toBe(
+      expect((await activities.notes(call.id).orThrow())?.summary).toBe(
         "Proposal due Friday.",
       );
     } finally {

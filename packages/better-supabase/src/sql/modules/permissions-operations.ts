@@ -3,7 +3,6 @@ import type { BlockSqlLayout } from "../module-types.ts";
 import type { OperationModule } from "./permissions-model.ts";
 
 import { operationPermission } from "../../core/operations.ts";
-import { OPERATION_RENAMES } from "../../core/renames.ts";
 import { sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
 import { moduleOperations, modulePermissionKey } from "./permissions-model.ts";
@@ -39,15 +38,6 @@ function operationKeys(
         `${module}.${action}`,
         modulePermissionKey(of, action, fallback),
       );
-    }
-  }
-
-  // A delegated token minted before the rename keeps its old operation name.
-  for (const [old, next] of Object.entries(OPERATION_RENAMES)) {
-    const key = keys.get(next);
-
-    if (key !== undefined) {
-      keys.set(old, key);
     }
   }
 

@@ -4,15 +4,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { getStoredChat } from "../assistant-queries";
 import { durableAvailable } from "../assistant-server";
-import { AssistantChat } from "./assistant-chat";
+import { AssistantChatLazy } from "./assistant-chat-lazy";
 
 /** Render inside `<Suspense>`: reads the `id` param and the stored branch. */
-export async function StoredChat({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
+export async function StoredChat({ id }: { id: string }) {
   const chat = await getStoredChat(id);
 
   if (chat === undefined) {
@@ -20,7 +15,7 @@ export async function StoredChat({
   }
 
   return (
-    <AssistantChat
+    <AssistantChatLazy
       id={id}
       messages={chat.messages}
       streaming={chat.streaming}

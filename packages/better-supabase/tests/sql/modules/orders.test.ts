@@ -117,20 +117,16 @@ describe("orders module, kitchen", () => {
       "order_kitchen_routes",
       "order_line_preparations",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}"`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}"`);
     }
 
-    expect(sql).toContain(
-      `create index if not exists "order_kitchen_routes_station_idx"`,
-    );
+    expect(sql).toContain(`create index "order_kitchen_routes_station_idx"`);
 
     for (const index of [
       "order_line_preparations_order_idx",
       "order_line_preparations_station_idx",
     ]) {
-      expect(sql).toContain(`create index if not exists ${index}`);
+      expect(sql).toContain(`create index ${index}`);
     }
 
     expect(sql).toContain(`references "better_supabase"."products" ("id")`);

@@ -11,20 +11,20 @@ import {
 } from "../shared.ts";
 
 /** The queue a recording's transcription job goes on, with the jobs block. */
-export const ENGAGEMENT_TRANSCRIBE_QUEUE = "engagements.transcribe";
+export const ACTIVITY_TRANSCRIBE_QUEUE = "activities.transcribe";
 
 /** `pending` until a transcript is saved; `failed` when the transcriber gave up. */
-export type EngagementRecordingStatus = "pending" | "transcribed" | "failed";
+export type ActivityRecordingStatus = "pending" | "transcribed" | "failed";
 
-/** A call or meeting recording: an ai-files file on an engagement. */
-export interface EngagementRecording {
+/** A call or meeting recording: an ai-files file on an activity. */
+export interface ActivityRecording {
   readonly id: string;
   readonly organizationId: string;
-  readonly engagementId: string;
+  readonly activityId: string;
   readonly fileId: string;
   readonly filename: string;
   readonly mediaType: string;
-  readonly status: EngagementRecordingStatus;
+  readonly status: ActivityRecordingStatus;
   /** A BCP 47 tag such as `en` or `nl-NL`, given or detected. */
   readonly language?: string;
   readonly durationSeconds?: number;
@@ -90,21 +90,21 @@ export interface Transcriber {
 }
 
 /** A follow-up a note names. */
-export interface EngagementActionItem {
+export interface ActivityActionItem {
   readonly text: string;
   readonly ownerId?: string;
   readonly dueAt?: Temporal.Instant;
 }
 
 /** What `saveNotes` stores and a note taker returns. */
-export interface EngagementNotesInput {
+export interface ActivityNotesInput {
   readonly summary: string;
-  readonly actionItems?: readonly EngagementActionItem[];
+  readonly actionItems?: readonly ActivityActionItem[];
 }
 
-/** The notes on an engagement: a summary and the tasks its action items became. */
-export interface EngagementNotes {
-  readonly engagementId: string;
+/** The notes on an activity: a summary and the tasks its action items became. */
+export interface ActivityNotes {
+  readonly activityId: string;
   readonly organizationId: string;
   readonly summary: string;
   /** The tasks the action items became; empty without the tasks block. */
@@ -118,17 +118,17 @@ export interface EngagementNotes {
   readonly updatedAt: Temporal.Instant;
 }
 
-/** What `NoteTaker.summarize` gets: the engagement and its transcripts. */
+/** What `NoteTaker.summarize` gets: the activity and its transcripts. */
 export interface NoteTakerInput<E> {
-  readonly engagement: E;
+  readonly activity: E;
   readonly transcript: readonly (TranscriptSegment & {
     readonly recordingId: string;
   })[];
 }
 
 /**
- * Writes a summary and action items for an engagement from its transcripts.
- * Wrap any model in the app; the block imports no AI SDK (ADR 0010).
+ * Writes a summary and action items for an activity from its transcripts. Wrap
+ * any model in the app; the block imports no AI SDK (ADR 0010).
  */
 export interface NoteTaker {
   /** The note taker contract version. Omitted means 1. */
@@ -137,10 +137,10 @@ export interface NoteTaker {
   summarize<E>(
     input: NoteTakerInput<E>,
     options?: { readonly signal?: AbortSignal },
-  ): Promise<EngagementNotesInput>;
+  ): Promise<ActivityNotesInput>;
 }
 
-const STATUSES: readonly EngagementRecordingStatus[] = [
+const STATUSES: readonly ActivityRecordingStatus[] = [
   "pending",
   "transcribed",
   "failed",
@@ -157,13 +157,13 @@ const defined = <T extends object>(value: {
     Object.entries(value).filter(([, item]) => item !== undefined),
   ) as T;
 
-export function recordingOf(value: unknown): EngagementRecording {
-  const row = recordOf(value, "engagement recording");
+export function recordingOf(value: unknown): ActivityRecording {
+  const row = recordOf(value, "activity recording");
 
-  return defined<EngagementRecording>({
+  return defined<ActivityRecording>({
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
-    engagementId: textOf(row["engagementId"]),
+    activityId: textOf(row["activityId"]),
     fileId: textOf(row["fileId"]),
     filename: textOf(row["filename"]),
     mediaType: textOf(row["mediaType"]),
@@ -195,11 +195,11 @@ function idsOf(value: unknown): string[] {
   return Array.isArray(value) ? value.map((id) => textOf(id)) : [];
 }
 
-export function notesOf(value: unknown): EngagementNotes {
-  const row = recordOf(value, "engagement notes");
+export function notesOf(value: unknown): ActivityNotes {
+  const row = recordOf(value, "activity notes");
 
-  return defined<EngagementNotes>({
-    engagementId: textOf(row["engagementId"]),
+  return defined<ActivityNotes>({
+    activityId: textOf(row["activityId"]),
     organizationId: textOf(row["organizationId"]),
     summary: textOf(row["summary"]),
     actionTaskIds: idsOf(row["actionTaskIds"]),
@@ -213,7 +213,7 @@ export function notesOf(value: unknown): EngagementNotes {
 
 /** The jsonb `save_activity_notes` takes. */
 export function notesArg(
-  input: EngagementNotesInput,
+  input: ActivityNotesInput,
   source: "ai" | "member",
   model: string | undefined,
 ): Record<string, unknown> {

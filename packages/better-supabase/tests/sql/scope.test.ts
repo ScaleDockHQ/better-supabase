@@ -224,9 +224,7 @@ describe("blocks.memberships.names.organization", () => {
 
   it("renames tables, columns, functions and their parameter qualifiers", () => {
     const sql = moduleBody("organizations", layout) ?? "";
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."workspaces"',
-    );
+    expect(sql).toContain('create table "better_supabase"."workspaces"');
     expect(sql).toContain('"better_supabase"."create_workspace"(');
     expect(sql).not.toMatch(/\bcreate_organization\./);
     const tenant = moduleBody("memberships", layout) ?? "";

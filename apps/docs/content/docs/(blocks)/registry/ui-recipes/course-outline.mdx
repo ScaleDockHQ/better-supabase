@@ -84,13 +84,7 @@ const kindIcons = {
  * Render inside `<Suspense>`: a course's modules, lessons and the caller's
  * progress.
  */
-export async function CourseOutline({
-  params,
-}: {
-  params: Promise<{ courseId: string }>;
-}) {
-  const { courseId } = await params;
-
+export async function CourseOutline({ courseId }: { courseId: string }) {
   const [view, t] = await Promise.all([
     getOutline(courseId),
     getExtracted("courses"),

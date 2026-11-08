@@ -41,7 +41,6 @@ const DESIGN: CreateDesign = {
       },
     },
   },
-  extraColumns: { tags: { color: "text not null default 'gray'" } },
   positions: {
     "public.projects": [120, -40.5],
     "better_supabase.tags": [0, 0],
@@ -242,13 +241,7 @@ describe("design codes", () => {
 
   it("encodes an empty design to an empty code", async () => {
     expect(await encodeDesign({})).toBe("");
-    expect(
-      await encodeDesign({
-        appTables: {},
-        extraColumns: { tags: {} },
-        positions: {},
-      }),
-    ).toBe("");
+    expect(await encodeDesign({ appTables: {}, positions: {} })).toBe("");
     expect(await decodeDesign("")).toEqual({});
   });
 
@@ -323,7 +316,7 @@ describe("design codes", () => {
     await expect(
       decodeDesign(await deflated(JSON.stringify({ tables: {} }))),
     ).rejects.toThrow(
-      'design: unknown key "tables"; a design has preset, appTables, extraColumns, positions and seeds',
+      'design: unknown key "tables"; a design has preset, appTables, positions and seeds',
     );
   });
 
@@ -333,26 +326,10 @@ describe("design codes", () => {
     );
   });
 
-  it("checks extra columns against the catalog", async () => {
+  it("refuses the removed extraColumns key", async () => {
     await expect(
-      encodeDesign({ extraColumns: { nope: { a: "text" } } }),
-    ).rejects.toThrow('design.extraColumns.nope: "nope" is not a block');
-    await expect(
-      encodeDesign({ extraColumns: { "updated-at": { a: "text" } } }),
-    ).rejects.toThrow(
-      "design.extraColumns.updated-at: the updated-at block takes no extra columns",
-    );
-    await expect(
-      encodeDesign({ extraColumns: { tags: { Color: "text" } } }),
-    ).rejects.toThrow(
-      'design.extraColumns.tags: "Color" is not a valid column name',
-    );
-    await expect(
-      encodeDesign({ extraColumns: { tags: { color: "text; drop table x" } } }),
-    ).rejects.toThrow("design.extraColumns.tags.color must be a SQL type");
-    await expect(
-      encodeDesign({ extraColumns: { tags: { color: "text -- x" } } }),
-    ).rejects.toThrow("design.extraColumns.tags.color must be a SQL type");
+      encodeDesign({ extraColumns: { tags: { color: "text" } } } as never),
+    ).rejects.toThrow('design: unknown key "extraColumns"');
   });
 
   it("checks positions", async () => {
@@ -387,15 +364,6 @@ describe("design codes", () => {
         ]),
       );
 
-    await expect(decoded({ extraColumns: [] })).rejects.toThrow(
-      "design.extraColumns must be an object",
-    );
-    await expect(decoded({ extraColumns: { tags: "text" } })).rejects.toThrow(
-      "design.extraColumns.tags",
-    );
-    await expect(
-      decoded({ extraColumns: { tags: many(65, () => "text") } }),
-    ).rejects.toThrow("design.extraColumns.tags");
     await expect(decoded({ positions: [] })).rejects.toThrow(
       "design.positions must be an object",
     );
@@ -501,24 +469,12 @@ describe("designOf", () => {
 });
 
 describe("design config", () => {
-  it("merges extra columns into the blocks and adds appTables", () => {
+  it("adds appTables and leaves the blocks as the preset sets them", () => {
     const config = designConfig(crm, DESIGN);
 
-    expect(config.blocks.tags).toEqual({
-      options: { extraColumns: { color: "text not null default 'gray'" } },
-    });
+    expect(config.blocks.tags).toEqual(designConfig(crm, {}).blocks.tags);
     expect(Object.keys(config.appTables ?? {})).toEqual(["projects", "tasks"]);
     expect(config).not.toHaveProperty("positions");
-  });
-
-  it("refuses extra columns on a block the preset doesn't install", () => {
-    expect(() =>
-      designConfig(resolvePreset(namedPreset("minimal")), {
-        extraColumns: { tags: { color: "text" } },
-      }),
-    ).toThrow(
-      "design.extraColumns.tags: the preset doesn't install the tags block",
-    );
   });
 
   it("writes the config source with the design URL", async () => {
@@ -526,9 +482,6 @@ describe("design config", () => {
     const source = await presetConfigSource(crm, DESIGN);
 
     expect(source).toContain(`// ${CREATE}?design=${code}`);
-    expect(source).toContain(
-      `    tags: { options: { extraColumns: { color: "text not null default 'gray'" } } },`,
-    );
     expect(source).not.toContain("tables:");
     expect(source).not.toContain("positions");
   });

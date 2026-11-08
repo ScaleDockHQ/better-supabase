@@ -22,7 +22,7 @@ const layout: BlockSqlLayout = {
             table: "events_it.tickets",
             column: "status",
             initial: "open",
-            tenant: "organization_id",
+            tenant: "tenant_id",
             transitions: { open: ["closed"], closed: [] },
           },
         },
@@ -39,7 +39,7 @@ describe.skipIf(!live)("subject-bound events in Postgres", () => {
   const payloads = async (type: string): Promise<Record<string, unknown>[]> =>
     (
       await client.query<{ payload: Record<string, unknown> }>(
-        "select payload from better_supabase.outbox_events where type = $1 and organization_id = $2 order by position",
+        "select payload from better_supabase.outbox_events where type = $1 and tenant_id = $2 order by position",
         [type, ACME],
       )
     ).rows.map((row) => row.payload);
@@ -50,15 +50,15 @@ describe.skipIf(!live)("subject-bound events in Postgres", () => {
     await client.query(`create schema events_it;
       create table events_it.tickets (
         id text primary key,
-        organization_id uuid not null,
+        tenant_id uuid not null,
         status text not null default 'open'
       );
-      insert into events_it.tickets (id, organization_id) values ('t1', '${ACME}');`);
+      insert into events_it.tickets (id, tenant_id) values ('t1', '${ACME}');`);
 
-    for (const file of renderBlocks(
-      ["outbox", "state-machine", "reminders"],
-      layout,
-    )) {
+    for (const file of renderBlocks(["outbox", "state-machine", "reminders"], {
+      ...layout,
+      rerunnable: true,
+    })) {
       if (file.kind !== "test") {
         await client.query(file.contents);
       }
@@ -94,7 +94,7 @@ describe.skipIf(!live)("subject-bound events in Postgres", () => {
 
   it("status.changed follows a direct update, without a stale reason, and skips a no-op", async () => {
     await client.query(
-      `insert into events_it.tickets (id, organization_id) values ('t2', '${ACME}')`,
+      `insert into events_it.tickets (id, tenant_id) values ('t2', '${ACME}')`,
     );
     await client.query(
       "update events_it.tickets set status = 'open' where id = 't2'",

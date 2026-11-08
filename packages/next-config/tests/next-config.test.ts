@@ -41,3 +41,12 @@ describe("createNextConfig remoteCacheHandler", () => {
     ).not.toHaveProperty("remoteCacheHandler");
   });
 });
+
+describe("createNextConfig taint", () => {
+  it("turns on React's taint API and lets an app turn it off", () => {
+    expect(createNextConfig().experimental?.taint).toBe(true);
+    expect(
+      createNextConfig({ experimental: { taint: false } }).experimental?.taint,
+    ).toBe(false);
+  });
+});

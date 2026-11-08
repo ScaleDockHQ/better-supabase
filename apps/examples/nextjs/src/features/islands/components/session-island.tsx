@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import type { Islands, IslandScope } from "../islands-queries";
+import type { IslandScope } from "../islands-cache";
+import type { Islands } from "../islands-queries";
 
 import { getIslandsIn } from "../islands-queries";
 import { IslandError } from "./island-error";

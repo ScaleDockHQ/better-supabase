@@ -1,4 +1,4 @@
-import type { EngagementSubject } from "../blocks/activities/activities.ts";
+import type { ActivitySubject } from "../blocks/activities/activities.ts";
 import type {
   MedicationAdministrationInput,
   MedicationAsNeededInput,
@@ -75,7 +75,7 @@ export interface ProgressNoteWrites {
       readonly externalRef?: string | null;
       readonly category?: string | null;
     },
-    subjects: readonly EngagementSubject[],
+    subjects: readonly ActivitySubject[],
   ): PromiseLike<Result<unknown>>;
   update(
     id: string,
@@ -90,7 +90,7 @@ export interface ProgressNoteWrites {
 }
 
 export interface ProgressNoteRouteOptions {
-  /** The synced links table. Default `engagement_subjects`. */
+  /** The synced links table. Default `activity_subjects`. */
   readonly linksTable?: string;
   /** The tenant column, when `config.tenancy` renames it. Default `tenant_id`. */
   readonly tenantColumn?: string;
@@ -100,7 +100,7 @@ const isLocked = (result: Result<unknown>): boolean =>
   !result.ok && result.error.hint === "ACTIVITY_LOCKED";
 
 /**
- * The upload route for the engagements of progress notes (activities of type
+ * The upload route for the activities of progress notes (activities of type
  * `note`).
  *
  * - A `PUT` logs the note on the records its local link rows name, with the local
@@ -118,7 +118,7 @@ const isLocked = (result: Result<unknown>): boolean =>
  *   classify: careUploadOutcome,
  *   tables: {
  *     activities: progressNoteRoute(bsb.activities, powersync),
- *     engagement_subjects: activityLinksRoute(),
+ *     activity_subjects: activityLinksRoute(),
  *   },
  * });
  * ```
@@ -128,7 +128,7 @@ export function progressNoteRoute(
   database: PowerSyncDatabaseLike,
   options: ProgressNoteRouteOptions = {},
 ): UploadFunction {
-  const links = quoteSqliteIdent(options.linksTable ?? "engagement_subjects");
+  const links = quoteSqliteIdent(options.linksTable ?? "activity_subjects");
   const tenant = options.tenantColumn ?? "tenant_id";
 
   return async (entry) => {
@@ -141,7 +141,7 @@ export function progressNoteRoute(
 
         if (data["type"] !== "note" || !organizationId || !title) {
           return unsupported(
-            `engagement ${entry.id} is not a note with an organization and a title; log other engagements on the server`,
+            `activity ${entry.id} is not a note with an organization and a title; log other activities on the server`,
           );
         }
 

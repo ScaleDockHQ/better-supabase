@@ -40,7 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuditLog } from "@/hooks/use-audit";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { auditConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 const ALL = "all";
@@ -66,7 +66,7 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
   const errorMessage = useErrorMessage();
 
   const { entries, filters, hasMore, loading, error, setFilters, loadMore } =
-    useAuditLog({ organizationId, schema: blockConfig.audit.api });
+    useAuditLog({ organizationId, schema: auditConfig.api });
 
   const actors = new Map(
     (entries ?? []).flatMap((entry) =>

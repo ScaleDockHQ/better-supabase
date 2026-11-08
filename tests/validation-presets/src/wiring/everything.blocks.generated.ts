@@ -18,7 +18,7 @@ import type { AttachmentsEvents } from "better-supabase/blocks/attachments";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { BookingsEvents } from "better-supabase/blocks/bookings";
-import type { BulkEvents } from "better-supabase/blocks/bulk";
+import type { BulkActionsEvents } from "better-supabase/blocks/bulk-actions";
 import type { CalendarEvents } from "better-supabase/blocks/calendar";
 import type { CarePlansEvents } from "better-supabase/blocks/care-plans";
 import type { CatalogEvents } from "better-supabase/blocks/catalog";
@@ -128,7 +128,7 @@ import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TagsEvents } from "better-supabase/blocks/tags";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { TemplatesEvents } from "better-supabase/blocks/templates";
-import type { TimeTrackingEvents } from "better-supabase/blocks/time-tracking";
+import type { TimeEntriesEvents } from "better-supabase/blocks/time-entries";
 import type { TrashEvents } from "better-supabase/blocks/trash";
 import type { VersionsEvents } from "better-supabase/blocks/versions";
 import type { WaitlistEvents } from "better-supabase/blocks/waitlist";
@@ -174,7 +174,7 @@ import { attachmentsBlock as attachmentsBlockInstance } from "better-supabase/bl
 import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
 import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
 import { bookingsBlock as bookingsBlockInstance } from "better-supabase/blocks/bookings";
-import { bulkBlock as bulkBlockInstance } from "better-supabase/blocks/bulk";
+import { bulkActionsBlock as bulkActionsBlockInstance } from "better-supabase/blocks/bulk-actions";
 import { calendarBlock as calendarBlockInstance } from "better-supabase/blocks/calendar";
 import { carePlansBlock as carePlansBlockInstance } from "better-supabase/blocks/care-plans";
 import { catalogBlock as catalogBlockInstance } from "better-supabase/blocks/catalog";
@@ -307,7 +307,7 @@ import { tagsBlock as tagsBlockInstance } from "better-supabase/blocks/tags";
 import { goalsBlock as goalsBlockInstance } from "better-supabase/blocks/goals";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 import { templatesBlock as templatesBlockInstance } from "better-supabase/blocks/templates";
-import { timeTrackingBlock as timeTrackingBlockInstance } from "better-supabase/blocks/time-tracking";
+import { timeEntriesBlock as timeEntriesBlockInstance } from "better-supabase/blocks/time-entries";
 import { trashBlock as trashBlockInstance } from "better-supabase/blocks/trash";
 import { usageBlock as usageBlockInstance } from "better-supabase/blocks/usage";
 import { versionsBlock as versionsBlockInstance } from "better-supabase/blocks/versions";
@@ -367,7 +367,7 @@ export const blocks = {
   audit: auditBlockInstance,
   billing: billingBlockInstance,
   bookings: bookingsBlockInstance,
-  bulk: bulkBlockInstance,
+  "bulk-actions": bulkActionsBlockInstance,
   calendar: calendarBlockInstance,
   "care-plans": carePlansBlockInstance,
   catalog: catalogBlockInstance,
@@ -500,7 +500,7 @@ export const blocks = {
   goals: goalsBlockInstance,
   teams: teamsBlockInstance,
   templates: templatesBlockInstance,
-  "time-tracking": timeTrackingBlockInstance,
+  "time-entries": timeEntriesBlockInstance,
   trash: trashBlockInstance,
   usage: usageBlockInstance,
   versions: versionsBlockInstance,
@@ -516,7 +516,7 @@ export const blocks = {
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiGuardrailsEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & BulkEvents & CalendarEvents & CarePlansEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & AgentCheckoutEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & AdvisoriesEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OauthServerEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & VercelMarketplaceEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & TasksEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiGuardrailsEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & AgentCheckoutEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & AdvisoriesEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OauthServerEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & VercelMarketplaceEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & TasksEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -577,6 +577,7 @@ export const blockEvents: Events<BlockEvents> = {
     "allocation.created",
     "allocation.filled",
     "allocation.released",
+    "allocation.transferred",
     "announcement.created",
     "announcement.deleted",
     "announcement.updated",
@@ -1165,7 +1166,7 @@ export const blockEvents: Events<BlockEvents> = {
     "quote.viewed",
     "quote.withdrawn",
     "reaction.added",
-    "reaction.removed",
+    "reaction.deleted",
     "referral.attributed",
     "referral.qualified",
     "referral.rewarded",
@@ -1295,7 +1296,7 @@ export const blockEvents: Events<BlockEvents> = {
     "team.restored",
     "team.updated",
     "team_member.added",
-    "team_member.removed",
+    "team_member.deleted",
     "template.applied",
     "template.published",
     "till.created",
@@ -1320,7 +1321,7 @@ export const blockEvents: Events<BlockEvents> = {
     "version.created",
     "version.deleted",
     "version.restored",
-    "vex_statement.saved",
+    "vex_statement.updated",
     "vulnerability.created",
     "vulnerability.enriched",
     "vulnerability.exploited",
@@ -1401,6 +1402,7 @@ export const blockEventSchemas = {
   "allocation.created": true,
   "allocation.filled": true,
   "allocation.released": true,
+  "allocation.transferred": true,
   "announcement.created": true,
   "announcement.deleted": true,
   "announcement.updated": true,
@@ -1989,7 +1991,7 @@ export const blockEventSchemas = {
   "quote.viewed": true,
   "quote.withdrawn": true,
   "reaction.added": true,
-  "reaction.removed": true,
+  "reaction.deleted": true,
   "referral.attributed": true,
   "referral.qualified": true,
   "referral.rewarded": true,
@@ -2119,7 +2121,7 @@ export const blockEventSchemas = {
   "team.restored": true,
   "team.updated": true,
   "team_member.added": true,
-  "team_member.removed": true,
+  "team_member.deleted": true,
   "template.applied": true,
   "template.published": true,
   "till.created": true,
@@ -2144,7 +2146,7 @@ export const blockEventSchemas = {
   "version.created": true,
   "version.deleted": true,
   "version.restored": true,
-  "vex_statement.saved": true,
+  "vex_statement.updated": true,
   "vulnerability.created": true,
   "vulnerability.enriched": true,
   "vulnerability.exploited": true,

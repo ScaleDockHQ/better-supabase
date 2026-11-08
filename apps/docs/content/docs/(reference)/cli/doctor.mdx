@@ -22,7 +22,7 @@ with 1 when there are errors, or with any warning under `--fail-on warning`.
 | Option                     | Description                                                                                                                                                                                                                                                        |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `--format <f>`             | `text` (default), `sarif` or `github`; also `tooling.doctor.format`. The global `--json` prints the JSON report                                                                                                                                                    |
-| `--out <file>`             | Write the report to a file; also `tooling.doctor.output`, which applies with `tooling.doctor.format`                                                                                                                                                               |
+| `--out <file>`             | Write the report to a file; also `tooling.doctor.file`, which applies with `tooling.doctor.format`                                                                                                                                                                 |
 | `--only <codes>`           | Run only these checks, e.g. `--only BS100,BS304`; also `tooling.doctor.only`                                                                                                                                                                                       |
 | `--ignore <codes>`         | Skip checks. Adds to `tooling.doctor.ignore` in the config                                                                                                                                                                                                         |
 | `--fail-on <level>`        | Exit 1 on findings at this level: `error` (the default), `warning` (the default with `tooling.doctor.strict`) or `never`                                                                                                                                           |
@@ -38,11 +38,10 @@ with 1 when there are errors, or with any warning under `--fail-on warning`.
 | `--claims <json>`          | With `--explain` or `--explain-write`: plan with these JWT claims                                                                                                                                                                                                  |
 | `--fix-grants`             | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a schema file or migration                                                                                                                                                          |
 | `--update-baseline`        | Rewrite the [baseline](#baseline) file to accept this run's errors and warnings                                                                                                                                                                                    |
-| `--fix`                    | Run the SQL of the findings that carry a fix against the database, such as validating a not valid check ([BS236](#bs236)), and leave them out of the report. Asks before it writes to a database that is not local                                                 |
 
 Doctor never prints env values, only variable names and line numbers.
 
-Side effects: Reads the database, writes to the database with `--fix`, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
+Side effects: Reads the database, writes to the database with `--yes`, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
 
 ## In CI
 
@@ -76,7 +75,7 @@ applies when `$CI` is set:
 export default defineConfig({
   $ci: {
     tooling: {
-      doctor: { format: "sarif", output: "doctor.sarif", strict: true },
+      doctor: { format: "sarif", file: "doctor.sarif", strict: true },
     },
   },
 });
@@ -166,7 +165,11 @@ Where the findings come from depends on what doctor reads:
 - **Hosted projects** (`--project-ref` or `database.source.projectRef`): the Management
   API's `GET /v1/projects/{ref}/advisors/security`, the same data the dashboard
   shows.
-- **Local stack, `$DATABASE_URL`, `$SUPABASE_DB_URL` or `--db-url-stdin`:** [splinter](https://github.com/supabase/splinter),
+- **A database on this machine** (the local stack or a loopback URL): `supabase db advisors`
+  when the Supabase CLI is 2.81.3 or later. Doctor passes the URL with
+  `--db-url` and reads the JSON output. A missing or older CLI, a remote
+  database or a failed run falls back to splinter.
+- **Any other database, or the fallback** (`$DATABASE_URL`, `$SUPABASE_DB_URL` or `--db-url-stdin`): [splinter](https://github.com/supabase/splinter),
   the SQL behind the advisors. Doctor downloads `splinter.sql` at a pinned
   commit, checks its SHA-256, caches it in
   `node_modules/.cache/better-supabase` and runs it in a read-only transaction
@@ -528,7 +531,7 @@ doesn't when every policy for the write pins it without an `or`, to
 or to `column in (select better_supabase.tenant_ids_with(...))` or
 `column in (select better_supabase.member_organization_ids())`, so a write can
 only name a tenant the caller is a member of or holds the permission in. A
-subject's `deletedAt` column in `config.subjects` doesn't: `can_subject`
+subject's `deletedAt` column in `config.recordTypes` doesn't: `can_subject`
 filters soft-deleted rows out of a check that the row's own policies already
 pass, so clearing the column only shows a row again to someone who could
 already write it. A block's soft-delete column that its triggers never let a
@@ -777,7 +780,7 @@ Add the constraint with `not valid`, then run
 without blocking writes. A `references` or `check` written inline in
 `add column` can't be `not valid`, so BS230 flags it too: add the column,
 then the constraint. For a check, [BS236](#bs236) tells you when the rows
-pass and `doctor --fix` validates it.
+pass and `doctor --yes` validates it.
 
 ### BS231
 
@@ -835,7 +838,7 @@ column nullable, adds `check (column is not null) not valid` so new rows must
 fill it, backfills the old rows with [`db backfill`](/docs/cli/db#backfill),
 and then validates the check. BS236 reads the checks the database holds as not
 valid and tests each one against the rows. When no row fails it, the finding
-carries the fix, and `doctor --fix` runs
+carries the fix, and `doctor --yes` runs
 `alter table ... validate constraint ...` without a statement timeout. That
 scans the table but doesn't block reads or writes. After it, `set not null` on
 the column needs no scan. When rows still fail, the finding names the
@@ -876,7 +879,7 @@ that already has rows adds the scope column (`organization_id`, or `user_id` in
 match nobody for a row without a value, so only the service role reads or
 writes it, and updates to it fail the check. BS238 counts those rows and names
 the [`db backfill`](/docs/cli/db#backfill) command that fills them; then
-`doctor --fix` validates the check ([BS236](#bs236)). BS238 needs a database,
+`doctor --yes` validates the check ([BS236](#bs236)). BS238 needs a database,
 so a saved snapshot skips it. The check is `not valid` on purpose; see
 [Your own schemas](/docs/blocks/own-schemas#why-the-check-is-not-valid).
 
@@ -948,6 +951,13 @@ a schema change makes PostgREST reload, so put all of a deploy's DDL in one
 transaction and send one reload.
 
 ## Drift
+
+### BS260
+
+**Warning: code uses a name that `api/naming.json` renamed.** Doctor reads the
+app sources in `doctor.sources` for an export, type, subpath
+or environment variable named in the rename table, which the
+[Naming page](/docs/concepts/naming) lists. The old names have no alias. Run `better-supabase codemod naming` to rename them.
 
 ### BS301
 
@@ -1104,8 +1114,10 @@ updates and deletes are not in the audit log. Register it with
 skips the block schemas and the app's tables that blocks run over; list other tables in
 `blocks.audit.options.exempt` as `{ table, reason }` entries, where `table` is
 a `schema.table` glob (`*` matches any run of characters) and `reason` says why
-its changes need no audit entry. A bare glob string still works, but doctor
-reports it as an error and asks for the reason. Doctor only checks tables in `schemas`, and
+its changes need no audit entry. `{ class: "no-tenant-column", reason }` leaves
+out every table that has no tenant column, which the audit helpers can't
+register. A bare glob string still works, but doctor reports it as an error and
+asks for the reason. Doctor only checks tables in `schemas`, and
 a partition counts through its parent.
 
 ```ts title="better-supabase.config.ts"
@@ -1317,7 +1329,7 @@ Needs a database.
 ### BS331
 
 **Error: subject registry names a missing table or column.** An entry in
-`config.subjects` names a table that the snapshot lacks, or a column the
+`config.recordTypes` names a table that the snapshot lacks, or a column the
 table lacks: `id`, `tenant`, `title`, `deletedAt`, a `url` placeholder,
 `rank` or a `search` column. `subject_title`, `subject_url`, `can_subject`
 and every module that falls back to the registry fail when they run. Point
@@ -1326,7 +1338,7 @@ schemas the snapshot did not read.
 
 ### BS332
 
-**Warning: subject table without RLS.** A table in `config.subjects` has row
+**Warning: subject table without RLS.** A table in `config.recordTypes` has row
 level security disabled. `can_subject` treats a row the caller can read as
 visible, so every signed-in user passes the visibility half of the check for
 every row. Enable RLS and add the policies that scope the table.
@@ -1374,7 +1386,7 @@ table and swap the names in a maintenance window, or turn the option off.
 ### BS336
 
 **Warning: flag past its expiry.** The flags table has an `expires_at` column
-(`blocks.flags.options.extraColumns`), and a flag on the live database that
+(a column your schema files add to the flags table), and a flag on the live database that
 isn't archived has an `expires_at` in the past. A release flag that outlives
 its rollout keeps a dead branch in the code. Remove its checks, then archive
 the flag (`flags.upsert(key, { archived: true })`), or move `expires_at` when
@@ -1387,8 +1399,7 @@ See [owner and expiry](/docs/blocks/flags#owner-and-expiry).
 `realtime.broadcast_changes(..., new, old)` or sends `old_record` and `record`
 through `realtime.send()`, and has no `better-supabase: payload row` comment.
 Every subscriber of the topic then sees every column, including ones their
-column grants hide. 0.8 `triggerSql()` functions and hand-written ones are
-reported. Regenerate the trigger with `topic.trigger()`, whose default payload
+column grants hide. Hand-written trigger functions are reported. Regenerate the trigger with `topic.trigger()`, whose default payload
 sends the primary key and the topic values, or pass `payload: "row"` to keep
 whole rows on purpose. See
 [row changes](/docs/platform/realtime#row-changes).
@@ -1503,9 +1514,9 @@ checks. See
 ### BS346
 
 **Warning: block on names an unknown record type.** A block entry's `on`
-lists a type, or has a key, that `config.subjects` doesn't register. The
+lists a type, or has a key, that `config.recordTypes` doesn't register. The
 block's SQL refuses such a type when `gen` renders the migration, so doctor
-reports it first. Register the type in `config.subjects`, or remove it from
+reports it first. Register the type in `config.recordTypes`, or remove it from
 `on`. See [record types](/docs/blocks#record-types).
 
 ### BS347
@@ -1583,6 +1594,11 @@ client created with `db: { schema }` reaches the block's. Tables of yours that
 a block runs over are yours to write and are not reported. Write the row
 through the block's API that [`createBlocks`](/docs/blocks/create-blocks)
 returns.
+
+A write through your own view over a block's table counts too: with
+`create view public.job_attachments ... from better_supabase.attachments`,
+`db.jobAttachments.update()` and `.from("job_attachments").insert()` are
+reported. Reads go through the view, writes go through the block.
 
 ### BS352
 
@@ -1672,7 +1688,175 @@ SQL function with the same name and arguments as a `stable` or `immutable`
 function in another schema, which is how a wrapper from an older release looks.
 Run `better-supabase sql upgrade` to rewrite it.
 
+### BS365
+
+**Warning: an update policy has no select policy.** Postgres only updates rows the
+caller can also select, so a table with a `for update` policy and no `for select`
+or `for all` policy updates zero rows and reports no error. Add a select policy
+with the same condition. Doctor reads the app's own schema files.
+
+### BS366
+
+**Error: a policy decides on `user_metadata`.** `raw_user_meta_data` and
+`user_metadata` are editable by the signed-in user, so a policy that reads them
+lets anyone grant themselves access. Put authorization data in `app_metadata` or
+in the authorization provider. A trigger may read `raw_user_meta_data` for
+display fields; a policy never does.
+
+### BS367
+
+**Warning: a view skips the caller's row level security.** A view runs with its
+owner's rights unless it sets `security_invoker = true`, so it returns rows the
+caller's policies would hide. Create the view `with (security_invoker = true)`.
+
+### BS368
+
+**Info: a column uses `timestamp` or `serial`.** `timestamp` has no time zone and
+`serial` is the legacy form of an identity column. Use `timestamptz` and
+`generated always as identity`.
+
+### BS383
+
+**Warning: a storage policy set has insert but no select and update.** A storage
+upload with `upsert: true` reads the existing object and then updates it, so it
+needs `insert`, `select` and `update` policies on `storage.objects`. With
+`insert` alone the first upload works and every overwrite fails. Add the select
+and update policies, or turn upsert off. Doctor reads the app's own schema files.
+
+### BS384
+
+**Warning: a policy calls `auth.uid()` once per row.** `auth.uid()`,
+`auth.jwt()` and `auth.role()` called bare in a policy run for every row the
+policy checks. Written as `(select auth.uid())`, Postgres evaluates the call
+once per statement. Wrap each call in `select`.
+
+### BS385
+
+**Info: a policy column has no index.** A policy that filters on
+`user_id = (select auth.uid())` runs that filter in every query on the table, so
+the column needs an index that starts with it. A composite index puts the tenant
+column first. Without one, Postgres reads the whole table. Doctor counts an
+index, a primary key or a unique constraint that starts with the column.
+
+### BS369
+
+**Warning: an app file declares an object a block module declares.** A table,
+view, function or type that both a block module file and one of the app's files
+create is defined twice, so the declarative diff keeps whichever file it reads
+last. Declare the object once: let the app file alter the block's table, or map
+the block to another name.
+
+### BS370
+
+**Error: a schema file asks for `transaction=false`.** The line
+`-- pg-delta: transaction=false` runs a file's statements outside a transaction,
+so a failure halfway leaves the schema partly applied. Create the index
+concurrently in a hand migration with a `lock_timeout` instead.
+
+### BS371
+
+**Warning: two schema files declare the same object.** A function, policy,
+trigger, index, table, view, type or sequence that two schema files both create
+has two definitions, and the declarative diff keeps whichever file it reads
+last. The helpers every block calls (`actor_may_write`, `import_run`, the memo
+functions and the rest) live once in the prelude file, so a copy of one in a
+module file means the file is older than the prelude: run
+`better-supabase upgrade`, which `upgrade --check` also reports.
+
+### BS372
+
+**Warning: a `do` block in an app file creates objects.** A `do` block that
+runs `create` or `execute` builds objects at run time, so a schema diff can't
+see them and reports them missing. Write the statements out as plain DDL.
+
+### BS373
+
+**Warning: an app file creates an object with `if not exists`.** `create table
+if not exists` and `create index if not exists` skip the statement when an
+object of that name exists, so a changed definition never applies. Write
+`create table` and let the diff change the table.
+
+### BS374
+
+**Warning: a block module file inserts rows.** A schema diff reads tables, not
+rows, so a top-level `insert` in a block module file never reaches the database
+from the sync. Rows belong in the module's data file, which `upgrade` writes into
+a migration. The generator writes none; this finds a hand edit.
+
+### BS375
+
+**Warning: two policies decide the same way.** Two policies on one table have
+the same command, roles and expressions under different names. Postgres ORs
+permissive policies, so the second adds nothing, and a restrictive pair checks
+the same condition twice. Delete one.
+
+### BS376
+
+**Warning: a migration creates an object no schema file declares.** Under
+pg-delta, `supabase db schema declarative sync --strict-coverage` fails for a
+table, view, type or function that the migration history creates and the schema
+files don't, because the next diff would drop it. Declare it in
+`supabase/schemas`, or drop it in a migration. Objects in Supabase's own
+schemas and objects a later migration drops or renames are left out. A history
+with a `do` block reports nothing, because the block can rename or create an
+object by name.
+
+### BS377
+
+**Warning: a schema file declares an object no migration creates.** The other
+direction of BS376: a table, view, type or function in `supabase/schemas` that no
+migration creates is a change the sync has not turned into a migration yet. Run
+`supabase db schema declarative sync` and review the migration.
+
+### BS378
+
+**Warning: a trigger aimed at a view.** A `before` or `after` trigger on a view
+never fires for the rows of the table under it. Put the trigger on that table, or
+use an `instead of` trigger that writes it. Reads every schema file.
+
+### BS379
+
+**Error: a columns entry the render refuses.** `blocks.<name>.columns.<table>.<column>`
+is `null` for an optional column the view the block runs over lacks anyway, or
+`columns.<table>.tenant` repeats `sql.tenantColumn`. The block already leaves out
+a column its view lacks, and `sql.tenantColumn` fills every tenant column, so the
+entry says nothing. Run `better-supabase codemod config` to remove the entries.
+A `null` for a column the view has, or for a table you own, is fine.
+
+`better-supabase upgrade --check` runs the checks of BS369 to BS375 that apply to
+the installed block files (a helper two files define, an object two block files
+declare, `transaction=false`, a top-level `insert` and duplicate policies) and
+fails with a line for each.
+
 ## Auth config
+
+### BS380
+
+**Warning: a check constraint mixes `between` with `and` or `or`.** Postgres
+rewrites `x between a and b` into two comparisons, so a check that joins a
+`between` to other conditions reads back in another shape than the file declares,
+and the next diff proposes the same constraint again. Write the comparisons out.
+Reads the app's schema files.
+
+### BS381
+
+**Warning: a call names a block table that the app projects through a view.** An
+app view over a block table (`public.job_attachments` over
+`better_supabase.attachments`) is what clients read: it names the columns they
+may see, and `better-supabase powersync streams` syncs the same columns.
+`createNativeClient`, `powersyncEngine`, `attachmentQueueRoute` or `queryEngine`
+given the block table's name skips the view. The qualified name always counts;
+the bare name counts when the view is called something else. Name the view
+instead. Reads the app's schema files and the files in `doctor.sources`.
+
+### BS382
+
+**Error: a subject's config entry and its table comment disagree.** The
+`@bsb subject` tag on a table is the registry of the app's subjects, and a
+`subjects.<type>` entry can set the same options. When both give an option
+(`table`, `id`, `idType`, `tenant`, `title`, `url`, `scope`, `deletedAt`,
+`cascade`) and the values differ, `gen` keeps the config's and the comment says
+something else. Remove one, or make them agree.
 
 ### BS353
 
@@ -1707,6 +1891,27 @@ or remove the entry.
 --out` writes, but `database.seed.sample.output` points at another path. The
 next run writes a second file instead of replacing it, and `supabase db reset`
 loads both. Set `database.seed.sample.output` to the file, or delete it.
+
+### BS357
+
+**Error: a data file insert has no key.** A block data file runs again in every
+data migration that changes it, so each `insert` in
+`supabase/better-supabase-data` ends with `on conflict (...)` or guards itself
+with `not exists`. Without a key a second run adds the rows again.
+
+### BS358
+
+**Warning: an app seed writes a table a block seeds.** A file under
+`supabase/seeds` inserts into a table that a block data file also inserts into,
+so both own its rows. Let the block seed the table, or keep the rows in your
+seed and remove the block's. Files from `db seed --sample` are left out.
+
+### BS359
+
+**Warning: a seed function takes no locale.** A function named
+`seed_<name>_defaults` has no `p_locale` parameter. Defaults that depend on a
+country need it, and `seed_tenant_defaults` passes it to every seed function.
+Reads every schema file.
 
 ### BS401
 
@@ -1895,7 +2100,7 @@ finding; verify the request there with `authHook` from
   `v1,whsec_<base64>` or decodes to fewer than 24 or more than 64 bytes. The
   message never quotes the secret;
 - a warning when the secret is written in `config.toml` instead of read with
-  `secrets = "env(AUTH_HOOK_SECRET)"`. A value read from `env()` is checked
+  `secrets = "env(BETTER_SUPABASE_AUTH_HOOK_SECRET)"`. A value read from `env()` is checked
   only when `@supabase/config` interpolated it;
 - a warning when a non-local endpoint uses plain `http`.
 
@@ -1967,13 +2172,6 @@ reports each policy and each function in `schemas` that calls them. Remove
 `model` to use the provider (the default with `authorization`), or call the
 provider's own function in that policy.
 
-### BS415
-
-**Warning: the provider sets the deprecated `canApprove` template.**
-`authorization.functions.isApprover` replaces it, with `{kind}` (`'ai-tool'`
-for tool calls) and `{subject}` (the tool name) instead of `{tool}`. 0.9 still
-reads `canApprove` when `isApprover` is unset.
-
 ### BS416
 
 **Warning: `isApprover` has no branch for support sessions.** Under the
@@ -1997,19 +2195,6 @@ the caller's teams. Without it, `team_ids_of()` reads the teams block's own
 Doctor warns when the provider declares a `team` (or `teams`) scope, one of
 those blocks is installed, and the template is unset. Set `teamIdsOf` to a
 set-returning call with `{user}`, such as `provider.team_ids_of({user})`.
-
-### BS418
-
-**Warning: code uses an API that 0.15 renamed or removed.** Doctor reads the
-app sources in `doctor.sources` for imports of a renamed block subpath
-(`better-supabase/blocks/work-items`), a built-in plugin subpath
-(`better-supabase/plugins/soft-delete`), a renderer subpath that
-`better-supabase/spec` replaced (`better-supabase/openapi`, `/asyncapi`,
-`/arazzo` and `/overlay`), an export named after a renamed
-block (`workItemsBlock`), and the record feature, leases maintenance and pass
-credit APIs that 0.15 removed. Run `better-supabase codemod 0.15` for the
-renames, and use the replacement the finding names for the removed APIs. The
-[0.14 to 0.15 guide](/docs/migration/0.14-to-0.15) lists each one.
 
 ### BS419
 
@@ -2055,59 +2240,6 @@ The exemption only lifts the restrictive scope. The hook still needs the grant
 and the permissive policy for `supabase_auth_admin` that the Supabase hook guide
 describes. Or make the hook `security definer`, owned by a role that bypasses
 row level security.
-
-### BS422
-
-**Warning: code or config uses a renamed permission key.** Since 0.46 a
-permission key is `<area>.<verb>`: the area is the block name in snake_case
-(`contacts`, `workflow_editor`) and the verb is `read`, `write`, `delete`,
-`manage` or a verb of the domain (`approve`, `publish`). Doctor reports an old
-key in `blocks.permissions.roles`, in a block's `permissions` overrides and in
-a quoted string in the app sources in `doctor.sources`. Old keys keep working
-until the next minor, with a warning. Run `better-supabase codemod 0.46` to
-rename them, then check the keys it lists for review, such as the `ai.*` keys
-that split into one area per AI block. The
-[0.45 to 0.46 guide](/docs/migration/0.45-to-0.46) has the full table.
-A string that is an old permission key and a current event pattern, such as
-`activity.*`, isn't reported.
-
-### BS423
-
-**Warning: config or code uses a renamed entity key or hint code.** Since 0.47
-a key in `blocks.<name>.entities` is the entity's singular (`task`, not
-`work_item`), and a hint code starts with the entity's new name
-(`TASK_NOT_FOUND`, not `WORK_ITEM_NOT_FOUND`). Doctor reports an old entity key
-in the config and an old hint code in a quoted string in the app sources in
-`doctor.sources`. Old entity keys keep working until the next minor, with a
-warning; `error.hint` carries only the new code, and `error.legacyHint` the old
-one until 0.48. Run `better-supabase codemod 0.47` to rename both. The
-[0.46 to 0.47 guide](/docs/migration/0.46-to-0.47) has the full tables.
-
-### BS424
-
-**Warning: code uses a renamed event type.** Since 0.47 an event type is
-`<entity>.<past verb>`: `work_item.created` is `task.created`, `rule.removed`
-is `automation.deleted`, and each `saved` event is now `created` or `updated`.
-The outbox stores the new types, so a subscriber to an old one misses its
-events. Doctor reports a quoted old type in the app sources in
-`doctor.sources`; strings that are also permission keys, such as `support.*`,
-are left to BS422. Run `better-supabase codemod 0.47` to rename them, then
-pick `created`, `updated` or both for the split types it lists. Receivers
-outside the app can keep the old names until the next minor with the outbox
-`legacyEventTypes` option. The
-[0.46 to 0.47 guide](/docs/migration/0.46-to-0.47#event-types) has the full
-table.
-
-### BS425
-
-**Warning: an adopted table holds sequence runs.** Sequence runs moved onto
-the enrollments block in 0.47. The upgrade copies the default
-`sequence_enrollments` table and drops it, but a `members` table adopted
-through `blocks.sequences.tables` keeps its rows where they are, so no run
-continues. Doctor reports the key. Copy the rows onto `enrollments` (program
-`sequence:<id>`) and `enrollment_steps`, then remove the key. The
-[0.46 to 0.47 guide](/docs/migration/0.46-to-0.47#sequence-runs) shows the
-copy.
 
 ### BS426
 
@@ -2183,14 +2315,6 @@ such as an SLA check, but no app source calls `blockTickHandler(...)`, so the
 timers never fire. Call
 `jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })`
 once and drain the `block_ticks` queue with `blockTickHandler`.
-
-### BS509
-
-**Warning: a block client call passes positional arguments.** Since 0.47 every
-block client method takes one object, such as
-`drive.list({ organizationId, options })`. A call that still passes several
-positional arguments no longer type-checks. Run `bsb codemod 0.47`, which
-rewrites the calls it can place and lists the others for review.
 
 ### BS510
 
@@ -2315,6 +2439,26 @@ or move the admin read out of the cached function.
 
 These checks read the app's source text, matched by `doctor.sources`, for code the library now covers. Each one reports once per file and only in files that name better-supabase. The shim registry in `src/cli/doctor/shims.ts` lists them, so one entry adds a check.
 
+### BS621
+
+**Warning: a client file imports a generated barrel.** A file with
+`"use client"` imports `generated-schema`, `blocks.generated` or
+`blocks.config`. Each one lists every table or every installed block, so the
+page ships all of them. Import the table modules (`tables/<table>`) and block
+slices (`blocks/slices`) the page uses, and build the browser's client over
+`clientSchema`. The check is off with `gen.tableModules: false` and in content
+mapper mode.
+
+### BS622
+
+**Warning: a block adds a column to a table your files create.** A block runs
+over a table you create and adds an optional column to it with `add column if
+not exists`, and your own schema files don't declare that column. A later
+release stops adding columns to tables you own and turns the feature that
+needs the column off instead. Run `better-supabase codemod owned-columns` to
+declare the columns in your schema files, or map the column to `null` in
+`blocks.<name>.columns` to keep the feature off.
+
 ### BS612
 
 **Info: the proxy re-syncs session cookies with `setAll`.** Since 0.40 the library's own cookie handling in `bsb.proxy` writes them. Remove the callback.
@@ -2346,6 +2490,10 @@ These checks read the app's source text, matched by `doctor.sources`, for code t
 ### BS619
 
 **Info: a support caller is built as an `AuthState` by hand.** Pass `{ token, claims }`, a `SupportCaller`, to the support API.
+
+### BS620
+
+**Info: settings are merged into one JSON blob by hand.** The `settings` block validates each key against a Standard Schema and writes one key at a time.
 
 ## Local stacks
 

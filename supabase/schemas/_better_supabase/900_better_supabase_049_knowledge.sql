@@ -1,109 +1,42 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:42f1966d8afa65f126e7f861cbec6bf2ca944970ecef313b0ef6604bb0b32cc7
+-- @bsb-hash sha256:496ce13f06ddb33df9f489059402f55e0df568eb02d4c303ef374e1fa43017ff
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_collections";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_collections";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_collections";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_collections";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collections";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_collection_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_collection_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_collection_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_collection_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collection_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Collections group documents. automatic ones show up in every search of
 -- their tenant, restricted ones only for their grants and admins, disabled
 -- ones in no search. A collection without a tenant is a system collection.
-create table if not exists "better_supabase"."knowledge_collections" (
+create table "better_supabase"."knowledge_collections" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
-  "name" text not null check (length("name") between 1 and 200),
+  "tenant_id" uuid,
+  "name" text not null constraint bsb_knowledge_collections_name_check check (length("name") >= 1 and length("name") <= 200),
   "description" text,
-  "visibility" text not null default 'automatic' check ("visibility" in ('automatic', 'restricted', 'disabled')),
+  "visibility" text not null default 'automatic' constraint bsb_knowledge_collections_visibility_check check ("visibility" in ('automatic', 'restricted', 'disabled')),
   "priority" integer not null default 0,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists knowledge_collections_name_key on "better_supabase"."knowledge_collections" ("organization_id", "name") nulls not distinct;
-create index if not exists knowledge_collections_created_by_idx on "better_supabase"."knowledge_collections" ("created_by");
+create unique index knowledge_collections_name_key on "better_supabase"."knowledge_collections" ("tenant_id", "name") nulls not distinct;
+create index knowledge_collections_created_by_idx on "better_supabase"."knowledge_collections" ("created_by");
 alter table "better_supabase"."knowledge_collections" enable row level security;
 revoke all on "better_supabase"."knowledge_collections" from public, anon, authenticated;
 grant select on "better_supabase"."knowledge_collections" to authenticated;
 grant all on "better_supabase"."knowledge_collections" to service_role;
 
-create table if not exists "better_supabase"."knowledge_collection_grants" (
+create table "better_supabase"."knowledge_collection_grants" (
   "collection_id" uuid not null references "better_supabase"."knowledge_collections" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
   "team_id" uuid,
   "created_at" timestamptz not null default now(),
-  check (("user_id" is null) <> ("team_id" is null))
+  constraint bsb_knowledge_collection_grants_check check (("user_id" is null) <> ("team_id" is null))
 );
-alter table "better_supabase"."knowledge_collection_grants" add column if not exists "organization_id" uuid;
-create unique index if not exists knowledge_collection_grants_key on "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id") nulls not distinct;
-create index if not exists knowledge_collection_grants_user_idx on "better_supabase"."knowledge_collection_grants" ("user_id") where "user_id" is not null;
-create index if not exists knowledge_collection_grants_tenant_idx on "better_supabase"."knowledge_collection_grants" ("organization_id") where "organization_id" is not null;
+create unique index knowledge_collection_grants_key on "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id") nulls not distinct;
+create index knowledge_collection_grants_user_idx on "better_supabase"."knowledge_collection_grants" ("user_id") where "user_id" is not null;
+create index knowledge_collection_grants_tenant_idx on "better_supabase"."knowledge_collection_grants" ("tenant_id") where "tenant_id" is not null;
 alter table "better_supabase"."knowledge_collection_grants" enable row level security;
 revoke all on "better_supabase"."knowledge_collection_grants" from public, anon, authenticated;
 grant all on "better_supabase"."knowledge_collection_grants" to service_role;
@@ -120,9 +53,9 @@ as $$
   select exists (
     select 1 from "better_supabase"."knowledge_collections" c
     where c."id" = knowledge_collection_readable.collection_id
-      and (c."organization_id" is null or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', c."organization_id", 'knowledge.read'), false))
+      and (c."tenant_id" is null or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', c."tenant_id", 'knowledge.read'), false))
       and (c."visibility" = 'automatic'
-        or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (c."organization_id" is not null and coalesce(better_supabase.can('tenant', c."organization_id", 'knowledge.manage'), false)))
+        or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (c."tenant_id" is not null and coalesce(better_supabase.can('tenant', c."tenant_id", 'knowledge.manage'), false)))
         or exists (
           select 1 from "better_supabase"."knowledge_collection_grants" x
           where x."collection_id" = c."id" and (x."user_id" = auth.uid() or (x."team_id" is not null and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id" = x."team_id" and tm."user_id" = auth.uid())))
@@ -131,8 +64,7 @@ as $$
 $$;
 revoke execute on function "better_supabase"."knowledge_collection_readable"(uuid) from public, anon;
 grant execute on function "better_supabase"."knowledge_collection_readable"(uuid) to authenticated, service_role;
-drop policy if exists knowledge_collections_read on "better_supabase"."knowledge_collections";
-create policy knowledge_collections_read on "better_supabase"."knowledge_collections"
+create policy bsb_knowledge_collections_read on "better_supabase"."knowledge_collections"
   for select to authenticated
   using ("better_supabase"."knowledge_collection_readable"("id"));
 
@@ -162,10 +94,10 @@ begin
   if create_knowledge_collection.visibility is null or create_knowledge_collection.visibility not in ('automatic', 'restricted', 'disabled') then
     raise exception 'visibility % is not automatic, restricted or disabled', create_knowledge_collection.visibility using errcode = '22023', hint = 'KNOWLEDGE_VISIBILITY';
   end if;
-  insert into "better_supabase"."knowledge_collections" ("organization_id", "name", "description", "visibility", "priority", "created_by")
+  insert into "better_supabase"."knowledge_collections" ("tenant_id", "name", "description", "visibility", "priority", "created_by")
   values (create_knowledge_collection.tenant, create_knowledge_collection.name, create_knowledge_collection.description, create_knowledge_collection.visibility, coalesce(create_knowledge_collection.priority, 0), auth.uid())
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'description', v_row."description", 'visibility', v_row."visibility", 'priority', v_row."priority", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'visibility', v_row."visibility", 'priority', v_row."priority", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_knowledge_collection"(uuid, text, text, text, integer) from public, anon;
@@ -186,7 +118,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."knowledge_collections" x where x."id" = update_knowledge_collection.collection_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."organization_id" is not null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'knowledge.manage'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'knowledge.manage'), false))) then
     raise exception 'collection % not found', update_knowledge_collection.collection_id using errcode = 'P0002', hint = 'KNOWLEDGE_COLLECTION_NOT_FOUND';
   end if;
   if update_knowledge_collection.patch ? 'visibility' then
@@ -202,7 +134,7 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'description', v_row."description", 'visibility', v_row."visibility", 'priority', v_row."priority", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'visibility', v_row."visibility", 'priority', v_row."priority", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."update_knowledge_collection"(uuid, jsonb) from public, anon;
@@ -222,7 +154,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."knowledge_collections" x where x."id" = delete_knowledge_collection.collection_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."organization_id" is not null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'knowledge.manage'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'knowledge.manage'), false))) then
     raise exception 'collection % not found', delete_knowledge_collection.collection_id using errcode = 'P0002', hint = 'KNOWLEDGE_COLLECTION_NOT_FOUND';
   end if;
   delete from "better_supabase"."knowledge_collections" x where x."id" = v_row."id";
@@ -241,16 +173,16 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'description', x."description", 'visibility', x."visibility", 'priority', x."priority", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."priority" desc, x."name"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'visibility', x."visibility", 'priority', x."priority", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."priority" desc, x."name"), '[]')
   from "better_supabase"."knowledge_collections" x
-  where x."organization_id" = list_knowledge_collections.tenant or x."organization_id" is null
+  where x."tenant_id" = list_knowledge_collections.tenant or x."tenant_id" is null
 $$;
 revoke execute on function "better_supabase"."list_knowledge_collections"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_knowledge_collections"(uuid) to authenticated, service_role;
 
 -- Grants a user or a team a restricted collection, or revokes it. Returns
 -- whether anything changed. The grant keeps the collection's tenant.
-drop function if exists "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, text, boolean);
+
 create or replace function "better_supabase"."set_knowledge_collection_grant"(collection_id uuid, user_id uuid default null, team_id uuid default null, granted boolean default true)
 returns boolean
 language plpgsql
@@ -266,15 +198,15 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."knowledge_collections" x where x."id" = set_knowledge_collection_grant.collection_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."organization_id" is not null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'knowledge.manage'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'knowledge.manage'), false))) then
     raise exception 'collection % not found', set_knowledge_collection_grant.collection_id using errcode = 'P0002', hint = 'KNOWLEDGE_COLLECTION_NOT_FOUND';
   end if;
   if (set_knowledge_collection_grant.user_id is null) = (set_knowledge_collection_grant.team_id is null) then
     raise exception 'name a user or a team' using errcode = '22023', hint = 'KNOWLEDGE_GRANT';
   end if;
   if set_knowledge_collection_grant.granted then
-    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "organization_id", "user_id", "team_id")
-    values (v_row."id", v_row."organization_id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
+    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "tenant_id", "user_id", "team_id")
+    values (v_row."id", v_row."tenant_id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
     on conflict do nothing;
   else
     delete from "better_supabase"."knowledge_collection_grants" x
@@ -301,7 +233,7 @@ declare
   v_row "better_supabase"."knowledge_collections"%rowtype;
 begin
   select * into v_row from "better_supabase"."knowledge_collections" x where x."id" = list_knowledge_collection_grants.collection_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."organization_id" is not null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'knowledge.manage'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'knowledge.manage'), false))) then
     raise exception 'collection % not found', list_knowledge_collection_grants.collection_id using errcode = 'P0002', hint = 'KNOWLEDGE_COLLECTION_NOT_FOUND';
   end if;
   return (
@@ -316,40 +248,35 @@ grant execute on function "better_supabase"."list_knowledge_collection_grants"(u
 -- Documents for retrieval: uploaded files, pasted text and synced rows, split
 -- into chunks with an embedding and a tsvector each. The app chunks and
 -- embeds; the database stores, scopes and searches.
-create table if not exists "better_supabase"."knowledge_documents" (
+create table "better_supabase"."knowledge_documents" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
-  "scope" text not null default 'user' check ("scope" in ('organization', 'agent', 'project', 'chat', 'user')),
+  "scope" text not null default 'user' constraint bsb_knowledge_documents_scope_check check ("scope" in ('organization', 'agent', 'project', 'chat', 'user', 'subject')),
   "scope_id" uuid,
   "file_id" uuid references "better_supabase"."ai_files" ("id") on delete cascade,
-  "title" text not null check (length("title") between 1 and 500),
+  "title" text not null constraint bsb_knowledge_documents_title_check check (length("title") >= 1 and length("title") <= 500),
   "source" text,
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
+  "metadata" jsonb not null default '{}' constraint bsb_knowledge_documents_metadata_check check (jsonb_typeof("metadata") = 'object'),
+  "status" text not null default 'pending' constraint bsb_knowledge_documents_status_check check ("status" in ('pending', 'ready', 'failed')),
   "error" text,
   "chunk_count" integer not null default 0,
   "embedding_model" text,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("scope" = 'organization') = ("scope_id" is null)),
-  constraint knowledge_documents_system_check check ("organization_id" is not null or ("scope" = 'organization' and "owner_id" is null))
+  constraint bsb_knowledge_documents_check check (("scope" in ('organization', 'subject')) = ("scope_id" is null)),
+  constraint bsb_knowledge_documents_system_check check ("tenant_id" is not null or ("scope" = 'organization' and "owner_id" is null))
 );
-alter table "better_supabase"."knowledge_documents" add column if not exists "collection_id" uuid references "better_supabase"."knowledge_collections" ("id") on delete set null;
-alter table "better_supabase"."knowledge_documents" add column if not exists "subject_type" text check (length("subject_type") between 1 and 100);
-alter table "better_supabase"."knowledge_documents" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
-alter table "better_supabase"."knowledge_documents" drop constraint if exists "knowledge_documents_scope_check";
-alter table "better_supabase"."knowledge_documents" add constraint "knowledge_documents_scope_check" check ("scope" in ('organization', 'agent', 'project', 'chat', 'user', 'subject'));
-alter table "better_supabase"."knowledge_documents" drop constraint if exists "knowledge_documents_check";
-alter table "better_supabase"."knowledge_documents" add constraint "knowledge_documents_check" check (("scope" in ('organization', 'subject')) = ("scope_id" is null));
-alter table "better_supabase"."knowledge_documents" drop constraint if exists knowledge_documents_subject_check;
-alter table "better_supabase"."knowledge_documents" add constraint knowledge_documents_subject_check check (("scope" = 'subject') = ("subject_type" is not null and "subject_id" is not null));
-create index if not exists knowledge_documents_subject_idx on "better_supabase"."knowledge_documents" ("subject_type", "subject_id") where "subject_type" is not null;
-create index if not exists knowledge_documents_tenant_idx on "better_supabase"."knowledge_documents" ("organization_id", "scope", "scope_id");
-create index if not exists knowledge_documents_owner_idx on "better_supabase"."knowledge_documents" ("owner_id") where "owner_id" is not null;
-create index if not exists knowledge_documents_collection_idx on "better_supabase"."knowledge_documents" ("collection_id") where "collection_id" is not null;
-create index if not exists knowledge_documents_file_idx on "better_supabase"."knowledge_documents" ("file_id") where "file_id" is not null;
-create index if not exists knowledge_documents_pending_idx on "better_supabase"."knowledge_documents" ("updated_at") where "status" = 'pending';
+alter table "better_supabase"."knowledge_documents" add column "collection_id" uuid references "better_supabase"."knowledge_collections" ("id") on delete set null;
+alter table "better_supabase"."knowledge_documents" add column "subject_type" text constraint bsb_knowledge_documents_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."knowledge_documents" add column "subject_id" text constraint bsb_knowledge_documents_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."knowledge_documents" add constraint bsb_knowledge_documents_subject_check check (("scope" = 'subject') = ("subject_type" is not null and "subject_id" is not null));
+create index knowledge_documents_subject_idx on "better_supabase"."knowledge_documents" ("subject_type", "subject_id") where "subject_type" is not null;
+create index knowledge_documents_tenant_idx on "better_supabase"."knowledge_documents" ("tenant_id", "scope", "scope_id");
+create index knowledge_documents_owner_idx on "better_supabase"."knowledge_documents" ("owner_id") where "owner_id" is not null;
+create index knowledge_documents_collection_idx on "better_supabase"."knowledge_documents" ("collection_id") where "collection_id" is not null;
+create index knowledge_documents_file_idx on "better_supabase"."knowledge_documents" ("file_id") where "file_id" is not null;
+create index knowledge_documents_pending_idx on "better_supabase"."knowledge_documents" ("updated_at") where "status" = 'pending';
 alter table "better_supabase"."knowledge_documents" enable row level security;
 revoke all on "better_supabase"."knowledge_documents" from public, anon, authenticated;
 grant select on "better_supabase"."knowledge_documents" to authenticated;
@@ -369,16 +296,15 @@ $$;
 revoke execute on function "better_supabase"."knowledge_subject_readable"(text, text) from public, anon;
 grant execute on function "better_supabase"."knowledge_subject_readable"(text, text) to authenticated, service_role;
 
-drop policy if exists knowledge_documents_read on "better_supabase"."knowledge_documents";
-create policy knowledge_documents_read on "better_supabase"."knowledge_documents"
+create policy bsb_knowledge_documents_read on "better_supabase"."knowledge_documents"
   for select to authenticated
-  using (("organization_id" is null or case when "scope" = 'subject' then "better_supabase"."knowledge_subject_readable"("subject_type", "subject_id") else ("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('knowledge.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('knowledge.manage')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))) end) and ("collection_id" is null or "better_supabase"."knowledge_collection_readable"("collection_id")));
+  using (("tenant_id" is null or case when "scope" = 'subject' then "better_supabase"."knowledge_subject_readable"("subject_type", "subject_id") else ("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "tenant_id" in (select better_supabase.tenant_ids_with('knowledge.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('knowledge.manage')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))) end) and ("collection_id" is null or "better_supabase"."knowledge_collection_readable"("collection_id")));
 
 -- A chunk is visible when its document is, so search inherits the scopes.
-create table if not exists "better_supabase"."knowledge_chunks" (
+create table "better_supabase"."knowledge_chunks" (
   "document_id" uuid not null references "better_supabase"."knowledge_documents" ("id") on delete cascade,
-  "idx" integer not null check ("idx" >= 0),
-  "content" text not null check (length("content") > 0),
+  "idx" integer not null constraint bsb_knowledge_chunks_idx_check check ("idx" >= 0),
+  "content" text not null constraint bsb_knowledge_chunks_content_check check (length("content") > 0),
   "token_count" integer,
   "embedding" extensions.vector(1536),
   "embedding_hash" text,
@@ -386,15 +312,14 @@ create table if not exists "better_supabase"."knowledge_chunks" (
   "tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "content")) stored,
   primary key ("document_id", "idx")
 );
-create index if not exists knowledge_chunks_embedding_idx on "better_supabase"."knowledge_chunks" using hnsw ("embedding" extensions.vector_cosine_ops);
-create index if not exists knowledge_chunks_tsv_idx on "better_supabase"."knowledge_chunks" using gin ("tsv");
-create index if not exists knowledge_chunks_pending_idx on "better_supabase"."knowledge_chunks" ("document_id", "idx") where "embedding" is null;
+create index knowledge_chunks_embedding_idx on "better_supabase"."knowledge_chunks" using hnsw ("embedding" extensions.vector_cosine_ops);
+create index knowledge_chunks_tsv_idx on "better_supabase"."knowledge_chunks" using gin ("tsv");
+create index knowledge_chunks_pending_idx on "better_supabase"."knowledge_chunks" ("document_id", "idx") where "embedding" is null;
 alter table "better_supabase"."knowledge_chunks" enable row level security;
 revoke all on "better_supabase"."knowledge_chunks" from public, anon, authenticated;
 grant select on "better_supabase"."knowledge_chunks" to authenticated;
 grant all on "better_supabase"."knowledge_chunks" to service_role;
-drop policy if exists knowledge_chunks_read on "better_supabase"."knowledge_chunks";
-create policy knowledge_chunks_read on "better_supabase"."knowledge_chunks"
+create policy bsb_knowledge_chunks_read on "better_supabase"."knowledge_chunks"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."knowledge_documents" doc where doc."id" = "document_id"));
 
@@ -404,8 +329,7 @@ create policy knowledge_chunks_read on "better_supabase"."knowledge_chunks"
 -- A document joins a collection of its tenant, or a system collection.
 -- Subject knowledge names a record (subject_type, subject_id) of the tenant
 -- that the caller can read, and is read only by those who can read it.
-drop function if exists "better_supabase"."create_knowledge_document"(uuid, text, text, uuid, uuid, text, jsonb, uuid);
-drop function if exists "better_supabase"."create_knowledge_document"(uuid, text, text, uuid, uuid, text, jsonb, uuid, uuid);
+
 create or replace function "better_supabase"."create_knowledge_document"(
   tenant uuid,
   title text,
@@ -441,7 +365,7 @@ begin
   if create_knowledge_document.collection_id is not null and not exists (
     select 1 from "better_supabase"."knowledge_collections" kc
     where kc."id" = create_knowledge_document.collection_id
-      and (kc."organization_id" is null or kc."organization_id" = create_knowledge_document.tenant)
+      and (kc."tenant_id" is null or kc."tenant_id" = create_knowledge_document.tenant)
       and "better_supabase"."knowledge_collection_readable"(kc."id")
   ) then
     raise exception 'collection % not found', create_knowledge_document.collection_id using errcode = 'P0002', hint = 'KNOWLEDGE_COLLECTION_NOT_FOUND';
@@ -533,16 +457,16 @@ begin
   if file_id is not null and not exists (
     select 1 from "better_supabase"."ai_files" x
     where x."id" = create_knowledge_document.file_id
-      and x."organization_id" = create_knowledge_document.tenant
+      and x."tenant_id" = create_knowledge_document.tenant
       and x."status" = 'ready'
       and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'knowledge.manage'), false))
   ) then
     raise exception 'file % not found', file_id using errcode = 'P0002', hint = 'AI_FILE_NOT_FOUND';
   end if;
-  insert into "better_supabase"."knowledge_documents" ("organization_id", "owner_id", "scope", "scope_id", "file_id", "title", "collection_id", "source", "metadata", "subject_type", "subject_id")
+  insert into "better_supabase"."knowledge_documents" ("tenant_id", "owner_id", "scope", "scope_id", "file_id", "title", "collection_id", "source", "metadata", "subject_type", "subject_id")
   values (create_knowledge_document.tenant, v_owner, create_knowledge_document.scope, v_scope_id, create_knowledge_document.file_id, create_knowledge_document.title, create_knowledge_document.collection_id, create_knowledge_document.source, coalesce(create_knowledge_document.metadata, '{}'), create_knowledge_document.subject_type, create_knowledge_document.subject_id)
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'scope_id', v_row."scope_id", 'file_id', v_row."file_id", 'title', v_row."title", 'source', v_row."source", 'metadata', v_row."metadata", 'status', v_row."status", 'error', v_row."error", 'chunk_count', v_row."chunk_count", 'embedding_model', v_row."embedding_model", 'collection_id', v_row."collection_id", 'subject_type', v_row."subject_type", 'subject_id', v_row."subject_id", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'scope_id', v_row."scope_id", 'file_id', v_row."file_id", 'title', v_row."title", 'source', v_row."source", 'metadata', v_row."metadata", 'status', v_row."status", 'error', v_row."error", 'chunk_count', v_row."chunk_count", 'embedding_model', v_row."embedding_model", 'collection_id', v_row."collection_id", 'subject_type', v_row."subject_type", 'subject_id', v_row."subject_id", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_knowledge_document"(uuid, text, text, uuid, uuid, text, jsonb, uuid, uuid, text, text) from public, anon;
@@ -568,7 +492,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."knowledge_documents" x where x."id" = write_knowledge_chunks.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'knowledge.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'knowledge.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'KNOWLEDGE_NOT_FOUND';
   end if;
   if coalesce(jsonb_typeof(v_items), '') <> 'array' or jsonb_array_length(v_items) > 10000 then
@@ -597,7 +521,7 @@ begin
   if v_row."status" = 'pending' then
   perform "better_supabase"."enqueue_job"(queue => 'knowledge_embed', payload => jsonb_build_object('document_id', v_row."id"), dedupe_key => 'knowledge:' || v_row."id"::text, dedupe_running => false);
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'scope_id', v_row."scope_id", 'file_id', v_row."file_id", 'title', v_row."title", 'source', v_row."source", 'metadata', v_row."metadata", 'status', v_row."status", 'error', v_row."error", 'chunk_count', v_row."chunk_count", 'embedding_model', v_row."embedding_model", 'collection_id', v_row."collection_id", 'subject_type', v_row."subject_type", 'subject_id', v_row."subject_id", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'scope_id', v_row."scope_id", 'file_id', v_row."file_id", 'title', v_row."title", 'source', v_row."source", 'metadata', v_row."metadata", 'status', v_row."status", 'error', v_row."error", 'chunk_count', v_row."chunk_count", 'embedding_model', v_row."embedding_model", 'collection_id', v_row."collection_id", 'subject_type', v_row."subject_type", 'subject_id', v_row."subject_id", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."write_knowledge_chunks"(uuid, jsonb, text) from public, anon;
@@ -610,7 +534,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'scope', x."scope", 'scope_id', x."scope_id", 'file_id', x."file_id", 'title', x."title", 'source', x."source", 'metadata', x."metadata", 'status', x."status", 'error', x."error", 'chunk_count', x."chunk_count", 'embedding_model', x."embedding_model", 'collection_id', x."collection_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."knowledge_documents" x where x."id" = get_knowledge_document.document_id
+  select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'scope_id', x."scope_id", 'file_id', x."file_id", 'title', x."title", 'source', x."source", 'metadata', x."metadata", 'status', x."status", 'error', x."error", 'chunk_count', x."chunk_count", 'embedding_model', x."embedding_model", 'collection_id', x."collection_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."knowledge_documents" x where x."id" = get_knowledge_document.document_id
 $$;
 revoke execute on function "better_supabase"."get_knowledge_document"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_knowledge_document"(uuid) to authenticated, service_role;
@@ -618,8 +542,7 @@ grant execute on function "better_supabase"."get_knowledge_document"(uuid) to au
 -- The documents the caller can read in a tenant, newest first. With a
 -- collection, its documents, system ones included. With a record, the
 -- subject knowledge about it.
-drop function if exists "better_supabase"."list_knowledge_documents"(uuid, text, uuid, integer);
-drop function if exists "better_supabase"."list_knowledge_documents"(uuid, text, uuid, integer, uuid);
+
 create or replace function "better_supabase"."list_knowledge_documents"(
   tenant uuid,
   scope text default null,
@@ -635,10 +558,10 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'scope', x."scope", 'scope_id', x."scope_id", 'file_id', x."file_id", 'title', x."title", 'source', x."source", 'metadata', x."metadata", 'status', x."status", 'error', x."error", 'chunk_count', x."chunk_count", 'embedding_model', x."embedding_model", 'collection_id', x."collection_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'scope_id', x."scope_id", 'file_id', x."file_id", 'title', x."title", 'source', x."source", 'metadata', x."metadata", 'status', x."status", 'error', x."error", 'chunk_count', x."chunk_count", 'embedding_model', x."embedding_model", 'collection_id', x."collection_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
   from (
     select * from "better_supabase"."knowledge_documents" y
-    where (y."organization_id" = list_knowledge_documents.tenant or (y."organization_id" is null and list_knowledge_documents.collection_id is not null))
+    where (y."tenant_id" = list_knowledge_documents.tenant or (y."tenant_id" is null and list_knowledge_documents.collection_id is not null))
       and (list_knowledge_documents.collection_id is null or y."collection_id" = list_knowledge_documents.collection_id)
       and (list_knowledge_documents.scope is null or y."scope" = list_knowledge_documents.scope)
       and (list_knowledge_documents.scope_id is null or y."scope_id" = list_knowledge_documents.scope_id)
@@ -664,7 +587,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."knowledge_documents" x where x."id" = delete_knowledge_document.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'knowledge.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'knowledge.manage'), false)) then
     return false;
   end if;
   delete from "better_supabase"."knowledge_documents" x where x."id" = v_row."id";
@@ -685,8 +608,7 @@ grant execute on function "better_supabase"."delete_knowledge_document"(uuid) to
 -- chunk_id, organization_id, content, metadata, title, score}; chunk_id is
 -- the document id and idx joined by '#', and organization_id is null for a
 -- system document.
-drop function if exists "better_supabase"."knowledge_search"(uuid, extensions.vector, text, jsonb, integer, jsonb);
-drop function if exists "better_supabase"."knowledge_search"(uuid, extensions.vector, text, jsonb, integer, jsonb, uuid[]);
+
 create or replace function "better_supabase"."knowledge_search"(
   tenant uuid,
   query_embedding extensions.vector default null,
@@ -711,8 +633,8 @@ declare
 begin
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with docs as materialized (
-    select x."id" as id, x."organization_id" as doc_tenant, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
-    where (x."organization_id" = knowledge_search.tenant or x."organization_id" is null)
+    select x."id" as id, x."tenant_id" as doc_tenant, x."title" as title, coalesce((select kc."priority" from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id"), 0) as priority from "better_supabase"."knowledge_documents" x
+    where (x."tenant_id" = knowledge_search.tenant or x."tenant_id" is null)
       and (x."collection_id" is null or exists (select 1 from "better_supabase"."knowledge_collections" kc where kc."id" = x."collection_id" and kc."visibility" <> 'disabled'))
       and (knowledge_search.collections is null or x."collection_id" = any(knowledge_search.collections))
       and (v_scopes is null or exists (
@@ -875,7 +797,7 @@ declare
   v_document jsonb;
 begin
   select x."filename" into v_name from "better_supabase"."ai_files" x
-  where x."id" = queue_knowledge_file.file_id and x."organization_id" = queue_knowledge_file.tenant;
+  where x."id" = queue_knowledge_file.file_id and x."tenant_id" = queue_knowledge_file.tenant;
   if not found then
     raise exception 'file % not found', queue_knowledge_file.file_id using errcode = 'P0002', hint = 'AI_FILE_NOT_FOUND';
   end if;
@@ -901,7 +823,7 @@ declare
 begin
   for v_id in
     update "better_supabase"."knowledge_documents" x set "status" = 'pending', "updated_at" = now()
-    where (reembed_knowledge.tenant is null or x."organization_id" = reembed_knowledge.tenant)
+    where (reembed_knowledge.tenant is null or x."tenant_id" = reembed_knowledge.tenant)
       and (reembed_knowledge.model is null or x."embedding_model" is distinct from reembed_knowledge.model)
       and x."chunk_count" > 0
     returning x."id"
@@ -919,98 +841,45 @@ grant execute on function "better_supabase"."reembed_knowledge"(uuid, text) to s
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."knowledge_documents" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or (("organization_id" is null or case when "scope" = 'subject' then "better_supabase"."knowledge_subject_readable"("subject_type", "subject_id") else ("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('knowledge.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('knowledge.manage')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))) end) and ("collection_id" is null or "better_supabase"."knowledge_collection_readable"("collection_id")))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("tenant_id" is null or case when "scope" = 'subject' then "better_supabase"."knowledge_subject_readable"("subject_type", "subject_id") else ("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "tenant_id" in (select better_supabase.tenant_ids_with('knowledge.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('knowledge.manage')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))) end) and ("collection_id" is null or "better_supabase"."knowledge_collection_readable"("collection_id")))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."knowledge_documents" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_documents";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."knowledge_documents" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_documents";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."knowledge_documents" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_collections";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_collections";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."knowledge_collections" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("better_supabase"."knowledge_collection_readable"("id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_collections";
 create policy bsb_tenant_scope_insert on "better_supabase"."knowledge_collections" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_collections";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."knowledge_collections" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collections";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."knowledge_collections" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.knowledge_documents', target_type => 'knowledge_document', event_prefix => 'knowledge_document', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.knowledge_documents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"knowledge_document","event_prefix":"knowledge_document"}');
 
 -- blocks.knowledge.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."set_knowledge_collection_grant"(uuid, uuid, text, boolean);
-drop function if exists "api"."create_knowledge_document"(uuid, text, text, uuid, uuid, text, jsonb, uuid);
-drop function if exists "api"."create_knowledge_document"(uuid, text, text, uuid, uuid, text, jsonb, uuid, uuid);
-drop function if exists "api"."list_knowledge_documents"(uuid, text, uuid, integer);
-drop function if exists "api"."list_knowledge_documents"(uuid, text, uuid, integer, uuid);
-drop function if exists "api"."knowledge_search"(uuid, extensions.vector, text, jsonb, integer, jsonb);
-drop function if exists "api"."knowledge_search"(uuid, extensions.vector, text, jsonb, integer, jsonb, uuid[]);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."knowledge_collection_readable"(collection_id uuid)
 returns boolean
@@ -1200,16 +1069,3 @@ set search_path = ''
 as $$ select "better_supabase"."reembed_knowledge"($1, $2) $$;
 revoke execute on function "api"."reembed_knowledge"(uuid, text) from public, anon, authenticated;
 grant execute on function "api"."reembed_knowledge"(uuid, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

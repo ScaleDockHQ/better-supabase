@@ -1,7 +1,7 @@
 {
   "name": "@better-supabase/validation-monorepo",
   "private": true,
-  "description": "A monorepo layout: one runtime package owns defineSupabase and the request context, domain packages type their repositories from its db.",
+  "description": "A monorepo layout: one runtime package owns createSupabase and the request context, domain packages type their repositories from its db.",
   "type": "module",
   "scripts": {
     "gen": "better-supabase gen",

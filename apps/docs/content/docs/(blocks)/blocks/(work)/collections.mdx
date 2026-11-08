@@ -3,7 +3,7 @@ title: Collections
 description: Favorites (a member's starred records, ranked for a sidebar), saved items (a member's records to come back to, with a note and a reminder) and lists (named, static collections of one record type owned by a user, a team or the organization) on any registered record.
 ---
 
-`collections` keeps two kinds of hand-picked record sets. Favorites are a member's own stars: any record registered in [`config.subjects`](/docs/blocks/sql#subject-registry) can be starred, and the stars keep a rank so a sidebar shows them in the order the member drags them into. Lists are named, static collections of one record type, such as "Key accounts" or "Conference leads": a member adds records by hand or in bulk, and the list keeps them until someone removes them.
+`collections` keeps two kinds of hand-picked record sets. Favorites are a member's own stars: any record registered in [`config.recordTypes`](/docs/blocks/sql#subject-registry) can be starred, and the stars keep a rank so a sidebar shows them in the order the member drags them into. Lists are named, static collections of one record type, such as "Key accounts" or "Conference leads": a member adds records by hand or in bulk, and the list keeps them until someone removes them.
 
 A list is the static counterpart of a [saved view](/docs/blocks/saved-views). A saved view stores a filter, so its rows change as the data changes; a list stores the records themselves. Like a saved view, a list belongs to one user, a team (with the [teams](/docs/blocks/teams) module) or the whole organization.
 
@@ -60,7 +60,7 @@ const rows = useCollections({ limit: 50 });
 | `starred(organizationId, { type })`        | The caller's stars in rank order, with each record's `title` and `url`       |
 | `reorderStar(subject, { previous, next })` | Moves a star between its neighbours' rank keys                               |
 
-Stars are private: each member reads and changes only their own. The record must belong to the organization and the caller must be able to read it (`FAVORITE_SUBJECT_FORBIDDEN`). `title` and `url` come from the record's `title` and `url` in `config.subjects`.
+Stars are private: each member reads and changes only their own. The record must belong to the organization and the caller must be able to read it (`FAVORITE_SUBJECT_FORBIDDEN`). `title` and `url` come from the record's `title` and `url` in `config.recordTypes`.
 
 These stars are separate from the [search](/docs/blocks/search) module's starred results, which only the command palette reads.
 
@@ -83,7 +83,7 @@ These stars are separate from the [search](/docs/blocks/search) module's starred
 
 Who sees a list follows its scope: the owner, the team's members, or every member with `collections.read`. Anyone who sees a list and holds `collections.write` changes its entries. An entry is visible only when the caller can also read its record through the record table's own policies, so a shared list never shows a record to someone who can't open it.
 
-When a record type sets `cascade: true` in `config.subjects`, deleting a record deletes its entries and its stars.
+When a record type sets `cascade: true` in `config.recordTypes`, deleting a record deletes its entries and its stars.
 
 ## Save for later
 
@@ -157,7 +157,7 @@ const page = await companiesList.run(db, query, { where }).orThrow();
 
 `where` reads up to 500 ids (`max` raises it to 1000) and returns `{ id: { in: ids } }`; pass `column` when the list's rows point at the record through another column. `subjectIds(id)` returns the same ids.
 
-With the [bulk](/docs/blocks/bulk) module installed, `collections.add` is a built-in action, so a multi-select adds many records at once with a result per row:
+With the [bulk](/docs/blocks/bulk-actions) module installed, `collections.add` is a built-in action, so a multi-select adds many records at once with a result per row:
 
 ```ts
 await bulk
@@ -189,7 +189,7 @@ The module calls `before_collection_create(tenant, subject_type text, scope text
 
 ## Wire it to ReUI
 
-The ReUI Contacts Directory (`solution-crm-3`) has a multi-select toolbar with an "Add to list" action. Fill its list picker from `list(organizationId, { subjectType: "person" })`, offer "New list" through `create`, and run the action through `bulk.run` with `collections.add` so each row reports its own result; a picker without the bulk module calls `add(listId, selectedIds)`. A "Lists" filter on the directory stores the chosen list as a saved view's `state.collectionId`.
+The ReUI Contacts Directory (`solution-crm-3`) has a multi-select toolbar with an "Add to list" action. Fill its list picker from `list(organizationId, { subjectType: "person" })`, offer "New list" through `create`, and run the action through `bulk_actions.run` with `collections.add` so each row reports its own result; a picker without the bulk module calls `add(listId, selectedIds)`. A "Lists" filter on the directory stores the chosen list as a saved view's `state.collectionId`.
 
 The Pipeline Dashboard's deal cards carry a favorite star. Read `starred(organizationId, { type: "deal" })` once into a set of ids, toggle a card's star with `star` or `unstar`, and render the sidebar's "Favorites" group from the same rows, using `title` and `url`. Dragging a favorite calls `reorderStar` with the keys of its new neighbours.
 
@@ -224,7 +224,7 @@ and a "Done" tab over `saved(organizationId, { completed: true })`.
 
 ## Your own fields
 
-`blocks.collections.options.extraColumns` adds columns to the `subject_collections` table,
+Columns you add to `subject_collections` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createCollections` a Standard Schema
 for them as `fields`: `create`, `rename` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and `create`, `rename`, `list` return them

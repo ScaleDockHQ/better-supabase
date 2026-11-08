@@ -209,11 +209,7 @@ function privateSql(
 
   const user = has("user");
 
-  const extras = ctx.extraColumns(
-    "privateDetails",
-    [],
-    "privateDetailsExtraColumns",
-  );
+  const extras = ctx.extraColumns("privateDetails", []);
 
   const fields = "(save_employee_private_details.attrs -> 'fields')";
   const required = insertExtraColumns(table, extras, fields);
@@ -320,7 +316,7 @@ function contractsSql(
   const arg = (key: string): string =>
     `add_employee_contract.attrs ->> ${sqlString(key)}`;
 
-  const extras = ctx.extraColumns("contracts", [], "contractExtraColumns");
+  const extras = ctx.extraColumns("contracts", []);
   const fields = "(add_employee_contract.attrs -> 'fields')";
   const required = insertExtraColumns(table, extras, fields);
 

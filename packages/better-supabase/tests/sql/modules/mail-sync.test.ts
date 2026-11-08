@@ -15,7 +15,7 @@ const sqlOf = (
     .join("\n");
 
 describe("mail-sync module", () => {
-  it("stores, reads and syncs mail without parties or engagements", () => {
+  it("stores, reads and syncs mail without parties or activities", () => {
     const sql = sqlOf();
     expect(sql).toContain('function "better_supabase"."ingest_mail"(');
     expect(sql).toContain('function "better_supabase"."record_sent_mail"(');
@@ -35,16 +35,16 @@ describe("mail-sync module", () => {
     );
   });
 
-  it("logs threads as engagements of the configured type", () => {
+  it("logs threads as activities of the configured type", () => {
     const sql = sqlOf({}, ["activities"]);
     expect(sql).toContain('function "better_supabase"."log_mail_thread"(');
     expect(sql).toContain("'type', 'email'");
     expect(sql).toMatch(/activity_id" uuid references .*activities/);
-    expect(sqlOf({ engagementType: "mail" }, ["activities"])).toContain(
+    expect(sqlOf({ activityType: "mail" }, ["activities"])).toContain(
       "'type', 'mail'",
     );
-    expect(() => sqlOf({ engagementType: "Mail" })).toThrow(
-      /lowercase engagement type/,
+    expect(() => sqlOf({ activityType: "Mail" })).toThrow(
+      /lowercase activity type/,
     );
   });
 });

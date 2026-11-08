@@ -20,7 +20,7 @@ import { settingsTabs } from "@/features/settings/settings-tabs";
 import { Link, usePathname } from "@/i18n/navigation";
 
 import { activeNavId, navItems } from "../nav-items";
-import { useNavLabel } from "./side-nav";
+import { useNavLabel } from "./use-nav-label";
 
 interface Crumb {
   readonly label: string;

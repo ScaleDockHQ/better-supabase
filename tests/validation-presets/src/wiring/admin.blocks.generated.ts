@@ -9,7 +9,7 @@ import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
-import type { BulkEvents } from "better-supabase/blocks/bulk";
+import type { BulkActionsEvents } from "better-supabase/blocks/bulk-actions";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { FlagsEvents } from "better-supabase/blocks/flags";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
@@ -23,7 +23,7 @@ import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api
 import { approvalsBlock as approvalsBlockInstance } from "better-supabase/blocks/approvals";
 import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
 import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
-import { bulkBlock as bulkBlockInstance } from "better-supabase/blocks/bulk";
+import { bulkActionsBlock as bulkActionsBlockInstance } from "better-supabase/blocks/bulk-actions";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { flagsBlock as flagsBlockInstance } from "better-supabase/blocks/flags";
@@ -56,7 +56,7 @@ export const blocks = {
   approvals: approvalsBlockInstance,
   audit: auditBlockInstance,
   billing: billingBlockInstance,
-  bulk: bulkBlockInstance,
+  "bulk-actions": bulkActionsBlockInstance,
   enrollments: enrollmentsBlockInstance,
   entitlements: entitlementsBlockInstance,
   flags: flagsBlockInstance,
@@ -76,7 +76,7 @@ export const blocks = {
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & BulkEvents & EnrollmentsEvents & FlagsEvents & NotificationsEvents & OrganizationsEvents & SavedViewsEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & BulkActionsEvents & EnrollmentsEvents & FlagsEvents & NotificationsEvents & OrganizationsEvents & SavedViewsEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -161,7 +161,7 @@ export const blockEvents: Events<BlockEvents> = {
     "team.restored",
     "team.updated",
     "team_member.added",
-    "team_member.removed",
+    "team_member.deleted",
   ],
 };
 
@@ -246,7 +246,7 @@ export const blockEventSchemas = {
   "team.restored": true,
   "team.updated": true,
   "team_member.added": true,
-  "team_member.removed": true,
+  "team_member.deleted": true,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

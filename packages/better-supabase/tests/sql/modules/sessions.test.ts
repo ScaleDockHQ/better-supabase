@@ -72,9 +72,6 @@ describe("sessions bootstrap wrappers", () => {
     expect(sql).toContain(
       "bootstrap_home(args jsonb default '{}'::jsonb, read_set text default null, read_params jsonb default null)",
     );
-    expect(sql).toContain(
-      "drop function if exists better_supabase.bootstrap_home(jsonb);",
-    );
     expect(sql).toContain("when 'hub' then to_jsonb(public.rs_hub(");
     expect(sql).toContain("when 'detail' then to_jsonb(public.rs_detail(");
     expect(sql).toContain("read_set not in ('hub', 'detail')");
@@ -146,9 +143,7 @@ describe("sessions authorization versions", () => {
   it("renders the table, the bump trigger and both broadcasts", async () => {
     const sql = sessions({ options: { authzVersions: true } });
 
-    expect(sql).toContain(
-      "create table if not exists better_supabase.user_authz_versions (",
-    );
+    expect(sql).toContain("create table better_supabase.user_authz_versions (");
     expect(sql).toContain("'better_supabase:authz'");
     expect(sql).toContain("'authz:' || new.user_id::text");
     expect(sql).toContain(

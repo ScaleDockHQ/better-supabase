@@ -213,12 +213,12 @@ A rule copied from a default carries its `defaultKey`. Register the matching con
 
 ## Run rules from events
 
-`createRuleSink` turns the rules into an [outbox](/docs/blocks/outbox) consumer. For each event it calls your `load`, tests the rules whose trigger is the event's type and dispatches the actions of the ones that match. App tables with [`events`](/docs/repository/tables#events) emit `task.created`, `task.updated` and `task.deleted`, so a rule with the trigger `task.updated` runs on every edit.
+`automationSink` turns the rules into an [outbox](/docs/blocks/outbox) consumer. For each event it calls your `load`, tests the rules whose trigger is the event's type and dispatches the actions of the ones that match. App tables with [`events`](/docs/repository/tables#events) emit `task.created`, `task.updated` and `task.deleted`, so a rule with the trigger `task.updated` runs on every edit.
 
 ```ts title="app/api/outbox/rules/route.ts"
-import { createRuleSink } from "better-supabase/blocks/automations";
+import { automationSink } from "better-supabase/blocks/automations";
 
-const sink = createRuleSink({
+const sink = automationSink({
   rules: rulesAdmin,
   dispatcher,
   load: async (event) => {
@@ -332,7 +332,7 @@ const { state, actions } = useBlockController(createRuleBuilderController, {
 ```svelte title="Component.svelte"
 <script lang="ts">
   import {
-    getBetterSupabase,
+    betterSupabase,
     useBlockController,
   } from "better-supabase/svelte";
   import {
@@ -342,7 +342,7 @@ const { state, actions } = useBlockController(createRuleBuilderController, {
   } from "better-supabase/blocks/automations";
 
   let { organizationId }: { organizationId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const builder = useBlockController(createRuleBuilderController, {
     client: createAutomations({ transport: rpcTransport(supabase) }),
     organizationId,

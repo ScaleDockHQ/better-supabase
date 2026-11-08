@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import type {
   AttachmentFileInput,
@@ -50,17 +49,18 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
-import { removeCustomerAttachments } from "@/features/customers/customer-record-actions";
+import { removeCustomerAttachments } from "@/features/customers/customers-actions";
 import { useAttachmentUpload } from "@/hooks/use-attachments";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { AttachmentRow, Loaded } from "../customer-record-queries";
+import type { AttachmentRow, Loaded } from "../customers-queries";
 
 import {
   confirmAttachment,
   downloadAttachment,
   startAttachmentUpload,
-} from "../customer-record-actions";
+} from "../customers-actions";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:attachments-uploader

@@ -2,7 +2,8 @@ import type { BlockSqlContext } from "./context.ts";
 import type { Subject } from "./subjects.ts";
 
 import { sqlString } from "../core/template.ts";
-import { SCHEMA, fail, userGrant } from "./shared.ts";
+import { commentOn } from "./emit/comment.ts";
+import { fail, userGrant } from "./shared.ts";
 
 /**
  * The comment that marks a module's merge handler, so
@@ -20,9 +21,9 @@ export function subjectTableKey(table: string): string {
   return plain.includes(".") ? plain : `public.${plain}`;
 }
 
-function dispatcherFunction(): string {
-  return `${SCHEMA}
--- Moves every installed module's rows from record drop to record keep of the
+/** `merge_subject_refs`, which the prelude defines once. */
+export function subjectMergeDispatcher(): string {
+  return `-- Moves every installed module's rows from record drop to record keep of the
 -- subject table subject_table (schema.table): comments, attachments, tags and
 -- the rest. Each module marks its handler with a comment, so this finds them
 -- without naming them.
@@ -50,21 +51,6 @@ begin
 end;
 $$;
 revoke execute on function ${DISPATCHER}(text, text, text) from public, anon, authenticated;`;
-}
-
-/**
- * `sql` with `better_supabase.merge_subject_refs` defined ahead of it when it
- * calls the function and does not define it.
- */
-export function withSubjectMergeFunction(sql: string): string {
-  if (
-    !sql.includes(`${DISPATCHER}(`) ||
-    sql.includes(`function ${DISPATCHER}(`)
-  ) {
-    return sql;
-  }
-
-  return `${dispatcherFunction()}\n${sql}`;
 }
 
 /** A table of a module whose rows point at a subject record. */
@@ -149,7 +135,7 @@ begin
 end;
 $$;
 revoke execute on function ${fn}(text, text, text) from public, anon, authenticated;
-comment on function ${fn}(text, text, text) is ${sqlString(SUBJECT_MERGE_MARKER)};
+${commentOn("function", `${fn}(text, text, text)`, SUBJECT_MERGE_MARKER)}
 `;
 }
 

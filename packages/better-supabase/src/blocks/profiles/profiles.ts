@@ -23,11 +23,11 @@ export interface ProfilesOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the profile columns the app adds
-   * (`blocks.profiles.options.extraColumns`), keyed by database name. It types
-   * and parses them on `mine()`, and validates them on `updateMine`, which
-   * returns a `validation` error for a bad value. The parsed fields are merged
-   * over the row, so the other columns stay.
+   * A Standard Schema for the profile columns the app adds (columns the app's
+   * schema files add to the table), keyed by database name. It types and parses
+   * them on `mine()`, and validates them on `updateMine`, which returns a
+   * `validation` error for a bad value. The parsed fields are merged over the
+   * row, so the other columns stay.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around `mine` and `updateMine`. */

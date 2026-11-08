@@ -1,127 +1,67 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:47242c0731140532a426df09b44d0d6dd54aced3a3fdba826157f9612a39d6e5
+-- @bsb-hash sha256:2ec64b85aba3e476f34ce47ca19d7b28d00b1396c1209766d2dfd3e4f7b4aa4f
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- MCP servers a tenant connects its assistants to. A server names how to
 -- authenticate (none, OAuth per user, or a header from credential_ref) and
 -- never holds a token itself.
-create table if not exists "better_supabase"."connector_servers" (
+create table "better_supabase"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "url" text not null check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
-  "transport" text not null default 'http' check ("transport" in ('http', 'sse')),
-  "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header')),
-  "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
+  "tenant_id" uuid not null,
+  "name" text not null constraint bsb_connector_servers_name_check check (length("name") >= 1 and length("name") <= 200),
+  "url" text not null constraint bsb_connector_servers_url_check check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
+  "transport" text not null default 'http' constraint bsb_connector_servers_transport_check check ("transport" in ('http', 'sse')),
+  "auth_type" text not null default 'oauth' constraint bsb_connector_servers_auth_type_check check ("auth_type" in ('none', 'oauth', 'header')),
+  "credential_ref" jsonb constraint bsb_connector_servers_credential_ref_check check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
   "scopes" text[] not null default '{}',
-  "client_metadata" jsonb not null default '{}' check (jsonb_typeof("client_metadata") = 'object'),
+  "client_metadata" jsonb not null default '{}' constraint bsb_connector_servers_client_metadata_check check (jsonb_typeof("client_metadata") = 'object'),
   "enabled" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("auth_type" = 'header') = ("credential_ref" is not null))
+  constraint bsb_connector_servers_check check (("auth_type" = 'header') = ("credential_ref" is not null))
 );
-create index if not exists connector_servers_tenant_idx on "better_supabase"."connector_servers" ("organization_id");
-create index if not exists connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
+create index connector_servers_tenant_idx on "better_supabase"."connector_servers" ("tenant_id");
+create index connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
 alter table "better_supabase"."connector_servers" enable row level security;
 revoke all on "better_supabase"."connector_servers" from public, anon, authenticated;
 grant select on "better_supabase"."connector_servers" to authenticated;
 grant all on "better_supabase"."connector_servers" to service_role;
-drop policy if exists connector_servers_read on "better_supabase"."connector_servers";
-create policy connector_servers_read on "better_supabase"."connector_servers"
+create policy bsb_connector_servers_read on "better_supabase"."connector_servers"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
 -- A user's connection to a server. credential_ref names where the provider
 -- keeps the token (Vault, Vercel Connect); the row holds none.
-create table if not exists "better_supabase"."connector_grants" (
+create table "better_supabase"."connector_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "organization_id" uuid not null,
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
+  "tenant_id" uuid not null,
+  "credential_ref" jsonb not null constraint bsb_connector_grants_credential_ref_check check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
   "scopes" text[] not null default '{}',
   "expires_at" timestamptz,
   "granted_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create unique index if not exists connector_grants_active_idx on "better_supabase"."connector_grants" ("user_id", "server_id") where "revoked_at" is null;
-create index if not exists connector_grants_server_idx on "better_supabase"."connector_grants" ("server_id");
-create index if not exists connector_grants_user_idx on "better_supabase"."connector_grants" ("user_id");
+create unique index connector_grants_active_idx on "better_supabase"."connector_grants" ("user_id", "server_id") where "revoked_at" is null;
+create index connector_grants_server_idx on "better_supabase"."connector_grants" ("server_id");
+create index connector_grants_user_idx on "better_supabase"."connector_grants" ("user_id");
 alter table "better_supabase"."connector_grants" enable row level security;
 revoke all on "better_supabase"."connector_grants" from public, anon, authenticated;
 grant select on "better_supabase"."connector_grants" to authenticated;
 grant all on "better_supabase"."connector_grants" to service_role;
-drop policy if exists connector_grants_read on "better_supabase"."connector_grants";
-create policy connector_grants_read on "better_supabase"."connector_grants"
+create policy bsb_connector_grants_read on "better_supabase"."connector_grants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- The MCP session a user holds with a server per chat, so a later request
 -- reuses it instead of initializing again.
-create table if not exists "better_supabase"."connector_sessions" (
+create table "better_supabase"."connector_sessions" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_key" text not null default '',
@@ -131,36 +71,34 @@ create table if not exists "better_supabase"."connector_sessions" (
   "expires_at" timestamptz not null,
   primary key ("server_id", "user_id", "chat_key")
 );
-create index if not exists connector_sessions_expires_idx on "better_supabase"."connector_sessions" ("expires_at");
-create index if not exists connector_sessions_user_idx on "better_supabase"."connector_sessions" ("user_id");
+create index connector_sessions_expires_idx on "better_supabase"."connector_sessions" ("expires_at");
+create index connector_sessions_user_idx on "better_supabase"."connector_sessions" ("user_id");
 alter table "better_supabase"."connector_sessions" enable row level security;
 revoke all on "better_supabase"."connector_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."connector_sessions" to authenticated;
 grant all on "better_supabase"."connector_sessions" to service_role;
-drop policy if exists connector_sessions_read on "better_supabase"."connector_sessions";
-create policy connector_sessions_read on "better_supabase"."connector_sessions"
+create policy bsb_connector_sessions_read on "better_supabase"."connector_sessions"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- Fingerprints of a server's tool list. A list that changed waits for an
 -- admin before an assistant may call it.
-create table if not exists "better_supabase"."connector_tool_fingerprints" (
+create table "better_supabase"."connector_tool_fingerprints" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
-  "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
+  "fingerprint" text not null constraint bsb_connector_tool_fingerprints_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
+  "tools" jsonb not null default '{}' constraint bsb_connector_tool_fingerprints_tools_check check (jsonb_typeof("tools") = 'object'),
+  "status" text not null default 'pending' constraint bsb_connector_tool_fingerprints_status_check check ("status" in ('pending', 'approved', 'rejected')),
   "approved_by" uuid references auth.users (id) on delete set null,
   "approved_at" timestamptz,
   "created_at" timestamptz not null default now(),
   primary key ("server_id", "fingerprint")
 );
-create index if not exists connector_tool_fingerprints_approved_by_idx on "better_supabase"."connector_tool_fingerprints" ("approved_by");
+create index connector_tool_fingerprints_approved_by_idx on "better_supabase"."connector_tool_fingerprints" ("approved_by");
 alter table "better_supabase"."connector_tool_fingerprints" enable row level security;
 revoke all on "better_supabase"."connector_tool_fingerprints" from public, anon, authenticated;
 grant select on "better_supabase"."connector_tool_fingerprints" to authenticated;
 grant all on "better_supabase"."connector_tool_fingerprints" to service_role;
-drop policy if exists connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints";
-create policy connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
+create policy bsb_connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
@@ -189,12 +127,12 @@ begin
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   if save_connector_server.id is null then
-    insert into "better_supabase"."connector_servers" ("organization_id", "name", "url", "auth_type", "credential_ref", "created_by")
+    insert into "better_supabase"."connector_servers" ("tenant_id", "name", "url", "auth_type", "credential_ref", "created_by")
     values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
       coalesce(save_connector_server.fields ->> 'auth_type', 'oauth'), save_connector_server.fields -> 'credential_ref', auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."organization_id" = save_connector_server.tenant for update;
+    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."tenant_id" = save_connector_server.tenant for update;
     if not found then
       raise exception 'connector % not found', save_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
     end if;
@@ -216,7 +154,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
@@ -238,10 +176,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."connector_servers" x where x."id" = delete_connector_server.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'connectors.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', delete_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
   from "better_supabase"."connector_grants" y where y."server_id" = v_row."id" and y."revoked_at" is null;
   delete from "better_supabase"."connector_servers" x where x."id" = v_row."id";
   null;
@@ -259,11 +197,11 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'url', x."url", 'transport', x."transport", 'auth_type', x."auth_type", 'credential_ref', x."credential_ref", 'scopes', x."scopes", 'client_metadata', x."client_metadata", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('grant', (
-    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'url', x."url", 'transport', x."transport", 'auth_type', x."auth_type", 'credential_ref', x."credential_ref", 'scopes', x."scopes", 'client_metadata', x."client_metadata", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('grant', (
+    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
     where y."server_id" = x."id" and y."user_id" = auth.uid() and y."revoked_at" is null
   )) order by x."name"), '[]')
-  from "better_supabase"."connector_servers" x where x."organization_id" = list_connector_servers.tenant
+  from "better_supabase"."connector_servers" x where x."tenant_id" = list_connector_servers.tenant
 $$;
 revoke execute on function "better_supabase"."list_connector_servers"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_connector_servers"(uuid) to authenticated, service_role;
@@ -282,11 +220,11 @@ declare
   v_row "better_supabase"."connector_servers"%rowtype;
 begin
   select * into v_row from "better_supabase"."connector_servers" x where x."id" = get_connector.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'connectors.read'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'connectors.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
-    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
+    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
     where y."server_id" = v_row."id" and y."user_id" = v_user and y."revoked_at" is null
   ));
 end;
@@ -311,18 +249,18 @@ begin
   if not found then
     raise exception 'connector % not found', record_connector_grant.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
-  if not coalesce(better_supabase.member_can(record_connector_grant.owner, v_server."organization_id", 'connectors.use'), false) then
+  if not coalesce(better_supabase.member_can(record_connector_grant.owner, v_server."tenant_id", 'connectors.use'), false) then
     raise exception 'the user may not use connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
   update "better_supabase"."connector_grants" y set "revoked_at" = now()
   where y."server_id" = v_server."id" and y."user_id" = record_connector_grant.owner and y."revoked_at" is null
   returning * into v_old;
-  insert into "better_supabase"."connector_grants" ("user_id", "server_id", "organization_id", "credential_ref", "scopes", "expires_at")
-  values (record_connector_grant.owner, v_server."id", v_server."organization_id", record_connector_grant.credential_ref,
+  insert into "better_supabase"."connector_grants" ("user_id", "server_id", "tenant_id", "credential_ref", "scopes", "expires_at")
+  values (record_connector_grant.owner, v_server."id", v_server."tenant_id", record_connector_grant.credential_ref,
     coalesce(record_connector_grant.scopes, '{}'), record_connector_grant.expires_at)
   returning * into v_row;
   null;
-  return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."organization_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'organization_id', v_old."organization_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
+  return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'tenant_id', v_row."tenant_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'tenant_id', v_old."tenant_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
 end;
 $$;
 revoke execute on function "better_supabase"."record_connector_grant"(uuid, uuid, jsonb, text[], timestamptz) from public, anon, authenticated;
@@ -351,7 +289,7 @@ begin
   end if;
   delete from "better_supabase"."connector_sessions" z where z."server_id" = v_row."server_id" and z."user_id" = v_row."user_id";
   null;
-  return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."organization_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'tenant_id', v_row."tenant_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "better_supabase"."revoke_connector_grant"(uuid) from public, anon;
@@ -365,7 +303,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") order by y."expires_at"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") order by y."expires_at"), '[]')
   from (
     select * from "better_supabase"."connector_grants" y0
     where y0."revoked_at" is null and y0."expires_at" is not null and y0."expires_at" < expiring_connector_grants.before
@@ -430,7 +368,7 @@ begin
     return true;
   end if;
   if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = save_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
-    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."organization_id", 'connectors.use'), false)) then
+    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
     return false;
   end if;
   insert into "better_supabase"."connector_sessions" ("server_id", "user_id", "chat_key", "session_id", "initialize_result", "expires_at")
@@ -461,7 +399,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_server from "better_supabase"."connector_servers" x where x."id" = check_connector_fingerprint.server_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'connectors.use'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."tenant_id", 'connectors.use'), false)) then
     raise exception 'connector % not found', check_connector_fingerprint.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   select p."status" into v_status from "better_supabase"."connector_tool_fingerprints" p
@@ -494,7 +432,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_server from "better_supabase"."connector_servers" x where x."id" = decide_connector_fingerprint.server_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'connectors.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."tenant_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', decide_connector_fingerprint.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   update "better_supabase"."connector_tool_fingerprints" p set
@@ -532,73 +470,38 @@ grant execute on function "better_supabase"."purge_connector_sessions"() to serv
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_select on "better_supabase"."connector_servers" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('connectors.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_servers" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."connector_servers" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_servers" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."connector_grants" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_grants" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."connector_grants" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_grants" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
@@ -617,127 +520,67 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:c20ff6e27cf38d33a1a36b6b818171cac7507c440613908039e0642c40c4f41f
+-- @bsb-hash sha256:40d165a889450a94d95ce31d35b2ace68c8f904266f583bd219909f7eb7dc0cf
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- MCP servers a tenant connects its assistants to. A server names how to
 -- authenticate (none, OAuth per user, or a header from credential_ref) and
 -- never holds a token itself.
-create table if not exists "better_supabase"."connector_servers" (
+create table "better_supabase"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "url" text not null check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
-  "transport" text not null default 'http' check ("transport" in ('http', 'sse')),
-  "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header')),
-  "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
+  "tenant_id" uuid not null,
+  "name" text not null constraint bsb_connector_servers_name_check check (length("name") >= 1 and length("name") <= 200),
+  "url" text not null constraint bsb_connector_servers_url_check check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
+  "transport" text not null default 'http' constraint bsb_connector_servers_transport_check check ("transport" in ('http', 'sse')),
+  "auth_type" text not null default 'oauth' constraint bsb_connector_servers_auth_type_check check ("auth_type" in ('none', 'oauth', 'header')),
+  "credential_ref" jsonb constraint bsb_connector_servers_credential_ref_check check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
   "scopes" text[] not null default '{}',
-  "client_metadata" jsonb not null default '{}' check (jsonb_typeof("client_metadata") = 'object'),
+  "client_metadata" jsonb not null default '{}' constraint bsb_connector_servers_client_metadata_check check (jsonb_typeof("client_metadata") = 'object'),
   "enabled" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("auth_type" = 'header') = ("credential_ref" is not null))
+  constraint bsb_connector_servers_check check (("auth_type" = 'header') = ("credential_ref" is not null))
 );
-create index if not exists connector_servers_tenant_idx on "better_supabase"."connector_servers" ("organization_id");
-create index if not exists connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
+create index connector_servers_tenant_idx on "better_supabase"."connector_servers" ("tenant_id");
+create index connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
 alter table "better_supabase"."connector_servers" enable row level security;
 revoke all on "better_supabase"."connector_servers" from public, anon, authenticated;
 grant select on "better_supabase"."connector_servers" to authenticated;
 grant all on "better_supabase"."connector_servers" to service_role;
-drop policy if exists connector_servers_read on "better_supabase"."connector_servers";
-create policy connector_servers_read on "better_supabase"."connector_servers"
+create policy bsb_connector_servers_read on "better_supabase"."connector_servers"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
 -- A user's connection to a server. credential_ref names where the provider
 -- keeps the token (Vault, Vercel Connect); the row holds none.
-create table if not exists "better_supabase"."connector_grants" (
+create table "better_supabase"."connector_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "organization_id" uuid not null,
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
+  "tenant_id" uuid not null,
+  "credential_ref" jsonb not null constraint bsb_connector_grants_credential_ref_check check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
   "scopes" text[] not null default '{}',
   "expires_at" timestamptz,
   "granted_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create unique index if not exists connector_grants_active_idx on "better_supabase"."connector_grants" ("user_id", "server_id") where "revoked_at" is null;
-create index if not exists connector_grants_server_idx on "better_supabase"."connector_grants" ("server_id");
-create index if not exists connector_grants_user_idx on "better_supabase"."connector_grants" ("user_id");
+create unique index connector_grants_active_idx on "better_supabase"."connector_grants" ("user_id", "server_id") where "revoked_at" is null;
+create index connector_grants_server_idx on "better_supabase"."connector_grants" ("server_id");
+create index connector_grants_user_idx on "better_supabase"."connector_grants" ("user_id");
 alter table "better_supabase"."connector_grants" enable row level security;
 revoke all on "better_supabase"."connector_grants" from public, anon, authenticated;
 grant select on "better_supabase"."connector_grants" to authenticated;
 grant all on "better_supabase"."connector_grants" to service_role;
-drop policy if exists connector_grants_read on "better_supabase"."connector_grants";
-create policy connector_grants_read on "better_supabase"."connector_grants"
+create policy bsb_connector_grants_read on "better_supabase"."connector_grants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- The MCP session a user holds with a server per chat, so a later request
 -- reuses it instead of initializing again.
-create table if not exists "better_supabase"."connector_sessions" (
+create table "better_supabase"."connector_sessions" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_key" text not null default '',
@@ -747,36 +590,34 @@ create table if not exists "better_supabase"."connector_sessions" (
   "expires_at" timestamptz not null,
   primary key ("server_id", "user_id", "chat_key")
 );
-create index if not exists connector_sessions_expires_idx on "better_supabase"."connector_sessions" ("expires_at");
-create index if not exists connector_sessions_user_idx on "better_supabase"."connector_sessions" ("user_id");
+create index connector_sessions_expires_idx on "better_supabase"."connector_sessions" ("expires_at");
+create index connector_sessions_user_idx on "better_supabase"."connector_sessions" ("user_id");
 alter table "better_supabase"."connector_sessions" enable row level security;
 revoke all on "better_supabase"."connector_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."connector_sessions" to authenticated;
 grant all on "better_supabase"."connector_sessions" to service_role;
-drop policy if exists connector_sessions_read on "better_supabase"."connector_sessions";
-create policy connector_sessions_read on "better_supabase"."connector_sessions"
+create policy bsb_connector_sessions_read on "better_supabase"."connector_sessions"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- Fingerprints of a server's tool list. A list that changed waits for an
 -- admin before an assistant may call it.
-create table if not exists "better_supabase"."connector_tool_fingerprints" (
+create table "better_supabase"."connector_tool_fingerprints" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
-  "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
+  "fingerprint" text not null constraint bsb_connector_tool_fingerprints_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
+  "tools" jsonb not null default '{}' constraint bsb_connector_tool_fingerprints_tools_check check (jsonb_typeof("tools") = 'object'),
+  "status" text not null default 'pending' constraint bsb_connector_tool_fingerprints_status_check check ("status" in ('pending', 'approved', 'rejected')),
   "approved_by" uuid references auth.users (id) on delete set null,
   "approved_at" timestamptz,
   "created_at" timestamptz not null default now(),
   primary key ("server_id", "fingerprint")
 );
-create index if not exists connector_tool_fingerprints_approved_by_idx on "better_supabase"."connector_tool_fingerprints" ("approved_by");
+create index connector_tool_fingerprints_approved_by_idx on "better_supabase"."connector_tool_fingerprints" ("approved_by");
 alter table "better_supabase"."connector_tool_fingerprints" enable row level security;
 revoke all on "better_supabase"."connector_tool_fingerprints" from public, anon, authenticated;
 grant select on "better_supabase"."connector_tool_fingerprints" to authenticated;
 grant all on "better_supabase"."connector_tool_fingerprints" to service_role;
-drop policy if exists connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints";
-create policy connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
+create policy bsb_connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
@@ -805,12 +646,12 @@ begin
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   if save_connector_server.id is null then
-    insert into "better_supabase"."connector_servers" ("organization_id", "name", "url", "auth_type", "credential_ref", "created_by")
+    insert into "better_supabase"."connector_servers" ("tenant_id", "name", "url", "auth_type", "credential_ref", "created_by")
     values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
       coalesce(save_connector_server.fields ->> 'auth_type', 'oauth'), save_connector_server.fields -> 'credential_ref', auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."organization_id" = save_connector_server.tenant for update;
+    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."tenant_id" = save_connector_server.tenant for update;
     if not found then
       raise exception 'connector % not found', save_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
     end if;
@@ -828,29 +669,29 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   if save_connector_server.id is null then
-    perform "better_supabase".emit_event('connector.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
+    perform "better_supabase".emit_event('connector.created', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."tenant_id"::text || '/connectors/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
     event_type => 'connector.created',
     category => 'integration',
     target_type => 'connector',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'serverId', v_row."id", 'name', v_row."name")
   );
   else
-    perform "better_supabase".emit_event('connector.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
+    perform "better_supabase".emit_event('connector.updated', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."tenant_id"::text || '/connectors/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
     event_type => 'connector.updated',
     category => 'integration',
     target_type => 'connector',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'serverId', v_row."id", 'name', v_row."name")
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
@@ -872,21 +713,21 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."connector_servers" x where x."id" = delete_connector_server.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'connectors.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', delete_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
   from "better_supabase"."connector_grants" y where y."server_id" = v_row."id" and y."revoked_at" is null;
   delete from "better_supabase"."connector_servers" x where x."id" = v_row."id";
-  perform "better_supabase".emit_event('connector.deleted', jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
+  perform "better_supabase".emit_event('connector.deleted', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."tenant_id"::text || '/connectors/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
     event_type => 'connector.deleted',
     category => 'integration',
     target_type => 'connector',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'serverId', v_row."id", 'name', v_row."name")
   );
   return v_grants;
 end;
@@ -902,11 +743,11 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'url', x."url", 'transport', x."transport", 'auth_type', x."auth_type", 'credential_ref', x."credential_ref", 'scopes', x."scopes", 'client_metadata', x."client_metadata", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('grant', (
-    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'url', x."url", 'transport', x."transport", 'auth_type', x."auth_type", 'credential_ref', x."credential_ref", 'scopes', x."scopes", 'client_metadata', x."client_metadata", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('grant', (
+    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
     where y."server_id" = x."id" and y."user_id" = auth.uid() and y."revoked_at" is null
   )) order by x."name"), '[]')
-  from "better_supabase"."connector_servers" x where x."organization_id" = list_connector_servers.tenant
+  from "better_supabase"."connector_servers" x where x."tenant_id" = list_connector_servers.tenant
 $$;
 revoke execute on function "better_supabase"."list_connector_servers"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_connector_servers"(uuid) to authenticated, service_role;
@@ -925,11 +766,11 @@ declare
   v_row "better_supabase"."connector_servers"%rowtype;
 begin
   select * into v_row from "better_supabase"."connector_servers" x where x."id" = get_connector.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'connectors.read'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'connectors.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
-    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
+    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
     where y."server_id" = v_row."id" and y."user_id" = v_user and y."revoked_at" is null
   ));
 end;
@@ -954,26 +795,26 @@ begin
   if not found then
     raise exception 'connector % not found', record_connector_grant.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
-  if not coalesce(better_supabase.member_can(record_connector_grant.owner, v_server."organization_id", 'connectors.use'), false) then
+  if not coalesce(better_supabase.member_can(record_connector_grant.owner, v_server."tenant_id", 'connectors.use'), false) then
     raise exception 'the user may not use connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
   update "better_supabase"."connector_grants" y set "revoked_at" = now()
   where y."server_id" = v_server."id" and y."user_id" = record_connector_grant.owner and y."revoked_at" is null
   returning * into v_old;
-  insert into "better_supabase"."connector_grants" ("user_id", "server_id", "organization_id", "credential_ref", "scopes", "expires_at")
-  values (record_connector_grant.owner, v_server."id", v_server."organization_id", record_connector_grant.credential_ref,
+  insert into "better_supabase"."connector_grants" ("user_id", "server_id", "tenant_id", "credential_ref", "scopes", "expires_at")
+  values (record_connector_grant.owner, v_server."id", v_server."tenant_id", record_connector_grant.credential_ref,
     coalesce(record_connector_grant.scopes, '{}'), record_connector_grant.expires_at)
   returning * into v_row;
-  perform "better_supabase".emit_event('connector_grant.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'grantId', v_row."id", 'serverId', v_row."server_id", 'userId', v_row."user_id"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."server_id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
+  perform "better_supabase".emit_event('connector_grant.created', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'grantId', v_row."id", 'serverId', v_row."server_id", 'userId', v_row."user_id"), 'organizations/' || v_row."tenant_id"::text || '/connectors/' || v_row."server_id"::text, (v_row."tenant_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
     event_type => 'connector_grant.created',
     category => 'integration',
     target_type => 'connector_grant',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'grantId', v_row."id", 'serverId', v_row."server_id", 'userId', v_row."user_id")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'grantId', v_row."id", 'serverId', v_row."server_id", 'userId', v_row."user_id")
   );
-  return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."organization_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'organization_id', v_old."organization_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
+  return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'tenant_id', v_row."tenant_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'tenant_id', v_old."tenant_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
 end;
 $$;
 revoke execute on function "better_supabase"."record_connector_grant"(uuid, uuid, jsonb, text[], timestamptz) from public, anon, authenticated;
@@ -1001,16 +842,16 @@ begin
     return null;
   end if;
   delete from "better_supabase"."connector_sessions" z where z."server_id" = v_row."server_id" and z."user_id" = v_row."user_id";
-  perform "better_supabase".emit_event('connector_grant.revoked', jsonb_build_object('organizationId', v_row."organization_id"::text, 'grantId', v_row."id", 'serverId', v_row."server_id", 'userId', v_row."user_id"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."server_id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
+  perform "better_supabase".emit_event('connector_grant.revoked', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'grantId', v_row."id", 'serverId', v_row."server_id", 'userId', v_row."user_id"), 'organizations/' || v_row."tenant_id"::text || '/connectors/' || v_row."server_id"::text, (v_row."tenant_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
     event_type => 'connector_grant.revoked',
     category => 'integration',
     target_type => 'connector_grant',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'grantId', v_row."id", 'serverId', v_row."server_id", 'userId', v_row."user_id")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'grantId', v_row."id", 'serverId', v_row."server_id", 'userId', v_row."user_id")
   );
-  return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."organization_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'tenant_id', v_row."tenant_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "better_supabase"."revoke_connector_grant"(uuid) from public, anon;
@@ -1024,7 +865,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") order by y."expires_at"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") order by y."expires_at"), '[]')
   from (
     select * from "better_supabase"."connector_grants" y0
     where y0."revoked_at" is null and y0."expires_at" is not null and y0."expires_at" < expiring_connector_grants.before
@@ -1089,7 +930,7 @@ begin
     return true;
   end if;
   if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = save_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
-    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."organization_id", 'connectors.use'), false)) then
+    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
     return false;
   end if;
   insert into "better_supabase"."connector_sessions" ("server_id", "user_id", "chat_key", "session_id", "initialize_result", "expires_at")
@@ -1120,7 +961,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_server from "better_supabase"."connector_servers" x where x."id" = check_connector_fingerprint.server_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'connectors.use'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."tenant_id", 'connectors.use'), false)) then
     raise exception 'connector % not found', check_connector_fingerprint.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   select p."status" into v_status from "better_supabase"."connector_tool_fingerprints" p
@@ -1153,7 +994,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_server from "better_supabase"."connector_servers" x where x."id" = decide_connector_fingerprint.server_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'connectors.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."tenant_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', decide_connector_fingerprint.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   update "better_supabase"."connector_tool_fingerprints" p set
@@ -1163,15 +1004,15 @@ begin
   if not found then
     return false;
   end if;
-  perform "better_supabase".emit_event('connector.fingerprint_decided', jsonb_build_object('organizationId', v_server."organization_id"::text, 'serverId', v_server."id", 'name', v_server."name", 'fingerprint', decide_connector_fingerprint.fingerprint, 'approved', decide_connector_fingerprint.approved), 'organizations/' || v_server."organization_id"::text || '/connectors/' || v_server."id"::text, (v_server."organization_id")::text, null, 'better-supabase/connectors');
+  perform "better_supabase".emit_event('connector.fingerprint_decided', jsonb_build_object('organizationId', v_server."tenant_id"::text, 'serverId', v_server."id", 'name', v_server."name", 'fingerprint', decide_connector_fingerprint.fingerprint, 'approved', decide_connector_fingerprint.approved), 'organizations/' || v_server."tenant_id"::text || '/connectors/' || v_server."id"::text, (v_server."tenant_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
     event_type => 'connector.fingerprint_decided',
     category => 'integration',
     target_type => 'connector',
     record_id => v_server."id"::text,
     target_label => v_server."name",
-    tenant => (v_server."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_server."organization_id"::text, 'serverId', v_server."id", 'name', v_server."name", 'fingerprint', decide_connector_fingerprint.fingerprint, 'approved', decide_connector_fingerprint.approved)
+    tenant => (v_server."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_server."tenant_id"::text, 'serverId', v_server."id", 'name', v_server."name", 'fingerprint', decide_connector_fingerprint.fingerprint, 'approved', decide_connector_fingerprint.approved)
   );
   return true;
 end;
@@ -1200,80 +1041,41 @@ grant execute on function "better_supabase"."purge_connector_sessions"() to serv
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_select on "better_supabase"."connector_servers" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('connectors.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_servers" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."connector_servers" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_servers" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."connector_grants" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_grants" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."connector_grants" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_grants" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.connector_servers', target_type => 'connector_server', event_prefix => 'connector_server', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.connector_servers deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"connector_server","event_prefix":"connector_server"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
@@ -1292,69 +1094,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:794053e8dee6ec31aa0481b1e5bf5b53824dd55cb448ac5ed7eb3850d2586c24
+-- @bsb-hash sha256:27f55c4af972c378a602869176f70001156547e093e62a73e1bf5483a6dc7cbc
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."connector_servers";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."connector_servers";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."connector_servers";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."connector_servers";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."connector_servers";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."connector_grants";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."connector_grants";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."connector_grants";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."connector_grants";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."connector_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -1363,61 +1107,59 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- MCP servers a tenant connects its assistants to. A server names how to
 -- authenticate (none, OAuth per user, or a header from credential_ref) and
 -- never holds a token itself.
-create table if not exists "app_private"."connector_servers" (
+create table "app_private"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "url" text not null check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
-  "transport" text not null default 'http' check ("transport" in ('http', 'sse')),
-  "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header')),
-  "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
+  "tenant_id" uuid not null,
+  "name" text not null constraint bsb_connector_servers_name_check check (length("name") >= 1 and length("name") <= 200),
+  "url" text not null constraint bsb_connector_servers_url_check check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
+  "transport" text not null default 'http' constraint bsb_connector_servers_transport_check check ("transport" in ('http', 'sse')),
+  "auth_type" text not null default 'oauth' constraint bsb_connector_servers_auth_type_check check ("auth_type" in ('none', 'oauth', 'header')),
+  "credential_ref" jsonb constraint bsb_connector_servers_credential_ref_check check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
   "scopes" text[] not null default '{}',
-  "client_metadata" jsonb not null default '{}' check (jsonb_typeof("client_metadata") = 'object'),
+  "client_metadata" jsonb not null default '{}' constraint bsb_connector_servers_client_metadata_check check (jsonb_typeof("client_metadata") = 'object'),
   "enabled" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("auth_type" = 'header') = ("credential_ref" is not null))
+  constraint bsb_connector_servers_check check (("auth_type" = 'header') = ("credential_ref" is not null))
 );
-create index if not exists connector_servers_tenant_idx on "app_private"."connector_servers" ("organization_id");
-create index if not exists connector_servers_created_by_idx on "app_private"."connector_servers" ("created_by");
+create index connector_servers_tenant_idx on "app_private"."connector_servers" ("tenant_id");
+create index connector_servers_created_by_idx on "app_private"."connector_servers" ("created_by");
 alter table "app_private"."connector_servers" enable row level security;
 revoke all on "app_private"."connector_servers" from public, anon, authenticated;
 grant select on "app_private"."connector_servers" to authenticated;
 grant all on "app_private"."connector_servers" to service_role;
-drop policy if exists connector_servers_read on "app_private"."connector_servers";
-create policy connector_servers_read on "app_private"."connector_servers"
+create policy bsb_connector_servers_read on "app_private"."connector_servers"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
 -- A user's connection to a server. credential_ref names where the provider
 -- keeps the token (Vault, Vercel Connect); the row holds none.
-create table if not exists "app_private"."connector_grants" (
+create table "app_private"."connector_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "server_id" uuid not null references "app_private"."connector_servers" ("id") on delete cascade,
-  "organization_id" uuid not null,
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
+  "tenant_id" uuid not null,
+  "credential_ref" jsonb not null constraint bsb_connector_grants_credential_ref_check check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
   "scopes" text[] not null default '{}',
   "expires_at" timestamptz,
   "granted_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create unique index if not exists connector_grants_active_idx on "app_private"."connector_grants" ("user_id", "server_id") where "revoked_at" is null;
-create index if not exists connector_grants_server_idx on "app_private"."connector_grants" ("server_id");
-create index if not exists connector_grants_user_idx on "app_private"."connector_grants" ("user_id");
+create unique index connector_grants_active_idx on "app_private"."connector_grants" ("user_id", "server_id") where "revoked_at" is null;
+create index connector_grants_server_idx on "app_private"."connector_grants" ("server_id");
+create index connector_grants_user_idx on "app_private"."connector_grants" ("user_id");
 alter table "app_private"."connector_grants" enable row level security;
 revoke all on "app_private"."connector_grants" from public, anon, authenticated;
 grant select on "app_private"."connector_grants" to authenticated;
 grant all on "app_private"."connector_grants" to service_role;
-drop policy if exists connector_grants_read on "app_private"."connector_grants";
-create policy connector_grants_read on "app_private"."connector_grants"
+create policy bsb_connector_grants_read on "app_private"."connector_grants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- The MCP session a user holds with a server per chat, so a later request
 -- reuses it instead of initializing again.
-create table if not exists "app_private"."connector_sessions" (
+create table "app_private"."connector_sessions" (
   "server_id" uuid not null references "app_private"."connector_servers" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_key" text not null default '',
@@ -1427,36 +1169,34 @@ create table if not exists "app_private"."connector_sessions" (
   "expires_at" timestamptz not null,
   primary key ("server_id", "user_id", "chat_key")
 );
-create index if not exists connector_sessions_expires_idx on "app_private"."connector_sessions" ("expires_at");
-create index if not exists connector_sessions_user_idx on "app_private"."connector_sessions" ("user_id");
+create index connector_sessions_expires_idx on "app_private"."connector_sessions" ("expires_at");
+create index connector_sessions_user_idx on "app_private"."connector_sessions" ("user_id");
 alter table "app_private"."connector_sessions" enable row level security;
 revoke all on "app_private"."connector_sessions" from public, anon, authenticated;
 grant select on "app_private"."connector_sessions" to authenticated;
 grant all on "app_private"."connector_sessions" to service_role;
-drop policy if exists connector_sessions_read on "app_private"."connector_sessions";
-create policy connector_sessions_read on "app_private"."connector_sessions"
+create policy bsb_connector_sessions_read on "app_private"."connector_sessions"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- Fingerprints of a server's tool list. A list that changed waits for an
 -- admin before an assistant may call it.
-create table if not exists "app_private"."connector_tool_fingerprints" (
+create table "app_private"."connector_tool_fingerprints" (
   "server_id" uuid not null references "app_private"."connector_servers" ("id") on delete cascade,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
-  "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
+  "fingerprint" text not null constraint bsb_connector_tool_fingerprints_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
+  "tools" jsonb not null default '{}' constraint bsb_connector_tool_fingerprints_tools_check check (jsonb_typeof("tools") = 'object'),
+  "status" text not null default 'pending' constraint bsb_connector_tool_fingerprints_status_check check ("status" in ('pending', 'approved', 'rejected')),
   "approved_by" uuid references auth.users (id) on delete set null,
   "approved_at" timestamptz,
   "created_at" timestamptz not null default now(),
   primary key ("server_id", "fingerprint")
 );
-create index if not exists connector_tool_fingerprints_approved_by_idx on "app_private"."connector_tool_fingerprints" ("approved_by");
+create index connector_tool_fingerprints_approved_by_idx on "app_private"."connector_tool_fingerprints" ("approved_by");
 alter table "app_private"."connector_tool_fingerprints" enable row level security;
 revoke all on "app_private"."connector_tool_fingerprints" from public, anon, authenticated;
 grant select on "app_private"."connector_tool_fingerprints" to authenticated;
 grant all on "app_private"."connector_tool_fingerprints" to service_role;
-drop policy if exists connector_tool_fingerprints_read on "app_private"."connector_tool_fingerprints";
-create policy connector_tool_fingerprints_read on "app_private"."connector_tool_fingerprints"
+create policy bsb_connector_tool_fingerprints_read on "app_private"."connector_tool_fingerprints"
   for select to authenticated
   using (exists (select 1 from "app_private"."connector_servers" x where x."id" = "server_id"));
 
@@ -1485,12 +1225,12 @@ begin
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   if save_connector_server.id is null then
-    insert into "app_private"."connector_servers" ("organization_id", "name", "url", "auth_type", "credential_ref", "created_by")
+    insert into "app_private"."connector_servers" ("tenant_id", "name", "url", "auth_type", "credential_ref", "created_by")
     values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
       coalesce(save_connector_server.fields ->> 'auth_type', 'oauth'), save_connector_server.fields -> 'credential_ref', auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "app_private"."connector_servers" x where x."id" = save_connector_server.id and x."organization_id" = save_connector_server.tenant for update;
+    select * into v_row from "app_private"."connector_servers" x where x."id" = save_connector_server.id and x."tenant_id" = save_connector_server.tenant for update;
     if not found then
       raise exception 'connector % not found', save_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
     end if;
@@ -1512,7 +1252,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
@@ -1534,10 +1274,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."connector_servers" x where x."id" = delete_connector_server.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'connectors.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', delete_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
   from "app_private"."connector_grants" y where y."server_id" = v_row."id" and y."revoked_at" is null;
   delete from "app_private"."connector_servers" x where x."id" = v_row."id";
   null;
@@ -1555,11 +1295,11 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'url', x."url", 'transport', x."transport", 'auth_type', x."auth_type", 'credential_ref', x."credential_ref", 'scopes', x."scopes", 'client_metadata', x."client_metadata", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('grant', (
-    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "app_private"."connector_grants" y
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'url', x."url", 'transport', x."transport", 'auth_type', x."auth_type", 'credential_ref', x."credential_ref", 'scopes', x."scopes", 'client_metadata', x."client_metadata", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('grant', (
+    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "app_private"."connector_grants" y
     where y."server_id" = x."id" and y."user_id" = auth.uid() and y."revoked_at" is null
   )) order by x."name"), '[]')
-  from "app_private"."connector_servers" x where x."organization_id" = list_connector_servers.tenant
+  from "app_private"."connector_servers" x where x."tenant_id" = list_connector_servers.tenant
 $$;
 revoke execute on function "app_private"."list_connector_servers"(uuid) from public, anon;
 grant execute on function "app_private"."list_connector_servers"(uuid) to authenticated, service_role;
@@ -1578,11 +1318,11 @@ declare
   v_row "app_private"."connector_servers"%rowtype;
 begin
   select * into v_row from "app_private"."connector_servers" x where x."id" = get_connector.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'connectors.read'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'connectors.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
-    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "app_private"."connector_grants" y
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
+    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "app_private"."connector_grants" y
     where y."server_id" = v_row."id" and y."user_id" = v_user and y."revoked_at" is null
   ));
 end;
@@ -1607,18 +1347,18 @@ begin
   if not found then
     raise exception 'connector % not found', record_connector_grant.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
-  if not coalesce(better_supabase.member_can(record_connector_grant.owner, v_server."organization_id", 'connectors.use'), false) then
+  if not coalesce(better_supabase.member_can(record_connector_grant.owner, v_server."tenant_id", 'connectors.use'), false) then
     raise exception 'the user may not use connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
   update "app_private"."connector_grants" y set "revoked_at" = now()
   where y."server_id" = v_server."id" and y."user_id" = record_connector_grant.owner and y."revoked_at" is null
   returning * into v_old;
-  insert into "app_private"."connector_grants" ("user_id", "server_id", "organization_id", "credential_ref", "scopes", "expires_at")
-  values (record_connector_grant.owner, v_server."id", v_server."organization_id", record_connector_grant.credential_ref,
+  insert into "app_private"."connector_grants" ("user_id", "server_id", "tenant_id", "credential_ref", "scopes", "expires_at")
+  values (record_connector_grant.owner, v_server."id", v_server."tenant_id", record_connector_grant.credential_ref,
     coalesce(record_connector_grant.scopes, '{}'), record_connector_grant.expires_at)
   returning * into v_row;
   null;
-  return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."organization_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'organization_id', v_old."organization_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
+  return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'tenant_id', v_row."tenant_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'tenant_id', v_old."tenant_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
 end;
 $$;
 revoke execute on function "app_private"."record_connector_grant"(uuid, uuid, jsonb, text[], timestamptz) from public, anon, authenticated;
@@ -1647,7 +1387,7 @@ begin
   end if;
   delete from "app_private"."connector_sessions" z where z."server_id" = v_row."server_id" and z."user_id" = v_row."user_id";
   null;
-  return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."organization_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'tenant_id', v_row."tenant_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "app_private"."revoke_connector_grant"(uuid) from public, anon;
@@ -1661,7 +1401,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") order by y."expires_at"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") order by y."expires_at"), '[]')
   from (
     select * from "app_private"."connector_grants" y0
     where y0."revoked_at" is null and y0."expires_at" is not null and y0."expires_at" < expiring_connector_grants.before
@@ -1726,7 +1466,7 @@ begin
     return true;
   end if;
   if not exists (select 1 from "app_private"."connector_grants" y where y."server_id" = save_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
-    and not exists (select 1 from "app_private"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."organization_id", 'connectors.use'), false)) then
+    and not exists (select 1 from "app_private"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
     return false;
   end if;
   insert into "app_private"."connector_sessions" ("server_id", "user_id", "chat_key", "session_id", "initialize_result", "expires_at")
@@ -1757,7 +1497,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_server from "app_private"."connector_servers" x where x."id" = check_connector_fingerprint.server_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'connectors.use'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."tenant_id", 'connectors.use'), false)) then
     raise exception 'connector % not found', check_connector_fingerprint.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   select p."status" into v_status from "app_private"."connector_tool_fingerprints" p
@@ -1790,7 +1530,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_server from "app_private"."connector_servers" x where x."id" = decide_connector_fingerprint.server_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'connectors.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."tenant_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', decide_connector_fingerprint.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   update "app_private"."connector_tool_fingerprints" p set
@@ -1828,73 +1568,38 @@ grant execute on function "app_private"."purge_connector_sessions"() to service_
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."connector_servers";
-drop policy if exists bsb_tenant_scope_select on "app_private"."connector_servers";
 create policy bsb_tenant_scope_select on "app_private"."connector_servers" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('connectors.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."connector_servers";
 create policy bsb_tenant_scope_insert on "app_private"."connector_servers" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."connector_servers";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "app_private"."connector_servers" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."connector_servers";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "app_private"."connector_servers" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."connector_grants";
-drop policy if exists bsb_tenant_scope_select on "app_private"."connector_grants";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "app_private"."connector_grants" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."connector_grants";
 create policy bsb_tenant_scope_insert on "app_private"."connector_grants" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."connector_grants";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "app_private"."connector_grants" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."connector_grants";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "app_private"."connector_grants" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
@@ -1913,127 +1618,67 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:19ce12114534dc46482f9effbd63a38a4c5b38f92d3df6884ac360b08e1a3454
+-- @bsb-hash sha256:75a683b4d42718f21b712b790ddda43c66ef2371b86c0ee2b5ca9e55070fddd3
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- MCP servers a tenant connects its assistants to. A server names how to
 -- authenticate (none, OAuth per user, or a header from credential_ref) and
 -- never holds a token itself.
-create table if not exists "better_supabase"."connector_servers" (
+create table "better_supabase"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "url" text not null check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
-  "transport" text not null default 'http' check ("transport" in ('http', 'sse')),
-  "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header')),
-  "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
+  "tenant_id" uuid not null,
+  "name" text not null constraint bsb_connector_servers_name_check check (length("name") >= 1 and length("name") <= 200),
+  "url" text not null constraint bsb_connector_servers_url_check check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
+  "transport" text not null default 'http' constraint bsb_connector_servers_transport_check check ("transport" in ('http', 'sse')),
+  "auth_type" text not null default 'oauth' constraint bsb_connector_servers_auth_type_check check ("auth_type" in ('none', 'oauth', 'header')),
+  "credential_ref" jsonb constraint bsb_connector_servers_credential_ref_check check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
   "scopes" text[] not null default '{}',
-  "client_metadata" jsonb not null default '{}' check (jsonb_typeof("client_metadata") = 'object'),
+  "client_metadata" jsonb not null default '{}' constraint bsb_connector_servers_client_metadata_check check (jsonb_typeof("client_metadata") = 'object'),
   "enabled" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("auth_type" = 'header') = ("credential_ref" is not null))
+  constraint bsb_connector_servers_check check (("auth_type" = 'header') = ("credential_ref" is not null))
 );
-create index if not exists connector_servers_tenant_idx on "better_supabase"."connector_servers" ("organization_id");
-create index if not exists connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
+create index connector_servers_tenant_idx on "better_supabase"."connector_servers" ("tenant_id");
+create index connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
 alter table "better_supabase"."connector_servers" enable row level security;
 revoke all on "better_supabase"."connector_servers" from public, anon, authenticated;
 grant select on "better_supabase"."connector_servers" to authenticated;
 grant all on "better_supabase"."connector_servers" to service_role;
-drop policy if exists connector_servers_read on "better_supabase"."connector_servers";
-create policy connector_servers_read on "better_supabase"."connector_servers"
+create policy bsb_connector_servers_read on "better_supabase"."connector_servers"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
 -- A user's connection to a server. credential_ref names where the provider
 -- keeps the token (Vault, Vercel Connect); the row holds none.
-create table if not exists "better_supabase"."connector_grants" (
+create table "better_supabase"."connector_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "organization_id" uuid not null,
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
+  "tenant_id" uuid not null,
+  "credential_ref" jsonb not null constraint bsb_connector_grants_credential_ref_check check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
   "scopes" text[] not null default '{}',
   "expires_at" timestamptz,
   "granted_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create unique index if not exists connector_grants_active_idx on "better_supabase"."connector_grants" ("user_id", "server_id") where "revoked_at" is null;
-create index if not exists connector_grants_server_idx on "better_supabase"."connector_grants" ("server_id");
-create index if not exists connector_grants_user_idx on "better_supabase"."connector_grants" ("user_id");
+create unique index connector_grants_active_idx on "better_supabase"."connector_grants" ("user_id", "server_id") where "revoked_at" is null;
+create index connector_grants_server_idx on "better_supabase"."connector_grants" ("server_id");
+create index connector_grants_user_idx on "better_supabase"."connector_grants" ("user_id");
 alter table "better_supabase"."connector_grants" enable row level security;
 revoke all on "better_supabase"."connector_grants" from public, anon, authenticated;
 grant select on "better_supabase"."connector_grants" to authenticated;
 grant all on "better_supabase"."connector_grants" to service_role;
-drop policy if exists connector_grants_read on "better_supabase"."connector_grants";
-create policy connector_grants_read on "better_supabase"."connector_grants"
+create policy bsb_connector_grants_read on "better_supabase"."connector_grants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- The MCP session a user holds with a server per chat, so a later request
 -- reuses it instead of initializing again.
-create table if not exists "better_supabase"."connector_sessions" (
+create table "better_supabase"."connector_sessions" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_key" text not null default '',
@@ -2043,36 +1688,34 @@ create table if not exists "better_supabase"."connector_sessions" (
   "expires_at" timestamptz not null,
   primary key ("server_id", "user_id", "chat_key")
 );
-create index if not exists connector_sessions_expires_idx on "better_supabase"."connector_sessions" ("expires_at");
-create index if not exists connector_sessions_user_idx on "better_supabase"."connector_sessions" ("user_id");
+create index connector_sessions_expires_idx on "better_supabase"."connector_sessions" ("expires_at");
+create index connector_sessions_user_idx on "better_supabase"."connector_sessions" ("user_id");
 alter table "better_supabase"."connector_sessions" enable row level security;
 revoke all on "better_supabase"."connector_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."connector_sessions" to authenticated;
 grant all on "better_supabase"."connector_sessions" to service_role;
-drop policy if exists connector_sessions_read on "better_supabase"."connector_sessions";
-create policy connector_sessions_read on "better_supabase"."connector_sessions"
+create policy bsb_connector_sessions_read on "better_supabase"."connector_sessions"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- Fingerprints of a server's tool list. A list that changed waits for an
 -- admin before an assistant may call it.
-create table if not exists "better_supabase"."connector_tool_fingerprints" (
+create table "better_supabase"."connector_tool_fingerprints" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
-  "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
+  "fingerprint" text not null constraint bsb_connector_tool_fingerprints_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
+  "tools" jsonb not null default '{}' constraint bsb_connector_tool_fingerprints_tools_check check (jsonb_typeof("tools") = 'object'),
+  "status" text not null default 'pending' constraint bsb_connector_tool_fingerprints_status_check check ("status" in ('pending', 'approved', 'rejected')),
   "approved_by" uuid references auth.users (id) on delete set null,
   "approved_at" timestamptz,
   "created_at" timestamptz not null default now(),
   primary key ("server_id", "fingerprint")
 );
-create index if not exists connector_tool_fingerprints_approved_by_idx on "better_supabase"."connector_tool_fingerprints" ("approved_by");
+create index connector_tool_fingerprints_approved_by_idx on "better_supabase"."connector_tool_fingerprints" ("approved_by");
 alter table "better_supabase"."connector_tool_fingerprints" enable row level security;
 revoke all on "better_supabase"."connector_tool_fingerprints" from public, anon, authenticated;
 grant select on "better_supabase"."connector_tool_fingerprints" to authenticated;
 grant all on "better_supabase"."connector_tool_fingerprints" to service_role;
-drop policy if exists connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints";
-create policy connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
+create policy bsb_connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
@@ -2101,12 +1744,12 @@ begin
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   if save_connector_server.id is null then
-    insert into "better_supabase"."connector_servers" ("organization_id", "name", "url", "auth_type", "credential_ref", "created_by")
+    insert into "better_supabase"."connector_servers" ("tenant_id", "name", "url", "auth_type", "credential_ref", "created_by")
     values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
       coalesce(save_connector_server.fields ->> 'auth_type', 'oauth'), save_connector_server.fields -> 'credential_ref', auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."organization_id" = save_connector_server.tenant for update;
+    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."tenant_id" = save_connector_server.tenant for update;
     if not found then
       raise exception 'connector % not found', save_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
     end if;
@@ -2128,7 +1771,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
@@ -2150,10 +1793,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."connector_servers" x where x."id" = delete_connector_server.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'connectors.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', delete_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
   from "better_supabase"."connector_grants" y where y."server_id" = v_row."id" and y."revoked_at" is null;
   delete from "better_supabase"."connector_servers" x where x."id" = v_row."id";
   null;
@@ -2171,11 +1814,11 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'url', x."url", 'transport', x."transport", 'auth_type', x."auth_type", 'credential_ref', x."credential_ref", 'scopes', x."scopes", 'client_metadata', x."client_metadata", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('grant', (
-    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'url', x."url", 'transport', x."transport", 'auth_type', x."auth_type", 'credential_ref', x."credential_ref", 'scopes', x."scopes", 'client_metadata', x."client_metadata", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('grant', (
+    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
     where y."server_id" = x."id" and y."user_id" = auth.uid() and y."revoked_at" is null
   )) order by x."name"), '[]')
-  from "better_supabase"."connector_servers" x where x."organization_id" = list_connector_servers.tenant
+  from "better_supabase"."connector_servers" x where x."tenant_id" = list_connector_servers.tenant
 $$;
 revoke execute on function "better_supabase"."list_connector_servers"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_connector_servers"(uuid) to authenticated, service_role;
@@ -2194,11 +1837,11 @@ declare
   v_row "better_supabase"."connector_servers"%rowtype;
 begin
   select * into v_row from "better_supabase"."connector_servers" x where x."id" = get_connector.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'connectors.read'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'connectors.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
-    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
+    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
     where y."server_id" = v_row."id" and y."user_id" = v_user and y."revoked_at" is null
   ));
 end;
@@ -2223,18 +1866,18 @@ begin
   if not found then
     raise exception 'connector % not found', record_connector_grant.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
-  if not coalesce(better_supabase.member_can(record_connector_grant.owner, v_server."organization_id", 'connectors.use'), false) then
+  if not coalesce(better_supabase.member_can(record_connector_grant.owner, v_server."tenant_id", 'connectors.use'), false) then
     raise exception 'the user may not use connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
   update "better_supabase"."connector_grants" y set "revoked_at" = now()
   where y."server_id" = v_server."id" and y."user_id" = record_connector_grant.owner and y."revoked_at" is null
   returning * into v_old;
-  insert into "better_supabase"."connector_grants" ("user_id", "server_id", "organization_id", "credential_ref", "scopes", "expires_at")
-  values (record_connector_grant.owner, v_server."id", v_server."organization_id", record_connector_grant.credential_ref,
+  insert into "better_supabase"."connector_grants" ("user_id", "server_id", "tenant_id", "credential_ref", "scopes", "expires_at")
+  values (record_connector_grant.owner, v_server."id", v_server."tenant_id", record_connector_grant.credential_ref,
     coalesce(record_connector_grant.scopes, '{}'), record_connector_grant.expires_at)
   returning * into v_row;
   null;
-  return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."organization_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'organization_id', v_old."organization_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
+  return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'tenant_id', v_row."tenant_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'tenant_id', v_old."tenant_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
 end;
 $$;
 revoke execute on function "better_supabase"."record_connector_grant"(uuid, uuid, jsonb, text[], timestamptz) from public, anon, authenticated;
@@ -2263,7 +1906,7 @@ begin
   end if;
   delete from "better_supabase"."connector_sessions" z where z."server_id" = v_row."server_id" and z."user_id" = v_row."user_id";
   null;
-  return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."organization_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'tenant_id', v_row."tenant_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "better_supabase"."revoke_connector_grant"(uuid) from public, anon;
@@ -2277,7 +1920,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") order by y."expires_at"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") order by y."expires_at"), '[]')
   from (
     select * from "better_supabase"."connector_grants" y0
     where y0."revoked_at" is null and y0."expires_at" is not null and y0."expires_at" < expiring_connector_grants.before
@@ -2342,7 +1985,7 @@ begin
     return true;
   end if;
   if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = save_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
-    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."organization_id", 'connectors.use'), false)) then
+    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
     return false;
   end if;
   insert into "better_supabase"."connector_sessions" ("server_id", "user_id", "chat_key", "session_id", "initialize_result", "expires_at")
@@ -2373,7 +2016,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_server from "better_supabase"."connector_servers" x where x."id" = check_connector_fingerprint.server_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'connectors.use'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."tenant_id", 'connectors.use'), false)) then
     raise exception 'connector % not found', check_connector_fingerprint.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   select p."status" into v_status from "better_supabase"."connector_tool_fingerprints" p
@@ -2406,7 +2049,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_server from "better_supabase"."connector_servers" x where x."id" = decide_connector_fingerprint.server_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'connectors.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."tenant_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', decide_connector_fingerprint.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   update "better_supabase"."connector_tool_fingerprints" p set
@@ -2444,83 +2087,42 @@ grant execute on function "better_supabase"."purge_connector_sessions"() to serv
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_select on "better_supabase"."connector_servers" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('connectors.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_servers" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."connector_servers" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_servers" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."connector_grants" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_grants" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."connector_grants" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_grants" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.connectors.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."save_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
 returns jsonb
@@ -2643,19 +2245,6 @@ as $$ select "better_supabase"."purge_connector_sessions"() $$;
 revoke execute on function "api"."purge_connector_sessions"() from public, anon, authenticated;
 grant execute on function "api"."purge_connector_sessions"() to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block-data connectors
@@ -2673,111 +2262,36 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:eccdfaf34d1f7ee192b22f87cde5c1f176c122fe019adf96c06d84027259d6f1
+-- @bsb-hash sha256:76c62f2825bd74a5a26af5143d7e50ce45ac15a480bb4909be563e290da31fdd
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- MCP servers a tenant connects its assistants to. A server names how to
 -- authenticate (none, OAuth per user, or a header from credential_ref) and
 -- never holds a token itself.
 -- better_supabase.connector_servers is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."connector_servers" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."connector_servers" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."connector_servers" add column if not exists "name" text check (length("name") between 1 and 200);
-alter table "better_supabase"."connector_servers" add column if not exists "url" text check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000);
-alter table "better_supabase"."connector_servers" add column if not exists "transport" text not null default 'http' check ("transport" in ('http', 'sse'));
-alter table "better_supabase"."connector_servers" add column if not exists "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header'));
-alter table "better_supabase"."connector_servers" add column if not exists "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'));
+alter table "better_supabase"."connector_servers" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."connector_servers" add column if not exists "name" text constraint bsb_connector_servers_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."connector_servers" add column if not exists "url" text constraint bsb_connector_servers_url_check check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000);
+alter table "better_supabase"."connector_servers" add column if not exists "transport" text not null default 'http' constraint bsb_connector_servers_transport_check check ("transport" in ('http', 'sse'));
+alter table "better_supabase"."connector_servers" add column if not exists "auth_type" text not null default 'oauth' constraint bsb_connector_servers_auth_type_check check ("auth_type" in ('none', 'oauth', 'header'));
+alter table "better_supabase"."connector_servers" add column if not exists "credential_ref" jsonb constraint bsb_connector_servers_credential_ref_check check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'));
 alter table "better_supabase"."connector_servers" add column if not exists "scopes" text[] not null default '{}';
-alter table "better_supabase"."connector_servers" add column if not exists "client_metadata" jsonb not null default '{}' check (jsonb_typeof("client_metadata") = 'object');
+alter table "better_supabase"."connector_servers" add column if not exists "client_metadata" jsonb not null default '{}' constraint bsb_connector_servers_client_metadata_check check (jsonb_typeof("client_metadata") = 'object');
 alter table "better_supabase"."connector_servers" add column if not exists "enabled" boolean not null default true;
 alter table "better_supabase"."connector_servers" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."connector_servers" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."connector_servers" add column if not exists "updated_at" timestamptz not null default now();
-create index if not exists connector_servers_tenant_idx on "better_supabase"."connector_servers" ("organization_id");
+create index if not exists connector_servers_tenant_idx on "better_supabase"."connector_servers" ("tenant_id");
 create index if not exists connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
 alter table "better_supabase"."connector_servers" enable row level security;
 grant select on "better_supabase"."connector_servers" to authenticated;
 grant all on "better_supabase"."connector_servers" to service_role;
-drop policy if exists bsb_connector_servers_select on "better_supabase"."connector_servers";
 create policy bsb_connector_servers_select on "better_supabase"."connector_servers"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
 -- A user's connection to a server. credential_ref names where the provider
 -- keeps the token (Vault, Vercel Connect); the row holds none.
@@ -2785,8 +2299,8 @@ create policy bsb_connector_servers_select on "better_supabase"."connector_serve
 alter table "better_supabase"."connector_grants" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."connector_grants" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."connector_grants" add column if not exists "server_id" uuid references "better_supabase"."connector_servers" ("id") on delete cascade;
-alter table "better_supabase"."connector_grants" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."connector_grants" add column if not exists "credential_ref" jsonb check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider');
+alter table "better_supabase"."connector_grants" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."connector_grants" add column if not exists "credential_ref" jsonb constraint bsb_connector_grants_credential_ref_check check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider');
 alter table "better_supabase"."connector_grants" add column if not exists "scopes" text[] not null default '{}';
 alter table "better_supabase"."connector_grants" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."connector_grants" add column if not exists "granted_at" timestamptz not null default now();
@@ -2797,7 +2311,6 @@ create index if not exists connector_grants_user_idx on "better_supabase"."conne
 alter table "better_supabase"."connector_grants" enable row level security;
 grant select on "better_supabase"."connector_grants" to authenticated;
 grant all on "better_supabase"."connector_grants" to service_role;
-drop policy if exists bsb_connector_grants_select on "better_supabase"."connector_grants";
 create policy bsb_connector_grants_select on "better_supabase"."connector_grants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
@@ -2818,7 +2331,6 @@ create index if not exists connector_sessions_user_idx on "better_supabase"."con
 alter table "better_supabase"."connector_sessions" enable row level security;
 grant select on "better_supabase"."connector_sessions" to authenticated;
 grant all on "better_supabase"."connector_sessions" to service_role;
-drop policy if exists bsb_connector_sessions_select on "better_supabase"."connector_sessions";
 create policy bsb_connector_sessions_select on "better_supabase"."connector_sessions"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
@@ -2827,9 +2339,9 @@ create policy bsb_connector_sessions_select on "better_supabase"."connector_sess
 -- admin before an assistant may call it.
 -- better_supabase.connector_tool_fingerprints is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "server_id" uuid references "better_supabase"."connector_servers" ("id") on delete cascade;
-alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "fingerprint" text check (length("fingerprint") between 1 and 200);
-alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object');
-alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected'));
+alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "fingerprint" text constraint bsb_connector_tool_fingerprints_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200);
+alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "tools" jsonb not null default '{}' constraint bsb_connector_tool_fingerprints_tools_check check (jsonb_typeof("tools") = 'object');
+alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "status" text not null default 'pending' constraint bsb_connector_tool_fingerprints_status_check check ("status" in ('pending', 'approved', 'rejected'));
 alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "approved_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "approved_at" timestamptz;
 alter table "better_supabase"."connector_tool_fingerprints" add column if not exists "created_at" timestamptz not null default now();
@@ -2838,7 +2350,6 @@ create index if not exists connector_tool_fingerprints_approved_by_idx on "bette
 alter table "better_supabase"."connector_tool_fingerprints" enable row level security;
 grant select on "better_supabase"."connector_tool_fingerprints" to authenticated;
 grant all on "better_supabase"."connector_tool_fingerprints" to service_role;
-drop policy if exists bsb_connector_tool_fingerprints_select on "better_supabase"."connector_tool_fingerprints";
 create policy bsb_connector_tool_fingerprints_select on "better_supabase"."connector_tool_fingerprints"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
@@ -2868,12 +2379,12 @@ begin
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   if save_connector_server.id is null then
-    insert into "better_supabase"."connector_servers" ("organization_id", "name", "url", "auth_type", "credential_ref", "created_by")
+    insert into "better_supabase"."connector_servers" ("tenant_id", "name", "url", "auth_type", "credential_ref", "created_by")
     values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
       better_supabase.as_column_type(coalesce(save_connector_server.fields ->> 'auth_type', 'oauth'), (null::"better_supabase"."connector_servers")."auth_type"), save_connector_server.fields -> 'credential_ref', auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."organization_id" = save_connector_server.tenant for update;
+    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."tenant_id" = save_connector_server.tenant for update;
     if not found then
       raise exception 'connector % not found', save_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
     end if;
@@ -2895,7 +2406,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
@@ -2917,10 +2428,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."connector_servers" x where x."id" = delete_connector_server.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'connectors.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', delete_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
   from "better_supabase"."connector_grants" y where y."server_id" = v_row."id" and y."revoked_at" is null;
   delete from "better_supabase"."connector_servers" x where x."id" = v_row."id";
   null;
@@ -2938,11 +2449,11 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'url', x."url", 'transport', x."transport", 'auth_type', x."auth_type", 'credential_ref', x."credential_ref", 'scopes', x."scopes", 'client_metadata', x."client_metadata", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('grant', (
-    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'url', x."url", 'transport', x."transport", 'auth_type', x."auth_type", 'credential_ref', x."credential_ref", 'scopes', x."scopes", 'client_metadata', x."client_metadata", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('grant', (
+    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
     where y."server_id" = x."id" and y."user_id" = auth.uid() and y."revoked_at" is null
   )) order by x."name"), '[]')
-  from "better_supabase"."connector_servers" x where x."organization_id" = list_connector_servers.tenant
+  from "better_supabase"."connector_servers" x where x."tenant_id" = list_connector_servers.tenant
 $$;
 revoke execute on function "better_supabase"."list_connector_servers"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_connector_servers"(uuid) to authenticated, service_role;
@@ -2961,11 +2472,11 @@ declare
   v_row "better_supabase"."connector_servers"%rowtype;
 begin
   select * into v_row from "better_supabase"."connector_servers" x where x."id" = get_connector.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'connectors.read'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'connectors.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
-    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
+    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
     where y."server_id" = v_row."id" and y."user_id" = v_user and y."revoked_at" is null
   ));
 end;
@@ -2990,18 +2501,18 @@ begin
   if not found then
     raise exception 'connector % not found', record_connector_grant.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
-  if not coalesce(better_supabase.member_can(record_connector_grant.owner, v_server."organization_id", 'connectors.use'), false) then
+  if not coalesce(better_supabase.member_can(record_connector_grant.owner, v_server."tenant_id", 'connectors.use'), false) then
     raise exception 'the user may not use connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
   update "better_supabase"."connector_grants" y set "revoked_at" = now()
   where y."server_id" = v_server."id" and y."user_id" = record_connector_grant.owner and y."revoked_at" is null
   returning * into v_old;
-  insert into "better_supabase"."connector_grants" ("user_id", "server_id", "organization_id", "credential_ref", "scopes", "expires_at")
-  values (record_connector_grant.owner, v_server."id", v_server."organization_id", record_connector_grant.credential_ref,
+  insert into "better_supabase"."connector_grants" ("user_id", "server_id", "tenant_id", "credential_ref", "scopes", "expires_at")
+  values (record_connector_grant.owner, v_server."id", v_server."tenant_id", record_connector_grant.credential_ref,
     coalesce(record_connector_grant.scopes, '{}'), record_connector_grant.expires_at)
   returning * into v_row;
   null;
-  return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."organization_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'organization_id', v_old."organization_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
+  return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'tenant_id', v_row."tenant_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'tenant_id', v_old."tenant_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
 end;
 $$;
 revoke execute on function "better_supabase"."record_connector_grant"(uuid, uuid, jsonb, text[], timestamptz) from public, anon, authenticated;
@@ -3030,7 +2541,7 @@ begin
   end if;
   delete from "better_supabase"."connector_sessions" z where z."server_id" = v_row."server_id" and z."user_id" = v_row."user_id";
   null;
-  return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."organization_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'tenant_id', v_row."tenant_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "better_supabase"."revoke_connector_grant"(uuid) from public, anon;
@@ -3044,7 +2555,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") order by y."expires_at"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."tenant_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") order by y."expires_at"), '[]')
   from (
     select * from "better_supabase"."connector_grants" y0
     where y0."revoked_at" is null and y0."expires_at" is not null and y0."expires_at" < expiring_connector_grants.before
@@ -3109,7 +2620,7 @@ begin
     return true;
   end if;
   if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = save_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
-    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."organization_id", 'connectors.use'), false)) then
+    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
     return false;
   end if;
   insert into "better_supabase"."connector_sessions" ("server_id", "user_id", "chat_key", "session_id", "initialize_result", "expires_at")
@@ -3140,7 +2651,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_server from "better_supabase"."connector_servers" x where x."id" = check_connector_fingerprint.server_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'connectors.use'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."tenant_id", 'connectors.use'), false)) then
     raise exception 'connector % not found', check_connector_fingerprint.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   select p."status"::text into v_status from "better_supabase"."connector_tool_fingerprints" p
@@ -3173,7 +2684,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_server from "better_supabase"."connector_servers" x where x."id" = decide_connector_fingerprint.server_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'connectors.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."tenant_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', decide_connector_fingerprint.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   update "better_supabase"."connector_tool_fingerprints" p set
@@ -3211,73 +2722,38 @@ grant execute on function "better_supabase"."purge_connector_sessions"() to serv
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_select on "better_supabase"."connector_servers" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('connectors.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_servers" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."connector_servers" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_servers" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."connector_grants" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_grants" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."connector_grants" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_grants" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
@@ -3296,127 +2772,67 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:7bfc29276e204e6ca982c7d914eb896405d1fe61dd0d6e0a415ae73b39c7a0c9
+-- @bsb-hash sha256:9bfc288d5e708a055700ee6b8181905ec7020fe08d7f4ec377489a65cc0f7f97
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- MCP servers a tenant connects its assistants to. A server names how to
 -- authenticate (none, OAuth per user, or a header from credential_ref) and
 -- never holds a token itself.
-create table if not exists "better_supabase"."connector_servers" (
+create table "better_supabase"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "url" text not null check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
-  "transport" text not null default 'http' check ("transport" in ('http', 'sse')),
-  "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header')),
-  "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
+  "name" text not null constraint bsb_connector_servers_name_check check (length("name") >= 1 and length("name") <= 200),
+  "url" text not null constraint bsb_connector_servers_url_check check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
+  "transport" text not null default 'http' constraint bsb_connector_servers_transport_check check ("transport" in ('http', 'sse')),
+  "auth_type" text not null default 'oauth' constraint bsb_connector_servers_auth_type_check check ("auth_type" in ('none', 'oauth', 'header')),
+  "credential_ref" jsonb constraint bsb_connector_servers_credential_ref_check check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
   "scopes" text[] not null default '{}',
-  "client_metadata" jsonb not null default '{}' check (jsonb_typeof("client_metadata") = 'object'),
+  "client_metadata" jsonb not null default '{}' constraint bsb_connector_servers_client_metadata_check check (jsonb_typeof("client_metadata") = 'object'),
   "enabled" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("auth_type" = 'header') = ("credential_ref" is not null))
+  constraint bsb_connector_servers_check check (("auth_type" = 'header') = ("credential_ref" is not null))
 );
-create index if not exists connector_servers_tenant_idx on "better_supabase"."connector_servers" ("org_id");
-create index if not exists connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
+create index connector_servers_tenant_idx on "better_supabase"."connector_servers" ("org_id");
+create index connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
 alter table "better_supabase"."connector_servers" enable row level security;
 revoke all on "better_supabase"."connector_servers" from public, anon, authenticated;
 grant select on "better_supabase"."connector_servers" to authenticated;
 grant all on "better_supabase"."connector_servers" to service_role;
-drop policy if exists connector_servers_read on "better_supabase"."connector_servers";
-create policy connector_servers_read on "better_supabase"."connector_servers"
+create policy bsb_connector_servers_read on "better_supabase"."connector_servers"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
 -- A user's connection to a server. credential_ref names where the provider
 -- keeps the token (Vault, Vercel Connect); the row holds none.
-create table if not exists "better_supabase"."connector_grants" (
+create table "better_supabase"."connector_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
   "org_id" uuid not null,
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
+  "credential_ref" jsonb not null constraint bsb_connector_grants_credential_ref_check check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
   "scopes" text[] not null default '{}',
   "expires_at" timestamptz,
   "granted_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create unique index if not exists connector_grants_active_idx on "better_supabase"."connector_grants" ("user_id", "server_id") where "revoked_at" is null;
-create index if not exists connector_grants_server_idx on "better_supabase"."connector_grants" ("server_id");
-create index if not exists connector_grants_user_idx on "better_supabase"."connector_grants" ("user_id");
+create unique index connector_grants_active_idx on "better_supabase"."connector_grants" ("user_id", "server_id") where "revoked_at" is null;
+create index connector_grants_server_idx on "better_supabase"."connector_grants" ("server_id");
+create index connector_grants_user_idx on "better_supabase"."connector_grants" ("user_id");
 alter table "better_supabase"."connector_grants" enable row level security;
 revoke all on "better_supabase"."connector_grants" from public, anon, authenticated;
 grant select on "better_supabase"."connector_grants" to authenticated;
 grant all on "better_supabase"."connector_grants" to service_role;
-drop policy if exists connector_grants_read on "better_supabase"."connector_grants";
-create policy connector_grants_read on "better_supabase"."connector_grants"
+create policy bsb_connector_grants_read on "better_supabase"."connector_grants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- The MCP session a user holds with a server per chat, so a later request
 -- reuses it instead of initializing again.
-create table if not exists "better_supabase"."connector_sessions" (
+create table "better_supabase"."connector_sessions" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_key" text not null default '',
@@ -3426,36 +2842,34 @@ create table if not exists "better_supabase"."connector_sessions" (
   "expires_at" timestamptz not null,
   primary key ("server_id", "user_id", "chat_key")
 );
-create index if not exists connector_sessions_expires_idx on "better_supabase"."connector_sessions" ("expires_at");
-create index if not exists connector_sessions_user_idx on "better_supabase"."connector_sessions" ("user_id");
+create index connector_sessions_expires_idx on "better_supabase"."connector_sessions" ("expires_at");
+create index connector_sessions_user_idx on "better_supabase"."connector_sessions" ("user_id");
 alter table "better_supabase"."connector_sessions" enable row level security;
 revoke all on "better_supabase"."connector_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."connector_sessions" to authenticated;
 grant all on "better_supabase"."connector_sessions" to service_role;
-drop policy if exists connector_sessions_read on "better_supabase"."connector_sessions";
-create policy connector_sessions_read on "better_supabase"."connector_sessions"
+create policy bsb_connector_sessions_read on "better_supabase"."connector_sessions"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- Fingerprints of a server's tool list. A list that changed waits for an
 -- admin before an assistant may call it.
-create table if not exists "better_supabase"."connector_tool_fingerprints" (
+create table "better_supabase"."connector_tool_fingerprints" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "fingerprint" text not null check (length("fingerprint") between 1 and 200),
-  "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
+  "fingerprint" text not null constraint bsb_connector_tool_fingerprints_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
+  "tools" jsonb not null default '{}' constraint bsb_connector_tool_fingerprints_tools_check check (jsonb_typeof("tools") = 'object'),
+  "status" text not null default 'pending' constraint bsb_connector_tool_fingerprints_status_check check ("status" in ('pending', 'approved', 'rejected')),
   "approved_by" uuid references auth.users (id) on delete set null,
   "approved_at" timestamptz,
   "created_at" timestamptz not null default now(),
   primary key ("server_id", "fingerprint")
 );
-create index if not exists connector_tool_fingerprints_approved_by_idx on "better_supabase"."connector_tool_fingerprints" ("approved_by");
+create index connector_tool_fingerprints_approved_by_idx on "better_supabase"."connector_tool_fingerprints" ("approved_by");
 alter table "better_supabase"."connector_tool_fingerprints" enable row level security;
 revoke all on "better_supabase"."connector_tool_fingerprints" from public, anon, authenticated;
 grant select on "better_supabase"."connector_tool_fingerprints" to authenticated;
 grant all on "better_supabase"."connector_tool_fingerprints" to service_role;
-drop policy if exists connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints";
-create policy connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
+create policy bsb_connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
@@ -3511,7 +2925,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
@@ -3536,7 +2950,7 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', delete_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."org_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."org_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
   from "better_supabase"."connector_grants" y where y."server_id" = v_row."id" and y."revoked_at" is null;
   delete from "better_supabase"."connector_servers" x where x."id" = v_row."id";
   null;
@@ -3554,8 +2968,8 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."org_id", 'name', x."name", 'url', x."url", 'transport', x."transport", 'auth_type', x."auth_type", 'credential_ref', x."credential_ref", 'scopes', x."scopes", 'client_metadata', x."client_metadata", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('grant', (
-    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."org_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'name', x."name", 'url', x."url", 'transport', x."transport", 'auth_type', x."auth_type", 'credential_ref', x."credential_ref", 'scopes', x."scopes", 'client_metadata', x."client_metadata", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('grant', (
+    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."org_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
     where y."server_id" = x."id" and y."user_id" = auth.uid() and y."revoked_at" is null
   )) order by x."name"), '[]')
   from "better_supabase"."connector_servers" x where x."org_id" = list_connector_servers.tenant
@@ -3580,8 +2994,8 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'connectors.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
-    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."org_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
+    select jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."org_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") from "better_supabase"."connector_grants" y
     where y."server_id" = v_row."id" and y."user_id" = v_user and y."revoked_at" is null
   ));
 end;
@@ -3617,7 +3031,7 @@ begin
     coalesce(record_connector_grant.scopes, '{}'), record_connector_grant.expires_at)
   returning * into v_row;
   null;
-  return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."org_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'organization_id', v_old."org_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
+  return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'tenant_id', v_row."org_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'tenant_id', v_old."org_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
 end;
 $$;
 revoke execute on function "better_supabase"."record_connector_grant"(uuid, uuid, jsonb, text[], timestamptz) from public, anon, authenticated;
@@ -3646,7 +3060,7 @@ begin
   end if;
   delete from "better_supabase"."connector_sessions" z where z."server_id" = v_row."server_id" and z."user_id" = v_row."user_id";
   null;
-  return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."org_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'tenant_id', v_row."org_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "better_supabase"."revoke_connector_grant"(uuid) from public, anon;
@@ -3660,7 +3074,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."org_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") order by y."expires_at"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'tenant_id', y."org_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at") order by y."expires_at"), '[]')
   from (
     select * from "better_supabase"."connector_grants" y0
     where y0."revoked_at" is null and y0."expires_at" is not null and y0."expires_at" < expiring_connector_grants.before
@@ -3827,73 +3241,38 @@ grant execute on function "better_supabase"."purge_connector_sessions"() to serv
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."connector_servers";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_select on "better_supabase"."connector_servers" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('connectors.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_servers" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_update on "better_supabase"."connector_servers" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_servers" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."connector_grants";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."connector_grants";
 create policy bsb_tenant_scope_select on "better_supabase"."connector_grants" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_grants";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_grants" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."connector_grants";
 create policy bsb_tenant_scope_update on "better_supabase"."connector_grants" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."connector_grants";
 create policy bsb_tenant_scope_delete on "better_supabase"."connector_grants" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors

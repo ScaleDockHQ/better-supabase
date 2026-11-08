@@ -1,48 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:712baecab11afcdd62c34d493494c0271b2cc95765a0605298a23f72b547bfa1
+-- @bsb-hash sha256:35b532e22b789bce81ddae117bb12bd3ce327577838e02107d5dcc9760d216b2
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."profiles" (
+create table "better_supabase"."profiles" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "email" text,
   "username" text,
@@ -52,19 +16,14 @@ create table if not exists "better_supabase"."profiles" (
   "avatar_url" text,
   "avatar_path" text,
   "locale" text,
-  "active_organization_id" uuid,
-  "active_team_id" uuid,
   "onboarding" jsonb not null default '{}',
   "disabled_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;
-alter table "better_supabase"."profiles" add column if not exists "locale" text;
 
-create unique index if not exists profiles_username_idx on "better_supabase"."profiles" (lower("username"));
-alter table "better_supabase"."profiles" drop constraint if exists profiles_username_check;
-alter table "better_supabase"."profiles" add constraint profiles_username_check check (
+create unique index profiles_username_idx on "better_supabase"."profiles" (lower("username"));
+alter table "better_supabase"."profiles" add constraint bsb_profiles_username_check check (
   "username" is null or (
     length("username") >= 3
     and length("username") <= 32
@@ -72,19 +31,10 @@ alter table "better_supabase"."profiles" add constraint profiles_username_check 
     and lower("username") <> all (array['admin', 'administrator', 'api', 'app', 'auth', 'billing', 'help', 'login', 'logout', 'me', 'null', 'root', 'settings', 'signup', 'support', 'system', 'www'])
   )
 ) not valid;
-do $$
-begin
-  alter table "better_supabase"."profiles" validate constraint profiles_username_check;
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"better_supabase"."profiles"';
-end;
-$$;
 alter table "better_supabase"."profiles" enable row level security;
-drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
 create policy bsb_profiles_read on "better_supabase"."profiles"
   for select to authenticated
   using ("id" = (select auth.uid()));
-drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
 create policy bsb_profiles_update on "better_supabase"."profiles"
   for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
@@ -97,9 +47,9 @@ grant all on "better_supabase"."profiles" to service_role;
 revoke update on "better_supabase"."profiles" from authenticated;
 grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
 
--- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- The API roles can't change the key or "email", "disabled_at", "created_at". Security
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "better_supabase"."guard_profile"()
 returns trigger
 language plpgsql
@@ -110,8 +60,6 @@ begin
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
-    or new."active_organization_id" is distinct from old."active_organization_id"
-    or new."active_team_id" is distinct from old."active_team_id"
     or new."created_at" is distinct from old."created_at"
   ) then
     raise exception 'These profile columns are managed by the service' using errcode = '42501', hint = 'PROFILE_COLUMN_READONLY';
@@ -121,7 +69,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."guard_profile"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_guard" on "better_supabase"."profiles";
 create trigger "bsb_profile_guard" before update on "better_supabase"."profiles"
   for each row execute function "better_supabase"."guard_profile"();
 
@@ -224,8 +171,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."backfill_profiles"() from public, anon, authenticated;
 grant execute on function "better_supabase"."backfill_profiles"() to service_role;
-
-drop function if exists "better_supabase"."my_profile"();
 create or replace function "better_supabase"."my_profile"()
 returns jsonb
 language sql
@@ -284,40 +229,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."update_my_profile"(jsonb) from public, anon;
 grant execute on function "better_supabase"."update_my_profile"(jsonb) to authenticated, service_role;
-
-create or replace function better_supabase.replace_equivalent_triggers(
-  target regclass,
-  module_trigger text,
-  pattern text,
-  replace_trigger boolean
-)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-declare
-  found record;
-begin
-  for found in
-    select t.tgname as name, p.proname as fn
-    from pg_catalog.pg_trigger t
-    join pg_catalog.pg_proc p on p.oid = t.tgfoid
-    where t.tgrelid = replace_equivalent_triggers.target
-      and not t.tgisinternal
-      and t.tgname <> replace_equivalent_triggers.module_trigger
-      and p.proname ~* replace_equivalent_triggers.pattern
-  loop
-    if replace_trigger then
-      execute format('drop trigger %I on %s', found.name, target);
-    else
-      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
-        target, found.name, found.fn, module_trigger;
-    end if;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.replace_equivalent_triggers(regclass, text, text, boolean) from public, anon, authenticated;
-
 create or replace function "better_supabase"."on_auth_user_created"()
 returns trigger
 language plpgsql
@@ -337,9 +248,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_created"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_sync" on auth.users;
-create trigger "bsb_profile_sync" after insert on auth.users
-  for each row execute function "better_supabase"."on_auth_user_created"();
 
 -- Keeps the profile's email equal to the confirmed address in auth.users,
 -- lowercased so lookups and unique indexes match regardless of case.
@@ -355,22 +263,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_email" on auth.users;
-create trigger "bsb_profile_email" after update of email on auth.users
-  for each row execute function "better_supabase"."mirror_profile_email"();
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
@@ -392,48 +284,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:712baecab11afcdd62c34d493494c0271b2cc95765a0605298a23f72b547bfa1
+-- @bsb-hash sha256:195e9272e4038d73a415119cebb19fcbe8ab10857e3096a69c84629a29759033
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."profiles" (
+create table "better_supabase"."profiles" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "email" text,
   "username" text,
@@ -450,12 +306,9 @@ create table if not exists "better_supabase"."profiles" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;
-alter table "better_supabase"."profiles" add column if not exists "locale" text;
 
-create unique index if not exists profiles_username_idx on "better_supabase"."profiles" (lower("username"));
-alter table "better_supabase"."profiles" drop constraint if exists profiles_username_check;
-alter table "better_supabase"."profiles" add constraint profiles_username_check check (
+create unique index profiles_username_idx on "better_supabase"."profiles" (lower("username"));
+alter table "better_supabase"."profiles" add constraint bsb_profiles_username_check check (
   "username" is null or (
     length("username") >= 3
     and length("username") <= 32
@@ -463,19 +316,10 @@ alter table "better_supabase"."profiles" add constraint profiles_username_check 
     and lower("username") <> all (array['admin', 'administrator', 'api', 'app', 'auth', 'billing', 'help', 'login', 'logout', 'me', 'null', 'root', 'settings', 'signup', 'support', 'system', 'www'])
   )
 ) not valid;
-do $$
-begin
-  alter table "better_supabase"."profiles" validate constraint profiles_username_check;
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"better_supabase"."profiles"';
-end;
-$$;
 alter table "better_supabase"."profiles" enable row level security;
-drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
 create policy bsb_profiles_read on "better_supabase"."profiles"
   for select to authenticated
   using ("id" = (select auth.uid()));
-drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
 create policy bsb_profiles_update on "better_supabase"."profiles"
   for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
@@ -489,8 +333,8 @@ revoke update on "better_supabase"."profiles" from authenticated;
 grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
 
 -- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "better_supabase"."guard_profile"()
 returns trigger
 language plpgsql
@@ -512,7 +356,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."guard_profile"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_guard" on "better_supabase"."profiles";
 create trigger "bsb_profile_guard" before update on "better_supabase"."profiles"
   for each row execute function "better_supabase"."guard_profile"();
 
@@ -615,8 +458,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."backfill_profiles"() from public, anon, authenticated;
 grant execute on function "better_supabase"."backfill_profiles"() to service_role;
-
-drop function if exists "better_supabase"."my_profile"();
 create or replace function "better_supabase"."my_profile"()
 returns jsonb
 language sql
@@ -675,40 +516,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."update_my_profile"(jsonb) from public, anon;
 grant execute on function "better_supabase"."update_my_profile"(jsonb) to authenticated, service_role;
-
-create or replace function better_supabase.replace_equivalent_triggers(
-  target regclass,
-  module_trigger text,
-  pattern text,
-  replace_trigger boolean
-)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-declare
-  found record;
-begin
-  for found in
-    select t.tgname as name, p.proname as fn
-    from pg_catalog.pg_trigger t
-    join pg_catalog.pg_proc p on p.oid = t.tgfoid
-    where t.tgrelid = replace_equivalent_triggers.target
-      and not t.tgisinternal
-      and t.tgname <> replace_equivalent_triggers.module_trigger
-      and p.proname ~* replace_equivalent_triggers.pattern
-  loop
-    if replace_trigger then
-      execute format('drop trigger %I on %s', found.name, target);
-    else
-      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
-        target, found.name, found.fn, module_trigger;
-    end if;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.replace_equivalent_triggers(regclass, text, text, boolean) from public, anon, authenticated;
-
 create or replace function "better_supabase"."on_auth_user_created"()
 returns trigger
 language plpgsql
@@ -728,9 +535,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_created"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_sync" on auth.users;
-create trigger "bsb_profile_sync" after insert on auth.users
-  for each row execute function "better_supabase"."on_auth_user_created"();
 
 -- Keeps the profile's email equal to the confirmed address in auth.users,
 -- lowercased so lookups and unique indexes match regardless of case.
@@ -746,22 +550,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_email" on auth.users;
-create trigger "bsb_profile_email" after update of email on auth.users
-  for each row execute function "better_supabase"."mirror_profile_email"();
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
@@ -783,53 +571,17 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:a9a542307b35a233bd4181665d7e9f70da387cb884e7234d211d5bfa0e58b457
+-- @bsb-hash sha256:9427c889165010c9634bac1824edd6325f19eb9515aea9562150517e4d16fdcd
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."profiles" (
+create table "app_private"."profiles" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "email" text,
   "username" text,
@@ -839,19 +591,14 @@ create table if not exists "app_private"."profiles" (
   "avatar_url" text,
   "avatar_path" text,
   "locale" text,
-  "active_organization_id" uuid,
-  "active_team_id" uuid,
   "onboarding" jsonb not null default '{}',
   "disabled_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-alter table "app_private"."profiles" add column if not exists "avatar_path" text;
-alter table "app_private"."profiles" add column if not exists "locale" text;
 
-create unique index if not exists profiles_username_idx on "app_private"."profiles" (lower("username"));
-alter table "app_private"."profiles" drop constraint if exists profiles_username_check;
-alter table "app_private"."profiles" add constraint profiles_username_check check (
+create unique index profiles_username_idx on "app_private"."profiles" (lower("username"));
+alter table "app_private"."profiles" add constraint bsb_profiles_username_check check (
   "username" is null or (
     length("username") >= 3
     and length("username") <= 32
@@ -859,19 +606,10 @@ alter table "app_private"."profiles" add constraint profiles_username_check chec
     and lower("username") <> all (array['admin', 'administrator', 'api', 'app', 'auth', 'billing', 'help', 'login', 'logout', 'me', 'null', 'root', 'settings', 'signup', 'support', 'system', 'www'])
   )
 ) not valid;
-do $$
-begin
-  alter table "app_private"."profiles" validate constraint profiles_username_check;
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"app_private"."profiles"';
-end;
-$$;
 alter table "app_private"."profiles" enable row level security;
-drop policy if exists bsb_profiles_read on "app_private"."profiles";
 create policy bsb_profiles_read on "app_private"."profiles"
   for select to authenticated
   using ("id" = (select auth.uid()));
-drop policy if exists bsb_profiles_update on "app_private"."profiles";
 create policy bsb_profiles_update on "app_private"."profiles"
   for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
@@ -884,9 +622,9 @@ grant all on "app_private"."profiles" to service_role;
 revoke update on "app_private"."profiles" from authenticated;
 grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "app_private"."profiles" to authenticated;
 
--- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- The API roles can't change the key or "email", "disabled_at", "created_at". Security
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "app_private"."guard_profile"()
 returns trigger
 language plpgsql
@@ -897,8 +635,6 @@ begin
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
-    or new."active_organization_id" is distinct from old."active_organization_id"
-    or new."active_team_id" is distinct from old."active_team_id"
     or new."created_at" is distinct from old."created_at"
   ) then
     raise exception 'These profile columns are managed by the service' using errcode = '42501', hint = 'PROFILE_COLUMN_READONLY';
@@ -908,7 +644,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."guard_profile"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_guard" on "app_private"."profiles";
 create trigger "bsb_profile_guard" before update on "app_private"."profiles"
   for each row execute function "app_private"."guard_profile"();
 
@@ -1011,8 +746,6 @@ as $$
 $$;
 revoke execute on function "app_private"."backfill_profiles"() from public, anon, authenticated;
 grant execute on function "app_private"."backfill_profiles"() to service_role;
-
-drop function if exists "app_private"."my_profile"();
 create or replace function "app_private"."my_profile"()
 returns jsonb
 language sql
@@ -1071,40 +804,6 @@ end;
 $$;
 revoke execute on function "app_private"."update_my_profile"(jsonb) from public, anon;
 grant execute on function "app_private"."update_my_profile"(jsonb) to authenticated, service_role;
-
-create or replace function better_supabase.replace_equivalent_triggers(
-  target regclass,
-  module_trigger text,
-  pattern text,
-  replace_trigger boolean
-)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-declare
-  found record;
-begin
-  for found in
-    select t.tgname as name, p.proname as fn
-    from pg_catalog.pg_trigger t
-    join pg_catalog.pg_proc p on p.oid = t.tgfoid
-    where t.tgrelid = replace_equivalent_triggers.target
-      and not t.tgisinternal
-      and t.tgname <> replace_equivalent_triggers.module_trigger
-      and p.proname ~* replace_equivalent_triggers.pattern
-  loop
-    if replace_trigger then
-      execute format('drop trigger %I on %s', found.name, target);
-    else
-      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
-        target, found.name, found.fn, module_trigger;
-    end if;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.replace_equivalent_triggers(regclass, text, text, boolean) from public, anon, authenticated;
-
 create or replace function "app_private"."on_auth_user_created"()
 returns trigger
 language plpgsql
@@ -1124,9 +823,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."on_auth_user_created"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_sync" on auth.users;
-create trigger "bsb_profile_sync" after insert on auth.users
-  for each row execute function "app_private"."on_auth_user_created"();
 
 -- Keeps the profile's email equal to the confirmed address in auth.users,
 -- lowercased so lookups and unique indexes match regardless of case.
@@ -1142,22 +838,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."mirror_profile_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_email" on auth.users;
-create trigger "bsb_profile_email" after update of email on auth.users
-  for each row execute function "app_private"."mirror_profile_email"();
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
@@ -1179,48 +859,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:6c45a527b1dbb6a38868e8cad5af2539e34c4fd3b7c4201cfa33f6f3c756c427
+-- @bsb-hash sha256:ea0d7afe0966995022980bcf4d6c46bcd17d3c78e2e2f0eabb1ed3bd4bbf6b5d
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."profiles" (
+create table "better_supabase"."profiles" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "email" text,
   "username" text,
@@ -1230,19 +874,14 @@ create table if not exists "better_supabase"."profiles" (
   "avatar_url" text,
   "avatar_path" text,
   "locale" text,
-  "active_organization_id" uuid,
-  "active_team_id" uuid,
   "onboarding" jsonb not null default '{}',
   "disabled_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;
-alter table "better_supabase"."profiles" add column if not exists "locale" text;
 
-create unique index if not exists profiles_username_idx on "better_supabase"."profiles" (lower("username"));
-alter table "better_supabase"."profiles" drop constraint if exists profiles_username_check;
-alter table "better_supabase"."profiles" add constraint profiles_username_check check (
+create unique index profiles_username_idx on "better_supabase"."profiles" (lower("username"));
+alter table "better_supabase"."profiles" add constraint bsb_profiles_username_check check (
   "username" is null or (
     length("username") >= 3
     and length("username") <= 32
@@ -1250,19 +889,10 @@ alter table "better_supabase"."profiles" add constraint profiles_username_check 
     and lower("username") <> all (array['admin', 'administrator', 'api', 'app', 'auth', 'billing', 'help', 'login', 'logout', 'me', 'null', 'root', 'settings', 'signup', 'support', 'system', 'www'])
   )
 ) not valid;
-do $$
-begin
-  alter table "better_supabase"."profiles" validate constraint profiles_username_check;
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"better_supabase"."profiles"';
-end;
-$$;
 alter table "better_supabase"."profiles" enable row level security;
-drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
 create policy bsb_profiles_read on "better_supabase"."profiles"
   for select to authenticated
   using ("id" = (select auth.uid()));
-drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
 create policy bsb_profiles_update on "better_supabase"."profiles"
   for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
@@ -1275,9 +905,9 @@ grant all on "better_supabase"."profiles" to service_role;
 revoke update on "better_supabase"."profiles" from authenticated;
 grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
 
--- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- The API roles can't change the key or "email", "disabled_at", "created_at". Security
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "better_supabase"."guard_profile"()
 returns trigger
 language plpgsql
@@ -1288,8 +918,6 @@ begin
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
-    or new."active_organization_id" is distinct from old."active_organization_id"
-    or new."active_team_id" is distinct from old."active_team_id"
     or new."created_at" is distinct from old."created_at"
   ) then
     raise exception 'These profile columns are managed by the service' using errcode = '42501', hint = 'PROFILE_COLUMN_READONLY';
@@ -1299,7 +927,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."guard_profile"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_guard" on "better_supabase"."profiles";
 create trigger "bsb_profile_guard" before update on "better_supabase"."profiles"
   for each row execute function "better_supabase"."guard_profile"();
 
@@ -1402,8 +1029,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."backfill_profiles"() from public, anon, authenticated;
 grant execute on function "better_supabase"."backfill_profiles"() to service_role;
-
-drop function if exists "better_supabase"."my_profile"();
 create or replace function "better_supabase"."my_profile"()
 returns jsonb
 language sql
@@ -1462,40 +1087,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."update_my_profile"(jsonb) from public, anon;
 grant execute on function "better_supabase"."update_my_profile"(jsonb) to authenticated, service_role;
-
-create or replace function better_supabase.replace_equivalent_triggers(
-  target regclass,
-  module_trigger text,
-  pattern text,
-  replace_trigger boolean
-)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-declare
-  found record;
-begin
-  for found in
-    select t.tgname as name, p.proname as fn
-    from pg_catalog.pg_trigger t
-    join pg_catalog.pg_proc p on p.oid = t.tgfoid
-    where t.tgrelid = replace_equivalent_triggers.target
-      and not t.tgisinternal
-      and t.tgname <> replace_equivalent_triggers.module_trigger
-      and p.proname ~* replace_equivalent_triggers.pattern
-  loop
-    if replace_trigger then
-      execute format('drop trigger %I on %s', found.name, target);
-    else
-      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
-        target, found.name, found.fn, module_trigger;
-    end if;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.replace_equivalent_triggers(regclass, text, text, boolean) from public, anon, authenticated;
-
 create or replace function "better_supabase"."on_auth_user_created"()
 returns trigger
 language plpgsql
@@ -1515,9 +1106,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_created"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_sync" on auth.users;
-create trigger "bsb_profile_sync" after insert on auth.users
-  for each row execute function "better_supabase"."on_auth_user_created"();
 
 -- Keeps the profile's email equal to the confirmed address in auth.users,
 -- lowercased so lookups and unique indexes match regardless of case.
@@ -1533,34 +1121,10 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_email" on auth.users;
-create trigger "bsb_profile_email" after update of email on auth.users
-  for each row execute function "better_supabase"."mirror_profile_email"();
 
 -- blocks.profiles.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."my_profile"();
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."allocate_username"(base text, user_id uuid default null)
 returns text
@@ -1608,19 +1172,6 @@ as $$ select "better_supabase"."update_my_profile"($1) $$;
 revoke execute on function "api"."update_my_profile"(jsonb) from public, anon;
 grant execute on function "api"."update_my_profile"(jsonb) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block-data profiles
@@ -1641,47 +1192,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:607560ad9f08ff524f52ee8ff09722cdf73d38e3f5705c4ffb03d204071da1d5
+-- @bsb-hash sha256:1b46c22be4c011276b379d9e6be169c09e10687d843d8c7c21cd436e256b8256
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.profiles is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."profiles" add column if not exists "id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."profiles" add column if not exists "email" text;
@@ -1690,26 +1205,16 @@ alter table "better_supabase"."profiles" add column if not exists "full_name" te
 alter table "better_supabase"."profiles" add column if not exists "first_name" text;
 alter table "better_supabase"."profiles" add column if not exists "last_name" text;
 alter table "better_supabase"."profiles" add column if not exists "avatar_url" text;
-alter table "better_supabase"."profiles" add column if not exists "active_organization_id" uuid;
-alter table "better_supabase"."profiles" add column if not exists "active_team_id" uuid;
 alter table "better_supabase"."profiles" add column if not exists "onboarding" jsonb not null default '{}';
 alter table "better_supabase"."profiles" add column if not exists "disabled_at" timestamptz;
 alter table "better_supabase"."profiles" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."profiles" add column if not exists "updated_at" timestamptz not null default now();
 
 create unique index if not exists profiles_username_idx on "better_supabase"."profiles" (lower("username"));
-do $$
-begin
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"better_supabase"."profiles"';
-end;
-$$;
 alter table "better_supabase"."profiles" enable row level security;
-drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
 create policy bsb_profiles_read on "better_supabase"."profiles"
   for select to authenticated
   using ("id" = (select auth.uid()));
-drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
 create policy bsb_profiles_update on "better_supabase"."profiles"
   for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
@@ -1719,9 +1224,9 @@ grant all on "better_supabase"."profiles" to service_role;
 
 
 
--- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- The API roles can't change the key or "email", "disabled_at", "created_at". Security
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "better_supabase"."guard_profile"()
 returns trigger
 language plpgsql
@@ -1732,8 +1237,6 @@ begin
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
-    or new."active_organization_id" is distinct from old."active_organization_id"
-    or new."active_team_id" is distinct from old."active_team_id"
     or new."created_at" is distinct from old."created_at"
   ) then
     raise exception 'These profile columns are managed by the service' using errcode = '42501', hint = 'PROFILE_COLUMN_READONLY';
@@ -1742,7 +1245,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."guard_profile"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_guard" on "better_supabase"."profiles";
 create trigger "bsb_profile_guard" before update on "better_supabase"."profiles"
   for each row execute function "better_supabase"."guard_profile"();
 
@@ -1845,8 +1347,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."backfill_profiles"() from public, anon, authenticated;
 grant execute on function "better_supabase"."backfill_profiles"() to service_role;
-
-drop function if exists "better_supabase"."my_profile"();
 create or replace function "better_supabase"."my_profile"()
 returns jsonb
 language sql
@@ -1903,40 +1403,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."update_my_profile"(jsonb) from public, anon;
 grant execute on function "better_supabase"."update_my_profile"(jsonb) to authenticated, service_role;
-
-create or replace function better_supabase.replace_equivalent_triggers(
-  target regclass,
-  module_trigger text,
-  pattern text,
-  replace_trigger boolean
-)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-declare
-  found record;
-begin
-  for found in
-    select t.tgname as name, p.proname as fn
-    from pg_catalog.pg_trigger t
-    join pg_catalog.pg_proc p on p.oid = t.tgfoid
-    where t.tgrelid = replace_equivalent_triggers.target
-      and not t.tgisinternal
-      and t.tgname <> replace_equivalent_triggers.module_trigger
-      and p.proname ~* replace_equivalent_triggers.pattern
-  loop
-    if replace_trigger then
-      execute format('drop trigger %I on %s', found.name, target);
-    else
-      raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
-        target, found.name, found.fn, module_trigger;
-    end if;
-  end loop;
-end;
-$$;
-revoke execute on function better_supabase.replace_equivalent_triggers(regclass, text, text, boolean) from public, anon, authenticated;
-
 create or replace function "better_supabase"."on_auth_user_created"()
 returns trigger
 language plpgsql
@@ -1956,9 +1422,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_created"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_sync" on auth.users;
-create trigger "bsb_profile_sync" after insert on auth.users
-  for each row execute function "better_supabase"."on_auth_user_created"();
 
 -- Keeps the profile's email equal to the confirmed address in auth.users,
 -- lowercased so lookups and unique indexes match regardless of case.
@@ -1974,22 +1437,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;
-drop trigger if exists "bsb_profile_email" on auth.users;
-create trigger "bsb_profile_email" after update of email on auth.users
-  for each row execute function "better_supabase"."mirror_profile_email"();
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles

@@ -1,81 +1,30 @@
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:35cb6a196867889117bfdd2659e3c3f885127449bfaf32a04072e00a03f9182d
+-- @bsb-hash sha256:a1fe887b6eba2683c89550815868055f3731073ff7e7c4e5f50890891881f4eb
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."trash_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."trash_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."trash_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."trash_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."trash_items" (
+create table "better_supabase"."trash_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
   "title" text,
   "batch_id" uuid not null,
-  "depth" integer not null default 0 check ("depth" >= 0),
+  "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0),
   "trashed_by" uuid,
   "trashed_at" timestamptz not null default now(),
-  "purge_after" timestamptz,
+  "purge_at" timestamptz,
   unique ("subject_type", "subject_id")
 );
-create index if not exists "trash_items_tenant_idx" on "better_supabase"."trash_items" ("tenant_id", "trashed_at" desc);
-create index if not exists "trash_items_batch_idx" on "better_supabase"."trash_items" ("batch_id");
+create index "trash_items_tenant_idx" on "better_supabase"."trash_items" ("tenant_id", "trashed_at" desc);
+create index "trash_items_batch_idx" on "better_supabase"."trash_items" ("batch_id");
 alter table "better_supabase"."trash_items" enable row level security;
 revoke all on "better_supabase"."trash_items" from public, anon, authenticated;
 grant select on "better_supabase"."trash_items" to authenticated;
 grant all on "better_supabase"."trash_items" to service_role;
-drop policy if exists trash_items_read on "better_supabase"."trash_items";
-create policy trash_items_read on "better_supabase"."trash_items"
+create policy bsb_trash_items_read on "better_supabase"."trash_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')));
 
@@ -95,10 +44,10 @@ declare
 begin
   case trash_cascade.subject_type
     when 'message' then
-      update "better_supabase"."messages" s set "deleted_at" = now()
+      update "better_supabase"."messages" s set "archived_at" = now()
         where s."id" = (trash_cascade.subject_id)::uuid
           and s."tenant_id" = trash_cascade.tenant
-          and s."deleted_at" is null
+          and s."archived_at" is null
         returning s."body"::text into v_title;
     when 'conversation' then
       update "better_supabase"."conversations" s set "archived_at" = now()
@@ -161,10 +110,10 @@ begin
           and s."archived_at" is null
         returning s."name"::text into v_title;
     when 'drive_node' then
-      update "better_supabase"."drive_nodes" s set "deleted_at" = now()
+      update "better_supabase"."drive_nodes" s set "archived_at" = now()
         where s."id" = (trash_cascade.subject_id)::uuid
           and s."tenant_id" = trash_cascade.tenant
-          and s."deleted_at" is null
+          and s."archived_at" is null
         returning s."name"::text into v_title;
     when 'project' then
       update "public"."projects" s set "deleted_at" = now()
@@ -180,7 +129,7 @@ begin
   end if;
   delete from "better_supabase"."trash_items" i
     where i."subject_type" = trash_cascade.subject_type and i."subject_id" = trash_cascade.subject_id;
-  insert into "better_supabase"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_after")
+  insert into "better_supabase"."trash_items" ("tenant_id", "subject_type", "subject_id", "title", "batch_id", "depth", "trashed_by", "trashed_at", "purge_at")
   values (trash_cascade.tenant, trash_cascade.subject_type, trash_cascade.subject_id, v_title, trash_cascade.batch, trash_cascade.depth, trash_cascade.actor, now(), now() + make_interval(days => 30))
   returning * into v_item;
   perform "better_supabase".emit_event('subject.trashed', jsonb_build_object('organizationId', v_item."tenant_id", 'subjectType', v_item."subject_type", 'subjectId', v_item."subject_id", 'id', v_item."id", 'batchId', v_item."batch_id"), 'trash-items/' || v_item."id"::text, (v_item."tenant_id")::text, null, 'better-supabase/trash');
@@ -199,9 +148,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."trash_cascade"(uuid, text, text, uuid, integer, uuid) from public, anon, authenticated;
 
--- fields: the extra columns (blocks.trash.options.extraColumns) of the
+-- fields: the extra columns (columns your schema files add) of the
 -- subject's trash item.
-drop function if exists "better_supabase"."trash"(uuid, text, text, jsonb);
+
 create or replace function "better_supabase"."trash"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
@@ -288,7 +237,7 @@ begin
   for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_restore_batch.batch order by "depth" loop
     case v_item.subject_type
     when 'message' then
-      update "better_supabase"."messages" s set "deleted_at" = null
+      update "better_supabase"."messages" s set "archived_at" = null
         where s."id" = (v_item.subject_id)::uuid;
     when 'conversation' then
       update "better_supabase"."conversations" s set "archived_at" = null
@@ -321,7 +270,7 @@ begin
       update "public"."customers" s set "archived_at" = null
         where s."id" = (v_item.subject_id)::uuid;
     when 'drive_node' then
-      update "better_supabase"."drive_nodes" s set "deleted_at" = null
+      update "better_supabase"."drive_nodes" s set "archived_at" = null
         where s."id" = (v_item.subject_id)::uuid;
     when 'project' then
       update "public"."projects" s set "deleted_at" = null
@@ -418,7 +367,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_trash.tenant, 'trash.read'), false)) then
     raise exception 'not allowed to read this organization''s trash' using errcode = '42501', hint = 'TRASH_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_after") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'subjectType', t."subject_type", 'subjectId', t."subject_id", 'title', t."title", 'batchId', t."batch_id", 'count', t.n, 'trashedBy', t."trashed_by", 'trashedAt', t."trashed_at", 'purgeAfter', t."purge_at") order by t."trashed_at" desc, t."id"), '[]'::jsonb)
     into v_rows
   from (
     select x.*, (select count(*) from "better_supabase"."trash_items" b where b."batch_id" = x."batch_id")::integer as n
@@ -564,9 +513,9 @@ declare
 begin
   for v_batch in
     select t."batch_id" from "better_supabase"."trash_items" t
-    where t."depth" = 0 and t."purge_after" <= now()
+    where t."depth" = 0 and t."purge_at" <= now()
       and not "better_supabase"."is_held"('trash', (t."tenant_id")::text)
-    order by t."purge_after"
+    order by t."purge_at"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop
     v_count := v_count + "better_supabase"."trash_purge_batch"(v_batch);
@@ -597,36 +546,19 @@ grant execute on function "better_supabase"."is_trashed"(text, text) to authenti
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."trash_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."trash_items";
 create policy bsb_tenant_scope_select on "better_supabase"."trash_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('trash.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."trash_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."trash_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."trash_items";
 create policy bsb_tenant_scope_update on "better_supabase"."trash_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."trash_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."trash_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -634,27 +566,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."trash_items" as rest
 -- blocks.trash.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."trash"(uuid, text, text, jsonb);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."trash"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
@@ -711,16 +622,3 @@ set search_path = ''
 as $$ select "better_supabase"."is_trashed"($1, $2) $$;
 revoke execute on function "api"."is_trashed"(text, text) from public, anon;
 grant execute on function "api"."is_trashed"(text, text) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

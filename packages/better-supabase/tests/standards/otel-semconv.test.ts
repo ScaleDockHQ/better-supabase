@@ -9,7 +9,7 @@ import type {
 import { SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { otel, SEMCONV_VERSION } from "../../src/otel/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
@@ -109,7 +109,7 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
 
   it("a successful operation is a CLIENT span named by db.query.summary with only registered attributes", async () => {
     const { tracer, meter, spans } = recorder();
-    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
+    const betterSupabase = createSupabase(schema).use(otel({ tracer, meter }));
 
     const { client } = capturingClient(() => ({
       body: [{ id: "c1" }, { id: "c2" }],
@@ -142,7 +142,7 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
 
   it("never records db.query.text or filter values (opt-in attributes stay off)", async () => {
     const { tracer, meter, spans } = recorder();
-    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
+    const betterSupabase = createSupabase(schema).use(otel({ tracer, meter }));
     const { client } = capturingClient(() => ({ body: [] }));
     await betterSupabase
       .connect(client)
@@ -153,7 +153,7 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
 
   it("a failed operation sets error.type, db.response.status_code and status ERROR", async () => {
     const { tracer, meter, spans, metrics } = recorder();
-    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
+    const betterSupabase = createSupabase(schema).use(otel({ tracer, meter }));
 
     const { client } = capturingClient(() => ({
       status: 409,
@@ -179,7 +179,7 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
 
   it("records db.client.operation.duration in seconds with the low-cardinality attributes", async () => {
     const { tracer, meter, histograms, metrics } = recorder();
-    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
+    const betterSupabase = createSupabase(schema).use(otel({ tracer, meter }));
     const { client } = capturingClient(() => ({ body: [] }));
     await betterSupabase.connect(client).customers.list();
     expect(histograms).toEqual([

@@ -11,7 +11,7 @@ const NOW = Temporal.Instant.from("2026-01-01T10:15:00Z");
 
 const taskRow = (overrides: Record<string, unknown> = {}) => ({
   id: "t1",
-  organization_id: "o1",
+  tenant_id: "o1",
   user_id: "u1",
   chat_id: null,
   agent_id: "a1",
@@ -30,10 +30,10 @@ const taskRow = (overrides: Record<string, unknown> = {}) => ({
 const runRow = (overrides: Record<string, unknown> = {}) => ({
   id: "r1",
   task_id: "t1",
-  organization_id: "o1",
+  tenant_id: "o1",
   user_id: "u1",
   status: "queued",
-  scheduled_for: AT,
+  scheduled_at: AT,
   chat_id: null,
   error: null,
   started_at: null,

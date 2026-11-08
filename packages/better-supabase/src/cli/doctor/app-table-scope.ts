@@ -228,7 +228,7 @@ export const APP_TABLE_SCOPE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Rows of an enriched app table without an owner",
     description:
-      "A `tables.<name>` entry enriched a table the app already has, and some of its rows have no value in the scope column (`organization_id`, or `user_id` in `user` scope). The scope's policies match no member or user for them, so nobody but the service role reads or writes those rows, and updates to them fail the scope column's `not valid` check. Fill the column with `better-supabase db backfill`, then `doctor --fix` validates the check (BS236). Needs a database; saved snapshots skip it.",
+      "A `tables.<name>` entry enriched a table the app already has, and some of its rows have no value in the scope column (`organization_id`, or `user_id` in `user` scope). The scope's policies match no member or user for them, so nobody but the service role reads or writes those rows, and updates to them fail the scope column's `not valid` check. Fill the column with `better-supabase db backfill`, then `doctor --yes` validates the check (BS236). Needs a database; saved snapshots skip it.",
     async check(context) {
       const db = context.database;
 
@@ -281,7 +281,7 @@ export const APP_TABLE_SCOPE_RULES: readonly Rule[] = [
         }
 
         findings.push({
-          message: `${label} has ${missing} ${missing === 1 ? "row" : "rows"} without ${app.column}, which no ${app.scope === "user" ? "user" : "member"} reads or writes, and updates to them fail ${scopeCheckName(app)}. Fill it with \`better-supabase db backfill ${app.name}.${app.column} --from <table.column> via <column>\` (or --value), then run \`better-supabase doctor --fix\`.`,
+          message: `${label} has ${missing} ${missing === 1 ? "row" : "rows"} without ${app.column}, which no ${app.scope === "user" ? "user" : "member"} reads or writes, and updates to them fail ${scopeCheckName(app)}. Fill it with \`better-supabase db backfill ${app.name}.${app.column} --from <table.column> via <column>\` (or --value), then run \`better-supabase doctor --yes\`.`,
           target: `${label}.${app.column}`,
           object,
         });

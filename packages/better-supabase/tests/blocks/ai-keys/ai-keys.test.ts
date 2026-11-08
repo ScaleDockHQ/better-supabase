@@ -29,7 +29,7 @@ const signal = new AbortController().signal;
 
 const keyRow = (overrides: Record<string, unknown> = {}) => ({
   id: "k1",
-  organization_id: "o1",
+  tenant_id: "o1",
   provider: "anthropic",
   name: "default",
   credential_ref: REF,
@@ -43,7 +43,7 @@ const keyRow = (overrides: Record<string, unknown> = {}) => ({
 
 const batchRow = (overrides: Record<string, unknown> = {}) => ({
   id: "b1",
-  organization_id: "o1",
+  tenant_id: "o1",
   user_id: "u1",
   provider: "openai",
   reference: { version: 2, id: "batch_1", provider: "openai" },
@@ -295,7 +295,7 @@ describe("createAiKeys batches", () => {
         {
           batch_id: "b1",
           request_id: "r1",
-          organization_id: "o1",
+          tenant_id: "o1",
           status: "succeeded",
           output: { text: "a" },
           usage: null,
@@ -305,7 +305,7 @@ describe("createAiKeys batches", () => {
         {
           batch_id: "b1",
           request_id: "r2",
-          organization_id: "o1",
+          tenant_id: "o1",
           status: "bogus",
           output: null,
           usage: null,

@@ -28,10 +28,8 @@ export const EXPENSE_REPORT_SUBJECT = "expense_report";
 /** The keys the report reads return next to the extra columns. */
 export const EXPENSE_REPORT_RESERVED = ["fields"] as const;
 
-export const expenseCategoryExtras = (
-  ctx: BlockSqlContext,
-): readonly ExtraColumn[] =>
-  ctx.extraColumns("categories", ["fields"], "categoryExtraColumns");
+const expenseCategoryExtras = (ctx: BlockSqlContext): readonly ExtraColumn[] =>
+  ctx.extraColumns("categories", ["fields"]);
 
 /** One approver step: anyone with the approve permission. */
 function expensePolicy(ctx: BlockSqlContext): string {
@@ -418,7 +416,7 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text, uuid)`)}
 
   return `
 -- Creates or updates the category with this key and its spend policy.${keyed ? "" : "\n-- Without a key column, key is the id of the category to update, and any\n-- other key creates one."} fields:
--- the extra columns (options.categoryExtraColumns) to set.
+-- the extra columns (columns your schema files add) to set.
 ${categoryArg.drop(fn("save_expense_category"), categoryArgs)}
 create or replace function ${fn("save_expense_category")}(tenant ${idType}, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null${categoryArg.param})
 returns jsonb

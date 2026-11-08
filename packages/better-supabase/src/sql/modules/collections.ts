@@ -12,15 +12,9 @@ import type { CollectionNames } from "./collections-functions.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import {
-  addExtraColumns,
-  extraFieldsArg,
-  lockTable,
-  schemaPreamble,
-} from "../shared.ts";
+import { extraFieldsArg, lockTable, schemaPreamble } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { subjectCascades } from "../subjects.ts";
-import { tableMoves } from "../table-renames.ts";
 import {
   collectionExtras,
   collectionFunctions,
@@ -72,7 +66,6 @@ const EVENTS: BlockSqlEvents<CollectionsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("collections", 1),
   entities: {
     subject_collection: {
       table: "collections",
@@ -87,7 +80,7 @@ const NAMES: BlockSqlNames = {
     "before_collection_add",
     "after_collection_add",
   ],
-  options: ["extraColumns"],
+  options: [],
   tables: {
     collections: {
       name: "subject_collections",
@@ -198,7 +191,7 @@ create table if not exists ${t("collections")} (
   check (${co("scope")} <> 'team' or ${co("team")} is not null)
 );
 create index if not exists ${ctx.naming.rename("subject_collections_tenant_type_idx")} on ${t("collections")} (${co("tenant")}, ${co("subjectType")}, lower(${co("name")}));
-create index if not exists ${ctx.naming.rename("subject_collections_owner_idx")} on ${t("collections")} (${co("owner")}) where ${co("owner")} is not null;${addExtraColumns(t("collections"), collectionExtras(ctx))}
+create index if not exists ${ctx.naming.rename("subject_collections_owner_idx")} on ${t("collections")} (${co("owner")}) where ${co("owner")} is not null;
 ${lockTable(t("collections"), { read: true })}
 
 create table if not exists ${t("entries")} (
@@ -268,7 +261,7 @@ ${renderPolicy(
   or ${co("scope")} = 'tenant'
 )`,
   }),
-  { drop: true, target: t("collections") },
+  { target: t("collections") },
 )}
 ${renderPolicy(
   makePolicy({
@@ -280,7 +273,7 @@ ${renderPolicy(
   and exists (select 1 from ${t("collections")} c where c.${co("id")} = ${en("collection")})
   and ${canSubject}(${en("subjectType")}, ${en("subjectId")}, 'read')`,
   }),
-  { drop: true, target: t("entries") },
+  { target: t("entries") },
 )}
 ${renderPolicy(
   makePolicy({
@@ -292,7 +285,7 @@ ${renderPolicy(
   and ${names.scope.check(fa("tenant"), names.read)}
   and ${canSubject}(${fa("subjectType")}, ${fa("subjectId")}, 'read')`,
   }),
-  { drop: true, target: t("favorites") },
+  { target: t("favorites") },
 )}
 ${renderPolicy(
   makePolicy({
@@ -304,7 +297,7 @@ ${renderPolicy(
   and ${names.scope.check(sv("tenant"), names.read)}
   and ${canSubject}(${sv("subjectType")}, ${sv("subjectId")}, 'read')`,
   }),
-  { drop: true, target: t("savedItems") },
+  { target: t("savedItems") },
 )}
 `;
 }
@@ -449,7 +442,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 const CONTRIBUTES: BlockContributes = {
-  bulk: (own) => [
+  "bulk-actions": (own) => [
     {
       name: "collections.add",
       run: `perform ${own.fn("add_collection_entries")}((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);`,

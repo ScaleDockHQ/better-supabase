@@ -99,10 +99,10 @@ export interface WaitlistOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the entry's extra columns
-   * (`blocks.waitlist.options.extraColumns`), keyed by database name, such as a
-   * company or a use case from the sign-up form. It types and parses them on
-   * `entries`, `approve` and `reject`, and validates them on `join`.
+   * A Standard Schema for the entry's extra columns (columns the app's schema
+   * files add to the table), keyed by database name, such as a company or a use
+   * case from the sign-up form. It types and parses them on `entries`,
+   * `approve` and `reject`, and validates them on `join`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -192,7 +192,7 @@ function codeOf(value: unknown): InviteCode {
     maxUses: optionalNumber(row["max_uses"]),
     uses: Number(row["uses"]),
     expiresAt: optionalInstant(row["expires_at"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     role: optionalText(row["role"]),
     createdBy: optionalText(row["created_by"]),
     createdAt: toInstant(textOf(row["created_at"])),
@@ -324,7 +324,7 @@ export interface WaitlistHookOptions {
  * ```ts
  * export const POST = waitlistHook({
  *   transport,
- *   secret: env.BEFORE_USER_CREATED_SECRET,
+ *   secret: env.BETTER_SUPABASE_BEFORE_USER_CREATED_SECRET,
  * });
  * ```
  */

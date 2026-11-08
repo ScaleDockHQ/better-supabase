@@ -46,7 +46,9 @@ behaves like `--preset`, and passing both flags is an error. `--from` is the
 one flag to remember when you start from something that already exists.
 
 `--workflow` picks how the SQL modules reach the database (see
-[Workflows](/docs/blocks/sql#workflows)):
+[Workflows](/docs/blocks/sql#workflows)). A project whose `supabase/config.toml`
+lists `[db.migrations] schema_paths` keeps that file as it is: `init` skips
+enabling pg-delta and prints how to move to it.
 
 ```bash
 pnpm better-supabase init --workflow migrations
@@ -84,6 +86,19 @@ Add more with `--integration edge,mcp`. A project with only `edge` and `mcp` get
 `supabase/functions/_shared/supabase.ts`.
 
 Side effects: Writes files.
+
+### The Next.js files
+
+The `next` integration writes the layout that `pnpm check:app-architecture`
+holds the example app to: a synchronous `app/(app)/layout.tsx` with an
+`AuthGate`, a page that owns the `<Suspense>` and passes `params.then()` to a
+feature, `features/auth` and `features/account` with `*-queries.ts`
+(`server-only`), `*-actions.ts` (`'use server'`) and `*-cache.ts` (pure tags),
+and async components that export their `*Skeleton`. It also writes
+`app/manifest.ts`, `public/sw.js` and `public/offline.html`, and lists
+`NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` in `.env.example`
+without values. The proxy matcher skips `html` and `webmanifest`. Existing
+files stay yours: `init` skips them unless you pass `--force`.
 
 ## Conventions
 
@@ -170,9 +185,8 @@ npx better-supabase init --preset "https://app.bettersupabase.com/create?design=
 
 `init` decodes the design locally, with no network call, and writes its
 preset into `preset`, its [app tables](/docs/repository/tables) into `tables` and its extra columns into
-each block's `options.extraColumns`. The canvas positions
-stay in the URL. A design that doesn't decode, or that adds columns to a
-block the preset doesn't install, stops `init` with the reason.
+its seeds into `database.seed`. The canvas positions
+stay in the URL. A design that doesn't decode stops `init` with the reason.
 
 A design is capped at 6000 characters so the URL stays usable. When Create
 says a design is too large to share, download the design file instead and
@@ -321,16 +335,16 @@ or a new package in a workspace gets its glue. When `--integration` names
 integrations the config doesn't list yet, `add` prints the `adapters`
 entry to paste.
 
-| Integration | Writes                                                                                                                                  |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `client`    | `lib/supabase/client.ts` with the framework's public env variables                                                                      |
-| `next`      | `lib/supabase/server.ts` (with `import "server-only"`) and `proxy.ts`                                                                   |
-| `react`     | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts`                                                                     |
-| `hono`      | `server.ts`, which creates `bsb` and adds the middleware and error handler                                                              |
-| `orpc`      | `router.ts`, which creates `bsb` and adds the auth middleware                                                                           |
-| `edge`      | `supabase/functions/api` (`server.ts` creates `bsb`) plus `supabase/functions/_shared/supabase.ts`                                      |
-| `expo`      | `lib/supabase/expo.ts` (`bsb` for API routes), `lib/supabase/client.native.ts` (the session in secure storage) and `app/+middleware.ts` |
-| `mcp`       | `supabase/functions/mcp`, an MCP server as an Edge Function (`server.ts` creates `bsb`)                                                 |
+| Integration | Writes                                                                                                                                                                                                           |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `client`    | `lib/supabase/client.ts` with the framework's public env variables                                                                                                                                               |
+| `next`      | `lib/supabase/server.ts` (with `import "server-only"`), `proxy.ts`, the feature-sliced `app/`, `features/` and `components/` files, and the PWA files (`app/manifest.ts`, `public/sw.js`, `public/offline.html`) |
+| `react`     | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts`                                                                                                                                              |
+| `hono`      | `server.ts`, which creates `bsb` and adds the middleware and error handler                                                                                                                                       |
+| `orpc`      | `router.ts`, which creates `bsb` and adds the auth middleware                                                                                                                                                    |
+| `edge`      | `supabase/functions/api` (`server.ts` creates `bsb`) plus `supabase/functions/_shared/supabase.ts`                                                                                                               |
+| `expo`      | `lib/supabase/expo.ts` (`bsb` for API routes), `lib/supabase/client.native.ts` (the session in secure storage) and `app/+middleware.ts`                                                                          |
+| `mcp`       | `supabase/functions/mcp`, an MCP server as an Edge Function (`server.ts` creates `bsb`)                                                                                                                          |
 
 Relative imports follow your `tsconfig.json`: they keep `.ts` when
 `allowImportingTsExtensions` or `rewriteRelativeImportExtensions` is on.
@@ -378,7 +392,11 @@ versions into a migration stamped before the next schema migration, then
 the files. Run it after you bump `better-supabase` or change a block's
 options. `--check` exits 1 when a file differs and is the CI check,
 `--dry-run` prints the diff, and `--tests-dir <dir>` writes the pgTAP files
-somewhere other than `database.sql.testsDir`.
+somewhere other than `database.sql.testsDir`. Rendered modules are cached in
+`node_modules/.cache/better-supabase/render-blocks.json`, keyed on the block
+names, the layout and the CLI version, and a file whose hash line no longer
+matches is never read from it. `--no-cache` renders every module again and
+leaves the cache alone.
 
 Each block file carries a `-- @bsb-hash sha256:...` line over its SQL. When
 the SQL no longer matches the hash, the file was edited by hand: `upgrade`

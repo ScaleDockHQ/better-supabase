@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -20,7 +20,6 @@ export type TemplatesSqlOptions = {
    * tenant whose column holds that brand.
    */
   readonly brand?: TemplateBrandColumn;
-  readonly extraColumns?: ExtraColumns;
   /**
    * Template types this app registers. A block can contribute its own. An empty
    * registry keeps free-form types. ADR 0244.
@@ -31,6 +30,5 @@ export type TemplatesSqlOptions = {
 export const templatesSqlOptions: BlockOptionsSchema<TemplatesSqlOptions> =
   blockOptions<TemplatesSqlOptions>({
     brand: option.unknown(),
-    extraColumns: option.extraColumns(),
     types: option.unknown(),
   });

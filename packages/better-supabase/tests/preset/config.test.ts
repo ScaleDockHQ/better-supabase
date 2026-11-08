@@ -37,9 +37,9 @@ describe("presetOf", () => {
     );
   });
 
-  it("names the codemod for a 0.14 preset code", () => {
+  it("names the release to upgrade with for a 0.14 preset code", () => {
     expect(() => presetOf("1pWEF3d578B1iGt16")).toThrow(
-      /better-supabase codemod 0\.15/,
+      /Upgrade to 0\.53 with that release first/,
     );
   });
 
@@ -66,7 +66,7 @@ describe("expandPreset", () => {
       api: "api",
       access: "catalog",
       idType: "bigint",
-      integrations: ["next"],
+      adapters: ["next"],
     };
 
     expect(expandPreset({ preset: code })).toEqual({
@@ -258,6 +258,25 @@ describe("preset instances", () => {
     expect(
       expandPreset({
         preset: "care",
+        blocks: { contacts: { names: { person: "client" } } },
+      }).blocks,
+    ).toMatchObject({ contacts: { names: { person: { name: "client" } } } });
+  });
+
+  it("takes the config's own entity over a preset name or shorthand", () => {
+    expect(
+      expandPreset({
+        preset: "care",
+        blocks: { contacts: { names: { company: { auditReads: false } } } },
+      }).blocks,
+    ).toMatchObject({
+      contacts: { names: { company: { auditReads: false } } },
+    });
+
+    expect(
+      expandPreset({
+        preset: "care",
+        // @ts-expect-error contacts has no primary entity, so only the runtime accepts the shorthand
         blocks: { contacts: { names: "client" } },
       }).blocks,
     ).toMatchObject({ contacts: { names: "client" } });

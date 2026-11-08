@@ -16,13 +16,15 @@ import { createdByExtension } from "../../src/blocks/created-by/index.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
-import { jsonSchema, resolveConfig } from "../../src/config/index.ts";
+import { resolveConfig } from "../../src/config/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { validation } from "../../src/core/validation.ts";
+import { jsonSchema } from "../../src/generators/json-schema.ts";
+import { relativeImport } from "../../src/generators/kit.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
 import { nextCache } from "../../src/next/index.ts";
@@ -32,7 +34,7 @@ import {
   conform,
   expect as conformExpect,
 } from "../../src/testing/conformance.ts";
-import { testGenerator } from "../../src/testing/generator.ts";
+import { testGeneratorPlugin } from "../../src/testing/generator.ts";
 import { testAuthResolver } from "../../src/testing/kits/auth-resolver.ts";
 import { testCacheAdapter } from "../../src/testing/kits/cache-adapter.ts";
 import { testEventSink } from "../../src/testing/kits/event-sink.ts";
@@ -46,7 +48,7 @@ import { validators } from "../fixtures/generated-camel.zod.ts";
 import { memorySupportStore } from "../fixtures/support-store.ts";
 
 const ACME = "00000000-0000-4000-8000-000000000001";
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 async function failures(pending: Promise<unknown>): Promise<string[]> {
   const error = await pending.then(
@@ -436,7 +438,7 @@ describe("testGenerator", () => {
 
   it("passes the first-party generators", async () => {
     for (const generator of [zod(), valibot(), jsonSchema()]) {
-      await testGenerator(generator, { meta: schema.meta, config });
+      await testGeneratorPlugin(generator, { meta: schema.meta, config });
     }
   });
 
@@ -444,6 +446,8 @@ describe("testGenerator", () => {
     let run = 0;
 
     const sloppy: Generator = {
+      apiVersion: 2,
+      version: "1.0.0",
       name: "sloppy",
       generate: () => {
         run += 1;
@@ -457,10 +461,13 @@ describe("testGenerator", () => {
     };
 
     expect(
-      await failures(testGenerator(sloppy, { meta: schema.meta, config })),
+      await failures(
+        testGeneratorPlugin(sloppy, { meta: schema.meta, config }),
+      ),
     ).toEqual([
       "writes files inside the project",
       "is deterministic and does not mutate its input",
+      "reads only data that structuredClone copies (worker safe)",
     ]);
   });
 });
@@ -964,24 +971,26 @@ describe("testAuthResolver edge cases", () => {
   });
 });
 
-describe("testGenerator imports", () => {
+describe("testGeneratorPlugin imports", () => {
   it("hands generators relative import paths and default inputs", async () => {
     const seen: string[] = [];
 
     const generator: Generator = {
+      apiVersion: 2,
+      version: "1.0.0",
       name: "imports",
       generate: (input) => {
         seen.push(
-          input.importPath("src/lib/db.ts", "src/lib/schema.ts"),
-          input.importPath("src/lib/db.ts", "src/gen/types.ts"),
-          input.importPath("a/b.ts", "c.ts"),
+          relativeImport("src/lib/db.ts", "src/lib/schema.ts"),
+          relativeImport("src/lib/db.ts", "src/gen/types.ts"),
+          relativeImport("a/b.ts", "c.ts"),
         );
 
-        return [{ path: "out.ts", contents: input.output }];
+        return [{ path: "out.ts", contents: input.config.output }];
       },
     };
 
-    await testGenerator(generator, { meta: schema.meta });
+    await testGeneratorPlugin(generator, { meta: schema.meta });
     expect(seen.slice(0, 3)).toEqual([
       "./schema.ts",
       "../gen/types.ts",
@@ -989,32 +998,75 @@ describe("testGenerator imports", () => {
     ]);
   });
 
+  it("checks the validators file, the options and the clone of a plugin", async () => {
+    const base = { apiVersion: 2, version: "1.0.0", name: "plugin" } as const;
+
+    await testGeneratorPlugin(
+      {
+        ...base,
+        provides: ["validators"],
+        generate: () => [
+          { path: "v.ts", contents: "export const validators = {};" },
+        ],
+      },
+      { meta: schema.meta, runtime: "../src/index.ts" },
+    );
+
+    expect(
+      await failures(
+        testGeneratorPlugin(
+          {
+            ...base,
+            provides: ["validators"],
+            generate: () => [{ path: "v.ts", contents: "export {};" }],
+          },
+          { meta: schema.meta },
+        ),
+      ),
+    ).toEqual(["writes the validators first when it provides them"]);
+
+    expect(
+      await failures(
+        testGeneratorPlugin(
+          { ...base, pure: true, options: { big: 1n }, generate: () => [] },
+          { meta: schema.meta },
+        ),
+      ),
+    ).toEqual(["gives the same files from the cache as from a fresh run"]);
+  });
+
   it("fails generators that return no array or bad file shapes", async () => {
     const bad: Generator = {
+      apiVersion: 2,
+      version: "1.0.0",
       name: "bad",
       generate: () => [{ path: "/abs.ts", contents: "" }],
     };
 
-    expect(await failures(testGenerator(bad, { meta: schema.meta }))).toEqual([
-      "writes files inside the project",
-    ]);
+    expect(
+      await failures(testGeneratorPlugin(bad, { meta: schema.meta })),
+    ).toEqual(["writes files inside the project"]);
 
     const windows: Generator = {
+      apiVersion: 2,
+      version: "1.0.0",
       name: "windows",
       generate: () => [{ path: "C:\\x.ts", contents: "" }],
     };
 
     expect(
-      await failures(testGenerator(windows, { meta: schema.meta })),
+      await failures(testGeneratorPlugin(windows, { meta: schema.meta })),
     ).toEqual(["writes files inside the project"]);
 
     const malformed: Generator = {
+      apiVersion: 2,
+      version: "1.0.0",
       name: "malformed",
       generate: () => [{ path: 1, contents: "" }] as never,
     };
 
     expect(
-      await failures(testGenerator(malformed, { meta: schema.meta })),
+      await failures(testGeneratorPlugin(malformed, { meta: schema.meta })),
     ).toContain("writes files inside the project");
   });
 
@@ -1022,7 +1074,8 @@ describe("testGenerator imports", () => {
     let model: GeneratorInput["model"] | undefined;
 
     const reader: Generator = {
-      apiVersion: 1,
+      apiVersion: 2,
+      version: "1.0.0",
       name: "reader",
       generate: (input) => {
         model = input.model;
@@ -1031,16 +1084,21 @@ describe("testGenerator imports", () => {
       },
     };
 
-    await testGenerator(reader, { meta: schema.meta });
+    await testGeneratorPlugin(reader, { meta: schema.meta });
     expect(model?.tables.map((table) => table.key)).toEqual(
       Object.keys(schema.meta.tables),
     );
     expect(Object.isFrozen(model?.tables[0]?.columns[0])).toBe(true);
 
-    const future = { ...reader, apiVersion: 2 } as unknown as Generator;
+    const future = { ...reader, apiVersion: 3 } as unknown as Generator;
     expect(
-      await failures(testGenerator(future, { meta: schema.meta })),
-    ).toEqual(["targets generator API 1"]);
+      await failures(testGeneratorPlugin(future, { meta: schema.meta })),
+    ).toEqual(["targets generator API 2 and declares a version"]);
+
+    const old = { name: "old", generate: () => [] } as unknown as Generator;
+    expect(
+      await failures(testGeneratorPlugin(old, { meta: schema.meta })),
+    ).toEqual(["targets generator API 2 and declares a version"]);
   });
 });
 

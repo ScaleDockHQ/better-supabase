@@ -1,160 +1,72 @@
 -- ==== schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:7a7af77d9842aa0c5a7e7b90cfa341c81184f36ae1856fad4cf253f9e56ffddf
+-- @bsb-hash sha256:cadcd4a476ca31ff9bd243c28332ca28961c6f168ca8bbd03675c3a44be50da3
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."control_frameworks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."control_frameworks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_frameworks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."control_frameworks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."control_frameworks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."controls";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."controls";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."controls";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."controls";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."controls";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."control_evidence";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."control_evidence";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_evidence";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."control_evidence";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."control_evidence";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."evidence_tasks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."evidence_tasks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."evidence_tasks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."evidence_tasks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."evidence_tasks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."compliance_policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."compliance_policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."compliance_policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."compliance_policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_policies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Compliance controls: frameworks of controls, evidence linked to them,
 -- recurring evidence tasks, and versioned policies members acknowledge
 -- through the acknowledgements block.
 
-create table if not exists "better_supabase"."control_frameworks" (
+create table "better_supabase"."control_frameworks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract')),
-  "version" text check ("version" is null or length("version") <= 50),
-  "description" text check ("description" is null or length("description") <= 4000),
+  "key" text not null constraint bsb_control_frameworks_key_check check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
+  "name" text not null constraint bsb_control_frameworks_name_check check (length("name") >= 1 and length("name") <= 200),
+  "kind" text not null default 'standard' constraint bsb_control_frameworks_kind_check check ("kind" in ('standard', 'legal', 'internal', 'contract')),
+  "version" text constraint bsb_control_frameworks_version_check check ("version" is null or length("version") <= 50),
+  "description" text constraint bsb_control_frameworks_description_check check ("description" is null or length("description") <= 4000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-alter table "better_supabase"."control_frameworks" add column if not exists "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract'));
 alter table "better_supabase"."control_frameworks" enable row level security;
 revoke all on "better_supabase"."control_frameworks" from public, anon, authenticated;
 grant select on "better_supabase"."control_frameworks" to authenticated;
 grant all on "better_supabase"."control_frameworks" to service_role;
-drop policy if exists control_frameworks_read on "better_supabase"."control_frameworks";
-create policy control_frameworks_read on "better_supabase"."control_frameworks"
+create policy bsb_control_frameworks_read on "better_supabase"."control_frameworks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
-create table if not exists "better_supabase"."controls" (
+create table "better_supabase"."controls" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "framework_id" uuid not null,
-  "code" text not null check (length("code") between 1 and 50),
-  "title" text not null check (length("title") between 1 and 200),
-  "description" text check ("description" is null or length("description") <= 10000),
+  "code" text not null constraint bsb_controls_code_check check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null constraint bsb_controls_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_controls_description_check check ("description" is null or length("description") <= 10000),
   "owner_id" uuid,
   -- A control out of scope (excluded in the statement of applicability).
   "applicable" boolean not null default true,
-  "source" text check ("source" is null or length("source") between 1 and 200),
-  "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200),
+  "source" text constraint bsb_controls_source_check check ("source" is null or length("source") >= 1 and length("source") <= 200),
+  "jurisdiction" text constraint bsb_controls_jurisdiction_check check ("jurisdiction" is null or length("jurisdiction") >= 1 and length("jurisdiction") <= 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("framework_id", "code"),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "framework_id") references "better_supabase"."control_frameworks" ("tenant_id", "id") on delete cascade
 );
-alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") between 1 and 200);
-alter table "better_supabase"."controls" add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200);
-alter table "better_supabase"."controls" add column if not exists "app_note" text;
-create index if not exists "controls_tenant_idx" on "better_supabase"."controls" ("tenant_id", "framework_id");
-create index if not exists "controls_owner_idx" on "better_supabase"."controls" ("tenant_id", "owner_id") where "owner_id" is not null;
+create index "controls_tenant_idx" on "better_supabase"."controls" ("tenant_id", "framework_id");
+create index "controls_owner_idx" on "better_supabase"."controls" ("tenant_id", "owner_id") where "owner_id" is not null;
 alter table "better_supabase"."controls" enable row level security;
 revoke all on "better_supabase"."controls" from public, anon, authenticated;
 grant select on "better_supabase"."controls" to authenticated;
 grant all on "better_supabase"."controls" to service_role;
-drop policy if exists controls_read on "better_supabase"."controls";
-create policy controls_read on "better_supabase"."controls"
+create policy bsb_controls_read on "better_supabase"."controls"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
-create table if not exists "better_supabase"."evidence_tasks" (
+create table "better_supabase"."evidence_tasks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "control_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null constraint bsb_evidence_tasks_title_check check (length("title") >= 1 and length("title") <= 200),
   "assignee_id" uuid,
   -- Collecting evidence moves due_on this many days past the collection.
-  "interval_days" integer not null check ("interval_days" between 1 and 3650),
+  "interval_days" integer not null constraint bsb_evidence_tasks_interval_days_check check ("interval_days" >= 1 and "interval_days" <= 3650),
   "due_on" date not null,
   "last_collected_at" timestamptz,
   -- The due date notify_overdue_evidence_tasks last reported, so each lapse notifies once.
@@ -164,50 +76,48 @@ create table if not exists "better_supabase"."evidence_tasks" (
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "control_id") references "better_supabase"."controls" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "evidence_tasks_parent_idx" on "better_supabase"."evidence_tasks" ("tenant_id", "control_id");
-create index if not exists "evidence_tasks_assignee_idx" on "better_supabase"."evidence_tasks" ("tenant_id", "assignee_id", "due_on") where "assignee_id" is not null;
-create index if not exists "evidence_tasks_due_idx" on "better_supabase"."evidence_tasks" ("due_on") where "active";
+create index "evidence_tasks_parent_idx" on "better_supabase"."evidence_tasks" ("tenant_id", "control_id");
+create index "evidence_tasks_assignee_idx" on "better_supabase"."evidence_tasks" ("tenant_id", "assignee_id", "due_on") where "assignee_id" is not null;
+create index "evidence_tasks_due_idx" on "better_supabase"."evidence_tasks" ("due_on") where "active";
 alter table "better_supabase"."evidence_tasks" enable row level security;
 revoke all on "better_supabase"."evidence_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."evidence_tasks" to authenticated;
 grant all on "better_supabase"."evidence_tasks" to service_role;
-drop policy if exists evidence_tasks_read on "better_supabase"."evidence_tasks";
-create policy evidence_tasks_read on "better_supabase"."evidence_tasks"
+create policy bsb_evidence_tasks_read on "better_supabase"."evidence_tasks"
   for select to authenticated
   using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
-create table if not exists "better_supabase"."control_evidence" (
+create table "better_supabase"."control_evidence" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "control_id" uuid not null,
   "task_id" uuid references "better_supabase"."evidence_tasks" ("id") on delete set null,
   -- The file behind the evidence, an attachment on the control.
   "attachment_id" uuid,
-  "note" text check ("note" is null or length("note") <= 4000),
+  "note" text constraint bsb_control_evidence_note_check check ("note" is null or length("note") <= 4000),
   "collected_by" uuid,
   "collected_at" timestamptz not null default now(),
   -- The last day the evidence counts; null counts until it is removed.
   "valid_until" date,
-  check ("attachment_id" is not null or "note" is not null),
+  constraint bsb_control_evidence_check check ("attachment_id" is not null or "note" is not null),
   foreign key ("tenant_id", "control_id") references "better_supabase"."controls" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "control_evidence_parent_idx" on "better_supabase"."control_evidence" ("tenant_id", "control_id", "collected_at" desc);
-create index if not exists "control_evidence_request_idx" on "better_supabase"."control_evidence" ("task_id") where "task_id" is not null;
-create index if not exists "control_evidence_attachment_idx" on "better_supabase"."control_evidence" ("attachment_id") where "attachment_id" is not null;
+create index "control_evidence_parent_idx" on "better_supabase"."control_evidence" ("tenant_id", "control_id", "collected_at" desc);
+create index "control_evidence_request_idx" on "better_supabase"."control_evidence" ("task_id") where "task_id" is not null;
+create index "control_evidence_attachment_idx" on "better_supabase"."control_evidence" ("attachment_id") where "attachment_id" is not null;
 alter table "better_supabase"."control_evidence" enable row level security;
 revoke all on "better_supabase"."control_evidence" from public, anon, authenticated;
 grant select on "better_supabase"."control_evidence" to authenticated;
 grant all on "better_supabase"."control_evidence" to service_role;
-drop policy if exists control_evidence_read on "better_supabase"."control_evidence";
-create policy control_evidence_read on "better_supabase"."control_evidence"
+create policy bsb_control_evidence_read on "better_supabase"."control_evidence"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
-create table if not exists "better_supabase"."compliance_policies" (
+create table "better_supabase"."compliance_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
+  "key" text not null constraint bsb_compliance_policies_key_check check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
+  "title" text not null constraint bsb_compliance_policies_title_check check (length("title") >= 1 and length("title") <= 200),
   "owner_id" uuid,
   "requires_acknowledgement" boolean not null default true,
   -- The published version (versions block), frozen.
@@ -220,20 +130,19 @@ create table if not exists "better_supabase"."compliance_policies" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-create index if not exists "compliance_policies_version_idx" on "better_supabase"."compliance_policies" ("current_version_id") where "current_version_id" is not null;
+create index "compliance_policies_version_idx" on "better_supabase"."compliance_policies" ("current_version_id") where "current_version_id" is not null;
 alter table "better_supabase"."compliance_policies" enable row level security;
 revoke all on "better_supabase"."compliance_policies" from public, anon, authenticated;
 grant select on "better_supabase"."compliance_policies" to authenticated;
 grant all on "better_supabase"."compliance_policies" to service_role;
-drop policy if exists compliance_policies_read on "better_supabase"."compliance_policies";
-create policy compliance_policies_read on "better_supabase"."compliance_policies"
+create policy bsb_compliance_policies_read on "better_supabase"."compliance_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 -- kind is standard, legal (a register of legal obligations), internal or
 -- contract.
-drop function if exists "better_supabase"."save_control_framework"(uuid, text, text, text, text);
+
 create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
@@ -283,9 +192,7 @@ grant execute on function "better_supabase"."list_control_frameworks"(uuid) to a
 -- control_id, a control with the same code in the framework is updated.
 -- source names where an obligation comes from (a law or a clause) and
 -- jurisdiction where it applies.
-drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid);
-drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, jsonb);
-drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text);
+
 create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
@@ -1023,151 +930,95 @@ grant execute on function "better_supabase"."export_oscal_assessment_results"(uu
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."control_frameworks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."control_frameworks";
 create policy bsb_tenant_scope_select on "better_supabase"."control_frameworks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_frameworks";
 create policy bsb_tenant_scope_insert on "better_supabase"."control_frameworks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."control_frameworks";
 create policy bsb_tenant_scope_update on "better_supabase"."control_frameworks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."control_frameworks";
 create policy bsb_tenant_scope_delete on "better_supabase"."control_frameworks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."controls";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."controls";
 create policy bsb_tenant_scope_select on "better_supabase"."controls" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."controls";
 create policy bsb_tenant_scope_insert on "better_supabase"."controls" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."controls";
 create policy bsb_tenant_scope_update on "better_supabase"."controls" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."controls";
 create policy bsb_tenant_scope_delete on "better_supabase"."controls" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."control_evidence";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."control_evidence";
 create policy bsb_tenant_scope_select on "better_supabase"."control_evidence" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."control_evidence";
 create policy bsb_tenant_scope_insert on "better_supabase"."control_evidence" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."control_evidence";
 create policy bsb_tenant_scope_update on "better_supabase"."control_evidence" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."control_evidence";
 create policy bsb_tenant_scope_delete on "better_supabase"."control_evidence" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."evidence_tasks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."evidence_tasks";
 create policy bsb_tenant_scope_select on "better_supabase"."evidence_tasks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."evidence_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."evidence_tasks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."evidence_tasks";
 create policy bsb_tenant_scope_update on "better_supabase"."evidence_tasks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."evidence_tasks";
 create policy bsb_tenant_scope_delete on "better_supabase"."evidence_tasks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."compliance_policies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."compliance_policies";
 create policy bsb_tenant_scope_select on "better_supabase"."compliance_policies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."compliance_policies";
 create policy bsb_tenant_scope_insert on "better_supabase"."compliance_policies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."compliance_policies";
 create policy bsb_tenant_scope_update on "better_supabase"."compliance_policies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_policies";
 create policy bsb_tenant_scope_delete on "better_supabase"."compliance_policies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:fb24da232e82771d31e36fc9785528faccb394ed7f28e85e6b304ad7ee01991f
+-- @bsb-hash sha256:37dc0cb211a7ecf3ba367d407b46c25f9289eb7757a851e305f76b67c60ed13e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Subject types renamed in 0.47 (`codemod 0.47`).
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."versions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."versions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_assignments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgements"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgements" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 -- Policies assigned to the member role reach every member.
 do $$

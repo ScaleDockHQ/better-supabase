@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -16,12 +16,10 @@ export type ObservationsSqlOptions = {
    */
   readonly partitioned?: boolean;
   /** Extra columns on the observations table. */
-  readonly extraColumns?: ExtraColumns;
 };
 
 export const observationsSqlOptions: BlockOptionsSchema<ObservationsSqlOptions> =
   blockOptions<ObservationsSqlOptions>({
     defaults: option.string<"none" | "vitals">({ default: "none" }),
     partitioned: option.boolean({ default: false }),
-    extraColumns: option.extraColumns(),
   });

@@ -25,7 +25,7 @@ import type { SchemaMeta } from "../../src/schema/types.ts";
 
 import { fieldErrorsOf } from "../../src/bindings/field-errors.ts";
 import { claimedTenant } from "../../src/bindings/keys.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { createUploadConnector } from "../../src/powersync/connector.ts";
@@ -333,8 +333,8 @@ const meta: SchemaMeta = {
   realtime: { customers: { tenant: "organizationId" }, notes: {} },
 };
 
-const betterSupabase = defineSupabase(defineSchema(meta));
-const typed = defineSupabase(schema);
+const betterSupabase = createSupabase(defineSchema(meta));
+const typed = createSupabase(schema);
 
 type Listener = (message: { event: string; payload: unknown }) => void;
 

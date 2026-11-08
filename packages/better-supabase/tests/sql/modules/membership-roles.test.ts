@@ -37,7 +37,7 @@ describe("memberships roles.many", () => {
 
   it("keeps a role set next to the primary role", () => {
     expect(memberships).toContain(
-      'create table if not exists "better_supabase"."membership_roles"',
+      'create table "better_supabase"."membership_roles"',
     );
     expect(memberships).toContain(
       'primary key ("organization_id", "user_id", "role")',
@@ -92,10 +92,8 @@ describe("memberships roles.many", () => {
   it("stores the invitation's extra roles and teams and grants them on accept", () => {
     const invitations = fileOf(files, "invitations");
 
-    expect(invitations).toContain(
-      'add column if not exists "extra_roles" text[]',
-    );
-    expect(invitations).toContain('add column if not exists "team_ids" uuid[]');
+    expect(invitations).toContain('add column "extra_roles" text[]');
+    expect(invitations).toContain('add column "team_ids" uuid[]');
     expect(invitations).toContain("on_accept jsonb default null");
     expect(invitations).toContain("INVITATION_TEAM_UNKNOWN");
     expect(invitations).toContain('unnest(invite."extra_roles")');
@@ -116,13 +114,7 @@ describe("memberships roles.many off", () => {
     expect(memberships).not.toContain(
       'create table if not exists "better_supabase"."membership_roles"',
     );
-    expect(memberships).toContain(
-      'drop function if exists "better_supabase"."membership_roles_from_role"() cascade;',
-    );
     expect(memberships).toContain('select array[m."role"]::text[]');
-    expect(fileOf(files, "organizations")).toContain(
-      'drop function if exists "better_supabase"."add_member_role"(uuid, uuid, text);',
-    );
     expect(fileOf(files, "invitations")).not.toContain("on_accept jsonb");
   });
 });
@@ -144,9 +136,6 @@ describe("memberships roles.many with app-defined roles", () => {
   it("stores roles outside blocks.permissions.roles", () => {
     const memberships = fileOf(files, "memberships");
 
-    expect(memberships).toContain(
-      "drop constraint if exists membership_roles_role_check",
-    );
     expect(memberships).not.toContain(
       "add constraint membership_roles_role_check",
     );

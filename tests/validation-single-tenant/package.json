@@ -1,0 +1,19 @@
+{
+  "name": "@better-supabase/validation-single-tenant",
+  "private": true,
+  "description": "A B2C app with no organizations: owner-based policies and no tenant column, tenant policy or tenant_ids_with.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

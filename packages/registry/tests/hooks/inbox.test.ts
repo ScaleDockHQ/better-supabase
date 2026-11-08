@@ -3,7 +3,7 @@ import type { AuthSnapshot } from "better-supabase/client";
 import type { ClientLike } from "better-supabase/react";
 import type * as ReactModule from "react";
 
-import { defineSupabase, defineSchema } from "better-supabase";
+import { createSupabase, defineSchema } from "better-supabase";
 import { webStorage } from "better-supabase/client";
 import { BetterSupabaseProvider } from "better-supabase/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -283,7 +283,7 @@ const signedIn = (
   claims: { sub: id, ...claims },
 });
 
-const betterSupabase = defineSupabase(
+const betterSupabase = createSupabase(
   defineSchema({
     version: 1,
     casing: "camel",

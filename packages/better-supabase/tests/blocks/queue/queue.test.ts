@@ -23,7 +23,7 @@ import {
   sqlTransport,
 } from "../../../src/blocks/queue/index.ts";
 import { signWebhook } from "../../../src/blocks/webhooks/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { spansAllTenants } from "../../../src/core/plugin.ts";
 import { ok } from "../../../src/core/result.ts";
 import { provideTemporal } from "../../../src/core/temporal.ts";
@@ -592,7 +592,7 @@ describe("job context", () => {
   it("records the tenant tenant() resolved from a custom claim path", async () => {
     const { client, sent } = memoryQueue();
 
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .use(membershipsExtension({ claim: "app_metadata.organization" }))
       .connect(echoExecutor, {
         claims: { tenant_id: "o1", app_metadata: { organization: "o9" } },
@@ -1268,7 +1268,7 @@ describe("schedules with the drain scheduler", () => {
             tenant: "t1",
             next_run: new Date("2026-01-01T10:00:00Z"),
             last_run: null,
-            locked_until: null,
+            lock_expires_at: null,
             created_at: "2025-12-01T00:00:00Z",
           },
         ],
@@ -1309,7 +1309,7 @@ describe("schedules with the drain scheduler", () => {
       tenant: "t1",
       next_run: null,
       last_run: null,
-      locked_until: null,
+      lock_expires_at: null,
       created_at: null,
     });
 
@@ -1410,7 +1410,7 @@ describe("schedules with the drain scheduler", () => {
             tenant,
             next_run: null,
             last_run: null,
-            locked_until: null,
+            lock_expires_at: null,
             created_at: null,
             payload: reversed(JSON.parse(String(payload))),
           });

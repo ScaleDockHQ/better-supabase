@@ -57,12 +57,10 @@ describe("record teams", () => {
   it("writes the table, the policy and the functions", () => {
     const sql = sqlOf(render(["subjects"]));
 
-    expect(sql).toContain(
-      `create table if not exists "better_supabase"."subject_members"`,
-    );
+    expect(sql).toContain(`create table "better_supabase"."subject_members"`);
     expect(sql).toContain(`check (("user_id" is null) <> ("team_id" is null))`);
     expect(sql).toContain(
-      `create policy subject_members_read on "better_supabase"."subject_members"`,
+      `create policy bsb_subject_members_read on "better_supabase"."subject_members"`,
     );
     expect(sql).toContain(
       `create or replace function "better_supabase"."add_subject_member"(subject_type text, subject_id text, user_id uuid default null, team_id uuid default null, role text default 'member', starts_on date default null, ends_on date default null)`,

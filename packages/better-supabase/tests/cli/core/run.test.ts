@@ -14,6 +14,7 @@ import { CliError } from "../../../src/cli/core/errors.ts";
 import { RESULT_SCHEMA_URL } from "../../../src/cli/core/output.ts";
 import { createCli } from "../../../src/cli/core/run.ts";
 import { VERSION } from "../../../src/cli/version.ts";
+import { errorDoc } from "../error-doc.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
 
 const ENV = { SUPABASE_ACCESS_TOKEN: "sbp_test" };
@@ -85,11 +86,11 @@ describe("run", () => {
   it("runs the codemod command over the project", async () => {
     await writeFile(join(dir, "a.ts"), "export const a = 1;\n");
     expect(
-      await run(["codemod", "0.5", "--dry-run", "--cwd", dir]),
+      await run(["codemod", "naming", "--dry-run", "--cwd", dir]),
     ).toMatchObject({ code: 0 });
   });
 
-  it("runs codemod 0.9 on a config that still has sql.modules", async () => {
+  it("refuses a config written before 0.15 and names the release to upgrade with", async () => {
     const path = join(dir, "better-supabase.config.ts");
     await writeFile(
       path,
@@ -98,25 +99,17 @@ describe("run", () => {
 
     const before = await run(["blocks", "list", "--installed", "--cwd", dir]);
     expect(before.code).toBe(2);
-    expect(before.stderr).toContain("better-supabase codemod 0.9");
-
-    const nested = join(dir, "src");
-    await mkdir(nested);
-
-    expect(await run(["codemod", "0.9", "--cwd", nested])).toMatchObject({
-      code: 0,
-      stdout: expect.stringContaining("better-supabase.config.ts"),
-    });
-    expect(await readFile(path, "utf-8")).toBe(
-      "export default {\n  blocks: { memberships: true },\n};\n",
-    );
+    expect(before.stderr).toContain("upgrade to 0.53 with that release first");
   });
 
   it("prints the usage to stderr without a command and to stdout for help", async () => {
     expect(await run([])).toMatchObject({ code: 2, stdout: "" });
     expect((await run(["help"])).code).toBe(0);
+    expect((await run(["db", "--help"])).stdout).toContain(
+      "Usage: better-supabase db <command> [options]",
+    );
     expect((await run(["dev", "--help"])).stdout).toContain(
-      "Usage: better-supabase dev <command> [options]",
+      "Usage: better-supabase dev [command] [options]",
     );
     expect((await run(["help", "dev"])).stdout).toContain(
       "Usage: better-supabase dev",
@@ -156,14 +149,8 @@ describe("run", () => {
       (await run(["--cwd", dir, "--config=x.ts", "--help"])).stdout,
     ).toContain("Usage: better-supabase <command> [options]");
     expect((await run(["--", "gen"])).code).toBe(2);
-    expect(await run(["--cwd", dir, "openapi", "emit"])).toMatchObject({
-      code: 2,
-      stderr: expect.stringMatching(
-        /^"openapi emit" is now "spec emit openapi"\. Run: better-supabase spec emit openapi --cwd /,
-      ),
-    });
-    expect((await run(["spec", "check", "--cwd", dir])).stderr).toMatch(
-      /^"spec check" is now "spec emit --check"/,
+    expect((await run(["--cwd", dir, "openapi", "emit"])).stderr).toMatch(
+      /^Unknown command "openapi"/,
     );
     expect((await run(["skills", "--cwd", dir])).stderr).toMatch(
       /^Name a skills subcommand: list, install\.\n\nUsage: better-supabase skills /,
@@ -171,17 +158,7 @@ describe("run", () => {
     expect((await run(["skills", "remove", "--cwd", dir])).stderr).toMatch(
       /^Unknown command "skills remove"/,
     );
-    expect(await run(["gen", "--tasks", "types", "--cwd", dir])).toMatchObject({
-      code: 2,
-      stderr: expect.stringMatching(
-        /^--tasks is now --only\. Run: better-supabase gen --only types --cwd /,
-      ),
-    });
-    expect(
-      (await run(["doctor", "--strict", "--json", "--cwd", dir])).stdout,
-    ).toContain(
-      '"suggestion": "better-supabase doctor --fail-on warning --json --cwd',
-    );
+    expect((await run(["gen", "--tasks", "types", "--cwd", dir])).code).toBe(2);
     const skills = await run(["skills", "list", "--cwd", dir]);
     expect(skills.code).toBe(0);
     expect(skills.stdout).toMatch(/^better-supabase\n {2}\S/m);
@@ -280,8 +257,9 @@ describe("run", () => {
     await writeFile(path, `${await readFile(path, "utf-8")} `);
     expect(await introspect("--check")).toMatchObject({
       code: 1,
-      stderr:
+      stderr: expect.stringContaining(
         "supabase/snapshot.json is out of date. Run `better-supabase gen --save-snapshot`.\n",
+      ),
     });
   });
 
@@ -377,16 +355,7 @@ describe("run", () => {
     const stderr: string[] = [];
 
     const result = await run(
-      [
-        "gen",
-        "--watch",
-        "--interval",
-        "1",
-        "--project-ref",
-        "abc",
-        "--cwd",
-        dir,
-      ],
+      ["dev", "--interval", "1", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
         env: ENV,
@@ -404,14 +373,53 @@ describe("run", () => {
     );
 
     expect(result.code).toBe(0);
-    expect(stderr).toHaveLength(1);
+    expect(stderr.filter((line) => line !== "Ready\n")).toHaveLength(1);
     expect(stderr[0]).toContain("500");
     expect(stdout).toEqual([
-      "Created src/lib/supabase/database.types.ts\nCreated src/lib/supabase/generated.ts\nCreated src/lib/supabase/generated.meta.js\nCreated src/lib/supabase/generated.meta.d.ts\nGenerated 0 tables.\n",
+      "Created src/lib/supabase/database.types.ts\nCreated src/lib/supabase/generated.ts\nCreated src/lib/supabase/generated.meta.js\nCreated src/lib/supabase/generated.meta.d.ts\nCreated src/lib/supabase/generated-schema.ts\nGenerated 0 tables.\n",
     ]);
     expect(
       api.calls.filter((call) => call.body?.includes("t_enums")).length,
     ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("watches the app's schema files and ignores the module files it writes", async () => {
+    const controller = new AbortController();
+    await mkdir(join(dir, "supabase/schemas/_better_supabase"), {
+      recursive: true,
+    });
+    await writeFile(join(dir, "supabase/schemas/tables.sql"), "select 1;\n");
+    await writeFile(
+      join(dir, "supabase/schemas/_better_supabase/900_better_supabase_1.sql"),
+      "select 2;\n",
+    );
+
+    const api = fakeFetch((call) => {
+      if (call.body?.includes("t_enums")) {
+        controller.abort();
+      }
+
+      return { body: [] };
+    });
+
+    vi.stubGlobal("fetch", api.fetch);
+
+    const result = await run(
+      [
+        "dev",
+        "--only",
+        "types,seed",
+        "--interval",
+        "1",
+        "--project-ref",
+        "abc",
+        "--cwd",
+        dir,
+      ],
+      { signal: controller.signal, env: ENV, io: io() },
+    );
+
+    expect(result.code).toBe(0);
   });
 
   it("watches the catalog fingerprint and reads the schema only when it changes", async () => {
@@ -436,16 +444,7 @@ describe("run", () => {
     const stdout: string[] = [];
 
     const result = await run(
-      [
-        "gen",
-        "--watch",
-        "--interval",
-        "1",
-        "--project-ref",
-        "abc",
-        "--cwd",
-        dir,
-      ],
+      ["dev", "--interval", "1", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
         env: ENV,
@@ -481,7 +480,7 @@ describe("run", () => {
     const stdout: string[] = [];
 
     const result = await run(
-      ["gen", "--watch", "--json", "--interval", "1", "--project-ref", "abc"],
+      ["dev", "--json", "--interval", "1", "--project-ref", "abc"],
       {
         cwd: dir,
         signal: controller.signal,
@@ -506,7 +505,7 @@ describe("run", () => {
   it("watches: retries a failed regeneration without a schema change, reporting the error once", async () => {
     await writeFile(
       join(dir, "better-supabase.config.mjs"),
-      `export default { gen: { generators: [{ name: "flaky", generate() {
+      `export default { gen: { generators: [{ apiVersion: 2, version: "1.0.0", name: "flaky", generate() {
   globalThis.flakyGeneratorRuns = (globalThis.flakyGeneratorRuns ?? 0) + 1;
   if (globalThis.flakyGeneratorRuns < 3) throw new Error("flaky failed");
   return [];
@@ -525,16 +524,7 @@ describe("run", () => {
     const stderr: string[] = [];
 
     const result = await run(
-      [
-        "gen",
-        "--watch",
-        "--interval",
-        "1",
-        "--project-ref",
-        "abc",
-        "--cwd",
-        dir,
-      ],
+      ["dev", "--interval", "1", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
         env: ENV,
@@ -549,7 +539,9 @@ describe("run", () => {
     );
 
     expect(result.code).toBe(0);
-    expect(stderr).toEqual([`generator "flaky" failed: flaky failed\n`]);
+    expect(stderr.filter((line) => line !== "Ready\n")).toEqual([
+      `generator "flaky" failed: flaky failed\n`,
+    ]);
     expect(stdout[0]).toContain("Generated 0 tables");
     const counter = globalThis as { flakyGeneratorRuns?: number };
     expect(counter.flakyGeneratorRuns).toBe(3);
@@ -560,7 +552,7 @@ describe("run", () => {
     const configPath = join(dir, "better-supabase.config.mjs");
     await writeFile(
       configPath,
-      `export default { gen: { output: "a/generated.ts" } };\n`,
+      `export default { gen: { file: "a/generated.ts" } };\n`,
     );
     const controller = new AbortController();
     vi.stubGlobal(
@@ -574,16 +566,7 @@ describe("run", () => {
     const stdout: string[] = [];
 
     const result = await run(
-      [
-        "gen",
-        "--watch",
-        "--interval",
-        "1",
-        "--project-ref",
-        "abc",
-        "--cwd",
-        dir,
-      ],
+      ["dev", "--interval", "1", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
         env: ENV,
@@ -599,7 +582,7 @@ describe("run", () => {
 
             writeFileSync(
               configPath,
-              `export default { gen: { output: "b/generated.ts" } };\n`,
+              `export default { gen: { file: "b/generated.ts" } };\n`,
             );
             const later = new Date(Date.now() + 5000);
             utimesSync(configPath, later, later);
@@ -618,10 +601,9 @@ describe("run", () => {
 
   it("refuses a watch interval that isn't a positive number", async () => {
     for (const interval of ["abc", "0", "-5"]) {
-      const result = await run(
-        ["gen", "--watch", "--interval", interval, "--cwd", dir],
-        { env: ENV },
-      );
+      const result = await run(["dev", "--interval", interval, "--cwd", dir], {
+        env: ENV,
+      });
 
       expect(result.code).toBe(2);
       expect(result.stderr).toContain("--interval");
@@ -633,19 +615,16 @@ describe("run", () => {
     const controller = new AbortController();
     const started = Date.now();
 
-    const result = await run(
-      ["gen", "--watch", "--project-ref", "abc", "--cwd", dir],
-      {
-        signal: controller.signal,
-        env: ENV,
-        io: io({
-          stdout: () =>
-            setTimeout(() => {
-              controller.abort();
-            }, 0),
-        }),
-      },
-    );
+    const result = await run(["dev", "--project-ref", "abc", "--cwd", dir], {
+      signal: controller.signal,
+      env: ENV,
+      io: io({
+        stdout: () =>
+          setTimeout(() => {
+            controller.abort();
+          }, 0),
+      }),
+    });
 
     expect(result.code).toBe(0);
     expect(Date.now() - started).toBeLessThan(2000);
@@ -665,13 +644,11 @@ describe("run", () => {
 
   it("prints one JSON document on stdout under --json, errors included", async () => {
     const unknown = await run(["genn", "--json"]);
-    expect(unknown).toMatchObject({ code: 2, stderr: "" });
-    expect(JSON.parse(unknown.stdout)).toMatchObject({
-      error: {
-        type: "https://bettersupabase.com/docs/cli/errors#unknown_command",
-        code: "unknown_command",
-        suggestion: "gen",
-      },
+    expect(unknown).toMatchObject({ code: 2, stdout: "" });
+    expect(errorDoc(unknown)).toMatchObject({
+      type: "https://bettersupabase.com/docs/cli/errors#unknown_command",
+      reason: "unknown_command",
+      data: { suggestion: "gen" },
     });
 
     expect(JSON.parse((await run(["--version", "--json"])).stdout)).toEqual({
@@ -692,9 +669,7 @@ describe("run", () => {
     ]);
 
     expect(missing.code).toBe(2);
-    expect(JSON.parse(missing.stdout)).toMatchObject({
-      error: { code: "config_not_found" },
-    });
+    expect(errorDoc(missing)).toMatchObject({ reason: "config_not_found" });
   });
 
   it("rejects an invalid environment and an invalid config", async () => {
@@ -722,11 +697,9 @@ describe("run", () => {
     ]);
 
     expect(config.code).toBe(2);
-    expect(JSON.parse(config.stdout)).toMatchObject({
-      error: {
-        code: "config_invalid",
-        issues: [expect.stringMatching(/^gen\.casing: /)],
-      },
+    expect(errorDoc(config)).toMatchObject({
+      reason: "config_invalid",
+      data: { issues: [expect.stringMatching(/^gen\.casing: /)] },
     });
   });
 
@@ -810,8 +783,9 @@ describe("run", () => {
 
     expect(result.code).toBe(2);
     expect(stdin).not.toHaveBeenCalled();
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      error: { code: "missing_value", flag: "--db-url-stdin" },
+    expect(errorDoc(result)).toMatchObject({
+      reason: "missing_value",
+      data: { flag: "--db-url-stdin" },
     });
   });
 
@@ -858,8 +832,9 @@ describe("run", () => {
     });
 
     expect(result.code).toBe(2);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      error: { code, flag: "--cwd" },
+    expect(errorDoc(result)).toMatchObject({
+      reason: code,
+      data: { flag: "--cwd" },
     });
   });
 

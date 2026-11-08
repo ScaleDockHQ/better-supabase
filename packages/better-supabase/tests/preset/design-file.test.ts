@@ -25,9 +25,7 @@ const DESIGN: CreateDesign = {
 
 describe("parseDesign", () => {
   it("accepts what decodeDesign accepts and drops empty parts", async () => {
-    expect(parseDesign({ ...DESIGN, extraColumns: { profiles: {} } })).toEqual(
-      DESIGN,
-    );
+    expect(parseDesign({ appTables: {}, positions: {} })).toEqual({});
     expect(parseDesign(DESIGN)).toEqual(
       await decodeDesign(await encodeDesign(DESIGN)),
     );
@@ -38,9 +36,9 @@ describe("parseDesign", () => {
     expect(() => parseDesign({ tables: {} })).toThrow(
       'design: unknown key "tables"',
     );
-    expect(() =>
-      parseDesign({ extraColumns: { nowhere: { tier: "text" } } }),
-    ).toThrow('"nowhere" is not a block');
+    expect(() => parseDesign({ extraColumns: {} })).toThrow(
+      'design: unknown key "extraColumns"',
+    );
     expect(() => parseDesign({ version: 99 })).toThrow(
       "update better-supabase",
     );
@@ -102,7 +100,7 @@ describe("design files", () => {
       readDesignFile(
         JSON.stringify({ preset: "1pWEF3d578B1iGt16", design: {} }),
       ),
-    ).toThrow("better-supabase codemod 0.15");
+    ).toThrow("Upgrade to 0.53 with that release first");
   });
 
   it("refuses an invalid design when writing", () => {

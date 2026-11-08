@@ -98,13 +98,7 @@ function answerText(
 }
 
 /** Render inside `<Suspense>`: a form's builder, preview and responses. */
-export async function FormBuilder({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-
+export async function FormBuilder({ id }: { id: string }) {
   const [view, t, format] = await Promise.all([
     getForm(id),
     getExtracted("forms"),

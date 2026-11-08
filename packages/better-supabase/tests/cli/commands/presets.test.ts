@@ -53,7 +53,6 @@ const now = () => new Date("2026-10-15T12:00:00Z");
 
 const design: CreateDesign = {
   appTables: { notes: { scope: "user", columns: { body: { type: "text" } } } },
-  extraColumns: { profiles: { nickname: "text" } },
   positions: { "public.notes": [120, 40] },
 };
 
@@ -81,7 +80,7 @@ describe("preset decode", () => {
     );
 
     expect(decoded.output).toContain("Preset: custom");
-    expect(decoded.output).toContain("  casing        camel");
+    expect(decoded.output).toContain("  casing      camel");
     expect(decoded.output).toContain(
       "  memberships (required by permissions, comments and messaging)",
     );
@@ -381,12 +380,8 @@ describe("apply", () => {
 });
 
 describe("apply with a design", () => {
-  it("merges the design's app tables and extra columns into the config", async () => {
-    await files({
-      "better-supabase.config.json": json({
-        blocks: { profiles: { options: { extraColumns: { bio: "text" } } } },
-      }),
-    });
+  it("writes the design's app tables as SQL and leaves the config as it is", async () => {
+    await files({ "better-supabase.config.json": json({}) });
 
     const result = await run([
       "add",
@@ -402,14 +397,7 @@ describe("apply with a design", () => {
       JSON.parse(
         await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
-    ).toEqual({
-      blocks: {
-        profiles: {
-          options: { extraColumns: { bio: "text", nickname: "text" } },
-        },
-      },
-      preset: "minimal",
-    });
+    ).toEqual({ preset: "minimal" });
     expect(
       await readFile(
         join(dir, "supabase/schemas/public/tables/notes.sql"),
@@ -463,11 +451,10 @@ describe("apply with a design", () => {
 
     expect(result.code).toBe(0);
     expect(result.output).not.toContain("tables: {");
-    expect(result.output).toContain("+          nickname: 'text',");
     expect(result.output).toContain("notes.sql");
   });
 
-  it("refuses a damaged design and an extra column without its block", async () => {
+  it("refuses a damaged design", async () => {
     await files({ "better-supabase.config.json": json({}) });
     const url = await designUrl();
 
@@ -481,16 +468,6 @@ describe("apply with a design", () => {
 
     expect(damaged.code).toBe(2);
 
-    const stray = await run([
-      "add",
-      "--preset",
-      await designUrl({ extraColumns: { organizations: { tier: "text" } } }),
-      "--cwd",
-      dir,
-    ]);
-
-    expect(stray.code).toBe(2);
-    expect(stray.stderr).toContain("design.extraColumns.organizations");
     expect(
       await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
     ).toBe(json({}));
@@ -595,7 +572,7 @@ describe("init --preset", () => {
     );
 
     expect(config).toContain(
-      "  preset: 'minimal',\n  gen: { casing: 'snake', output: 'lib/supabase/generated.ts' },",
+      "  preset: 'minimal',\n  gen: { casing: 'snake', file: 'lib/supabase/generated.ts' },",
     );
     expect(await readFile(join(dir, "lib/blocks.ts"), "utf-8")).toContain(
       "profiles: profilesBlock,",
@@ -630,7 +607,7 @@ describe("init --preset", () => {
     );
 
     expect(config).toContain(
-      `  preset: { casing: 'camel', access: 'provider', blocks: ['profiles'] },\n  gen: { casing: 'camel', output: 'lib/supabase/generated.ts' },`,
+      `  preset: { casing: 'camel', access: 'provider', blocks: ['profiles'] },\n  gen: { casing: 'camel', file: 'lib/supabase/generated.ts' },`,
     );
     expect(config).toContain("set `auth.authorization` to its adapter");
   });
@@ -694,7 +671,7 @@ describe("init --preset", () => {
     const result = await run([
       "init",
       "--preset",
-      await presetUrl({ blocks: ["tags"], integrations: ["mcp"] }),
+      await presetUrl({ blocks: ["tags"], adapters: ["mcp"] }),
       "--dry-run",
       "--cwd",
       dir,
@@ -721,21 +698,8 @@ describe("init --preset", () => {
     ).toBe(2);
   });
 
-  it("writes a design's app tables and extra columns from a /create URL", async () => {
+  it("writes a design's app tables from a /create URL", async () => {
     await files({ "package.json": json({ name: "app" }) });
-
-    const stray = await run([
-      "init",
-      "--preset",
-      await designUrl({ extraColumns: { organizations: { tier: "text" } } }),
-      "--cwd",
-      dir,
-    ]);
-
-    expect(stray.code).toBe(2);
-    expect(stray.stderr).toContain(
-      "the preset doesn't install the organizations block",
-    );
 
     const result = await run([
       "init",
@@ -752,9 +716,7 @@ describe("init --preset", () => {
       "utf-8",
     );
 
-    expect(config).toContain(
-      "        extraColumns: {\n          nickname: 'text',",
-    );
+    expect(config).not.toContain("extraColumns");
     expect(config).not.toContain("notes");
     expect(config).not.toContain("positions");
 
@@ -765,12 +727,6 @@ describe("init --preset", () => {
 
     expect(sql).toContain('"public"."notes"');
     expect(existsSync(join(dir, APP_TABLES_FILE))).toBe(false);
-    expect(
-      await readFile(
-        join(dir, "supabase/schemas/900_better_supabase_022_profiles.sql"),
-        "utf-8",
-      ),
-    ).toContain("nickname");
   });
 
   it("writes a design too long for a URL from a design file", async () => {
@@ -816,7 +772,7 @@ describe("init --preset", () => {
       dir,
     ]);
 
-    expect(result.stderr).toBe("");
+    expect(result.stderr).not.toMatch(/^! /m);
     expect(result.code).toBe(0);
 
     const [first = ""] = Object.keys(appTables);

@@ -21,7 +21,12 @@ describe("actor module", () => {
     );
   });
 
-  it("keeps actor_may_write next to it", () => {
-    expect(sql).toContain("function better_supabase.actor_may_write()");
+  it("leaves actor_may_write to the prelude", () => {
+    expect(sql).not.toContain("function better_supabase.actor_may_write()");
+    expect(
+      renderBlocks(["created-by"], {}).find(
+        (file) => file.module === "prelude",
+      )!.contents,
+    ).toContain("function better_supabase.actor_may_write()");
   });
 });

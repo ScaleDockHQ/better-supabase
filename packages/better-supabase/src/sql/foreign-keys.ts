@@ -175,6 +175,65 @@ function declaredForeignKeys(
     }));
 }
 
+const APP_TRIGGER = /* @__PURE__ */ new RegExp(
+  String.raw`\bcreate\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+(${NAME})\s+(?:before|after|instead\s+of)\s[^;]*?\bon\s+(${TABLE_NAME})[^;]*?\bexecute\s+(?:function|procedure)\s+(${TABLE_NAME})\s*\(`,
+  "gi",
+);
+
+const FUNCTION_BODY = /* @__PURE__ */ new RegExp(
+  String.raw`\bcreate\s+(?:or\s+replace\s+)?function\s+(${TABLE_NAME})\s*\([\s\S]*?\bas\s+(\$\w*\$)([\s\S]*?)\2`,
+  "gi",
+);
+
+const ROW_COLUMN = /\b(?:new|old)\s*\.\s*"?([a-z_][\w$]*)"?/gi;
+
+/**
+ * The columns each app trigger reads or writes through `new.<column>` or
+ * `old.<column>`, by `schema.table`. Triggers named `bsb_*` are the blocks' own
+ * and don't count, so a check the app already makes is never emitted twice.
+ */
+function appTriggerColumns(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): Readonly<Record<string, readonly string[]>> {
+  const texts = files.map((file) => withoutComments(file.text));
+  const bodies = new Map<string, string>();
+
+  for (const text of texts) {
+    for (const match of text.matchAll(FUNCTION_BODY)) {
+      bodies.set(qualified(match[1]!), match[3]!);
+    }
+  }
+
+  const found = new Map<string, Set<string>>();
+
+  for (const text of texts) {
+    for (const match of text.matchAll(APP_TRIGGER)) {
+      const table = qualified(match[2]!);
+
+      if (
+        unquote(match[1]!).startsWith("bsb_") ||
+        !schemas.includes(table.slice(0, table.indexOf(".")))
+      ) {
+        continue;
+      }
+
+      const body = bodies.get(qualified(match[3]!)) ?? "";
+      const columns = found.get(table) ?? new Set<string>();
+
+      for (const column of body.matchAll(ROW_COLUMN)) {
+        columns.add(column[1]!.toLowerCase());
+      }
+
+      found.set(table, columns);
+    }
+  }
+
+  return Object.fromEntries(
+    [...found].map(([table, columns]) => [table, [...columns]]),
+  );
+}
+
 /**
  * The layout fields `blocks.memberships.options.sameTenant.auto` derives its
  * entries from.
@@ -182,9 +241,12 @@ function declaredForeignKeys(
 export function sameTenantLayout(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
-): Required<Pick<BlockSqlLayout, "foreignKeys" | "declaredColumns">> {
+): Required<
+  Pick<BlockSqlLayout, "foreignKeys" | "declaredColumns" | "appTriggerColumns">
+> {
   return {
     foreignKeys: declaredForeignKeys(files, schemas),
+    appTriggerColumns: appTriggerColumns(files, schemas),
     declaredColumns: Object.fromEntries(
       [...declaredTableColumns(files, schemas)].map(([table, columns]) => [
         table,

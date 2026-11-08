@@ -8,13 +8,12 @@ import type {
 import { BLOCK_SCOPES } from "../config/blocks.ts";
 import { PRESET_CATALOG } from "../preset/catalog.generated.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
-import { renamedBlock } from "./block-renames.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
 import { ACCESS_REQUESTS } from "./modules/access-requests.ts";
 import { ACCOUNTING } from "./modules/accounting.ts";
 import { ACKNOWLEDGEMENTS } from "./modules/acknowledgements.ts";
-import { ENGAGEMENTS } from "./modules/activities.ts";
+import { ACTIVITIES } from "./modules/activities.ts";
 import { ADVISORIES } from "./modules/advisories.ts";
 import { AGENT_CHECKOUT } from "./modules/agent-checkout.ts";
 import { AGENTS_MODULE } from "./modules/agents.ts";
@@ -38,7 +37,7 @@ import { BANKING } from "./modules/banking.ts";
 import { BILLABLE_TIME } from "./modules/billable-time.ts";
 import { BILLING } from "./modules/billing.ts";
 import { BOOKINGS } from "./modules/bookings.ts";
-import { BULK } from "./modules/bulk.ts";
+import { BULK } from "./modules/bulk-actions.ts";
 import { CALENDAR } from "./modules/calendar.ts";
 import { CARE_PLANS } from "./modules/care-plans.ts";
 import { CASES } from "./modules/cases.ts";
@@ -178,7 +177,7 @@ import { TAX } from "./modules/tax.ts";
 import { TEAMS } from "./modules/teams.ts";
 import { TEMPLATES } from "./modules/templates.ts";
 import { TILLS } from "./modules/tills.ts";
-import { TIME_TRACKING } from "./modules/time-tracking.ts";
+import { TIME_ENTRIES } from "./modules/time-entries.ts";
 import { ACTIVITY } from "./modules/timeline.ts";
 import { TRASH } from "./modules/trash.ts";
 import { UPDATED_AT } from "./modules/updated-at.ts";
@@ -379,13 +378,13 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(PROMOTIONS),
       built(FORMS),
       built(SIGNATURES),
-      built(TIME_TRACKING),
+      built(TIME_ENTRIES),
       built(IDENTITIES),
       built(SERVICE_PRINCIPALS),
       built(TEMPLATES),
       built(PIPELINES),
       built(PARTIES),
-      built(ENGAGEMENTS),
+      built(ACTIVITIES),
       built(DEALS),
       built(WORK_ITEMS),
       built(QUOTES),
@@ -519,12 +518,8 @@ export function resolveBlocks(
     const module = SQL_MODULES[name];
 
     if (!module) {
-      const renamed = renamedBlock(name);
-
       throw new TypeError(
-        renamed === undefined
-          ? `Unknown SQL module "${name}"${from ? ` (required by ${from})` : ""}. Available: ${Object.keys(SQL_MODULES).join(", ")}`
-          : `The "${name}" block is named "${renamed}" since 0.15. Run \`better-supabase codemod 0.15\` to rename it in your config and imports.`,
+        `Unknown SQL module "${name}"${from ? ` (required by ${from})` : ""}. Available: ${Object.keys(SQL_MODULES).join(", ")}`,
       );
     }
 

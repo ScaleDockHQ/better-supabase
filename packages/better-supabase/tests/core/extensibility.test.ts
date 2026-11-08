@@ -6,7 +6,7 @@ import type { Logger } from "../../src/core/logger.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
 import { defineRepository } from "../../src/core/define-repository.ts";
-import { BetterSupabase, defineSupabase } from "../../src/core/define.ts";
+import { BetterSupabase, createSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { ok } from "../../src/core/result.ts";
 import { providedTemporal, provideTemporal } from "../../src/core/temporal.ts";
@@ -42,7 +42,7 @@ function recordingLogger(): Logger & { readonly messages: string[] } {
 
 describe("betterSupabase.cache", () => {
   it("invalidates the table, cascaded tables, row keys and tenant after mutations", async () => {
-    const betterSupabase = defineSupabase(schema).use(membershipsExtension());
+    const betterSupabase = createSupabase(schema).use(membershipsExtension());
     const cache = memoryCache();
     const detach = betterSupabase.cache(cache);
     const db = betterSupabase.connect(echo(), { tenant: ACME });
@@ -71,7 +71,7 @@ describe("betterSupabase.cache", () => {
 
   it("logs adapter failures without failing the mutation", async () => {
     const logger = recordingLogger();
-    const betterSupabase = defineSupabase(schema, { logger });
+    const betterSupabase = createSupabase(schema, { logger });
     betterSupabase.cache({
       name: "sync",
       invalidate: () => {
@@ -100,7 +100,7 @@ describe("logger", () => {
   it("receives event handler and afterMutation failures", async () => {
     const logger = recordingLogger();
 
-    const betterSupabase = defineSupabase(schema, { logger }).use(
+    const betterSupabase = createSupabase(schema, { logger }).use(
       definePlugin({
         name: "noisy",
         afterMutation: () => {
@@ -130,11 +130,11 @@ describe("per-definition state", () => {
   const claims = { sub: "u1", org_id: ACME, app_metadata: { tenant: ORG } };
 
   it("resolves each definition's tenant from its own claim paths", () => {
-    const byOrganization = defineSupabase(schema).use(
+    const byOrganization = createSupabase(schema).use(
       membershipsExtension({ claim: "org_id" }),
     );
 
-    const byMetadata = defineSupabase(schema).use(
+    const byMetadata = createSupabase(schema).use(
       membershipsExtension({ claim: "app_metadata.tenant" }),
     );
 
@@ -148,7 +148,7 @@ describe("per-definition state", () => {
   });
 
   it("derives the context again for $with and drops it for $withoutPlugins", () => {
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .use(membershipsExtension({ claim: "org_id" }))
       .connect(echo(), { claims });
 
@@ -161,7 +161,7 @@ describe("per-definition state", () => {
   it("logs a context hook that throws and keeps the caller's context", () => {
     const logger = recordingLogger();
 
-    const db = defineSupabase(schema, { logger })
+    const db = createSupabase(schema, { logger })
       .use(
         definePlugin({
           name: "broken",
@@ -185,10 +185,10 @@ describe("per-definition state", () => {
       const first = Object.create(Temporal) as typeof Temporal;
       // SAFETY: as above.
       const second = Object.create(Temporal) as typeof Temporal;
-      defineSupabase(schema, { logger, temporal: first });
-      defineSupabase(schema, { logger, temporal: first });
+      createSupabase(schema, { logger, temporal: first });
+      createSupabase(schema, { logger, temporal: first });
       expect(logger.messages).toEqual([]);
-      defineSupabase(schema, { logger, temporal: second });
+      createSupabase(schema, { logger, temporal: second });
       expect(logger.messages).toHaveLength(1);
       expect(logger.messages[0]).toMatch(/different `temporal` namespace/);
     } finally {
@@ -198,7 +198,7 @@ describe("per-definition state", () => {
 });
 
 describe("defineRepository", () => {
-  const base = defineSupabase(schema);
+  const base = createSupabase(schema);
 
   it("adds methods to one table only", async () => {
     const tags = defineRepository(base, "tags", (repo) => ({
@@ -236,7 +236,7 @@ describe("pipeline consistency", () => {
   it("passes the caller's signal to transformQuery and beforeMutation", async () => {
     const seen: (AbortSignal | undefined)[] = [];
 
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .use(
         definePlugin({
           name: "spy",
@@ -268,7 +268,7 @@ describe("pipeline consistency", () => {
   it("reports a hook's unexpected throw as an error result with the table and plugin", async () => {
     const errors: unknown[] = [];
 
-    const betterSupabase = defineSupabase(schema).use(
+    const betterSupabase = createSupabase(schema).use(
       definePlugin({
         name: "buggy",
         beforeMutation: () => {
@@ -310,7 +310,7 @@ describe("pipeline consistency", () => {
         },
       });
 
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .use(named("trace"))
       .use(named("scope"))
       .connect(echo());
@@ -329,11 +329,11 @@ describe("pipeline consistency", () => {
   it("validates plugins in the constructor, not only in use()", () => {
     const plugin = definePlugin({ name: "twice" });
     expect(
-      () => new BetterSupabase(defineSupabase(schema).schema, [plugin, plugin]),
+      () => new BetterSupabase(createSupabase(schema).schema, [plugin, plugin]),
     ).toThrow('plugin "twice" is already installed');
     const future = { ...plugin, name: "future", apiVersion: 2 } as never;
     expect(
-      () => new BetterSupabase(defineSupabase(schema).schema, [future]),
+      () => new BetterSupabase(createSupabase(schema).schema, [future]),
     ).toThrow('plugin "future" targets plugin API v2');
   });
 });

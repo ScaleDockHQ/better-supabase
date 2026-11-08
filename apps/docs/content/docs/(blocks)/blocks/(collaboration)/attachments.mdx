@@ -94,7 +94,7 @@ bucket per feature keeps them:
 options: {
   bucket: "attachments",
   path: "{organization_id}/{subject_type}/{subject_id}/{id}",
-  subjects: {
+  recordTypes: {
     chat_message: { table: "chat_messages", bucket: "chat", allowedMimeTypes: ["image/*", "application/pdf"] },
     expense: { table: "expenses", bucket: "receipts", allowedMimeTypes: ["image/*"], cascade: true },
   },
@@ -121,7 +121,7 @@ the [subject registry](/docs/blocks/sql#subject-registry), and apply to the tabl
 policies and to the storage checks in `attachment_object_allowed`:
 
 ```ts
-subjects: {
+recordTypes: {
   contract: {
     table: "contracts",
     permissions: { read: "contracts.read", upload: "contracts.edit", manage: "contracts.manage" },
@@ -130,7 +130,7 @@ subjects: {
 },
 ```
 
-From 0.11, a subject the block takes from the registry (`config.subjects`)
+From 0.11, a subject the block takes from the registry (`config.recordTypes`)
 also takes its `upload` and `manage` keys from
 `records.<type>.permissions`. The registry's `read` stays the key for
 reading the subject itself, so set the files' `read` key in
@@ -151,7 +151,7 @@ client's `tenantless` option, so `upload`, `put` and `list` on such a subject
 send no tenant and need none:
 
 ```ts
-subjects: {
+recordTypes: {
   note: { table: "notes", tenant: false },
 },
 ```
@@ -672,7 +672,7 @@ with `ATTACHMENT_SOURCE_UNKNOWN`. `(organization, source, externalId)` is
 unique, so the pair is an organization-wide index of the outside system's
 ids (`ATTACHMENT_EXTERNAL_ID_TAKEN`). `subjectType` must be a registered
 subject type (`ATTACHMENT_SUBJECT_UNKNOWN`), so a file can belong to any
-record type an installed block or `config.subjects` registers.
+record type an installed block or `config.recordTypes` registers.
 
 `storageStatus` is `stored`, `pending_upload` or `missing`. An import can
 register the metadata first (the `attachment` target of the `imports` block,
@@ -692,7 +692,7 @@ them to `null`; the document guard renders only when all five are mapped.
 
 ## Your own fields
 
-`blocks.attachments.options.extraColumns` adds columns to the `attachments` table,
+Columns you add to `attachments` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createAttachments` a Standard Schema
 for them as `fields`: `upload`, `put` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and every attachment read return them

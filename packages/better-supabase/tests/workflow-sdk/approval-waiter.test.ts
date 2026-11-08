@@ -47,6 +47,47 @@ beforeEach(() => {
   resumeHook.mockClear();
 });
 
+describe("approvalWaiter.create", () => {
+  it("registers the hook before wait and resolves with a wake", async () => {
+    const handle = approvalWaiter.create<{ approved: boolean }>("apr_9");
+
+    expect(createHook).toHaveBeenCalledWith({ token: "apr_9" });
+    expect(handle.token).toBe("apr_9");
+
+    const waiting = handle.wait({ expiresAt: Temporal.Instant.from(LATER) });
+
+    await vi.waitFor(() => {
+      expect(sleep.mock.calls.length).toBeGreaterThan(0);
+    });
+    resume({ approved: true });
+
+    expect(await waiting).toEqual({
+      status: "resumed",
+      payload: { approved: true },
+    });
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it("expires at once for a past time and disposes the hook", async () => {
+    const handle = approvalWaiter.create("apr_10");
+
+    expect(await handle.wait({ expiresAt: "2000-01-01T00:00:00Z" })).toEqual({
+      status: "expired",
+    });
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it("releases the hook without waiting", () => {
+    approvalWaiter.create("apr_11").dispose();
+
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it("refuses an empty token", () => {
+    expect(() => approvalWaiter.create("")).toThrow(TypeError);
+  });
+});
+
 describe("approvalWaiter.wait", () => {
   it("resolves with the payload a wake sends", async () => {
     const waiting = approvalWaiter.wait<{ approved: boolean }>("apr_1", {

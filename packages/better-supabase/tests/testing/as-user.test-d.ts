@@ -3,14 +3,14 @@ import { describe, expectTypeOf, it } from "vitest";
 import type { BetterSupabase } from "../../src/core/define.ts";
 import type { LiteStack } from "../../src/testing/lite.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { asUser } from "../../src/testing/as-user.ts";
 import { expectTenantIsolation } from "../../src/testing/isolation.ts";
 import { scopedSeed, withRollback } from "../../src/testing/scope.ts";
 import { defineSeed, defineTenantSeed } from "../../src/testing/seed.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const base = defineSupabase(schema);
+const base = createSupabase(schema);
 
 interface ScoringClient {
   readonly count: () => Promise<number>;

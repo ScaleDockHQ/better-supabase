@@ -27,7 +27,7 @@ const row = {
   sent_at: "2026-10-06T12:00:00Z",
   created_at: "2026-10-06T12:00:00Z",
   edited_at: null,
-  deleted_at: null,
+  archived_at: null,
   task_id: null,
 };
 
@@ -327,7 +327,7 @@ describe("createComments", () => {
     const fake = fakeTransport({
       list_comments: [
         row,
-        { ...row, id: "c2", body: null, deleted_at: "2026-10-06T13:00:00Z" },
+        { ...row, id: "c2", body: null, archived_at: "2026-10-06T13:00:00Z" },
       ],
     });
 

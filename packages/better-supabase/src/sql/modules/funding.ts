@@ -9,13 +9,12 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, schemaPreamble } from "../shared.ts";
+import { schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { fundingClaimFunctions, invoicesClaims } from "./funding-claims.ts";
 import { fundingFunctions } from "./funding-functions.ts";
 import {
-  AWARD_RESERVED,
   AWARD_STATUSES,
   CLAIM_STATUSES,
   claimFormats,
@@ -109,7 +108,7 @@ const NAMES: BlockSqlNames = {
     "before_funding_claim_build",
     "after_funding_claim_build",
   ],
-  options: ["formats", "timeCategory", "extraColumns"],
+  options: ["formats", "timeCategory"],
   tables: {
     products: {
       name: "funding_products",
@@ -261,7 +260,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const appKey = (logical: string, what: string, columns: string): string =>
@@ -309,7 +308,7 @@ create table if not exists ${awards} (
   check (${w("endsOn")} is null or ${w("endsOn")} >= ${w("startsOn")}),
   unique (${w("tenant")}, ${w("id")}),
   foreign key (${w("tenant")}, ${w("product")}) references ${products} (${p("tenant")}, ${p("id")})
-);${addExtraColumns(awards, ctx.extraColumns("awards", AWARD_RESERVED))}${appKey("awards", "tenant_id", `${w("tenant")}, ${w("id")}`)}
+);${appKey("awards", "tenant_id", `${w("tenant")}, ${w("id")}`)}
 create index if not exists ${name("awards", "product_idx")} on ${awards} (${w("tenant")}, ${w("product")});
 create index if not exists ${name("awards", "subject_idx")} on ${awards} (${w("subjectType")}, ${w("subjectId")});
 create index if not exists ${name("awards", "funder_idx")} on ${awards} (${w("tenant")}, ${w("funder")}, ${w("status")});
@@ -533,7 +532,7 @@ export const FUNDING: BlockSqlDefinition = {
     "Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.",
   requires: ["memberships", "permissions", "subjects", "contacts"],
   integrates: [
-    "time-tracking",
+    "time-entries",
     "bookings",
     "invoices",
     "numbering",

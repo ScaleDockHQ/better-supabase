@@ -2,8 +2,7 @@ import type { FundingPeriod } from "better-supabase/blocks/funding";
 
 import { HandCoinsIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
-import { refresh } from "next/cache";
-import { connection } from "next/server";
+import { io, refresh } from "next/cache";
 
 import {
   Alert,
@@ -44,7 +43,7 @@ async function retry() {
  * Members with `funding.read` see it.
  */
 export async function AwardUsage() {
-  await connection();
+  await io();
 
   const [state, t, format] = await Promise.all([
     getAwards(),

@@ -1,11 +1,10 @@
 "use client";
 
-import type { WorkItemState } from "better-supabase/blocks/tasks";
+import type { TaskState } from "better-supabase/blocks/tasks";
 
 import { useAction } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 import * as v from "valibot";
 
 import { Badge } from "@/components/reui/badge";
@@ -19,6 +18,7 @@ import {
   KanbanOverlay,
 } from "@/components/reui/kanban";
 import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { StageColumn, WorkItemRow } from "../work-types";
@@ -53,7 +53,7 @@ function columnsOf(
   return columns;
 }
 
-function stateOf(category: string): WorkItemState | null {
+function stateOf(category: string): TaskState | null {
   const parsed = v.safeParse(WorkItemStateSchema, category);
 
   return parsed.success ? parsed.output : null;

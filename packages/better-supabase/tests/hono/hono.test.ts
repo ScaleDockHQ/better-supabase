@@ -7,7 +7,7 @@ import type { Functions, Models } from "../fixtures/generated-camel.ts";
 
 import { writeSession } from "../../src/auth/session.ts";
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { createHono, defineAction } from "../../src/hono/index.ts";
@@ -32,7 +32,7 @@ const signer = await createTestSigner();
 
 describe("bsb.app()", () => {
   it("installs bsb.onError, and Env carries only a type", async () => {
-    const bsb = createHono(defineSupabase(schema), { env });
+    const bsb = createHono(createSupabase(schema), { env });
     expect(bsb.Env).toBeUndefined();
 
     const app = bsb
@@ -54,7 +54,7 @@ describe("bsb.app()", () => {
 });
 
 describe("createHono", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
   const refresh = vi.fn<typeof fetch>();
 
   const bsb = createHono(betterSupabase, {
@@ -156,7 +156,7 @@ describe("createHono", () => {
 });
 
 describe("bsb.require()", () => {
-  const bsb = createHono(defineSupabase(schema), {
+  const bsb = createHono(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
   });
@@ -214,7 +214,7 @@ describe("authorizer", () => {
           : { outcome: "denied" },
   });
 
-  const bsb = createHono(defineSupabase(schema), {
+  const bsb = createHono(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     authorizer,
@@ -314,7 +314,7 @@ describe("createHono buckets", () => {
   it("reads db.$buckets in a handler", async () => {
     const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
 
-    const bsb = createHono(defineSupabase(schema).buckets({ logos }), {
+    const bsb = createHono(createSupabase(schema).buckets({ logos }), {
       env,
       auth: { jwks: signer.jwks },
     });
@@ -333,7 +333,7 @@ describe("createHono buckets", () => {
 
 describe("createHono options", () => {
   it("answers a preflight and adds CORS headers with cors", async () => {
-    const bsb = createHono(defineSupabase(schema), {
+    const bsb = createHono(createSupabase(schema), {
       env,
       cors: { origin: "https://app.example.com" },
     });
@@ -364,7 +364,7 @@ describe("createHono options", () => {
   });
 
   it("takes an existing server instead of building one", () => {
-    const definition = defineSupabase(schema);
+    const definition = createSupabase(schema);
     const first = createHono(definition, { env });
     const second = createHono(definition, { server: first });
     // oxlint-disable-next-line typescript/unbound-method -- compares the shared function, never calls it.
@@ -377,7 +377,7 @@ describe("instant sessions", () => {
     async () => new Response(null, { status: 500 }),
   );
 
-  const definition = defineSupabase(schema);
+  const definition = createSupabase(schema);
 
   const bsb = createHono(definition, {
     env,
@@ -423,7 +423,7 @@ describe("instant sessions", () => {
 });
 
 describe("bsb.middleware({ cookies: false })", () => {
-  const bsb = createHono(defineSupabase(schema), {
+  const bsb = createHono(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
   });

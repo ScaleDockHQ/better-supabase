@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type {
   GenerationContext,
-  GenerationRunArgs,
+  GenerationRunOptions,
 } from "../../../src/ai-sdk/chat/index.ts";
 
 import {
@@ -30,7 +30,7 @@ function context(): GenerationContext & {
   };
 }
 
-const run = vi.fn(<T>(args: GenerationRunArgs<T>) =>
+const run = vi.fn(<T>(args: GenerationRunOptions<T>) =>
   streamText({
     model: mockModel('{"title":"Hi"}'),
     prompt: JSON.stringify(args.input),

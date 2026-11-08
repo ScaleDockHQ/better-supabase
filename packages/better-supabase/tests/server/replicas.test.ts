@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Executor } from "../../src/core/executor.ts";
 import type { Operation } from "../../src/ir/types.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { err, ok } from "../../src/core/result.ts";
 import {
   PRIMARY_COOKIE,
@@ -142,7 +142,7 @@ describe("createServer read URL", () => {
   it("reads from SUPABASE_READ_URL and writes to the primary", async () => {
     const seen = hosts();
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env: { ...env, readUrl: READ_URL },
       auth: { jwks: signer.jwks },
     });
@@ -189,7 +189,7 @@ describe("createServer read URL", () => {
       { env: { ...env, readUrl: READ_URL }, readUrl: false as const },
       { env },
     ]) {
-      const server = createServer(defineSupabase(schema), options);
+      const server = createServer(createSupabase(schema), options);
       const ctx = await server.context(new Request("https://app.test/"));
       await ctx.db.customers.list({ select: ["id"] }).orThrow();
       expect(ctx.replica).toBeUndefined();

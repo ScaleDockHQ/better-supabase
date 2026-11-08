@@ -13,7 +13,7 @@ import type {
 } from "../../src/core/contracts/authorization-hooks.ts";
 import type { SupportOptions } from "../../src/server/support.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { supportOff } from "../../src/server/support-off.ts";
 import { supportSessions } from "../../src/server/support.ts";
 import { pgError } from "../fixtures/fake-sql.ts";
@@ -136,7 +136,7 @@ function setup(
   hooks?: AuthorizationHooks,
 ) {
   const events: BlockEvent[] = [];
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
   betterSupabase.events.on("block", (event) => events.push(event));
   const approving = approvingStore();
 
@@ -368,7 +368,7 @@ describe("support sessions need a second admin", () => {
     };
 
     const events: BlockEvent[] = [];
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     betterSupabase.events.on("block", (event) => events.push(event));
 
     const brokenSupport = supportSessions({
@@ -388,7 +388,7 @@ describe("support sessions need a second admin", () => {
 
   it("refuses starts that need an approval when the store records none", async () => {
     const events: BlockEvent[] = [];
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     betterSupabase.events.on("block", (event) => events.push(event));
 
     const support = supportSessions({

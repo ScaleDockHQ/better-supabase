@@ -41,7 +41,7 @@ describe("checkDesign", () => {
           path: "/tables",
           table: "design",
           message:
-            'design: unknown key "tables"; a design has preset, appTables, extraColumns, positions and seeds',
+            'design: unknown key "tables"; a design has preset, appTables, positions and seeds',
         },
       ],
     });
@@ -107,27 +107,6 @@ describe("checkDesign", () => {
           "tasks.booking_id references bookings.bookings, which the preset does not install.",
       },
     ]);
-  });
-
-  it("reports extra columns for a block the preset doesn't install", async () => {
-    expect(
-      await checkDesign(
-        { extraColumns: { organizations: { tier: "text" } } },
-        "minimal",
-      ),
-    ).toMatchObject({
-      ok: false,
-      issues: [
-        {
-          code: "block_not_installed",
-          path: "/extraColumns/organizations",
-          table: "organizations",
-          message: expect.stringContaining(
-            "the preset doesn't install the organizations block",
-          ),
-        },
-      ],
-    });
   });
 
   it("passes a design too long for a URL with fitsUrl false", async () => {

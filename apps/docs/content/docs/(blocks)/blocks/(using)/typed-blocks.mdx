@@ -81,12 +81,12 @@ export const blockSet = defineBlocks(blockConfig, { tasks: tasksBlock });
 const { tasks } = blockSet.create({ transport: rpcTransport(supabase) });
 const task = (await tasks.create(workspaceId, { title: "Ship it" })).orThrow();
 await tasks.update({
-  changes: [{ workItemId: task.id, field: "title", value: "Shipped" }],
+  changes: [{ taskId: task.id, field: "title", value: "Shipped" }],
 });
 ```
 
 Method names that contain the noun (`saveWorkItem` to `saveTask`), argument
-and result keys (`workItemId` to `taskId`) and event types follow the rename,
+and result keys (`taskId` to `taskId`) and event types follow the rename,
 and hooks keyed under `tasks` see the renamed client. See
 [Renamed blocks](/docs/blocks/create-blocks#renamed-blocks) for the
 transport side.
@@ -128,9 +128,9 @@ export const renameTask = bsb.blockAction(({ db }) => db.tasks, "update", {
 ## Input schemas
 
 The entity blocks (catalog, deals, employees, parties and tasks) and the
-collaboration blocks with an input object (comments, attachments, engagements
+collaboration blocks with an input object (comments, attachments, activities
 and calendar) export a Standard Schema for each input, such as
-`workItemInputSchema` or `commentInputSchema`. It
+`taskInputSchema` or `commentInputSchema`. It
 validates without a validation library and converts to JSON Schema. A
 renamed block carries its schemas under the new names, with renamed
 property names and titles: `tasksBlock.schemas.task.input`.
@@ -147,5 +147,5 @@ noun: `taskInput`, `taskChange` and `taskListFilter`.
 | [`useBlockQuery`](/docs/frontend/block-controllers#any-block-method) | `better-supabase/react`, `vue`, `svelte`, `solid` | Calls any block method from a component            |
 | [`blockAction`](/docs/frameworks/next#block-actions)                 | `createNext`                                      | A server action that calls one block method        |
 | [`router`](/docs/frameworks/orpc#serve-the-api)                      | `createOrpc`                                      | oRPC procedures for every table and block instance |
-| [`nuqs`](/docs/cli/gen#search-params-for-nuqs)                       | `better-supabase/config`                          | Search-param parsers for each table list           |
-| [`factories`](/docs/testing#factories)                               | `better-supabase/config`                          | Test rows with valid defaults for each table       |
+| [`nuqs`](/docs/cli/gen#search-params-for-nuqs)                       | `better-supabase/generators/nuqs`                 | Search-param parsers for each table list           |
+| [`factories`](/docs/testing#factories)                               | `better-supabase/generators/factories`            | Test rows with valid defaults for each table       |

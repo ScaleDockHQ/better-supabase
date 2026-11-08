@@ -55,8 +55,8 @@ export interface ConversionSpec<C extends ConversionClients, S, T> {
   readonly title: string;
   readonly description?: string;
   /**
-   * The subject type the action creates, such as `work_item`. A default
-   * automation's `config.targetType` overrides it with the renamed type.
+   * The subject type the action creates, such as `task`. A default automation's
+   * `config.targetType` overrides it with the renamed type.
    */
   readonly targetType: string;
   /**

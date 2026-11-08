@@ -32,10 +32,9 @@ export interface SignaturesOptions<
 >
   extends BlockOptions, BlockTenantOptions {
   /**
-   * A Standard Schema for the request's extra columns
-   * (`blocks.signatures.options.extraColumns`), keyed by database name. It
-   * types and parses them on the request reads, and validates them on
-   * `request`.
+   * A Standard Schema for the request's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on the request reads, and validates them on `request`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

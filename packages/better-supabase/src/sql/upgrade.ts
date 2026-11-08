@@ -12,13 +12,13 @@ import {
   withProviderDefaults,
 } from "./module-context.ts";
 import { blockSqlVersion } from "./module-types.ts";
+import { rerunnableDdl } from "./pipeline/static.ts";
 import {
   SQL_MODULES,
   checkMigrationOptions,
   checkModules,
 } from "./registry.ts";
 import { nameMigrationSql } from "./rename-sql.ts";
-import { freesTableName } from "./table-renames.ts";
 
 /**
  * The compatibility wrappers of a module's deprecated symbols that are not
@@ -84,13 +84,7 @@ export function upgradePlan(
 
   const defaults = withProviderDefaults(layout);
 
-  const ordered = installed.toSorted(
-    (a, b) =>
-      Number(freesTableName(b.block ?? b.module)) -
-      Number(freesTableName(a.block ?? a.module)),
-  );
-
-  return ordered.flatMap((entry): BlockSqlUpgradePlan[] => {
+  return installed.flatMap((entry): BlockSqlUpgradePlan[] => {
     const block = entry.block ?? entry.module;
     const module = modules[block];
 
@@ -167,7 +161,11 @@ export function upgradePlan(
       .map((step) => ({
         from: step.from,
         description: step.description,
-        sql: step.sql(moves.includes(step) ? ctx : contextAt(step.from)).trim(),
+        // Upgrade steps run over an installed database, so each statement
+        // they repeat is rerunnable.
+        sql: rerunnableDdl(
+          step.sql(moves.includes(step) ? ctx : contextAt(step.from)).trim(),
+        ),
       }));
 
     return [{ module: entry.module, from: entry.version, to, steps }];

@@ -14,9 +14,9 @@ describe("enrollments module", () => {
   it("writes the tables, their read policies and the functions", () => {
     const sql = sqlOf(["enrollments"]);
 
-    expect(sql).toMatch(/create table if not exists \S+"enrollment_programs"/);
-    expect(sql).toMatch(/create table if not exists \S+"enrollments"/);
-    expect(sql).toMatch(/create table if not exists \S+"enrollment_steps"/);
+    expect(sql).toMatch(/create table \S+"enrollment_programs"/);
+    expect(sql).toMatch(/create table \S+"enrollments"/);
+    expect(sql).toMatch(/create table \S+"enrollment_steps"/);
     expect(sql).toContain("unique nulls not distinct");
     expect(sql).toContain("'enrollments.read'");
     expect(sql).toContain("'enrollments.enroll'");
@@ -41,7 +41,7 @@ describe("enrollments module", () => {
     const sql = sqlOf(["enrollments"]);
 
     expect(sql).toContain('"assignee_role" text');
-    expect(sql).toContain('"assignee_user_id" uuid references auth.users');
+    expect(sql).toContain('"assignee_id" uuid references auth.users');
     expect(sql).toContain('"due_at" timestamptz');
     expect(sql).toContain('"starts_at" timestamptz');
     expect(sql).toContain('"ends_at" timestamptz');

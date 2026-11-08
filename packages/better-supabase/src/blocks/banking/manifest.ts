@@ -4,7 +4,6 @@ import type { BankingEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createBanking } from "./banking.ts";
 import { bankingEvents } from "./events.ts";
-import { bankingSqlOptions } from "./options.ts";
 import {
   bankAccountInputSchema,
   bankMatchInputSchema,
@@ -19,7 +18,6 @@ export const bankingBlock: BlockOf<
 > = defineBlock({
   name: "banking",
   sql: ["banking"],
-  options: { banking: bankingSqlOptions },
   events: bankingEvents,
   schemas: {
     bank_account: { input: bankAccountInputSchema },

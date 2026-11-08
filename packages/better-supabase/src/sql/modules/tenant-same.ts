@@ -53,7 +53,27 @@ function autoEntries(
   const hasTenant = (table: string): boolean =>
     columns[table]?.includes(tenant) === true;
 
-  return layout.foreignKeys.flatMap((key) => {
+  const keys = layout.foreignKeys;
+  const guarded = layout.appTriggerColumns ?? {};
+
+  // A key that pairs the column with the tenant column on both sides, such as
+  // `(parent_id, tenant_id) references parent (id, tenant_id)`, already makes
+  // the database check the tenant.
+  const covered = new Set(
+    keys.flatMap((key) => {
+      const pairs = key.columns.map(
+        (column, index) => [column, key.referencedColumns[index]] as const,
+      );
+
+      return pairs.some(([own, other]) => own === tenant && other === tenant)
+        ? pairs
+            .filter(([own]) => own !== tenant)
+            .map(([own]) => `${key.table}.${own}>${key.references}`)
+        : [];
+    }),
+  );
+
+  return keys.flatMap((key) => {
     const [column] = key.columns;
     const [referenced] = key.referencedColumns;
 
@@ -63,6 +83,8 @@ function autoEntries(
       column === undefined ||
       referenced === undefined ||
       column === tenant ||
+      guarded[key.table]?.includes(column) === true ||
+      covered.has(`${key.table}.${column}>${key.references}`) ||
       !hasTenant(key.table) ||
       !hasTenant(key.references)
     ) {
@@ -89,14 +111,44 @@ function entriesOf(
 ): readonly SameTenant[] {
   const value = ctx.option("sameTenant");
 
-  if (value === undefined) {
+  if (value === false) {
     return [];
   }
 
   const fallback = ctx.col("memberships", "tenant").replaceAll('"', "");
 
+  // Without the option, every foreign key between two tenant tables is
+  // checked. A layout that doesn't carry the schema files (a render outside
+  // `upgrade`) has no keys to derive from, so it adds nothing.
+  if (value === undefined) {
+    return layout.foreignKeys === undefined
+      ? []
+      : parseEntries(
+          autoEntries(layout, fallback),
+          fallback,
+          `${WHERE} (default)`,
+        );
+  }
+
   if (Array.isArray(value)) {
-    return parseEntries(value, fallback, WHERE);
+    const listed = parseEntries(value, fallback, WHERE);
+
+    if (layout.foreignKeys === undefined) {
+      return listed;
+    }
+
+    const named = new Set(
+      listed.map((entry) => `${entry.table}.${entry.column}`),
+    );
+
+    return [
+      ...listed,
+      ...parseEntries(
+        autoEntries(layout, fallback),
+        fallback,
+        `${WHERE} (default)`,
+      ).filter((entry) => !named.has(`${entry.table}.${entry.column}`)),
+    ];
   }
 
   if (

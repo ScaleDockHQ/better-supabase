@@ -16,7 +16,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { emitBlockEvent } from "../../src/core/block-events.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { EventHub } from "../../src/core/events.ts";
 import { err, ok } from "../../src/core/result.ts";
@@ -109,7 +109,7 @@ describe("otel", () => {
   it("records a client span per operation without filter values", async () => {
     const { tracer, spans } = memoryTracer();
     const { meter, records } = memoryMeter();
-    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
+    const betterSupabase = createSupabase(schema).use(otel({ tracer, meter }));
     const { client } = capturingClient(() => ({ body: [{ id: "c1" }] }));
     await betterSupabase
       .connect(client)
@@ -146,7 +146,7 @@ describe("otel", () => {
   it("numbers the round trips: parallel calls share one, a later call starts the next", async () => {
     const { tracer, spans } = memoryTracer();
 
-    const betterSupabase = defineSupabase(schema).use(
+    const betterSupabase = createSupabase(schema).use(
       otel({ tracer, metrics: false }),
     );
 
@@ -167,7 +167,7 @@ describe("otel", () => {
   it("marks failed operations", async () => {
     const { tracer, spans } = memoryTracer();
 
-    const betterSupabase = defineSupabase(schema).use(
+    const betterSupabase = createSupabase(schema).use(
       otel({ tracer, metrics: false }),
     );
 
@@ -196,7 +196,7 @@ describe("otel", () => {
     const { tracer, spans } = memoryTracer();
     const { meter, records } = memoryMeter();
 
-    const betterSupabase = defineSupabase(schema).use(
+    const betterSupabase = createSupabase(schema).use(
       otel({
         tracer,
         meter,
@@ -230,7 +230,7 @@ describe("otel", () => {
   it("records database function calls", async () => {
     const { tracer, spans } = memoryTracer();
     const { meter, records } = memoryMeter();
-    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
+    const betterSupabase = createSupabase(schema).use(otel({ tracer, meter }));
 
     const db = betterSupabase.connect({
       name: "postgres",
@@ -260,7 +260,7 @@ describe("otel", () => {
   it("records one span for a batch of reads", async () => {
     const { tracer, spans } = memoryTracer();
     const { meter, records } = memoryMeter();
-    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
+    const betterSupabase = createSupabase(schema).use(otel({ tracer, meter }));
     let failSecond = false;
 
     const db = betterSupabase.connect({
@@ -315,7 +315,7 @@ describe("otel", () => {
   it("keeps the schema alone as the namespace for other executors", async () => {
     const { tracer, spans } = memoryTracer();
 
-    const betterSupabase = defineSupabase(schema).use(
+    const betterSupabase = createSupabase(schema).use(
       otel({ tracer, metrics: false, server: { address: "db.internal" } }),
     );
 

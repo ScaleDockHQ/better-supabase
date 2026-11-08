@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
+import { renderBlocks } from "../app-columns.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const USER = "22222222-2222-4222-8222-222222222222";
@@ -189,14 +190,16 @@ describe("employees over the app's tables", () => {
       .map((file) => file.contents)
       .join("\n");
 
-    expect(sql).toContain('"first_name" text not null');
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain('"first_name" text not null');
+    expect(unnamedChecks(sql)).toContain(
       `"name" text generated always as (trim("first_name" || coalesce(' ' || "last_name", ''))) stored`,
     );
-    expect(sql).toContain('"address_line1" text check');
-    expect(sql).toContain('"emergency_contact_relation" text check');
-    expect(sql).toContain("update_employee_contract");
-    expect(sql).not.toContain('"emergency_contacts" jsonb');
+    expect(unnamedChecks(sql)).toContain('"address_line1" text check');
+    expect(unnamedChecks(sql)).toContain(
+      '"emergency_contact_relation" text check',
+    );
+    expect(unnamedChecks(sql)).toContain("update_employee_contract");
+    expect(unnamedChecks(sql)).not.toContain('"emergency_contacts" jsonb');
 
     const firstOnly = renderBlocks(["employees"], {
       modules: {
@@ -229,8 +232,8 @@ describe("employees over the app's tables", () => {
       .map((file) => file.contents)
       .join("\n");
 
-    expect(sql).toContain("employee_from_application");
-    expect(sql).toContain(`case 'person'`);
+    expect(unnamedChecks(sql)).toContain("employee_from_application");
+    expect(unnamedChecks(sql)).toContain(`case 'person'`);
   });
 
   it("refuses unknown options and a split name without a first name column", () => {
@@ -256,8 +259,8 @@ describe("employees over the app's tables", () => {
       .map((file) => file.contents)
       .join("\n");
 
-    expect(sql).not.toContain("update_employee_contract");
-    expect(sql).toContain("add_employee_contract");
+    expect(unnamedChecks(sql)).not.toContain("update_employee_contract");
+    expect(unnamedChecks(sql)).toContain("add_employee_contract");
   });
 
   it(

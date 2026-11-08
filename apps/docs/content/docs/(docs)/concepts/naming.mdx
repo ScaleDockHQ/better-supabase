@@ -50,7 +50,7 @@ only means a feature flag.
 
 ## Definition and instances
 
-`betterSupabase` is the definition from `defineSupabase`. It holds the schema
+`betterSupabase` is the definition from `createSupabase`. It holds the schema
 and the configuration, no secrets, and is safe to import anywhere.
 
 `bsb` is the runtime instance an adapter creates from it: `createNext`,
@@ -103,14 +103,11 @@ and functions by one convention, so you can guess a name from the block and
 the noun.
 [ADR 0130](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0130-one-naming-convention-for-blocks.md)
 records the decision. 0.46 renamed the permission keys and 0.47 the entity
-keys, subject types, hint codes, functions and event types, each with a
-codemod and one minor in which the old names keep working (see
-[0.45 to 0.46](/docs/migration/0.45-to-0.46) and
-[0.46 to 0.47](/docs/migration/0.46-to-0.47)). 0.47 also renames the module
+keys, subject types, hint codes, functions and event types. 0.47 also renamed the module
 tables (`work_items` becomes `tasks`, `rules` becomes `automations`): the
 upgrade migration renames each table with its indexes, policies and
 constraints, so no row moves. The foreign key columns that point at a task or
-an activity (`work_item_id`, `engagement_id`) become `task_id` and
+an activity (`work_item_id`, `activity_id`) become `task_id` and
 `activity_id` the same way.
 
 1. Block names are kebab-case. Existing block names do not change.
@@ -172,108 +169,51 @@ functions, events and permission keys follow the new singular; see
 
 ## Renames
 
-In 0.47 the key of every entity in `blocks.<name>.entities` is the entity's
-singular, and the subject types, hint codes and function names follow it.
-[`better-supabase codemod 0.47`](/docs/cli/codemod) renames the keys and hint
-codes and lists the subject types for review; the
-[0.46 to 0.47 guide](/docs/migration/0.46-to-0.47) has every key.
+`packages/better-supabase/api/naming.json` is the source of truth for names.
+It holds the rules and the rename table below, and
+[ADR 0246](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0246-one-naming-convention.md)
+records the decision. `pnpm check:naming` fails when a renamed name returns or
+when code breaks a rule, and the old names have no alias. Run
+[`better-supabase codemod naming`](/docs/cli/codemod) to rename them in your
+app, and `better-supabase doctor` (BS260) to find the ones left.
 
-| Before (0.46)                           | After (0.47)                             |
-| --------------------------------------- | ---------------------------------------- |
-| `blocks.tasks.entities.work_item`       | `blocks.tasks.entities.task`             |
-| `blocks.automations.entities.rule`      | `blocks.automations.entities.automation` |
-| subject types `work_item`, `engagement` | `task`, `activity`                       |
-| subject type `policy` (compliance)      | `compliance_policy`                      |
-| `WORK_ITEM_NOT_FOUND`, `RULE_CONFLICT`  | `TASK_NOT_FOUND`, `AUTOMATION_CONFLICT`  |
-| `create_work_item`, `log_engagement`    | `create_task`, `log_activity`            |
-| `workItemChecklistBinding`              | `taskChecklistBinding`                   |
+| Kind     | Old                           | New                                                   | Since |
+| -------- | ----------------------------- | ----------------------------------------------------- | ----- |
+| env      | `AUTH_HOOK_SECRET`            | `BETTER_SUPABASE_AUTH_HOOK_SECRET`                    | 0.54  |
+| env      | `BEFORE_USER_CREATED_SECRET`  | `BETTER_SUPABASE_BEFORE_USER_CREATED_SECRET`          | 0.54  |
+| env      | `BSB_CLOUD_URL`               | `BETTER_SUPABASE_CLOUD_URL`                           | 0.54  |
+| env      | `BSB_STACK`                   | `BETTER_SUPABASE_STACK`                               | 0.54  |
+| function | `buildJsonSchema`             | `toJsonSchema`                                        | 0.54  |
+| function | `buildApiModel`               | `defineApiModel`                                      | 0.54  |
+| function | `createRuleSink`              | `automationSink`                                      | 0.54  |
+| function | `taskRecurrenceSink`          | `taskRecurrenceSink`                                  | 0.54  |
+| type     | `SessionEntryConfig`          | `SessionEntryOptions`                                 | 0.54  |
+| type     | `GuardEntryConfig`            | `GuardEntryOptions`                                   | 0.54  |
+| subpath  | `ai-sdk/workflow/react`       | `ai-sdk/workflow-react`                               | 0.54  |
+| type     | `ChainProofFailure`           | `ChainProofError`                                     | 0.54  |
+| type     | `ParseScaledFailure`          | `ParseScaledError`                                    | 0.54  |
+| type     | `RefreshFailure`              | `RefreshError`                                        | 0.54  |
+| type     | `StorageFailure`              | `StorageError`                                        | 0.54  |
+| type     | `SvelteKitFailure`            | `SvelteKitError`                                      | 0.54  |
+| type     | `TelemetryFailure`            | `TelemetryError`                                      | 0.54  |
+| type     | `XhrFailure`                  | `XhrError`                                            | 0.54  |
+| type     | `AgentPassthroughSettings`    | `AgentPassthroughOptions`                             | 0.54  |
+| hint     | `APPEND_ONLY`                 | `TABLE_APPEND_ONLY`                                   | 0.54  |
+| hint     | `CHAIN_SIGNER`                | `AUDIT_CHAIN_SIGNER`                                  | 0.54  |
+| hint     | `FISCAL_YEAR_CLOSED`          | `PERIOD_CLOSED`                                       | 0.54  |
+| function | `bsb.uid()`, `bsb.owns(uuid)` | `better_supabase.uid()`, `better_supabase.owns(uuid)` | 0.54  |
 
-In 0.36 the refresh options name what they check, the session provider
-prop takes a session or a promise, and the server's client for an auth state
-is named after `createContextClient`.
-[`better-supabase codemod 0.37`](/docs/cli/codemod) renames them; the
-[0.35 to 0.37 guide](/docs/migration/0.35-to-0.37) has the details.
+The rules:
 
-| Before (0.35)                                 | After (0.36)                                  |
-| --------------------------------------------- | --------------------------------------------- |
-| `refresh: "navigation"`                       | `refresh: true`                               |
-| `verifySession: "navigation"`                 | `verifySession: "document"`                   |
-| `<SessionProvider sessionPromise={...}>`      | `<SessionProvider session={...}>`             |
-| `cacheLife({ stale: sessionStale(session) })` | `bsb.cached()` (stale 300 seconds by default) |
-| `bsb.supabaseFor(auth, headers?)`             | `bsb.contextClient(auth, headers?)`           |
-| `clearVerifiedTokens()` (internal)            | `clearKeyCaches()` (internal)                 |
-
-From 0.32 the auth names follow supabase-js and Next.js.
-[`better-supabase codemod 0.32`](/docs/cli/codemod) renames them and lists the
-lines it can't rename safely; the
-[0.31 to 0.32 guide](/docs/migration/0.31-to-0.32) has the details.
-
-| Before (0.31)                                    | After (0.32)                                            |
-| ------------------------------------------------ | ------------------------------------------------------- |
-| `auth.organization`, `requireOrganization`       | `auth.tenant`, `requireTenant`                          |
-| `bsb.session()`, `bsb.getRequestSession()`       | `bsb.claims()`, `bsb.getClaims()`                       |
-| `bsb.contextForSession()`                        | `bsb.contextFromSession()`                              |
-| `session.profile`                                | `session.userMetadata`                                  |
-| caller kinds `anon`, `service`                   | `none`, `secret`                                        |
-| `bsb.signIn()`                                   | `bsb.signInWithPassword()`                              |
-| `bsb.authorizeUrl()`, `bsb.exchangeCode()`       | `bsb.signInWithOAuth()`, `bsb.exchangeCodeForSession()` |
-| `endedSession`, `checkSession`                   | `verifySession`                                         |
-| `refreshSkewSeconds`, `expiredPrefetch`          | `leeway`, `onExpiredPrefetch`                           |
-| `bsb.invalidateSession()`, `bsb.forgetSession()` | `bsb.evictSession()`                                    |
-| `bsb.cacheTag()`, `bsb.cacheTags()`              | `bsb.tag()`, `bsb.tags()`                               |
-
-From 0.15 the runtime instance is `bsb`, not `bs`, matching the CLI's short
-name; [`better-supabase codemod 0.15`](/docs/cli/codemod) renames it.
-
-These names changed in 0.4. There are no aliases:
-[`better-supabase codemod 0.4`](/docs/cli/codemod) renames the imports,
-members and the provider prop, lists the lines it can't rename safely, and the
-compiler points out anything left.
-
-| Before                                           | After                                           |
-| ------------------------------------------------ | ----------------------------------------------- |
-| `const sb = defineSupabase(schema)`              | `const betterSupabase = defineSupabase(schema)` |
-| `const next = createNext(sb)`                    | `const bs = createNext(betterSupabase)`         |
-| `const browser = createBrowser(sb)`              | `const bs = createClient(betterSupabase)`       |
-| `src/lib/supabase.ts`                            | `src/lib/supabase/index.ts`                     |
-| `src/lib/supabase.server.ts`                     | `src/lib/supabase/server.ts`                    |
-| `src/lib/supabase.browser.ts`                    | `src/lib/supabase/client.ts`                    |
-| `next.server()`                                  | `bs.context()`                                  |
-| `next.serverFor(session, { token })`             | `bs.contextForSession(session, { token })`      |
-| `BetterBrowser`, `BrowserOptions`, `BrowserAuth` | `BetterClient`, `ClientOptions`, `ClientAuth`   |
-| `<BetterSupabaseProvider browser={browser}>`     | `<BetterSupabaseProvider client={bs}>`          |
-| `client.sb`                                      | `client.betterSupabase`                         |
-| `BetterEnv` (Hono)                               | `HonoEnv`                                       |
-| `bs.handle()` (Hono)                             | `bs.handler()`                                  |
-| `bs.toORPCError(error)` (oRPC)                   | `bs.toOrpcError(error)`                         |
-| `HandlerOptions` (Edge)                          | `MiddlewareOptions`                             |
-| `mcp.handler`                                    | `bs.endpoint`                                   |
-| `Queries`, `CreateQueriesOptions`                | `BetterQueries`, `QueriesOptions`               |
-| `queries.key`                                    | `queries.$key`                                  |
-| `Postgres`                                       | `BetterPostgres`                                |
-| `DefineSupabaseOptions`                          | `SupabaseOptions`                               |
-| `repository.$table`                              | `repository.$tableName`                         |
-| `{ sb }` in `testExecutor` and the test plugin   | `{ betterSupabase }`                            |
-
-`createHono`, `createOrpc`, `createEdge` and `createMcp` now keep the claims
-and profile types from `.claims()` and `.userMetadata()`, so `auth.claims`
-is typed in those adapters too. Code that parsed the claims again to read a
-role can drop the parse.
-
-## Block subjects and tenants (0.14)
-
-From 0.14, a block method names the record it works on with one
-`SubjectRef`, `{ type, id }`, and reads the organization from the block's
-`tenant` option. Rows name the record `subject`. The full list of calls is in
-the [0.13 to 0.14 guide](/docs/migration/0.13-to-0.14).
-
-| Old                                                         | New                                         |
-| ----------------------------------------------------------- | ------------------------------------------- |
-| `organizationId, subjectType, subjectId` method arguments   | `subject` (`{ type, id }`), first           |
-| `organizationId` method argument                            | the block's `tenant` option                 |
-| `row.subjectType`, `row.subjectId`                          | `row.subject.type`, `row.subject.id`        |
-| `subjectIds` in batch methods, results keyed by id          | `subjects`, results keyed `type:id`         |
-| `useComments({ organizationId, subjectType, subjectId })`   | `useComments({ subject })`                  |
-| `useReactions({ organizationId, subjectType, subjectIds })` | `useReactions({ subjects })`                |
-| `useTagInput({ organizationId, subjectType, subjectId })`   | `useTagInput({ subject, kind })`            |
-| a `lib/blocks.ts` wrapper per block                         | `createBlockClient(ctx.db, block, options)` |
+- Environment variables the library or CLI reads start with `BETTER_SUPABASE_`.
+  The platform's own names (`SUPABASE_*`, `NEXT_PUBLIC_*`, `EXPO_PUBLIC_*`,
+  `PUBLIC_*`, `VERCEL_*`, `DATABASE_URL`) keep theirs.
+- An exported type ends in `Options`, `Config`, `Decision` or `Error`, never in
+  `Settings`, `Args` or `Failure`. `naming.json` keeps an allowlist for a
+  violation that is not renamed yet, and the check fails when a listed name
+  stops violating. The type list is empty.
+- A hint code is `<ENTITY>_<REASON>`, and a core hint carries its core noun
+  (`AUDIT_CHAIN_SIGNER`, `TABLE_APPEND_ONLY`, `PERIOD_CLOSED`).
+- The helper functions live in `better_supabase`. The `bsb` schema is gone.
+- Doctor codes are `BS` and three digits, never lower case.
+- A subpath is `better-supabase/<area>` or `better-supabase/<area>/<variant>`.

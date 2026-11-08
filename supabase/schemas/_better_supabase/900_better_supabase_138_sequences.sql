@@ -1,70 +1,20 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:2f14ae2858eeb5167f5c2b6cd26004e3521938303fa27d3c129b923a6e4ff3f9
+-- @bsb-hash sha256:3f5f06cf4c65efdf36e269da2dc15fb6851d73f06328aff37e759ba51dda9fa9
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."sequences";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequences";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequences";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequences";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Outreach sequences: steps that send email, create a task or wait. Each
 -- sequence runs as the enrollment program sequence:<id>, whose steps are the
 -- sequence's steps; a reply ends a recipient's run.
-create table if not exists "better_supabase"."sequences" (
+create table "better_supabase"."sequences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check ("description" is null or length("description") <= 2000),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'paused', 'archived')),
+  "key" text not null constraint bsb_sequences_key_check check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
+  "name" text not null constraint bsb_sequences_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_sequences_description_check check ("description" is null or length("description") <= 2000),
+  "status" text not null default 'draft' constraint bsb_sequences_status_check check ("status" in ('draft', 'active', 'paused', 'archived')),
   -- An inbound message on the thread, or from the recipient's address, ends
   -- the recipient's run.
   "exit_on_reply" boolean not null default true,
@@ -72,38 +22,37 @@ create table if not exists "better_supabase"."sequences" (
   "mail_account_id" uuid references "better_supabase"."mail_accounts" ("id") on delete set null,
   -- The steps in order: [{ id, kind: email | task | wait, ... }]. Each is a
   -- step of the enrollment program sequence:<id>.
-  "steps" jsonb not null default '[]' check (jsonb_typeof("steps") = 'array'),
-  "version" integer not null default 1 check ("version" >= 1),
+  "steps" jsonb not null default '[]' constraint bsb_sequences_steps_check check (jsonb_typeof("steps") = 'array'),
+  "version" integer not null default 1 constraint bsb_sequences_version_check check ("version" >= 1),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   constraint "sequences_key_key" unique ("tenant_id", "key")
 );
-create index if not exists "sequences_account_idx" on "better_supabase"."sequences" ("mail_account_id") where "mail_account_id" is not null;
+create index "sequences_account_idx" on "better_supabase"."sequences" ("mail_account_id") where "mail_account_id" is not null;
 
 -- A recipient's run is their enrollment in the program sequence:<id>: these
 -- columns say who it goes to and how sending went, and the open step row is
 -- the step that runs next, due when it runs.
-alter table "better_supabase"."enrollments" add column if not exists "sequence_id" uuid references "better_supabase"."sequences" ("id") on delete cascade;
-alter table "better_supabase"."enrollments" add column if not exists "sequence_address" text check ("sequence_address" is null or (length("sequence_address") <= 320 and "sequence_address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'));
-alter table "better_supabase"."enrollments" add column if not exists "sequence_name" text check ("sequence_name" is null or length("sequence_name") <= 200);
-alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_account_id" uuid references "better_supabase"."mail_accounts" ("id") on delete set null;
-alter table "better_supabase"."enrollments" add column if not exists "sequence_mail_thread_id" uuid references "better_supabase"."mail_threads" ("id") on delete set null;
-alter table "better_supabase"."enrollments" add column if not exists "sequence_attempts" integer not null default 0 check ("sequence_attempts" >= 0);
-alter table "better_supabase"."enrollments" add column if not exists "sequence_last_error" text check ("sequence_last_error" is null or length("sequence_last_error") <= 2000);
-alter table "better_supabase"."enrollments" add column if not exists "sequence_variables" jsonb not null default '{}' check (jsonb_typeof("sequence_variables") = 'object');
-create index if not exists "enrollments_sequence_idx" on "better_supabase"."enrollments" ("sequence_id", "status") where "sequence_id" is not null;
-create index if not exists "enrollments_sequence_address_idx" on "better_supabase"."enrollments" ("tenant_id", lower("sequence_address")) where "sequence_id" is not null and "status" = 'active';
-create index if not exists "enrollments_sequence_account_idx" on "better_supabase"."enrollments" ("sequence_mail_account_id") where "sequence_mail_account_id" is not null;
-create index if not exists "enrollments_sequence_thread_idx" on "better_supabase"."enrollments" ("sequence_mail_thread_id") where "sequence_mail_thread_id" is not null;
-create index if not exists "enrollment_steps_open_due_idx" on "better_supabase"."enrollment_steps" ("due_at") where "completed_at" is null;
+alter table "better_supabase"."enrollments" add column "sequence_id" uuid references "better_supabase"."sequences" ("id") on delete cascade;
+alter table "better_supabase"."enrollments" add column "sequence_address" text constraint bsb_enrollments_sequence_address_check check ("sequence_address" is null or (length("sequence_address") <= 320 and "sequence_address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'));
+alter table "better_supabase"."enrollments" add column "sequence_name" text constraint bsb_enrollments_sequence_name_check check ("sequence_name" is null or length("sequence_name") <= 200);
+alter table "better_supabase"."enrollments" add column "sequence_mail_account_id" uuid references "better_supabase"."mail_accounts" ("id") on delete set null;
+alter table "better_supabase"."enrollments" add column "sequence_mail_thread_id" uuid references "better_supabase"."mail_threads" ("id") on delete set null;
+alter table "better_supabase"."enrollments" add column "sequence_attempts" integer not null default 0 constraint bsb_enrollments_sequence_attempts_check check ("sequence_attempts" >= 0);
+alter table "better_supabase"."enrollments" add column "sequence_last_error" text constraint bsb_enrollments_sequence_last_error_check check ("sequence_last_error" is null or length("sequence_last_error") <= 2000);
+alter table "better_supabase"."enrollments" add column "sequence_variables" jsonb not null default '{}' constraint bsb_enrollments_sequence_variables_check check (jsonb_typeof("sequence_variables") = 'object');
+create index "enrollments_sequence_idx" on "better_supabase"."enrollments" ("sequence_id", "status") where "sequence_id" is not null;
+create index "enrollments_sequence_address_idx" on "better_supabase"."enrollments" ("tenant_id", lower("sequence_address")) where "sequence_id" is not null and "status" = 'active';
+create index "enrollments_sequence_account_idx" on "better_supabase"."enrollments" ("sequence_mail_account_id") where "sequence_mail_account_id" is not null;
+create index "enrollments_sequence_thread_idx" on "better_supabase"."enrollments" ("sequence_mail_thread_id") where "sequence_mail_thread_id" is not null;
+create index "enrollment_steps_open_due_idx" on "better_supabase"."enrollment_steps" ("due_at") where "completed_at" is null;
 
 alter table "better_supabase"."sequences" enable row level security;
 revoke all on "better_supabase"."sequences" from public, anon, authenticated;
 grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
-drop policy if exists "sequences_read" on "better_supabase"."sequences";
-create policy sequences_read on "better_supabase"."sequences"
+create policy bsb_sequences_read on "better_supabase"."sequences"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 
@@ -990,7 +939,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_mail_replied"() from public, anon, authenticated;
-drop trigger if exists "bsb_replied" on "better_supabase"."mail_messages";
 create trigger "bsb_replied"
   after insert on "better_supabase"."mail_messages"
   for each row when (new."direction" = 'inbound')
@@ -999,69 +947,29 @@ create trigger "bsb_replied"
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."sequences";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."sequences";
 create policy bsb_tenant_scope_select on "better_supabase"."sequences" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sequences";
 create policy bsb_tenant_scope_insert on "better_supabase"."sequences" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."sequences";
 create policy bsb_tenant_scope_update on "better_supabase"."sequences" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sequences";
 create policy bsb_tenant_scope_delete on "better_supabase"."sequences" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.sequences', target_type => 'sequence', event_prefix => 'sequence', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.sequences deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"sequence","event_prefix":"sequence"}');
 
 -- blocks.sequences.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."save_sequence"(tenant uuid, sequence jsonb)
 returns jsonb
@@ -1155,16 +1063,3 @@ set search_path = ''
 as $$ select "better_supabase"."sequence_step_failed"($1, $2, $3) $$;
 revoke execute on function "api"."sequence_step_failed"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "api"."sequence_step_failed"(uuid, text, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

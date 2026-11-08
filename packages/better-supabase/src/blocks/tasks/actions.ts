@@ -5,7 +5,7 @@ import type {
   ConversionContext,
 } from "../automations/conversion.ts";
 import type { Conversation } from "../inbox/types.ts";
-import type { WorkItem, WorkItemInput } from "./tasks.ts";
+import type { Task, TaskInput } from "./tasks.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { err, ok } from "../../core/result.ts";
@@ -13,7 +13,7 @@ import {
   defineConversionAction,
   narrowClients,
 } from "../automations/conversion.ts";
-import { workItemInputSchema } from "./schemas.ts";
+import { taskInputSchema } from "./schemas.ts";
 
 /** `blocks.inbox`, `blocks.tasks` and `blocks.relations` for one organization. */
 export interface TaskFromConversationClients extends ConversionClients {
@@ -25,9 +25,9 @@ export interface TaskFromConversationClients extends ConversionClients {
   readonly tasks: {
     create(input: {
       organizationId: string;
-      input: WorkItemInput;
+      input: TaskInput;
       assigneeIds?: readonly string[] | undefined;
-    }): PromiseLike<Result<WorkItem>>;
+    }): PromiseLike<Result<Task>>;
   };
 }
 
@@ -40,7 +40,7 @@ export interface TaskFromConversationOptions {
   readonly map?: (
     conversation: Conversation,
     context: ConversionContext<TaskFromConversationClients>,
-  ) => WorkItemInput;
+  ) => TaskInput;
   /** Assigns the task to the conversation's assignee. Default: true. */
   readonly assign?: boolean;
 }
@@ -64,7 +64,7 @@ export function taskFromConversationAction(
   return defineConversionAction<
     TaskFromConversationClients,
     Conversation,
-    WorkItemInput
+    TaskInput
   >({
     kind: "tasks.from_conversation",
     title: "Create a task from the conversation",
@@ -81,7 +81,7 @@ export function taskFromConversationAction(
         ? err(dbError("not_found", `No conversation ${source.id}`))
         : ok(found.data);
     },
-    input: workItemInputSchema,
+    input: taskInputSchema,
     map: (conversation, context) =>
       options.map?.(conversation, context) ?? {
         title: conversationTitle(conversation),

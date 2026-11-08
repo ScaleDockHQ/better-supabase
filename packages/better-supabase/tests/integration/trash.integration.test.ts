@@ -213,7 +213,7 @@ describe.skipIf(!live)("trash", () => {
 
       await s.service();
       await s.client.query(
-        "update better_supabase.trash_items set purge_after = now() - interval '1 day' where batch_id = $1",
+        "update better_supabase.trash_items set purge_at = now() - interval '1 day' where batch_id = $1",
         [expiring.batchId],
       );
       expect(
@@ -227,7 +227,7 @@ describe.skipIf(!live)("trash", () => {
       ).toBe(0);
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type like 'subject.%' order by position",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and type like 'subject.%' order by position",
         [tenant],
       );
 

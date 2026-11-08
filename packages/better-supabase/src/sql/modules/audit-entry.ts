@@ -113,12 +113,12 @@ function recordedSkipSql(): string {
  * the statement trigger filters its rows with the negation.
  */
 export function recordedPredicate(): string {
-  return `position(E'\\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\\n') > 0`;
+  return `position(E'\\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\\n') > 0`;
 }
 
 /** In `audit_event`: marks the record so the row trigger skips it. */
 export function recordedMarkSql(): string {
   return `  if audit_event.target_type is not null and audit_event.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\\n' || audit_event.target_type || ':' || audit_event.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\\n' || audit_event.target_type || ':' || audit_event.record_id, true);
   end if;`;
 }

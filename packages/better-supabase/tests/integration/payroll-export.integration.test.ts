@@ -18,7 +18,7 @@ const MODULES = [
   "organizations",
   "outbox",
   "audit",
-  "time-tracking",
+  "time-entries",
   "payroll-export",
 ];
 
@@ -108,7 +108,7 @@ describe.skipIf(!live)("payroll-export module in Postgres", () => {
     ).toBe("PAYROLL_PERIOD_EXPORTED");
 
     const events = await s.rows<{ type: string }>(
-      "select type from better_supabase.outbox_events where organization_id = $1 and type like 'payroll_run.%' order by position",
+      "select type from better_supabase.outbox_events where tenant_id = $1 and type like 'payroll_run.%' order by position",
       [tenant],
     );
 

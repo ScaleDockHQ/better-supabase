@@ -63,8 +63,8 @@ export interface ShipmentsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the shipments' extra columns
-   * (`blocks.shipments.options.extraColumns`), keyed by database name.
+   * A Standard Schema for the shipments' extra columns (columns the app's
+   * schema files add to the table), keyed by database name.
    */
   readonly fields?: S;
   /**
@@ -92,6 +92,9 @@ export interface ShipmentPackage {
   readonly reference?: string;
 }
 
+/** Whether a shipment leaves the organization or comes to it. */
+export type ShipmentDirection = "outbound" | "inbound";
+
 /** A shipment: its packages, its addresses and, once bought, its label. */
 export interface Shipment<F extends object = Record<never, never>> {
   readonly id: string;
@@ -101,6 +104,11 @@ export interface Shipment<F extends object = Record<never, never>> {
   readonly status: ShipmentStatus;
   readonly from: ShipmentAddress;
   readonly to: ShipmentAddress;
+  /**
+   * `outbound` leaves the organization, `inbound` comes to it. Absent when the
+   * table has no direction column.
+   */
+  readonly direction?: ShipmentDirection;
   /** The assets location it ships from. */
   readonly fromLocationId?: string;
   readonly subject?: RecordRef;
@@ -248,6 +256,11 @@ export interface Shipments<
    * first.
    */
   cancel(id: string): AsyncResult<Shipment<F>>;
+  /** Sets the direction of a draft shipment. */
+  setDirection(input: {
+    id: string;
+    direction: ShipmentDirection;
+  }): AsyncResult<Shipment<F>>;
   /**
    * Stores the proof of delivery of a delivered shipment, once. Without
    * `deliveredTo` it asks the carrier's `proofOfDelivery`, when it has one.
@@ -343,6 +356,10 @@ function shipmentOf(value: unknown, fn: string): Shipment {
     ),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
     ...defined({
+      direction:
+        row["direction"] === "outbound" || row["direction"] === "inbound"
+          ? row["direction"]
+          : undefined,
       fromLocationId: optionalText(row["fromLocationId"]),
       subject: optionalRecordRefOf(row["subjectType"], row["subjectId"]),
       carrier: optionalText(row["carrier"]),
@@ -841,6 +858,12 @@ export function createShipments<
             .andThen(cancelled),
         );
       }),
+    setDirection: ({ id, direction }) =>
+      call(
+        "set_shipment_direction",
+        { shipment_id: id, direction },
+        one("set_shipment_direction"),
+      ).andThen(fields.row),
     trackingEvents: (id) =>
       call("list_tracking_events", { shipment_id: id }, (value) =>
         recordsOf(value, "list_tracking_events").map(trackingEventOf),

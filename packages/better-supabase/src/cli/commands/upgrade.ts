@@ -8,6 +8,8 @@ import type { Paint } from "../style.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { SQL_ARGS } from "../sql/args.ts";
+import { dataMigration } from "../sql/migrations.ts";
+import { renderStats } from "../sql/render-cache.ts";
 import { syncModules } from "../sql/sync.ts";
 import { upgrade } from "../sql/upgrade.ts";
 import { plain } from "../style.ts";
@@ -16,11 +18,12 @@ const UPGRADE_ARGS = {
   check: {
     type: "boolean",
     description:
-      "Write nothing; exit 1 when a block is behind its current version or a schema file is stale",
+      "Write nothing; exit 1 when a block is behind its current version, a schema file is stale or a data statement is in no data migration",
   },
   "tests-dir": SQL_ARGS["tests-dir"],
   "dry-run": SQL_ARGS["dry-run"],
   force: SQL_ARGS.force,
+  "no-cache": SQL_ARGS["no-cache"],
 } as const;
 
 /**
@@ -35,6 +38,7 @@ export async function runUpgrade(
   paint: Paint = plain,
   now: Now = () => new Date(),
 ): Promise<CommandResult> {
+  const before = renderStats.modules;
   const upgraded = await upgrade(config, args, paint, now);
 
   if (upgraded.code !== 0) {
@@ -43,12 +47,22 @@ export async function runUpgrade(
 
   const synced = await syncModules(config, args, paint, now);
 
+  const pending =
+    args.check === true && synced.code === 0
+      ? await dataMigration(config, args, now)
+      : undefined;
+
   return {
     ...synced,
+    ...(pending?.code === 1 ? { code: 1, error: pending.error } : {}),
     output: [upgraded.output, synced.output]
       .filter((text) => text !== undefined && text !== "")
       .join("\n"),
-    data: { upgrade: upgraded.data, sync: synced.data },
+    data: {
+      upgrade: upgraded.data,
+      sync: synced.data,
+      cache: { rendered: renderStats.modules - before },
+    },
   };
 }
 

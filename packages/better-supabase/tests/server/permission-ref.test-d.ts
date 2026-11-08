@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from "vitest";
 
 import { createAstro } from "../../src/astro/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createReactRouter } from "../../src/react-router/index.ts";
 import { createSolidStart } from "../../src/solid-start/index.ts";
 import { createSvelteKit } from "../../src/sveltekit/index.ts";
@@ -15,7 +15,7 @@ const authorizer = staticAuthorizer<PermissionKey>({
   roles: { authenticated: ["tasks.read"] },
 });
 
-const supabase = defineSupabase(schema);
+const supabase = createSupabase(schema);
 
 describe("permission", () => {
   it("takes the authorizer's keys in every framework adapter", () => {

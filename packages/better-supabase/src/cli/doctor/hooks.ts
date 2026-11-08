@@ -968,7 +968,7 @@ export const HOOK_RULES: readonly Rule[] = [
         if (secrets === undefined || secrets.trim() === "") {
           findings.push({
             severity: "error",
-            message: `${target} has no \`secrets\`, so Auth can't sign its requests. Set \`secrets = "env(AUTH_HOOK_SECRET)"\` with a \`v1,whsec_<base64>\` value.`,
+            message: `${target} has no \`secrets\`, so Auth can't sign its requests. Set \`secrets = "env(BETTER_SUPABASE_AUTH_HOOK_SECRET)"\` with a \`v1,whsec_<base64>\` value.`,
             target,
             ...at,
           });
@@ -978,7 +978,7 @@ export const HOOK_RULES: readonly Rule[] = [
 
         if (!fromEnv) {
           findings.push({
-            message: `${target} has its secret written in ${toml.path}, which is committed. Move it to an env file and read it with \`secrets = "env(AUTH_HOOK_SECRET)"\`.`,
+            message: `${target} has its secret written in ${toml.path}, which is committed. Move it to an env file and read it with \`secrets = "env(BETTER_SUPABASE_AUTH_HOOK_SECRET)"\`.`,
             target,
             ...at,
           });

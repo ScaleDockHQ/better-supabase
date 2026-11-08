@@ -1,5 +1,5 @@
 -- Mail sync: mailboxes, ingested threads matched to parties and logged as
--- engagements. Acme (…0001) has the owner …a1 and the member …a2; Globex
+-- activities. Acme (…0001) has the owner …a1 and the member …a2; Globex
 -- (…0002) has the owner …a3 (supabase/seed.sql).
 begin;
 select plan(27);
@@ -110,7 +110,7 @@ select is(
    join better_supabase.mail_threads x on x.activity_id = e.id
    where x.id = (select id from ids where name = 'thread')),
   'email:Pricing',
-  'the thread is logged as an email engagement'
+  'the thread is logged as an email activity'
 );
 select is(
   (select sync_cursor from better_supabase.mail_accounts where id = (select id from ids where name = 'box')),

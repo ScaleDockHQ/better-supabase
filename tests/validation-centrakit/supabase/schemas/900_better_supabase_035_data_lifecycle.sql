@@ -1,76 +1,18 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:492cae773ef3cad47fb932a8f45214f113a3903d73fece8c1404e993815cea9e
+-- @bsb-hash sha256:9bd7c4f0c558ddea6dea026b59d241f01f139e20f277231047a1b912e4da33a8
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."retention_policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."retention_policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."retention_policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."retention_policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."retention_policies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."data_subject_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."data_subject_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."data_subject_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."data_subject_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."data_subject_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Exports of a user's or an organization's data, written by the app's
 -- export job as one NDJSON file per table under {id}/ in the data-exports bucket.
-create table if not exists "better_supabase"."data_exports" (
+create table "better_supabase"."data_exports" (
   "id" uuid primary key default gen_random_uuid(),
   "subject" text not null,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "organization_id" uuid,
-  "status" text not null default 'pending' check ("status" in ('pending', 'running', 'ready', 'failed')),
+  "tenant_id" uuid,
+  "status" text not null default 'pending' constraint bsb_data_exports_status_check check ("status" in ('pending', 'running', 'ready', 'failed')),
   "bucket" text not null default 'data-exports',
   "files" text[] not null default '{}',
   "error" text,
@@ -79,49 +21,43 @@ create table if not exists "better_supabase"."data_exports" (
   "completed_at" timestamptz,
   "expires_at" timestamptz
 );
-alter table "better_supabase"."data_exports" add column if not exists "subject_type" text;
-alter table "better_supabase"."data_exports" add column if not exists "subject_id" text;
-alter table "better_supabase"."data_exports" add column if not exists "format" text;
-alter table "better_supabase"."data_exports" drop constraint if exists "data_exports_subject_check";
-alter table "better_supabase"."data_exports" drop constraint if exists "data_exports_check";
-alter table "better_supabase"."data_exports" drop constraint if exists "data_exports_check1";
-alter table "better_supabase"."data_exports" drop constraint if exists "bsb_data_exports_subject";
+alter table "better_supabase"."data_exports" add column "subject_type" text;
+alter table "better_supabase"."data_exports" add column "subject_id" text;
+alter table "better_supabase"."data_exports" add column "format" text;
 alter table "better_supabase"."data_exports" add constraint "bsb_data_exports_subject" check (case "subject"
-  when 'user' then "user_id" is not null and "organization_id" is null and "subject_type" is null and "subject_id" is null
-  when 'organization' then "organization_id" is not null and "user_id" is null and "subject_type" is null and "subject_id" is null
+  when 'user' then "user_id" is not null and "tenant_id" is null and "subject_type" is null and "subject_id" is null
+  when 'organization' then "tenant_id" is not null and "user_id" is null and "subject_type" is null and "subject_id" is null
   when 'record' then "subject_type" is not null and "subject_id" is not null and "user_id" is null
   else false
 end);
-alter table "better_supabase"."data_exports" drop constraint if exists "bsb_data_exports_format";
 alter table "better_supabase"."data_exports" add constraint "bsb_data_exports_format" check ("format" is null or "format" in ('ndjson', 'csv'));
-create unique index if not exists "data_exports_open_record_idx" on "better_supabase"."data_exports" ("subject_type", "subject_id", "requested_by") where "status" in ('pending', 'running') and "subject" = 'record';
-create unique index if not exists data_exports_open_user_idx on "better_supabase"."data_exports" ("user_id") where "status" in ('pending', 'running') and "subject" = 'user';
-create unique index if not exists data_exports_open_tenant_idx on "better_supabase"."data_exports" ("organization_id") where "status" in ('pending', 'running') and "subject" = 'organization';
-create index if not exists data_exports_requested_by_idx on "better_supabase"."data_exports" ("requested_by");
-create index if not exists data_exports_user_idx on "better_supabase"."data_exports" ("user_id") where "user_id" is not null;
+create unique index "data_exports_open_record_idx" on "better_supabase"."data_exports" ("subject_type", "subject_id", "requested_by") where "status" in ('pending', 'running') and "subject" = 'record';
+create unique index data_exports_open_user_idx on "better_supabase"."data_exports" ("user_id") where "status" in ('pending', 'running') and "subject" = 'user';
+create unique index data_exports_open_tenant_idx on "better_supabase"."data_exports" ("tenant_id") where "status" in ('pending', 'running') and "subject" = 'organization';
+create index data_exports_requested_by_idx on "better_supabase"."data_exports" ("requested_by");
+create index data_exports_user_idx on "better_supabase"."data_exports" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."data_exports" enable row level security;
 revoke all on "better_supabase"."data_exports" from public, anon, authenticated;
 grant select on "better_supabase"."data_exports" to authenticated;
 grant all on "better_supabase"."data_exports" to service_role;
-drop policy if exists data_exports_read on "better_supabase"."data_exports";
-create policy data_exports_read on "better_supabase"."data_exports"
+create policy bsb_data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
+  using ("requested_by" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
 -- disabled before.
-create table if not exists "better_supabase"."organization_deletions" (
-  "organization_id" uuid primary key,
+create table "better_supabase"."organization_deletions" (
+  "tenant_id" uuid primary key,
   "requested_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "requested_at" timestamptz not null default now(),
-  "purge_after" timestamptz not null,
+  "purge_at" timestamptz not null,
   "cancelled_at" timestamptz,
   "purged_at" timestamptz,
   "previously_disabled" boolean not null default false
 );
-create index if not exists organization_deletions_due_idx on "better_supabase"."organization_deletions" ("purge_after") where "cancelled_at" is null and "purged_at" is null;
-create index if not exists organization_deletions_requested_by_idx on "better_supabase"."organization_deletions" ("requested_by") where "requested_by" is not null;
+create index organization_deletions_due_idx on "better_supabase"."organization_deletions" ("purge_at") where "cancelled_at" is null and "purged_at" is null;
+create index organization_deletions_requested_by_idx on "better_supabase"."organization_deletions" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."organization_deletions" enable row level security;
 revoke all on "better_supabase"."organization_deletions" from public, anon, authenticated;
 grant all on "better_supabase"."organization_deletions" to service_role;
@@ -129,17 +65,17 @@ grant all on "better_supabase"."organization_deletions" to service_role;
 -- How long each kind of record is kept: for one tenant, for the tenants
 -- on a plan, or for every tenant (both null). A purge keeps a row while
 -- retention_for says so, whatever its own older_than argument.
-create table if not exists "better_supabase"."retention_policies" (
+create table "better_supabase"."retention_policies" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "plan" text,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "keep" interval not null check ("keep" > interval '0'),
+  "kind" text not null constraint bsb_retention_policies_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "keep" interval not null constraint bsb_retention_policies_keep_check check ("keep" > interval '0'),
   "updated_at" timestamptz not null default now(),
-  check ("organization_id" is null or "plan" is null),
-  unique nulls not distinct ("kind", "organization_id", "plan")
+  constraint bsb_retention_policies_check check ("tenant_id" is null or "plan" is null),
+  unique nulls not distinct ("kind", "tenant_id", "plan")
 );
-create index if not exists retention_policies_tenant_idx on "better_supabase"."retention_policies" ("organization_id") where "organization_id" is not null;
+create index retention_policies_tenant_idx on "better_supabase"."retention_policies" ("tenant_id") where "tenant_id" is not null;
 alter table "better_supabase"."retention_policies" enable row level security;
 revoke all on "better_supabase"."retention_policies" from public, anon, authenticated;
 grant all on "better_supabase"."retention_policies" to service_role;
@@ -147,19 +83,19 @@ grant all on "better_supabase"."retention_policies" to service_role;
 -- Legal holds: while one is active (released_at null), no purge deletes
 -- the records it covers. A null tenant holds every tenant, a null kind
 -- every kind.
-create table if not exists "better_supabase"."legal_holds" (
+create table "better_supabase"."legal_holds" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
-  "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "reason" text not null check (length("reason") between 1 and 1000),
+  "tenant_id" uuid,
+  "kind" text constraint bsb_legal_holds_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "reason" text not null constraint bsb_legal_holds_reason_check check (length("reason") >= 1 and length("reason") <= 1000),
   "placed_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "placed_at" timestamptz not null default now(),
   "released_by" uuid references auth.users (id) on delete set null,
   "released_at" timestamptz
 );
-create index if not exists legal_holds_active_idx on "better_supabase"."legal_holds" ("organization_id", "kind") where "released_at" is null;
-create index if not exists legal_holds_placed_by_idx on "better_supabase"."legal_holds" ("placed_by") where "placed_by" is not null;
-create index if not exists legal_holds_released_by_idx on "better_supabase"."legal_holds" ("released_by") where "released_by" is not null;
+create index legal_holds_active_idx on "better_supabase"."legal_holds" ("tenant_id", "kind") where "released_at" is null;
+create index legal_holds_placed_by_idx on "better_supabase"."legal_holds" ("placed_by") where "placed_by" is not null;
+create index legal_holds_released_by_idx on "better_supabase"."legal_holds" ("released_by") where "released_by" is not null;
 alter table "better_supabase"."legal_holds" enable row level security;
 revoke all on "better_supabase"."legal_holds" from public, anon, authenticated;
 grant all on "better_supabase"."legal_holds" to service_role;
@@ -178,14 +114,14 @@ declare
 begin
   if retention_for.tenant is not null then
     select x."keep" into v_keep from "better_supabase"."retention_policies" x
-    where x."kind" = retention_for.kind and x."organization_id"::text = retention_for.tenant;
+    where x."kind" = retention_for.kind and x."tenant_id"::text = retention_for.tenant;
     if v_keep is not null then
       return v_keep;
     end if;
     
   end if;
   select x."keep" into v_keep from "better_supabase"."retention_policies" x
-  where x."kind" = retention_for.kind and x."organization_id" is null and x."plan" is null;
+  where x."kind" = retention_for.kind and x."tenant_id" is null and x."plan" is null;
   return v_keep;
 end;
 $$;
@@ -215,7 +151,7 @@ as $$
     select 1 from "better_supabase"."legal_holds" x
     where x."released_at" is null
       and (x."kind" is null or x."kind" = is_held.kind)
-      and (x."organization_id" is null or x."organization_id"::text = is_held.tenant)
+      and (x."tenant_id" is null or x."tenant_id"::text = is_held.tenant)
   )
 $$;
 
@@ -252,9 +188,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role sets retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
   end if;
-  insert into "better_supabase"."retention_policies" as x ("kind", "keep", "organization_id", "plan")
+  insert into "better_supabase"."retention_policies" as x ("kind", "keep", "tenant_id", "plan")
   values (set_retention_policy.kind, set_retention_policy.keep, set_retention_policy.tenant, set_retention_policy.plan)
-  on conflict ("kind", "organization_id", "plan") do update set
+  on conflict ("kind", "tenant_id", "plan") do update set
     "keep" = excluded."keep",
     "updated_at" = now()
   returning * into v_row;
@@ -274,7 +210,7 @@ begin
   end if;
   delete from "better_supabase"."retention_policies" x
   where x."kind" = remove_retention_policy.kind
-    and x."organization_id" is not distinct from remove_retention_policy.tenant
+    and x."tenant_id" is not distinct from remove_retention_policy.tenant
     and x."plan" is not distinct from remove_retention_policy.plan;
   return found;
 end;
@@ -287,7 +223,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."kind", x."organization_id" nulls first, x."plan" nulls first), '[]'::jsonb)
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."kind", x."tenant_id" nulls first, x."plan" nulls first), '[]'::jsonb)
   from "better_supabase"."retention_policies" x
   where list_retention_policies.kind is null or x."kind" = list_retention_policies.kind
 $$;
@@ -304,17 +240,17 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role places legal holds' using errcode = '42501', hint = 'LEGAL_HOLD_FORBIDDEN';
   end if;
-  insert into "better_supabase"."legal_holds" ("reason", "organization_id", "kind", "placed_by")
+  insert into "better_supabase"."legal_holds" ("reason", "tenant_id", "kind", "placed_by")
   values (place_legal_hold.reason, place_legal_hold.tenant, place_legal_hold.kind, auth.uid())
   returning * into v_row;
-  perform "better_supabase".emit_event('legal_hold.placed', jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind", 'reason', v_row."reason"), 'legal-holds/' || v_row."id"::text, (v_row."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('legal_hold.placed', jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'reason', v_row."reason"), 'legal-holds/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'legal_hold.placed',
     category => 'data',
     target_type => 'legal_hold',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind", 'reason', v_row."reason")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'reason', v_row."reason")
   );
   return to_jsonb(v_row);
 end;
@@ -339,14 +275,14 @@ begin
   if v_row."id" is null then
     return null;
   end if;
-  perform "better_supabase".emit_event('legal_hold.released', jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind", 'reason', v_row."reason"), 'legal-holds/' || v_row."id"::text, (v_row."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('legal_hold.released', jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'reason', v_row."reason"), 'legal-holds/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'legal_hold.released',
     category => 'data',
     target_type => 'legal_hold',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind", 'reason', v_row."reason")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('holdId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'reason', v_row."reason")
   );
   return to_jsonb(v_row);
 end;
@@ -387,15 +323,15 @@ grant execute on function "better_supabase"."list_legal_holds"(boolean) to servi
 
 -- One row per data subject request (GDPR Arts. 15 to 20). due_at is 30 days
 -- after receipt; extended_at records the single extension of two months.
-create table if not exists "better_supabase"."data_subject_requests" (
+create table "better_supabase"."data_subject_requests" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
-  "kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
-  "requester" text not null check (length("requester") between 1 and 320),
+  "tenant_id" uuid not null,
+  "kind" text not null constraint bsb_data_subject_requests_kind_check check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
+  "requester" text not null constraint bsb_data_subject_requests_requester_check check (length("requester") >= 1 and length("requester") <= 320),
   "subject_type" text,
   "subject_id" text,
-  "details" text check ("details" is null or length("details") <= 5000),
-  "status" text not null default 'received' check ("status" in ('received', 'verified', 'fulfilled', 'refused')),
+  "details" text constraint bsb_data_subject_requests_details_check check ("details" is null or length("details") <= 5000),
+  "status" text not null default 'received' constraint bsb_data_subject_requests_status_check check ("status" in ('received', 'verified', 'fulfilled', 'refused')),
   "received_at" timestamptz not null default now(),
   "received_by" uuid,
   "due_at" timestamptz not null,
@@ -408,9 +344,9 @@ create table if not exists "better_supabase"."data_subject_requests" (
   "resolution" text,
   "closed_at" timestamptz,
   "closed_by" uuid,
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_data_subject_requests_check check (("subject_type" is null) = ("subject_id" is null))
 );
-create index if not exists data_subject_requests_open_idx on "better_supabase"."data_subject_requests" ("organization_id", "due_at") where "closed_at" is null;
+create index data_subject_requests_open_idx on "better_supabase"."data_subject_requests" ("tenant_id", "due_at") where "closed_at" is null;
 alter table "better_supabase"."data_subject_requests" enable row level security;
 revoke all on "better_supabase"."data_subject_requests" from public, anon, authenticated;
 grant all on "better_supabase"."data_subject_requests" to service_role;
@@ -444,17 +380,17 @@ begin
   if (open_data_subject_request.subject_type is null) <> (open_data_subject_request.subject_id is null) then
     raise exception 'subject_type and subject_id go together' using errcode = '22023', hint = 'DSAR_INVALID';
   end if;
-  insert into "better_supabase"."data_subject_requests" ("organization_id", "kind", "requester", "subject_type", "subject_id", "details", "received_by", "due_at")
+  insert into "better_supabase"."data_subject_requests" ("tenant_id", "kind", "requester", "subject_type", "subject_id", "details", "received_by", "due_at")
   values (open_data_subject_request.tenant, open_data_subject_request.kind, trim(open_data_subject_request.requester), open_data_subject_request.subject_type, open_data_subject_request.subject_id, open_data_subject_request.details, auth.uid(), now() + interval '30 days')
   returning * into v_row;
-  perform "better_supabase".emit_event('data_subject_request.received', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('data_subject_request.received', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'data_subject_request.received',
     category => 'data',
     target_type => 'data_subject_request',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
   );
   return to_jsonb(v_row);
 end;
@@ -479,7 +415,7 @@ begin
   if v_row."id" is null then
     raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'data_lifecycle.export'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'data_lifecycle.export'), false)) then
     raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
   end if;
   if v_row."closed_at" is not null then
@@ -491,14 +427,14 @@ begin
   update "better_supabase"."data_subject_requests" x set "status" = 'verified', "verified_at" = now(), "verified_by" = auth.uid(), "verification_method" = trim(verify_data_subject_request.method)
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('data_subject_request.verified', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('data_subject_request.verified', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'data_subject_request.verified',
     category => 'data',
     target_type => 'data_subject_request',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
   );
   return to_jsonb(v_row);
 end;
@@ -523,7 +459,7 @@ begin
   if v_row."id" is null then
     raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'data_lifecycle.export'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'data_lifecycle.export'), false)) then
     raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
   end if;
   if v_row."closed_at" is not null then
@@ -538,14 +474,14 @@ begin
   update "better_supabase"."data_subject_requests" x set "due_at" = x."received_at" + interval '3 months', "extended_at" = now(), "extension_reason" = trim(extend_data_subject_request.reason)
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('data_subject_request.extended', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('data_subject_request.extended', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'data_subject_request.extended',
     category => 'data',
     target_type => 'data_subject_request',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
   );
   return to_jsonb(v_row);
 end;
@@ -575,7 +511,7 @@ begin
   if v_row."id" is null then
     raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'data_lifecycle.export'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'data_lifecycle.export'), false)) then
     raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
   end if;
   if v_row."closed_at" is not null then
@@ -594,21 +530,21 @@ begin
     if fulfil_data_subject_request.resolution is null or length(trim(fulfil_data_subject_request.resolution)) = 0 then
       raise exception 'resolution is required' using errcode = '22023', hint = 'DSAR_INVALID';
     end if;
-    if v_row."kind" = 'erasure' and "better_supabase"."is_held"('data_subject_request', v_row."organization_id"::text) then
+    if v_row."kind" = 'erasure' and "better_supabase"."is_held"('data_subject_request', v_row."tenant_id"::text) then
       raise exception 'a legal hold stops the erasure; refuse the request with its reason' using errcode = '55000', hint = 'DSAR_HELD';
     end if;
   end if;
   update "better_supabase"."data_subject_requests" x set "status" = 'fulfilled', "closed_at" = now(), "closed_by" = auth.uid(), "export_id" = v_export_id, "resolution" = nullif(trim(fulfil_data_subject_request.resolution), '')
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('data_subject_request.fulfilled', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('data_subject_request.fulfilled', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'data_subject_request.fulfilled',
     category => 'data',
     target_type => 'data_subject_request',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
   );
   return to_jsonb(v_row);
 end;
@@ -633,7 +569,7 @@ begin
   if v_row."id" is null then
     raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'data_lifecycle.export'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'data_lifecycle.export'), false)) then
     raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
   end if;
   if v_row."closed_at" is not null then
@@ -645,14 +581,14 @@ begin
   update "better_supabase"."data_subject_requests" x set "status" = 'refused', "closed_at" = now(), "closed_by" = auth.uid(), "resolution" = trim(refuse_data_subject_request.reason)
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('data_subject_request.refused', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('data_subject_request.refused', jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at"), 'data-subject-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'data_subject_request.refused',
     category => 'data',
     target_type => 'data_subject_request',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."organization_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('requestId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind"::text, 'status', v_row."status"::text, 'dueAt', v_row."due_at")
   );
   return to_jsonb(v_row);
 end;
@@ -676,7 +612,7 @@ begin
   return coalesce((
     select jsonb_agg(to_jsonb(x.*) || jsonb_build_object('overdue', x."closed_at" is null and x."due_at" < now()) order by x."due_at", x."id")
     from "better_supabase"."data_subject_requests" x
-    where x."organization_id" = list_data_subject_requests.tenant
+    where x."tenant_id" = list_data_subject_requests.tenant
       and (list_data_subject_requests.status is null or x."status" = list_data_subject_requests.status)
       and (not list_data_subject_requests.open_only or x."closed_at" is null)
   ), '[]'::jsonb);
@@ -835,7 +771,7 @@ grant execute on function "better_supabase"."restore_data_row"(uuid, jsonb, text
 
 -- What an export reads and the purge clears: subject, display name,
 -- quoted table, column and whether the purge deletes it.
-drop function if exists "better_supabase"."data_lifecycle_tables"();
+
 create or replace function "better_supabase"."data_lifecycle_tables"()
 returns table (subject text, name text, tbl text, col text, purge boolean, omit text[], exported boolean)
 language sql
@@ -887,35 +823,35 @@ as $$
     ('organization', 'centrakit.audit_logs', '"centrakit"."audit_logs"', 'organization_id', false, '{}'::text[], true),
     ('organization', 'centrakit.organization_users', '"centrakit"."organization_users"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.organization_invitations', '"centrakit"."organization_invitations"', 'organization_id', true, array['token']::text[], true),
-    ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.support_sessions', '"better_supabase"."support_sessions"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.support_requests', '"better_supabase"."support_requests"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.support_sessions', '"better_supabase"."support_sessions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.support_requests', '"better_supabase"."support_requests"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.workflow_events', '"centrakit"."workflow_events"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.notification_events', '"centrakit"."notification_events"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.notification_recipients', '"centrakit"."notification_recipients"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.notification_deliveries', '"centrakit"."notification_deliveries"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.notification_delivery_events', '"better_supabase"."notification_delivery_events"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.notification_delivery_events', '"better_supabase"."notification_delivery_events"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.notification_subscriptions', '"centrakit"."notification_subscriptions"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.notification_preferences', '"centrakit"."notification_preferences"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.notification_digests', '"better_supabase"."notification_digests"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.notification_digests', '"better_supabase"."notification_digests"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.webhook_destinations', '"centrakit"."webhook_destinations"', 'organization_id', true, array['credential_ref']::text[], true),
     ('organization', 'centrakit.webhook_destination_secrets', '"centrakit"."webhook_destination_secrets"', 'organization_id', true, '{}'::text[], false),
     ('organization', 'centrakit.webhook_deliveries', '"centrakit"."webhook_deliveries"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.inbound_webhooks', '"centrakit"."inbound_webhooks"', 'organization_id', true, array['token_digest', 'vault_secret_id']::text[], true),
-    ('organization', 'better_supabase.api_keys', '"better_supabase"."api_keys"', 'organization_id', true, '{}'::text[], false),
-    ('organization', 'better_supabase.organization_settings', '"better_supabase"."organization_settings"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.api_keys', '"better_supabase"."api_keys"', 'tenant_id', true, '{}'::text[], false),
+    ('organization', 'better_supabase.organization_settings', '"better_supabase"."organization_settings"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.file_node', '"centrakit"."file_node"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.file_node_grant', '"centrakit"."file_node_grant"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.drive_drives', '"better_supabase"."drive_drives"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.drive_drive_grants', '"better_supabase"."drive_drive_grants"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.drive_connections', '"better_supabase"."drive_connections"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.drive_node_texts', '"better_supabase"."drive_node_texts"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.comment_tasks', '"better_supabase"."comment_tasks"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.attachments', '"better_supabase"."attachments"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.attachment_document_types', '"better_supabase"."attachment_document_types"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.attachment_versions', '"better_supabase"."attachment_versions"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.retention_policies', '"better_supabase"."retention_policies"', 'organization_id', true, '{}'::text[], false),
-    ('organization', 'better_supabase.data_subject_requests', '"better_supabase"."data_subject_requests"', 'organization_id', true, '{}'::text[], false),
+    ('organization', 'better_supabase.comment_tasks', '"better_supabase"."comment_tasks"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.attachments', '"better_supabase"."attachments"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.attachment_document_types', '"better_supabase"."attachment_document_types"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.attachment_versions', '"better_supabase"."attachment_versions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.retention_policies', '"better_supabase"."retention_policies"', 'tenant_id', true, '{}'::text[], false),
+    ('organization', 'better_supabase.data_subject_requests', '"better_supabase"."data_subject_requests"', 'tenant_id', true, '{}'::text[], false),
     ('organization', 'centrakit.organization_number_sequences', '"centrakit"."organization_number_sequences"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.teams', '"centrakit"."teams"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.team_members', '"centrakit"."team_members"', 'tenant_id', true, '{}'::text[], true),
@@ -968,7 +904,7 @@ $$;
 
 -- The credential_ref columns of module tables: display name, quoted table,
 -- column and the user column a ref is revoked for (null for the app).
-drop function if exists "better_supabase"."data_lifecycle_credentials"();
+
 create or replace function "better_supabase"."data_lifecycle_credentials"()
 returns table (name text, tbl text, col text, user_col text)
 language sql
@@ -1001,15 +937,15 @@ begin
   end if;
   if not exists (
     select 1 from "better_supabase"."organization_deletions" x
-    where x."organization_id" = organization_credential_refs.tenant and x."cancelled_at" is null
-      and x."purged_at" is null and x."purge_after" <= now()
+    where x."tenant_id" = organization_credential_refs.tenant and x."cancelled_at" is null
+      and x."purged_at" is null and x."purge_at" <= now()
   ) then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
   if exists (
     select 1 from "better_supabase"."legal_holds" x
     where x."released_at" is null
-      and (x."organization_id" is null or x."organization_id" = organization_credential_refs.tenant)
+      and (x."tenant_id" is null or x."tenant_id" = organization_credential_refs.tenant)
   ) then
     raise exception 'A legal hold covers this organization, so it can''t be purged' using errcode = 'P0001', hint = 'ORGANIZATION_LEGAL_HOLD';
   end if;
@@ -1057,13 +993,12 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'data_lifecycle.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
 grant execute on function "better_supabase"."data_export_object_allowed"(text) to authenticated, service_role;
 
-drop policy if exists bsb_data_exports_select on storage.objects;
 create policy bsb_data_exports_select on storage.objects
   for select to authenticated
   using (bucket_id = 'data-exports' and "better_supabase"."data_export_object_allowed"(name));
@@ -1090,31 +1025,31 @@ begin
     if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
-    select * into v_row from "better_supabase"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
+    select * into v_row from "better_supabase"."data_exports" x where x."tenant_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
     if v_row."id" is null then
-      insert into "better_supabase"."data_exports" ("subject", "organization_id") values ('organization', request_data_export.tenant) returning * into v_row;
-      perform "better_supabase".emit_event('data_export.requested', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'data-exports/' || v_row."id"::text, (v_row."organization_id")::text, null, 'domain');
+      insert into "better_supabase"."data_exports" ("subject", "tenant_id") values ('organization', request_data_export.tenant) returning * into v_row;
+      perform "better_supabase".emit_event('data_export.requested', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'data-exports/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'data_export.requested',
     category => 'data',
     target_type => 'data_export',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id")
   );
     end if;
   elsif request_data_export.subject = 'user' then
     select * into v_row from "better_supabase"."data_exports" x where x."user_id" = auth.uid() and x."subject" = 'user' and x."status" in ('pending', 'running');
     if v_row."id" is null then
       insert into "better_supabase"."data_exports" ("subject", "user_id") values ('user', auth.uid()) returning * into v_row;
-      perform "better_supabase".emit_event('data_export.requested', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'data-exports/' || v_row."id"::text, (v_row."organization_id")::text, null, 'domain');
+      perform "better_supabase".emit_event('data_export.requested', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'data-exports/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'data_export.requested',
     category => 'data',
     target_type => 'data_export',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id")
   );
     end if;
   else
@@ -1126,7 +1061,7 @@ $$;
 
 -- A record export's rows, from request_subject_export until the export job
 -- writes them: parts maps each file name to its rows.
-create table if not exists "better_supabase"."data_export_contents" (
+create table "better_supabase"."data_export_contents" (
   "export_id" uuid primary key references "better_supabase"."data_exports" ("id") on delete cascade,
   "parts" jsonb not null default '{}'::jsonb
 );
@@ -1249,7 +1184,7 @@ begin
     v_parts := v_parts || jsonb_build_object('centrakit.notification_subscriptions', v_rows);
   end if;
   select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
-  from "better_supabase"."attachments" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."organization_id"::text = v_tenant::text);
+  from "better_supabase"."attachments" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
   if jsonb_array_length(v_rows) > 0 then
     v_parts := v_parts || jsonb_build_object('better_supabase.attachments', v_rows);
   end if;
@@ -1313,18 +1248,18 @@ begin
   if jsonb_array_length(v_rows) > 0 then
     v_parts := v_parts || jsonb_build_object('better_supabase.message_record_mentions', v_rows);
   end if;
-  insert into "better_supabase"."data_exports" ("subject", "organization_id", "subject_type", "subject_id", "format")
+  insert into "better_supabase"."data_exports" ("subject", "tenant_id", "subject_type", "subject_id", "format")
   values ('record', v_tenant, request_subject_export.subject_type, request_subject_export.subject_id, request_subject_export.format)
   returning * into v_row;
   insert into "better_supabase"."data_export_contents" ("export_id", "parts") values (v_row."id", v_parts);
-  perform "better_supabase".emit_event('data_export.requested', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'data-exports/' || v_row."id"::text, (v_row."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('data_export.requested', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'data-exports/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'data_export.requested',
     category => 'data',
     target_type => 'data_export',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id")
   );
   return to_jsonb(v_row);
 end;
@@ -1342,8 +1277,8 @@ as $$
   select coalesce(jsonb_agg(to_jsonb(x.*) order by x."requested_at" desc, x."id"), '[]'::jsonb)
   from "better_supabase"."data_exports" x
   where case when list_data_exports.tenant is null
-    then (x."subject" = 'user' and x."user_id" = auth.uid()) or (x."subject" = 'record' and x."organization_id" is null and x."requested_by" = auth.uid())
-    else x."organization_id" = list_data_exports.tenant
+    then (x."subject" = 'user' and x."user_id" = auth.uid()) or (x."subject" = 'record' and x."tenant_id" is null and x."requested_by" = auth.uid())
+    else x."tenant_id" = list_data_exports.tenant
   end
 $$;
 
@@ -1437,7 +1372,7 @@ begin
      from (select t.ctid as _ctid, t.* from %s t where t.%I = $1::%s and ($2::tid is null or t.ctid > $2::tid) order by t.ctid limit $3) p',
     v_table.tbl, v_table.col, v_type
   ) into v_rows, v_after
-  using case when v_row."subject" = 'user' then v_row."user_id"::text else v_row."organization_id"::text end,
+  using case when v_row."subject" = 'user' then v_row."user_id"::text else v_row."tenant_id"::text end,
     data_export_rows.after, greatest(1, least(data_export_rows.page_size, 10000)), coalesce(v_table.omit, '{}');
   return jsonb_build_object(
     'rows', v_rows,
@@ -1466,14 +1401,14 @@ begin
     raise exception 'No running export has this id' using errcode = 'P0002', hint = 'DATA_EXPORT_NOT_FOUND';
   end if;
   delete from "better_supabase"."data_export_contents" c where c."export_id" = v_row."id";
-  perform "better_supabase".emit_event('data_export.completed', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'files', to_jsonb(v_row."files"), 'expiresAt', v_row."expires_at"), 'data-exports/' || v_row."id"::text, (v_row."organization_id")::text, 'data_export.completed:' || v_row."id"::text || ':' || v_row."completed_at"::text, 'domain');
+  perform "better_supabase".emit_event('data_export.completed', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'files', to_jsonb(v_row."files"), 'expiresAt', v_row."expires_at"), 'data-exports/' || v_row."id"::text, (v_row."tenant_id")::text, 'data_export.completed:' || v_row."id"::text || ':' || v_row."completed_at"::text, 'domain');
   perform better_supabase.audit_event(
     event_type => 'data_export.completed',
     category => 'data',
     target_type => 'data_export',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'files', to_jsonb(v_row."files"), 'expiresAt', v_row."expires_at"),
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'files', to_jsonb(v_row."files"), 'expiresAt', v_row."expires_at"),
     idempotency_key => 'data_export.completed:' || v_row."id"::text || ':' || v_row."completed_at"::text
   );
   return to_jsonb(v_row);
@@ -1498,14 +1433,14 @@ begin
   if v_row."id" is null then
     return null;
   end if;
-  perform "better_supabase".emit_event('data_export.failed', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'error', v_row."error"), 'data-exports/' || v_row."id"::text, (v_row."organization_id")::text, 'data_export.failed:' || v_row."id"::text || ':' || v_row."completed_at"::text, 'domain');
+  perform "better_supabase".emit_event('data_export.failed', jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'error', v_row."error"), 'data-exports/' || v_row."id"::text, (v_row."tenant_id")::text, 'data_export.failed:' || v_row."id"::text || ':' || v_row."completed_at"::text, 'domain');
   perform better_supabase.audit_event(
     event_type => 'data_export.failed',
     category => 'data',
     target_type => 'data_export',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."organization_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'error', v_row."error"),
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('exportId', v_row."id", 'subject', v_row."subject", 'organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'requestedBy', v_row."requested_by", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'error', v_row."error"),
     idempotency_key => 'data_export.failed:' || v_row."id"::text || ':' || v_row."completed_at"::text
   );
   return to_jsonb(v_row);
@@ -1533,28 +1468,28 @@ begin
   if request_organization_deletion.grace < interval '0' then
     raise exception 'grace must not be negative' using errcode = '22023', hint = 'ORGANIZATION_DELETION_GRACE';
   end if;
-  if exists (select 1 from "better_supabase"."organization_deletions" x where x."organization_id" = request_organization_deletion.tenant and x."purged_at" is not null) then
+  if exists (select 1 from "better_supabase"."organization_deletions" x where x."tenant_id" = request_organization_deletion.tenant and x."purged_at" is not null) then
     raise exception 'The organization was already purged' using errcode = 'P0002', hint = 'ORGANIZATION_PURGED';
   end if;
   select "disabled_at" is not null into v_disabled from "centrakit"."organizations" where "id" = request_organization_deletion.tenant;
   update "centrakit"."organizations" set "disabled_at" = coalesce("disabled_at", now()) where "id" = request_organization_deletion.tenant;
-  insert into "better_supabase"."organization_deletions" as x ("organization_id", "requested_by", "purge_after", "previously_disabled")
+  insert into "better_supabase"."organization_deletions" as x ("tenant_id", "requested_by", "purge_at", "previously_disabled")
   values (request_organization_deletion.tenant, auth.uid(), now() + request_organization_deletion.grace, coalesce(v_disabled, false))
-  on conflict ("organization_id") do update set
+  on conflict ("tenant_id") do update set
     "requested_by" = excluded."requested_by",
     "requested_at" = now(),
-    "purge_after" = excluded."purge_after",
+    "purge_at" = excluded."purge_at",
     "previously_disabled" = case when x."cancelled_at" is null then x."previously_disabled" else excluded."previously_disabled" end,
     "cancelled_at" = null
   returning * into v_row;
-  perform "better_supabase".emit_event('organization.deletion_requested', jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_after"), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('organization.deletion_requested', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_at"), 'organizations/' || v_row."tenant_id"::text, (v_row."tenant_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'organization.deletion_requested',
     category => 'data',
     target_type => 'organization',
-    record_id => v_row."organization_id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_after")
+    record_id => v_row."tenant_id"::text,
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_at")
   );
   return to_jsonb(v_row);
 end;
@@ -1576,28 +1511,28 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."organization_deletions" x
-  where x."organization_id" = cancel_organization_deletion.tenant and x."cancelled_at" is null and x."purged_at" is null
+  where x."tenant_id" = cancel_organization_deletion.tenant and x."cancelled_at" is null and x."purged_at" is null
   for update;
-  if v_row."organization_id" is null then
+  if v_row."tenant_id" is null then
     return null;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."organization_deletions" x set "cancelled_at" = now()
-  where x."organization_id" = v_row."organization_id"
+  where x."tenant_id" = v_row."tenant_id"
   returning * into v_row;
   if not v_row."previously_disabled" then
     update "centrakit"."organizations" set "disabled_at" = null where "id" = cancel_organization_deletion.tenant;
   end if;
-  perform "better_supabase".emit_event('organization.deletion_cancelled', jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_after"), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('organization.deletion_cancelled', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_at"), 'organizations/' || v_row."tenant_id"::text, (v_row."tenant_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'organization.deletion_cancelled',
     category => 'data',
     target_type => 'organization',
-    record_id => v_row."organization_id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_after")
+    record_id => v_row."tenant_id"::text,
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', auth.uid(), 'purgeAfter', v_row."purge_at")
   );
   return to_jsonb(v_row);
 end;
@@ -1612,7 +1547,7 @@ security definer
 set search_path = ''
 as $$
   select to_jsonb(x.*) from "better_supabase"."organization_deletions" x
-  where x."organization_id" = organization_deletion.tenant
+  where x."tenant_id" = organization_deletion.tenant
     and x."cancelled_at" is null
     and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or exists (select 1 from "centrakit"."organization_users" mm where mm."organization_id" = organization_deletion.tenant and mm."user_id" = auth.uid()))
 $$;
@@ -1624,11 +1559,11 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."purge_after"), '[]'::jsonb)
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."purge_at"), '[]'::jsonb)
   from (
     select * from "better_supabase"."organization_deletions" y
-    where y."purge_after" <= now() and y."cancelled_at" is null and y."purged_at" is null
-    order by y."purge_after"
+    where y."purge_at" <= now() and y."cancelled_at" is null and y."purged_at" is null
+    order by y."purge_at"
     limit greatest(1, least(due_organization_deletions.max_rows, 1000))
   ) x
 $$;
@@ -1657,15 +1592,15 @@ begin
     raise exception 'Only the service role purges organizations' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."organization_deletions" x
-  where x."organization_id" = purge_organization.tenant and x."cancelled_at" is null and x."purged_at" is null
+  where x."tenant_id" = purge_organization.tenant and x."cancelled_at" is null and x."purged_at" is null
   for update;
-  if v_row."organization_id" is null or v_row."purge_after" > now() then
+  if v_row."tenant_id" is null or v_row."purge_at" > now() then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
   if exists (
     select 1 from "better_supabase"."legal_holds" x
     where x."released_at" is null
-      and (x."organization_id" is null or x."organization_id" = purge_organization.tenant)
+      and (x."tenant_id" is null or x."tenant_id" = purge_organization.tenant)
   ) then
     raise exception 'A legal hold covers this organization, so it can''t be purged' using errcode = 'P0001', hint = 'ORGANIZATION_LEGAL_HOLD';
   end if;
@@ -1713,24 +1648,24 @@ begin
     v_pending := v_left;
   end loop;
   perform set_config('better_supabase.purge_tenant', '', true);
-  update "better_supabase"."organization_deletions" x set "purged_at" = now() where x."organization_id" = v_row."organization_id" returning * into v_row;
+  update "better_supabase"."organization_deletions" x set "purged_at" = now() where x."tenant_id" = v_row."tenant_id" returning * into v_row;
   begin
     delete from "centrakit"."organizations" where "id" = purge_organization.tenant;
   exception when foreign_key_violation or restrict_violation then
     raise exception 'Rows still reference the organization: %', sqlerrm
       using errcode = '23503', hint = 'ORGANIZATION_PURGE_BLOCKED';
   end;
-  perform "better_supabase".emit_event('organization.purged', jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', null::uuid, 'purgeAfter', v_row."purge_after"), 'organizations/' || v_row."organization_id"::text, (null)::text, 'organization.purged:' || v_row."organization_id"::text, 'domain');
+  perform "better_supabase".emit_event('organization.purged', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', null::uuid, 'purgeAfter', v_row."purge_at"), 'organizations/' || v_row."tenant_id"::text, (null)::text, 'organization.purged:' || v_row."tenant_id"::text, 'domain');
   perform better_supabase.audit_event(
     event_type => 'organization.purged',
     category => 'data',
     target_type => 'organization',
-    record_id => v_row."organization_id"::text,
+    record_id => v_row."tenant_id"::text,
     tenant => (null)::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'userId', null::uuid, 'purgeAfter', v_row."purge_after"),
-    idempotency_key => 'organization.purged:' || v_row."organization_id"::text
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', null::uuid, 'purgeAfter', v_row."purge_at"),
+    idempotency_key => 'organization.purged:' || v_row."tenant_id"::text
   );
-  return jsonb_build_object('organizationId', v_row."organization_id"::text, 'deleted', v_deleted);
+  return jsonb_build_object('organizationId', v_row."tenant_id"::text, 'deleted', v_deleted);
 end;
 $$;
 
@@ -1835,16 +1770,3 @@ grant execute on function "better_supabase"."cancel_organization_deletion"(uuid)
 grant execute on function "better_supabase"."organization_deletion"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."due_organization_deletions"(integer) to service_role;
 grant execute on function "better_supabase"."purge_organization"(uuid) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

@@ -36,6 +36,9 @@ const bannedWords: readonly (readonly [RegExp, string])[] = [
   [/\bblazing(ly)? fast\b/iu, "blazing fast"],
   [/\bdelv(e|es|ed|ing)\b/iu, "delve"],
   [/\bsimply\b/iu, "simply"],
+  [/\bsuccessfully\b/iu, "successfully"],
+  [/\bunable to\b/iu, "unable to"],
+  [/\bsomething went wrong\b/iu, "something went wrong"],
 ];
 
 const checks: readonly (readonly [RegExp, string])[] = [

@@ -4,7 +4,6 @@ import { PREPARATION_STATES } from "better-supabase/blocks/orders";
 import { useAction } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 import * as v from "valibot";
 
 import { Badge } from "@/components/reui/badge";
@@ -18,11 +17,12 @@ import {
   KanbanOverlay,
 } from "@/components/reui/kanban";
 import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { BoardCardView } from "../kitchen-queries";
+import type { BoardCardView } from "../shop-queries";
 
-import { bumpTicket } from "../kitchen-actions";
+import { bumpTicket } from "../shop-actions";
 import { preparationBadgeVariant, usePreparationLabel } from "./kitchen-labels";
 
 type Columns = Record<string, BoardCardView[]>;

@@ -2,8 +2,8 @@ import type { ShipmentStatus } from "better-supabase/blocks/shipments";
 
 import { PackageIcon, TruckIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
+import { io } from "next/cache";
 import { forbidden } from "next/navigation";
-import { connection } from "next/server";
 import * as v from "valibot";
 
 import { Badge } from "@/components/reui/badge";
@@ -94,16 +94,15 @@ async function ShipmentStatusBadge({ status }: { status: ShipmentStatus }) {
  * picks the shipment.
  */
 export async function ShipmentTracking({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, format, query, permissions] = await Promise.all([
+  const [t, format, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "shipments.read")) {

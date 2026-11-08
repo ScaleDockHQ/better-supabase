@@ -1,5 +1,6 @@
 import type { AccessRequestStatus } from "better-supabase/blocks/access-requests";
 
+import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 

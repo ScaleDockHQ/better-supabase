@@ -33,11 +33,13 @@ const HIT: Readonly<Record<string, string>> = {
     'import { bsb } from "@/lib/supabase";\nif (error.code === "23505") {}',
   BS619:
     'import { bsb } from "@/lib/supabase";\nsupport.start({ source: "cookie", token });',
+  BS620:
+    'import { bsb } from "@/lib/supabase";\nawait db.from("organizations").update({ settings: { ...old, theme } });',
 };
 
 describe("doctor shims", () => {
-  it("lists eight shims with one rule each", () => {
-    expect(SHIMS).toHaveLength(8);
+  it("lists nine shims with one rule each", () => {
+    expect(SHIMS).toHaveLength(9);
     expect(SHIM_RULES.map((rule) => rule.code)).toEqual(
       SHIMS.map((shim) => shim.code),
     );

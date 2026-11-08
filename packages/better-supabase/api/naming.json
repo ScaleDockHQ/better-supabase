@@ -1,0 +1,1885 @@
+{
+  "version": 1,
+  "words": {
+    "tenant": "The unit that owns rows. Never `organization` as a concept; a fixture table may be called `organizations`.",
+    "record type": "A kind of record blocks attach to. Never `subject` in new names.",
+    "member": "A tenant membership.",
+    "user": "A row in `auth.users`.",
+    "actor": "Whoever runs a statement.",
+    "block": "A feature module, installed as an instance.",
+    "module": "A generated SQL file.",
+    "app file": "A SQL file the app owns."
+  },
+  "env": {
+    "prefix": "BETTER_SUPABASE_",
+    "platform": [
+      "SUPABASE_",
+      "NEXT_PUBLIC_",
+      "EXPO_PUBLIC_",
+      "PUBLIC_",
+      "VERCEL_",
+      "CRON_SECRET",
+      "NODE_ENV",
+      "CI",
+      "DATABASE_URL",
+      "HOME",
+      "XDG_CONFIG_HOME"
+    ]
+  },
+  "bannedTypeSuffixes": [
+    "Settings",
+    "Args",
+    "Failure"
+  ],
+  "subpathPattern": "^\\./[a-z0-9-]+(/[a-z0-9-]+)?(/[a-z*0-9-]+\\.json)?$",
+  "renames": [
+    {
+      "from": "AUTH_HOOK_SECRET",
+      "to": "BETTER_SUPABASE_AUTH_HOOK_SECRET",
+      "kind": "env",
+      "since": "0.54"
+    },
+    {
+      "from": "BEFORE_USER_CREATED_SECRET",
+      "to": "BETTER_SUPABASE_BEFORE_USER_CREATED_SECRET",
+      "kind": "env",
+      "since": "0.54"
+    },
+    {
+      "from": "BSB_CLOUD_URL",
+      "to": "BETTER_SUPABASE_CLOUD_URL",
+      "kind": "env",
+      "since": "0.54"
+    },
+    {
+      "from": "BSB_STACK",
+      "to": "BETTER_SUPABASE_STACK",
+      "kind": "env",
+      "since": "0.54"
+    },
+    {
+      "from": "buildJsonSchema",
+      "to": "toJsonSchema",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "buildApiModel",
+      "to": "defineApiModel",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "createRuleSink",
+      "to": "automationSink",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "workItemRecurrenceSink",
+      "to": "taskRecurrenceSink",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "SessionEntryConfig",
+      "to": "SessionEntryOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "GuardEntryConfig",
+      "to": "GuardEntryOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "ai-sdk/workflow/react",
+      "to": "ai-sdk/workflow-react",
+      "kind": "subpath",
+      "since": "0.54"
+    },
+    {
+      "from": "ChainProofFailure",
+      "to": "ChainProofError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "ParseScaledFailure",
+      "to": "ParseScaledError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "RefreshFailure",
+      "to": "RefreshError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "StorageFailure",
+      "to": "StorageError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "SvelteKitFailure",
+      "to": "SvelteKitError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TelemetryFailure",
+      "to": "TelemetryError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "XhrFailure",
+      "to": "XhrError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "AgentPassthroughSettings",
+      "to": "AgentPassthroughOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "AddArgs",
+      "to": "AddOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "AggregateArgs",
+      "to": "AggregateOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "AssistantRunArgs",
+      "to": "AssistantRunOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "BoundArgs",
+      "to": "BoundOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "BulkActionArgs",
+      "to": "BulkActionOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "CodemodArgs",
+      "to": "CodemodOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "CountArgs",
+      "to": "CountOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "DataListArgs",
+      "to": "DataListOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "DeleteArgs",
+      "to": "DeleteOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "DurableTurnAgentArgs",
+      "to": "DurableTurnAgentOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "EveDispatchArgs",
+      "to": "EveDispatchOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "EveScheduleArgs",
+      "to": "EveScheduleOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "GenerationRunArgs",
+      "to": "GenerationRunOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "GetArgs",
+      "to": "GetOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "GuardsFindArgs",
+      "to": "GuardsFindOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "IncludeArgs",
+      "to": "IncludeOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "InitArgs",
+      "to": "InitOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "KeysArgs",
+      "to": "KeysOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "ManyWriteArgs",
+      "to": "ManyWriteOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "MembershipsFindArgs",
+      "to": "MembershipsFindOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "MigrateSchemaFirstArgs",
+      "to": "MigrateSchemaFirstOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "OffsetPageArgs",
+      "to": "OffsetPageOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "OffsetRangeArgs",
+      "to": "OffsetRangeOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "OverloadArgs",
+      "to": "OverloadOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "PresetSubjectSettings",
+      "to": "PresetSubjectOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "QueuePurgeArgs",
+      "to": "QueuePurgeOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "ReadArgs",
+      "to": "ReadOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "RemoveArgs",
+      "to": "RemoveOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TanStackStartHandlerArgs",
+      "to": "TanStackStartHandlerOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TanStackStartServerArgs",
+      "to": "TanStackStartServerOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TrashDeleteArgs",
+      "to": "TrashDeleteOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TrashFindArgs",
+      "to": "TrashFindOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "UpdateArgs",
+      "to": "UpdateOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "UpsertArgs",
+      "to": "UpsertOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "UpsertManyArgs",
+      "to": "UpsertManyOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "WriteArgs",
+      "to": "WriteOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "WriteManyArgs",
+      "to": "WriteManyOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "UploadWriteArgs",
+      "to": "UploadWriteOptions",
+      "kind": "type",
+      "since": "0.56"
+    },
+    {
+      "from": "AccountingSettings",
+      "to": "AccountingSetup",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "BucketSettings",
+      "to": "StorageBucketOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "RateLimitSettings",
+      "to": "RateLimitOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "IdempotencySettings",
+      "to": "IdempotencyOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "defineSupabase",
+      "to": "createSupabase",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "getBetterSupabase",
+      "to": "betterSupabase",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "ActionArgs",
+      "to": "ActionParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "AuthFailure",
+      "to": "AuthLinkError",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "BlockActionArgs",
+      "to": "BlockActionParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "CliArgs",
+      "to": "CliValues",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "CursorPageArgs",
+      "to": "CursorPageParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "DoctorArgs",
+      "to": "DoctorValues",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "HookArgs",
+      "to": "HookParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "ListArgs",
+      "to": "ListParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "ReactRouterArgs",
+      "to": "ReactRouterParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "RequestArgs",
+      "to": "ApiRequestParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "RpcArgs",
+      "to": "RpcParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "SearchArgs",
+      "to": "TextSearchParams",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TableArgs",
+      "to": "TableValues",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "CHAIN_SIGNER",
+      "to": "AUDIT_CHAIN_SIGNER",
+      "kind": "hint",
+      "since": "0.54"
+    },
+    {
+      "from": "APPEND_ONLY",
+      "to": "TABLE_APPEND_ONLY",
+      "kind": "hint",
+      "since": "0.54"
+    },
+    {
+      "from": "FISCAL_YEAR_CLOSED",
+      "to": "PERIOD_CLOSED",
+      "kind": "hint",
+      "since": "0.54"
+    },
+    {
+      "from": "bsb.uid()",
+      "to": "better_supabase.uid()",
+      "kind": "sqlFunction",
+      "since": "0.54"
+    },
+    {
+      "from": "bsb.owns(uuid)",
+      "to": "better_supabase.owns(uuid)",
+      "kind": "sqlFunction",
+      "since": "0.54"
+    },
+    {
+      "from": "bsb.is_member(uuid)",
+      "to": "better_supabase.is_member(uuid)",
+      "kind": "sqlFunction",
+      "since": "0.54"
+    },
+    {
+      "from": "bsb.can(uuid, text)",
+      "to": "better_supabase.can(uuid, text)",
+      "kind": "sqlFunction",
+      "since": "0.54"
+    },
+    {
+      "from": "conversations_broadcast",
+      "to": "bsb_conversations_broadcast",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.inbox_conversations"
+    },
+    {
+      "from": "inbox_conversation_events_broadcast",
+      "to": "bsb_inbox_conversation_events_broadcast",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.inbox_conversation_events"
+    },
+    {
+      "from": "inbox_message_deliveries_broadcast",
+      "to": "bsb_inbox_message_deliveries_broadcast",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.inbox_message_deliveries"
+    },
+    {
+      "from": "bookings_engagement",
+      "to": "bsb_bookings_activity",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.bookings"
+    },
+    {
+      "from": "passes_credit_refund",
+      "to": "bsb_passes_credit_refund",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.bookings"
+    },
+    {
+      "from": "calendar_attendees_auto_decline",
+      "to": "bsb_calendar_attendees_auto_decline",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.calendar_attendees"
+    },
+    {
+      "from": "calendar_events_auto_decline",
+      "to": "bsb_calendar_events_auto_decline",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.calendar_events"
+    },
+    {
+      "from": "bsb_rate_limit_rules_scope_global",
+      "to": "bsb_rate_limit_rules_scope_global_key",
+      "kind": "index",
+      "since": "0.54",
+      "table": "better_supabase.rate_limit_rules"
+    },
+    {
+      "from": "bsb_rate_limit_rules_scope_org",
+      "to": "bsb_rate_limit_rules_scope_org_key",
+      "kind": "index",
+      "since": "0.54",
+      "table": "better_supabase.rate_limit_rules"
+    },
+    {
+      "from": "permission_overrides_bump_authz_versions",
+      "to": "bsb_permission_overrides_bump_authz_versions",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.permission_overrides"
+    },
+    {
+      "from": "flag_overrides_unique",
+      "to": "flag_overrides_key",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.flag_overrides"
+    },
+    {
+      "from": "flag_revisions_unique",
+      "to": "flag_revisions_key",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.flag_revisions"
+    },
+    {
+      "from": "bookings_no_overlap",
+      "to": "bookings_no_overlap_excl",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.bookings"
+    },
+    {
+      "from": "time_entries_no_overlap",
+      "to": "time_entries_no_overlap_excl",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.time_entries"
+    },
+    {
+      "from": "shift_assignments_no_overlap",
+      "to": "shift_assignments_no_overlap_excl",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.shift_assignments"
+    },
+    {
+      "from": "leases_no_overlap",
+      "to": "leases_no_overlap_excl",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.leases"
+    },
+    {
+      "from": "passes_no_overlap",
+      "to": "passes_no_overlap_excl",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.passes"
+    },
+    {
+      "from": "calendar_events_no_overlap",
+      "to": "calendar_events_no_overlap_excl",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.calendar_events"
+    },
+    {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_harness_sessions"
+    },
+    {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.drive_nodes"
+    },
+    {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.idempotency_keys"
+    },
+    {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.inbox_inbound_events"
+    },
+    {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.webhook_inbox"
+    },
+    {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.workflow_schedules"
+    },
+    {
+      "from": "scheduled_for",
+      "to": "scheduled_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_task_runs"
+    },
+    {
+      "from": "scheduled_for",
+      "to": "scheduled_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.messages"
+    },
+    {
+      "from": "scheduled_for",
+      "to": "scheduled_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.scheduled_inbox_messages"
+    },
+    {
+      "from": "window_start",
+      "to": "window_started_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.api_keys"
+    },
+    {
+      "from": "window_start",
+      "to": "window_started_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.rate_limits"
+    },
+    {
+      "from": "original_start",
+      "to": "original_starts_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.calendar_events"
+    },
+    {
+      "from": "legal_hold_until",
+      "to": "legal_hold_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.drive_nodes"
+    },
+    {
+      "from": "effective_from",
+      "to": "effective_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.drive_nodes"
+    },
+    {
+      "from": "missing_since",
+      "to": "went_missing_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.import_records"
+    },
+    {
+      "from": "subject_updated_at_at_import",
+      "to": "subject_imported_updated_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.import_records"
+    },
+    {
+      "from": "snoozed_until",
+      "to": "snooze_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.inbox_conversations"
+    },
+    {
+      "from": "bucket_start",
+      "to": "bucket_started_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.metric_points"
+    },
+    {
+      "from": "purge_after",
+      "to": "purge_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.organization_deletions"
+    },
+    {
+      "from": "purge_after",
+      "to": "purge_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.trash_items"
+    },
+    {
+      "from": "lease_until",
+      "to": "lease_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.outbox_consumers"
+    },
+    {
+      "from": "leased_until",
+      "to": "lease_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.webhook_deliveries"
+    },
+    {
+      "from": "publish_until",
+      "to": "publish_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.signing_keys"
+    },
+    {
+      "from": "paused_until",
+      "to": "pause_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.subject_lifecycles"
+    },
+    {
+      "from": "failing_since",
+      "to": "first_failed_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.webhook_endpoints"
+    },
+    {
+      "from": "dispatch_until",
+      "to": "dispatch_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.workflow_runs"
+    },
+    {
+      "from": "claimed_until",
+      "to": "claim_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.workflow_start_requests"
+    },
+    {
+      "from": "not_before",
+      "to": "not_before_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.workflow_start_requests"
+    },
+    {
+      "from": "valid_from",
+      "to": "starts_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.passes"
+    },
+    {
+      "from": "valid_until",
+      "to": "expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.passes"
+    },
+    {
+      "from": "valid_from",
+      "to": "starts_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.product_prices"
+    },
+    {
+      "from": "valid_until",
+      "to": "expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.product_prices"
+    },
+    {
+      "from": "valid_until",
+      "to": "expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.consents"
+    },
+    {
+      "from": "deleted_at",
+      "to": "archived_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.drive_nodes"
+    },
+    {
+      "from": "deleted_at",
+      "to": "archived_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.memories"
+    },
+    {
+      "from": "deleted_at",
+      "to": "archived_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.messages"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.activities"
+    },
+    {
+      "from": "customer_user_id",
+      "to": "customer_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_chat_participants"
+    },
+    {
+      "from": "reviewer_user_id",
+      "to": "reviewer_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.application_scorecards"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.applications"
+    },
+    {
+      "from": "subject_user_id",
+      "to": "appraisee_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.appraisals"
+    },
+    {
+      "from": "host_user_id",
+      "to": "host_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.booking_resources"
+    },
+    {
+      "from": "customer_user_id",
+      "to": "customer_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.bookings"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.companies"
+    },
+    {
+      "from": "given_by_user_id",
+      "to": "grantor_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.consents"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.deals"
+    },
+    {
+      "from": "assignee_user_id",
+      "to": "assignee_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.enrollment_steps"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.forecast_snapshot_deals"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.goals"
+    },
+    {
+      "from": "hiring_manager_user_id",
+      "to": "hiring_manager_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.job_openings"
+    },
+    {
+      "from": "holder_user_id",
+      "to": "holder_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.passes"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.people"
+    },
+    {
+      "from": "actor_user_id",
+      "to": "actor_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.pipeline_stage_history"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.projects"
+    },
+    {
+      "from": "decided_user_id",
+      "to": "decider_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.quotes"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.quotes"
+    },
+    {
+      "from": "referred_user_id",
+      "to": "referred_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.referrals"
+    },
+    {
+      "from": "from_user_id",
+      "to": "from_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.shift_swaps"
+    },
+    {
+      "from": "to_user_id",
+      "to": "to_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.shift_swaps"
+    },
+    {
+      "from": "actor_user_id",
+      "to": "actor_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.status_history"
+    },
+    {
+      "from": "paused_by_user_id",
+      "to": "paused_by",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.subject_lifecycles"
+    },
+    {
+      "from": "customer_user_id",
+      "to": "customer_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.booking_series"
+    },
+    {
+      "from": "speaker_user_id",
+      "to": "speaker_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.engagement_transcript_segments"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.work_projects"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.agent_installs"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.agents"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_batch_items"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_batches"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_cache_entries"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_chats"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_documents"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_files"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_moderation_events"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_projects"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_provider_keys"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_sandboxes"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_scheduled_tasks"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_task_runs"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_tool_policies"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.api_keys"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.attachment_document_types"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.attachment_versions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.attachments"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.audit_events"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.automation_evaluations"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.automation_versions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.automations"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.billing_customers"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.billing_native_subscriptions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.comment_tasks"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.connector_grants"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.connector_servers"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.data_exports"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.data_subject_requests"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.eval_datasets"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.eval_runs"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.flag_overrides"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.guardrail_decisions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.guardrail_policies"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.hostnames"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.invitations"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.invite_codes"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.knowledge_collection_grants"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.knowledge_collections"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.knowledge_documents"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.legal_holds"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.memories"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.memory_message_embeddings"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_deliveries"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_delivery_events"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_digests"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_events"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_preferences"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_recipients"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_subscriptions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.organization_deletions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.organization_settings"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.outbox_events"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.permission_overrides"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.prompt_labels"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.prompt_versions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.rate_limit_rules"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.retention_policies"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.scim_groups"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.scim_users"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.sso_domains"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.sso_providers"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.support_requests"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.support_sessions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.timeline_entries"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.usage_billed_periods"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.usage_counters"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.usage_events"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.usage_history"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.usage_quotas"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.webhook_deliveries"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.webhook_endpoint_secrets"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.webhook_endpoints"
+    },
+    {
+      "from": "better_supabase.stream_kv",
+      "to": "stream_entries",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "better_supabase.invoice_e_endpoints",
+      "to": "e_invoice_endpoints",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "better_supabase.workflow_step_library",
+      "to": "workflow_step_templates",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "better_supabase.engagement_subjects",
+      "to": "activity_subjects",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "better_supabase.engagement_recordings",
+      "to": "activity_recordings",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "better_supabase.engagement_notes",
+      "to": "activity_notes",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "better_supabase.engagement_transcript_segments",
+      "to": "activity_transcript_segments",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "mail_threads_engagement_idx",
+      "to": "mail_threads_activity_idx",
+      "kind": "index",
+      "table": "better_supabase.mail_threads",
+      "since": "0.54"
+    },
+    {
+      "from": "vex_statement.saved",
+      "to": "vex_statement.updated",
+      "kind": "event",
+      "since": "0.54"
+    },
+    {
+      "from": "team_member.removed",
+      "to": "team_member.deleted",
+      "kind": "event",
+      "since": "0.54"
+    },
+    {
+      "from": "reaction.removed",
+      "to": "reaction.deleted",
+      "kind": "event",
+      "since": "0.54"
+    },
+    {
+      "from": "subjects",
+      "to": "recordTypes",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "integrations",
+      "to": "adapters",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "organization",
+      "to": "auth.tenant",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "gen.output",
+      "to": "gen.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "gen.recordTypes",
+      "to": "gen.records",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "database.seed.output",
+      "to": "database.seed.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "database.seed.sample.output",
+      "to": "database.seed.sample.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "database.realtime.policies.output",
+      "to": "database.realtime.policies.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "tooling.env.output",
+      "to": "tooling.env.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "tooling.keys.output",
+      "to": "tooling.keys.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "tooling.doctor.output",
+      "to": "tooling.doctor.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "api.specs.outputs.*.output",
+      "to": "api.specs.outputs.*.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "blocks/time-tracking",
+      "to": "blocks/time-entries",
+      "kind": "subpath",
+      "since": "0.54"
+    },
+    {
+      "from": "createTimeTracking",
+      "to": "createTimeEntries",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "timeTrackingBlock",
+      "to": "timeEntriesBlock",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "timeTrackingEvents",
+      "to": "timeEntriesEvents",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "timeTrackingMetrics",
+      "to": "timeEntriesMetrics",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "TIME_TRACKING_METRIC_EVENTS",
+      "to": "TIME_ENTRIES_METRIC_EVENTS",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "TimeTracking",
+      "to": "TimeEntries",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TimeTrackingEvents",
+      "to": "TimeEntriesEvents",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TimeTrackingMetrics",
+      "to": "TimeEntriesMetrics",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TimeTrackingMetricsOptions",
+      "to": "TimeEntriesMetricsOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TimeTrackingOptions",
+      "to": "TimeEntriesOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "blocks.time-tracking",
+      "to": "blocks.time-entries",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "blocks/bulk",
+      "to": "blocks/bulk-actions",
+      "kind": "subpath",
+      "since": "0.54"
+    },
+    {
+      "from": "createBulk",
+      "to": "createBulkActions",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "bulkBlock",
+      "to": "bulkActionsBlock",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "bulkEvents",
+      "to": "bulkActionsEvents",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "BulkEvents",
+      "to": "BulkActionsEvents",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "BulkOptions",
+      "to": "BulkActionsOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "blocks.bulk",
+      "to": "blocks.bulk-actions",
+      "kind": "configKey",
+      "since": "0.54"
+    }
+  ],
+  "allowlist": {
+    "env": [],
+    "typeNames": [],
+    "subpaths": []
+  }
+}

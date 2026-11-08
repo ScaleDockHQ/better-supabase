@@ -125,10 +125,10 @@ describe.skipIf(!live)("work items", () => {
       const result = await items
         .update({
           changes: [
-            { workItemId: api.id, field: "stageId", value: stage("done") },
-            { workItemId: ui.id, field: "stageId", value: stage("canceled") },
-            { workItemId: epic.id, field: "parentId", value: api.id },
-            { workItemId: api.id, field: "priority", value: 9 },
+            { taskId: api.id, field: "stageId", value: stage("done") },
+            { taskId: ui.id, field: "stageId", value: stage("canceled") },
+            { taskId: epic.id, field: "parentId", value: api.id },
+            { taskId: api.id, field: "priority", value: 9 },
           ],
         })
         .orThrow();
@@ -176,11 +176,7 @@ describe.skipIf(!live)("work items", () => {
       await items
         .update({
           changes: [
-            {
-              workItemId: api.id,
-              field: "stageId",
-              value: stage("in_progress"),
-            },
+            { taskId: api.id, field: "stageId", value: stage("in_progress") },
           ],
         })
         .orThrow();
@@ -215,7 +211,7 @@ describe.skipIf(!live)("work items", () => {
       await s.as(pm);
 
       const assigned = await s.value<number>(
-        "(select count(*)::int from better_supabase.notification_events e join better_supabase.notification_recipients r on r.event_id = e.id where e.type = 'work_item.assigned' and r.user_id = $1)",
+        "(select count(*)::int from better_supabase.notification_events e join better_supabase.notification_recipients r on r.event_id = e.id where e.type = 'task.assigned' and r.user_id = $1)",
         [dev.id],
       );
 
@@ -264,11 +260,11 @@ describe.skipIf(!live)("work items", () => {
         .create({ organizationId: org, input: { title: "Ship it" } })
         .orThrow();
 
-      await items.assign({ workItemId: item.id, userIds: [dev.id] }).orThrow();
+      await items.assign({ taskId: item.id, userIds: [dev.id] }).orThrow();
 
       expect(
         await s.rows(
-          "select subject_label, action_path from better_supabase.notification_events where type = 'work_item.assigned'",
+          "select subject_label, action_path from better_supabase.notification_events where type = 'task.assigned'",
         ),
       ).toEqual([
         { subject_label: "Ship it", action_path: `/tasks/${item.id}` },
@@ -280,11 +276,11 @@ describe.skipIf(!live)("work items", () => {
         .create({ organizationId: org, input: { title: "Quiet" } })
         .orThrow();
 
-      await items.assign({ workItemId: quiet.id, userIds: [dev.id] }).orThrow();
+      await items.assign({ taskId: quiet.id, userIds: [dev.id] }).orThrow();
 
       expect(
         await s.value<number>(
-          "(select count(*)::int from better_supabase.notification_events where type = 'work_item.assigned')",
+          "(select count(*)::int from better_supabase.notification_events where type = 'task.assigned')",
         ),
       ).toBe(1);
     } finally {
@@ -368,17 +364,14 @@ describe.skipIf(!live)("work items", () => {
 
       expect(
         hint(
-          await items.assign({
-            workItemId: item.id,
-            userIds: [dev.id, other.id],
-          }),
+          await items.assign({ taskId: item.id, userIds: [dev.id, other.id] }),
         ),
       ).toBe("TASK_ASSIGNEES_LIMIT");
       await items
         .update({
           changes: [
             {
-              workItemId: item.id,
+              taskId: item.id,
               field: "stageId",
               value: await s.value<string>(
                 "(select id::text from better_supabase.pipeline_stages where key = 'done' and pipeline_id = $1)",
@@ -407,8 +400,8 @@ describe.skipIf(!live)("work items", () => {
       const locked = await items
         .update({
           changes: [
-            { workItemId: item.id, field: "dueAt", value: null },
-            { workItemId: item.id, field: "title", value: "Ledger v2" },
+            { taskId: item.id, field: "dueAt", value: null },
+            { taskId: item.id, field: "title", value: "Ledger v2" },
           ],
         })
         .orThrow();
@@ -458,8 +451,8 @@ describe.skipIf(!live)("work items", () => {
       const split = await items
         .update({
           changes: [
-            { workItemId: item.id, field: "startAt", value: later.startAt },
-            { workItemId: item.id, field: "endAt", value: later.endAt },
+            { taskId: item.id, field: "startAt", value: later.startAt },
+            { taskId: item.id, field: "endAt", value: later.endAt },
           ],
         })
         .orThrow();
@@ -468,19 +461,19 @@ describe.skipIf(!live)("work items", () => {
 
       const moved = await items
         .update({
-          changes: [{ workItemId: item.id, field: "window", value: later }],
+          changes: [{ taskId: item.id, field: "window", value: later }],
         })
         .orThrow();
 
       expect(moved).toEqual({
-        accepted: [{ workItemId: item.id, field: "window" }],
+        accepted: [{ taskId: item.id, field: "window" }],
         rejected: [],
       });
 
       const failed = await items.update({
         changes: [
-          { workItemId: item.id, field: "title", value: "Launch v2" },
-          { workItemId: item.id, field: "priority", value: "high" },
+          { taskId: item.id, field: "title", value: "Launch v2" },
+          { taskId: item.id, field: "priority", value: "high" },
         ],
         atomic: true,
       });
@@ -512,7 +505,7 @@ describe.skipIf(!live)("work items", () => {
 
       const file = async (user: string): Promise<string> => {
         const { rows } = await s.client.query<{ id: string }>(
-          "insert into better_supabase.attachments (organization_id, bucket, name, mime_type, size, status, uploaded_by) values ($1, 'attachments', 'spec.pdf', 'application/pdf', 10, 'clean', $2) returning id::text",
+          "insert into better_supabase.attachments (tenant_id, bucket, name, mime_type, size, status, uploaded_by) values ($1, 'attachments', 'spec.pdf', 'application/pdf', 10, 'clean', $2) returning id::text",
           [org, user],
         );
 
@@ -562,8 +555,8 @@ describe.skipIf(!live)("work items", () => {
       const linked = await items
         .update({
           changes: [
-            { workItemId: item.id, field: "attachments", value: [later] },
-            { workItemId: item.id, field: "attachments", value: [theirs] },
+            { taskId: item.id, field: "attachments", value: [later] },
+            { taskId: item.id, field: "attachments", value: [theirs] },
           ],
         })
         .orThrow();
@@ -575,12 +568,12 @@ describe.skipIf(!live)("work items", () => {
       expect(await subjectOf(later)).toBe(`task:${item.id}`);
 
       const draft = await items
-        .saveChecklistItem({ workItemId: item.id, input: { title: "Draft" } })
+        .saveChecklistItem({ taskId: item.id, input: { title: "Draft" } })
         .orThrow();
 
       const send = await items
         .saveChecklistItem({
-          workItemId: item.id,
+          taskId: item.id,
           input: { title: "Send", done: true },
         })
         .orThrow();
@@ -589,14 +582,14 @@ describe.skipIf(!live)("work items", () => {
       expect(send).toMatchObject({ done: true, doneBy: dev.id });
       await items
         .saveChecklistItem({
-          workItemId: item.id,
+          taskId: item.id,
           input: { done: true },
           checklistItemId: draft.id,
         })
         .orThrow();
       await items
         .saveChecklistItem({
-          workItemId: item.id,
+          taskId: item.id,
           input: { done: false },
           checklistItemId: send.id,
         })
@@ -604,7 +597,7 @@ describe.skipIf(!live)("work items", () => {
       expect(
         hint(
           await items.saveChecklistItem({
-            workItemId: item.id,
+            taskId: item.id,
             input: { title: "" },
           }),
         ),
@@ -627,7 +620,7 @@ describe.skipIf(!live)("work items", () => {
       expect(
         hint(
           await items.setRecurrence({
-            workItemId: item.id,
+            taskId: item.id,
             rule: { rrule: "every monday" },
           }),
         ),
@@ -635,7 +628,7 @@ describe.skipIf(!live)("work items", () => {
 
       const rule = await items
         .setRecurrence({
-          workItemId: item.id,
+          taskId: item.id,
           rule: {
             rrule: "RRULE:FREQ=WEEKLY;BYDAY=MO",
             tzid: "Europe/Amsterdam",
@@ -651,7 +644,7 @@ describe.skipIf(!live)("work items", () => {
 
       await s.as(other);
       expect(
-        await items.watch({ workItemId: item.id, level: "all" }).orThrow(),
+        await items.watch({ taskId: item.id, level: "all" }).orThrow(),
       ).toBe(true);
       expect(await items.watchers(item.id).orThrow()).toEqual(
         expect.arrayContaining([
@@ -660,13 +653,13 @@ describe.skipIf(!live)("work items", () => {
         ]),
       );
       expect(
-        await items.watch({ workItemId: item.id, level: "ignore" }).orThrow(),
+        await items.watch({ taskId: item.id, level: "ignore" }).orThrow(),
       ).toBe(true);
       expect(
         (await items.watchers(item.id).orThrow()).map((w) => w.userId),
       ).toEqual([dev.id]);
       await s.asRole(other);
-      expect((await items.repeat({ workItemId: item.id, dueAt: due })).ok).toBe(
+      expect((await items.repeat({ taskId: item.id, dueAt: due })).ok).toBe(
         false,
       );
 
@@ -675,7 +668,7 @@ describe.skipIf(!live)("work items", () => {
       const next = due.add({ hours: 24 * 7 });
 
       const copy = await items
-        .repeat({ workItemId: item.id, dueAt: next })
+        .repeat({ taskId: item.id, dueAt: next })
         .orThrow();
 
       expect(copy).toMatchObject({
@@ -689,7 +682,7 @@ describe.skipIf(!live)("work items", () => {
       expect(copy.recurrence?.rrule).toBe("FREQ=WEEKLY;BYDAY=MO");
       expect((await items.get(item.id).orThrow())?.recurrence).toBeUndefined();
       expect(
-        (await items.repeat({ workItemId: item.id, dueAt: next }).orThrow()).id,
+        (await items.repeat({ taskId: item.id, dueAt: next }).orThrow()).id,
       ).toBe(copy.id);
 
       await s.as(dev);
@@ -697,7 +690,7 @@ describe.skipIf(!live)("work items", () => {
       expect(await items.removeChecklistItem(draft.id).orThrow()).toBe(false);
       expect(
         (await items
-          .setRecurrence({ workItemId: copy.id, rule: null })
+          .setRecurrence({ taskId: copy.id, rule: null })
           .orThrow()) ?? null,
       ).toBeNull();
     } finally {

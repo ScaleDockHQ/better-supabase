@@ -131,9 +131,7 @@ payload when receivers need it.
 a renamed type under its old name, for receivers that still match it, with the
 new name in the `currenttype` extension, which the library's sinks read. Your
 own sinks get the current type, without the prefix, from `eventTypeOf(event)`
-in `better-supabase/events`. The option is deprecated and goes away in the next minor;
-[From 0.46 to 0.47](/docs/migration/0.46-to-0.47#event-types) lists the
-renames.
+in `better-supabase/events`. The option is deprecated and goes away in the next minor.
 
 A claim leases the consumer to one worker for `lease` (one minute by
 default), so two cron runs never send the same batch at the same time.

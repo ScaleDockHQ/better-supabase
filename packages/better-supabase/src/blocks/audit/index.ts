@@ -76,7 +76,7 @@ export {
   type ChainOptions,
   type ChainProof,
   type ChainProofEntry,
-  type ChainProofFailure,
+  type ChainProofError,
   type ChainProofVerdict,
   type ChainSigner,
   type ChainVerdict,

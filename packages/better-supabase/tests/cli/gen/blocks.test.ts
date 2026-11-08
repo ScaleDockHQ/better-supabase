@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { ResolveInput } from "../../../src/config/resolve.ts";
 import type { PresetCatalog } from "../../../src/preset/catalog-types.ts";
 
 import {
@@ -11,10 +12,25 @@ import {
   schemaExtensions,
 } from "../../../src/cli/gen/blocks.ts";
 import { renderFiles } from "../../../src/cli/gen/render.ts";
-import { resolveConfig } from "../../../src/config/resolve.ts";
+import { resolveConfig as resolveDefault } from "../../../src/config/resolve.ts";
 import { zod } from "../../../src/generators/zod.ts";
 import { PRESET_CATALOG } from "../../../src/preset/catalog.generated.ts";
+import { blockTables } from "../../../src/sql/index.ts";
 import { loadFixtureSnapshot } from "../fixtures/render.ts";
+
+/**
+ * These tests read the single-module layout; the default layout has its own in
+ * render.test.ts.
+ */
+function resolveConfig(input: ResolveInput, root: string) {
+  return resolveDefault(
+    {
+      ...input,
+      gen: { tableModules: false, blockModules: false, ...input.gen },
+    },
+    root,
+  );
+}
 
 describe("blocks.generated.ts", () => {
   it("writes each installed block's schema, API schema and shared options", () => {
@@ -203,6 +219,7 @@ describe("blocks.generated.ts", () => {
         get_task: "get_ticket",
         list_task_checklist: "list_ticket_checklist",
         list_tasks: "list_tickets",
+        save_project: "save_initiative",
         save_task_checklist_item: "save_ticket_checklist_item",
         set_task_assignees: "set_ticket_assignees",
         task_tree: "ticket_tree",
@@ -210,7 +227,7 @@ describe("blocks.generated.ts", () => {
       },
       entities: [
         {
-          from: { singular: "work_item", plural: "work_items" },
+          from: { singular: "task", plural: "tasks" },
           to: { singular: "ticket", plural: "tickets" },
         },
         {
@@ -222,6 +239,11 @@ describe("blocks.generated.ts", () => {
         {
           from: { singular: "task", plural: "tasks" },
           to: { singular: "ticket", plural: "tickets" },
+          keyed: true,
+        },
+        {
+          from: { singular: "project", plural: "projects" },
+          to: { singular: "initiative", plural: "initiatives" },
         },
       ],
     });
@@ -233,7 +255,7 @@ describe("blocks.generated.ts", () => {
         blocks: {
           memberships: {},
           permissions: {},
-          tasks: { names: { work_item: "task" } },
+          tasks: { names: { task: "ticket" } },
         },
       },
       "/project",
@@ -243,6 +265,7 @@ describe("blocks.generated.ts", () => {
 
     expect(contents).toContain(
       `import {
+  type EventRenamesOf,
   type Events,
   renameBlock,
   type RenamedEvents,
@@ -250,16 +273,16 @@ describe("blocks.generated.ts", () => {
 } from "better-supabase/blocks";`,
     );
     expect(contents).toContain(
-      '  tasksBlock as defaultTasksBlock,\n} from "better-supabase/blocks/tasks";',
+      '  tasksBlock,\n} from "better-supabase/blocks/tasks";',
     );
     expect(contents).toContain(
-      'export const tasksBlock = renameBlock(defaultTasksBlock, blockConfig["tasks"].names);',
+      'export const ticketsBlock = renameBlock(tasksBlock, blockConfig["tasks"].names);',
     );
     expect(contents).toContain(
-      "export type Task<F extends object = Record<never, never>> = RenamedType<WorkItem<F>, TasksRenames>;",
+      "export type Ticket<F extends object = Record<never, never>> = RenamedType<Task<F>, TasksRenames>;",
     );
     expect(contents).toContain(
-      "export type TasksEvents = RenamedEvents<DefaultTasksEvents, TasksRenames>;",
+      "export type TicketsEvents = RenamedEvents<TasksEvents, TasksRenamesEvents>;",
     );
     expect(contents).toContain("  type Project as DefaultProject,");
     expect(contents).toContain(
@@ -327,18 +350,18 @@ describe("blocks.generated.ts", () => {
 
     const contents = emitBlockConfig(config)?.contents ?? "";
     expect(contents).toContain(
-      'export const tasksBlock = renameBlock(defaultTasksBlock, blockConfig["tasks"].names);',
+      'export const todosBlock = renameBlock(defaultTasksBlock, blockConfig["tasks"].names);',
     );
     expect(contents).toContain(
       'export const ticketsBlock = renameBlock(defaultTasksBlock, blockConfig["tickets"].names);',
     );
     expect(contents).toContain(
-      "export type Ticket<F extends object = Record<never, never>> = RenamedType<DefaultWorkItem<F>, TicketsRenames>;",
+      "export type Ticket<F extends object = Record<never, never>> = RenamedType<DefaultTask<F>, TicketsRenames>;",
     );
     expect(contents).toContain(
       "export type TicketsEvents = RenamedEvents<DefaultTasksEvents, TicketsRenamesEvents>;",
     );
-    expect(contents).toMatch(/BlockEvents = .*TasksEvents & TicketsEvents/);
+    expect(contents).toMatch(/BlockEvents = .*TodosEvents & TicketsEvents/);
   });
 
   it("leaves out the block's own entry when only another name installs it", () => {
@@ -360,7 +383,7 @@ describe("blocks.generated.ts", () => {
           memberships: {},
           permissions: { roles: { owner: ["*"], editor: ["tasks.write"] } },
           notifications: {},
-          tasks: { names: { work_item: "task" } },
+          tasks: {},
           settings: {
             options: { schemas: { user: { theme: { type: "string" } } } },
           },
@@ -385,7 +408,7 @@ describe("blocks.generated.ts", () => {
       "export const blockEvents: Events<BlockEvents> = {",
     );
     expect(contents).toContain('    "task.created",');
-    expect(contents).not.toContain('"work_item.created"');
+    expect(contents).not.toContain('"ticket.created"');
     expect(contents).toMatch(/export type BlockEvents = [^;]*TasksEvents/u);
     expect(contents).toContain("export const topics = {");
     expect(contents).toMatch(/notifications:\$\{String\(v\.userId\)\}/u);
@@ -397,7 +420,7 @@ describe("blocks.generated.ts", () => {
   it("writes the keys of record actions, skipping actions granted only per row", () => {
     const config = resolveConfig(
       {
-        subjects: {
+        recordTypes: {
           file: {
             table: "public.files",
             permissions: {
@@ -423,7 +446,7 @@ describe("blocks.generated.ts", () => {
     const config = resolveConfig(
       {
         gen: { casing: "camel" },
-        subjects: {
+        recordTypes: {
           customer: {
             table: "public.customers",
             tenant: "organization_id",
@@ -459,7 +482,7 @@ describe("blocks.generated.ts", () => {
         blocks: {
           memberships: {},
           subjects: {},
-          tasks: { names: { work_item: { name: "task", url: "/tasks/{id}" } } },
+          tasks: { names: { task: { name: "task", url: "/tasks/{id}" } } },
           deals: { names: { deal: { url: "/crm/deals" } } },
         },
       },
@@ -487,7 +510,7 @@ describe("blocks.generated.ts", () => {
   it("emits a typed module next to the main generated module", () => {
     const config = resolveConfig(
       {
-        gen: { output: "app/lib/db/generated.ts" },
+        gen: { file: "app/lib/db/generated.ts" },
         blocks: ["memberships", "attachments"],
       },
       "/project",
@@ -602,6 +625,42 @@ describe("block reads in blocks.generated.ts", () => {
   });
 });
 
+describe("block reads served from the app's views", () => {
+  const config = resolveConfig(
+    { blocks: { organizations: {}, memberships: {}, attachments: {} } },
+    "/project",
+  );
+
+  const tables = blockTables(config).byBlock;
+
+  it("lists the views over a table a read lists", () => {
+    const file = emitBlockConfig(config, {
+      viewFanOut: {
+        views: new Map([
+          ["better_supabase.attachments", ["jobAttachments"]],
+          ["better_supabase.memberships", ["memberships"]],
+        ]),
+        tables,
+      },
+    });
+
+    expect(file?.contents).toContain(
+      '["attachments", "jobAttachments"], "better_supabase")',
+    );
+
+    // organization_overview reads tables of the memberships instance.
+    expect(file?.contents).toMatch(
+      /\["organizations", "memberships", "invitations"\], "better_supabase"/,
+    );
+  });
+
+  it("writes the plain lists without views", () => {
+    expect(emitBlockConfig(config)?.contents).toContain(
+      '["attachments"], "better_supabase")',
+    );
+  });
+});
+
 describe("schemaExtensions", () => {
   it("lists the repository extension of each installed block", () => {
     expect(
@@ -631,7 +690,7 @@ describe("schemaExtensions", () => {
           "updated-at": { options: { stamp: "trigger" } },
           trash: {},
         },
-        gen: { output: "src/db/generated.ts" },
+        gen: { file: "src/db/generated.ts" },
       },
       "/project",
     );
@@ -690,7 +749,7 @@ describe("schemaExtensions", () => {
     const config = resolveConfig(
       {
         blocks: { trash: { options: { deletedAt: "archived_at" } } },
-        gen: { output: "src/db/generated.ts", generators: [zod()] },
+        gen: { file: "src/db/generated.ts", generators: [zod()] },
       },
       "/project",
     );
@@ -819,5 +878,18 @@ describe("blocks.client.ts", () => {
 
     expect(emitClientBlocks(config)).toBeUndefined();
     expect(emitBlockConfigModule(config)).toBeUndefined();
+  });
+});
+
+describe("columns from the app's schema files", () => {
+  it("types a block's fields with the columns app files add to its table", () => {
+    const config = resolveConfig({ blocks: ["memberships", "tags"] }, "/p");
+
+    expect(
+      blockConfigEntries(config, undefined, {
+        "better_supabase.tags": [{ name: "region", type: "text not null" }],
+      })["tags"]?.columns,
+    ).toEqual({ region: "text not null" });
+    expect(blockConfigEntries(config)["tags"]?.columns).toBeUndefined();
   });
 });

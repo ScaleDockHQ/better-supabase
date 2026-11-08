@@ -112,7 +112,11 @@ export async function RuleList() {
                 key={rule.id}
                 className="flex items-center justify-between gap-4 py-3 text-sm"
               >
-                <Link href={`/rules/${rule.id}`} className="font-medium">
+                <Link
+                  href={`/rules/${rule.id}`}
+                  prefetch
+                  className="font-medium"
+                >
                   {rule.name || t("Untitled rule")}
                 </Link>
                 <span className="flex items-center gap-2">

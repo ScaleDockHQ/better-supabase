@@ -231,7 +231,7 @@ function policyOf(value: unknown): GuardrailPolicy {
 
   return {
     id: textOf(row["id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     agent: textOf(row["agent"]),
     stage,
     config: configOf(row["config"]),
@@ -273,7 +273,7 @@ function entryOf(value: unknown): GuardrailLogEntry {
 
   return {
     id: textOf(row["id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     agent: textOf(row["agent"]),
     stage: row["stage"] === "output" ? "output" : "input",
     decision:

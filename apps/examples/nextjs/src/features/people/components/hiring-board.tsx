@@ -38,13 +38,12 @@ import { PeopleLoadError } from "./people-load-error";
  * to another open stage, moves it. `?job=` picks the opening.
  */
 export async function HiringBoard({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, query, permissions] = await Promise.all([
+  const [t, permissions] = await Promise.all([
     getExtracted("people"),
-    searchParams,
     getPermissions(),
   ]);
 

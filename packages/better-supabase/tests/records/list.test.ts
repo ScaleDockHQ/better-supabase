@@ -6,7 +6,7 @@ import type { AsyncResult } from "../../src/core/result.ts";
 import type { RecordRef } from "../../src/schema/types.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import {
   defineRecordType,
@@ -19,7 +19,7 @@ import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { failed, resolved } from "../fixtures/ports.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const customers = defineListQuery(betterSupabase, "customers", {
   search: ["name"],

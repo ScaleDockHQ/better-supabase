@@ -1,60 +1,10 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:2307ac6f51f3f01e9f9da2121135f1403ca7934be722f59746deb764651c8aa1
+-- @bsb-hash sha256:2f5c3cc4b41106b56e60665b42401e9ac8097bbdbe2bdc8236c010d63221457a
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."permission_overrides";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."permission_overrides";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."permission_overrides";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."permission_overrides";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."permission_overrides";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Disabled tenants and users get no permissions and no membership claims
@@ -180,7 +130,6 @@ as $$
     when 'agents.moderate' then 'agents.moderate'
     when 'agents.publish' then 'agents.publish'
     when 'agents.read' then 'agents.read'
-    when 'ai-chat.admin' then 'ai_chat.manage'
     when 'ai-chat.create' then 'ai_chat.create'
     when 'ai-chat.manage' then 'ai_chat.manage'
     when 'ai-chat.moderate' then 'ai_chat.moderate'
@@ -213,10 +162,6 @@ as $$
     when 'audit.read' then 'audit.read'
     when 'audit.readAll' then 'audit.read'
     when 'audit.revert' then 'audit.revert'
-    when 'audit.view' then 'audit.read'
-    when 'audit.viewAll' then 'audit.read'
-    when 'automations.admin' then 'automations.manage'
-    when 'automations.edit' then 'automations.write'
     when 'automations.manage' then 'automations.manage'
     when 'automations.publish' then 'automations.publish'
     when 'automations.read' then 'automations.read'
@@ -231,7 +176,7 @@ as $$
     when 'bookings.create' then 'bookings.create'
     when 'bookings.manage' then 'bookings.manage'
     when 'bookings.read' then 'bookings.read'
-    when 'bulk.run' then 'bulk.run'
+    when 'bulk-actions.run' then 'bulk_actions.run'
     when 'calendar.manage' then 'calendar.manage'
     when 'calendar.read' then 'calendar.read'
     when 'calendar.write' then 'calendar.write'
@@ -315,7 +260,6 @@ as $$
     when 'e-prescribing.write' then 'e_prescribing.write'
     when 'employees.read' then 'employees.read'
     when 'employees.readSensitive' then 'employees.read_sensitive'
-    when 'employees.viewSensitive' then 'employees.read_sensitive'
     when 'employees.write' then 'employees.write'
     when 'enrichment.read' then 'enrichment.read'
     when 'enrichment.run' then 'enrichment.run'
@@ -366,7 +310,6 @@ as $$
     when 'invitations.invitePlatform' then 'platform.invite'
     when 'invitations.read' then 'members.invite'
     when 'invitations.revoke' then 'members.invite'
-    when 'invitations.view' then 'members.invite'
     when 'invoices.approve' then 'invoices.approve'
     when 'invoices.collect' then 'invoices.collect'
     when 'invoices.manage' then 'invoices.manage'
@@ -484,7 +427,6 @@ as $$
     when 'scores.manage' then 'scores.manage'
     when 'scores.read' then 'scores.read'
     when 'search.read' then 'search.read'
-    when 'segments.edit' then 'segments.write'
     when 'segments.read' then 'segments.read'
     when 'segments.write' then 'segments.write'
     when 'sequences.enroll' then 'sequences.enroll'
@@ -526,10 +468,10 @@ as $$
     when 'tills.manage' then 'tills.manage'
     when 'tills.read' then 'tills.read'
     when 'tills.write' then 'tills.write'
-    when 'time-tracking.approve' then 'time_tracking.approve'
-    when 'time-tracking.manage' then 'time_tracking.manage'
-    when 'time-tracking.read' then 'time_tracking.read'
-    when 'time-tracking.track' then 'time_tracking.track'
+    when 'time-entries.approve' then 'time_entries.approve'
+    when 'time-entries.manage' then 'time_entries.manage'
+    when 'time-entries.read' then 'time_entries.read'
+    when 'time-entries.track' then 'time_entries.track'
     when 'timeline.read' then 'timeline.read'
     when 'trash.create' then 'trash.create'
     when 'trash.manage' then 'trash.manage'
@@ -548,86 +490,72 @@ as $$
     when 'warehouse.read' then 'warehouse.read'
     when 'webhooks-out.manage' then 'webhooks.manage'
     when 'webhooks-out.read' then 'webhooks.read'
-    when 'webhooks-out.view' then 'webhooks.read'
-    when 'workflow-editor.admin' then 'workflow_editor.manage'
-    when 'workflow-editor.edit' then 'workflow_editor.write'
     when 'workflow-editor.manage' then 'workflow_editor.manage'
     when 'workflow-editor.publish' then 'workflow_editor.publish'
     when 'workflow-editor.read' then 'workflow_editor.read'
     when 'workflow-editor.run' then 'workflow_editor.run'
     when 'workflow-editor.write' then 'workflow_editor.write'
-    when 'workflows.admin' then 'workflows.manage'
     when 'workflows.manage' then 'workflows.manage'
     when 'workflows.read' then 'workflows.read'
     when 'workflows.run' then 'workflows.run'
   end
 $$;
 
-create table if not exists "better_supabase"."roles" (
+create table "better_supabase"."roles" (
   "id" uuid primary key default gen_random_uuid(),
   "key" text not null unique
 );
 -- A tenant role goes in memberships, a platform role in platform assignments.
-alter table "better_supabase"."roles" add column if not exists "scope" text not null default 'tenant';
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."roles"'::regclass and c.conname = 'roles_scope_check'
-  ), 'pg_constraint'), '') <> 'better-supabase check fb19a0bd' then
-    alter table "better_supabase"."roles" drop constraint if exists "roles_scope_check";
-    alter table "better_supabase"."roles" add constraint "roles_scope_check" check ("scope" in ('tenant', 'platform'));
-    comment on constraint "roles_scope_check" on "better_supabase"."roles" is 'better-supabase check fb19a0bd';
-  end if;
-end;
-$$;
-create table if not exists "better_supabase"."permissions" (
+alter table "better_supabase"."roles" add column "scope" text not null default 'tenant';
+alter table "better_supabase"."roles" add constraint bsb_roles_scope_check
+  check ("scope" in ('tenant', 'platform'));
+create table "better_supabase"."permissions" (
   "id" uuid primary key default gen_random_uuid(),
   "key" text not null unique
 );
-create table if not exists "better_supabase"."role_permissions" (
+create table "better_supabase"."role_permissions" (
   "role_id" uuid not null references "better_supabase"."roles" on delete cascade,
   "permission_id" uuid not null references "better_supabase"."permissions" on delete cascade,
   primary key ("role_id", "permission_id")
 );
-create index if not exists role_permissions_permission_idx on "better_supabase"."role_permissions" ("permission_id");
-create table if not exists "better_supabase"."permission_overrides" (
-  "organization_id" uuid not null,
+create index role_permissions_permission_idx on "better_supabase"."role_permissions" ("permission_id");
+create table "better_supabase"."permission_overrides" (
+  "tenant_id" uuid not null,
   "role_id" uuid not null references "better_supabase"."roles" on delete cascade,
   "permission_id" uuid not null references "better_supabase"."permissions" on delete cascade,
   "granted" boolean not null,
-  primary key ("organization_id", "role_id", "permission_id")
+  primary key ("tenant_id", "role_id", "permission_id")
 );
-create index if not exists permission_overrides_role_idx on "better_supabase"."permission_overrides" ("role_id");
-create index if not exists permission_overrides_permission_idx on "better_supabase"."permission_overrides" ("permission_id");
-create table if not exists "better_supabase"."platform_roles" (
+create index permission_overrides_role_idx on "better_supabase"."permission_overrides" ("role_id");
+create index permission_overrides_permission_idx on "better_supabase"."permission_overrides" ("permission_id");
+create table "better_supabase"."platform_roles" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "role_id" uuid not null references "better_supabase"."roles" on delete cascade,
   primary key ("user_id", "role_id")
 );
-create index if not exists platform_roles_role_idx on "better_supabase"."platform_roles" ("role_id");
-do $$
-declare
-  t text;
-begin
-  foreach t in array array['"better_supabase"."roles"', '"better_supabase"."permissions"', '"better_supabase"."role_permissions"', '"better_supabase"."permission_overrides"', '"better_supabase"."platform_roles"'] loop
-    execute format('alter table %s enable row level security', t);
-    execute format('revoke all on %s from public, anon, authenticated', t);
-    execute format('grant all on %s to service_role', t);
-  end loop;
-end;
-$$;
+create index platform_roles_role_idx on "better_supabase"."platform_roles" ("role_id");
+alter table "better_supabase"."roles" enable row level security;
+revoke all on "better_supabase"."roles" from public, anon, authenticated;
+grant all on "better_supabase"."roles" to service_role;
+alter table "better_supabase"."permissions" enable row level security;
+revoke all on "better_supabase"."permissions" from public, anon, authenticated;
+grant all on "better_supabase"."permissions" to service_role;
+alter table "better_supabase"."role_permissions" enable row level security;
+revoke all on "better_supabase"."role_permissions" from public, anon, authenticated;
+grant all on "better_supabase"."role_permissions" to service_role;
+alter table "better_supabase"."permission_overrides" enable row level security;
+revoke all on "better_supabase"."permission_overrides" from public, anon, authenticated;
+grant all on "better_supabase"."permission_overrides" to service_role;
+alter table "better_supabase"."platform_roles" enable row level security;
+revoke all on "better_supabase"."platform_roles" from public, anon, authenticated;
+grant all on "better_supabase"."platform_roles" to service_role;
 -- The catalog is written directly by the service role, so a row trigger
 -- audits it.
-do $$
-begin
-  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."roles"'), 'access', null);
-  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."permissions"'), 'access', null);
-  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."role_permissions"'), 'access', null);
-  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."permission_overrides"'), 'access', 'organization_id');
-  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."platform_roles"'), 'access', null);
-end;
-$$;
+create trigger bsb_audit after insert or update or delete on better_supabase.roles for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"category":"access"}');
+create trigger bsb_audit after insert or update or delete on better_supabase.permissions for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"category":"access"}');
+create trigger bsb_audit after insert or update or delete on better_supabase.role_permissions for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"category":"access"}');
+create trigger bsb_audit after insert or update or delete on better_supabase.permission_overrides for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"category":"access","tenant_column":"tenant_id"}');
+create trigger bsb_audit after insert or update or delete on better_supabase.platform_roles for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"category":"access"}');
 
 create or replace function better_supabase.member_can(member uuid, tenant uuid, permission text)
 returns boolean
@@ -645,7 +573,7 @@ as $$
       where m."organization_id" = member_can.tenant and m."user_id" = member_can.member
         and exists (select 1 from "better_supabase"."permissions" p where p."key" = member_can.permission and coalesce(
       (select bool_and(o."granted") from "better_supabase"."permission_overrides" o
-        where o."organization_id" = m."organization_id"
+        where o."tenant_id" = m."organization_id"
           and o."role_id" = m."role"
           and o."permission_id" = p."id"),
       exists (select 1 from "better_supabase"."role_permissions" rp where rp."role_id" = m."role" and rp."permission_id" = p."id")
@@ -672,7 +600,7 @@ as $$
       where m."organization_id" = member_can_while_deleting.tenant and m."user_id" = member_can_while_deleting.member
         and exists (select 1 from "better_supabase"."permissions" p where p."key" = member_can_while_deleting.permission and coalesce(
       (select bool_and(o."granted") from "better_supabase"."permission_overrides" o
-        where o."organization_id" = m."organization_id"
+        where o."tenant_id" = m."organization_id"
           and o."role_id" = m."role"
           and o."permission_id" = p."id"),
       exists (select 1 from "better_supabase"."role_permissions" rp where rp."role_id" = m."role" and rp."permission_id" = p."id")
@@ -695,7 +623,7 @@ as $$
       where m."organization_id" = member_permissions.tenant and m."user_id" = member_permissions.member
         and coalesce(
       (select bool_and(o."granted") from "better_supabase"."permission_overrides" o
-        where o."organization_id" = m."organization_id"
+        where o."tenant_id" = m."organization_id"
           and o."role_id" = m."role"
           and o."permission_id" = p."id"),
       exists (select 1 from "better_supabase"."role_permissions" rp where rp."role_id" = m."role" and rp."permission_id" = p."id")
@@ -748,7 +676,7 @@ as $$
     and better_supabase.cap_allows(tenant_ids_with.permission)
     and exists (select 1 from "better_supabase"."permissions" p where p."key" = tenant_ids_with.permission and coalesce(
       (select bool_and(o."granted") from "better_supabase"."permission_overrides" o
-        where o."organization_id" = m."organization_id"
+        where o."tenant_id" = m."organization_id"
           and o."role_id" = m."role"
           and o."permission_id" = p."id"),
       exists (select 1 from "better_supabase"."role_permissions" rp where rp."role_id" = m."role" and rp."permission_id" = p."id")
@@ -784,7 +712,7 @@ as $$
         cross join lateral (select p."key" as key) k
         where coalesce(
       (select bool_and(o."granted") from "better_supabase"."permission_overrides" o
-        where o."organization_id" = m."organization_id"
+        where o."tenant_id" = m."organization_id"
           and o."role_id" = m."role"
           and o."permission_id" = p."id"),
       exists (select 1 from "better_supabase"."role_permissions" rp where rp."role_id" = m."role" and rp."permission_id" = p."id")
@@ -958,14 +886,14 @@ begin
         from "better_supabase"."permissions" p
         where coalesce(
           (select bool_and(ov."granted") from "better_supabase"."permission_overrides" ov
-            where ov."organization_id" = list_roles.tenant and ov."role_id" = r."id" and ov."permission_id" = p."id"),
+            where ov."tenant_id" = list_roles.tenant and ov."role_id" = r."id" and ov."permission_id" = p."id"),
           exists (select 1 from "better_supabase"."role_permissions" x where x."role_id" = r."id" and x."permission_id" = p."id")
         )
       ), '[]'::jsonb),
       'overrides', coalesce((
         select jsonb_agg(jsonb_build_object('permission', p."key", 'granted', ov."granted") order by p."key")
         from "better_supabase"."permission_overrides" ov join "better_supabase"."permissions" p on p."id" = ov."permission_id"
-        where ov."organization_id" = list_roles.tenant and ov."role_id" = r."id"
+        where ov."tenant_id" = list_roles.tenant and ov."role_id" = r."id"
       ), '[]'::jsonb)
     ) order by r."key")
     from "better_supabase"."roles" r
@@ -1024,11 +952,11 @@ begin
   end if;
   if granted is null then
     delete from "better_supabase"."permission_overrides" ov
-    where ov."organization_id" = tenant and ov."role_id" = v_role and ov."permission_id" = v_permission;
+    where ov."tenant_id" = tenant and ov."role_id" = v_role and ov."permission_id" = v_permission;
   else
-    insert into "better_supabase"."permission_overrides" ("organization_id", "role_id", "permission_id", "granted")
+    insert into "better_supabase"."permission_overrides" ("tenant_id", "role_id", "permission_id", "granted")
     values (tenant, v_role, v_permission, granted)
-    on conflict ("organization_id", "role_id", "permission_id") do update set "granted" = excluded."granted";
+    on conflict ("tenant_id", "role_id", "permission_id") do update set "granted" = excluded."granted";
   end if;
   return (select jsonb_build_object(
       'id', r."id",
@@ -1044,14 +972,14 @@ begin
         from "better_supabase"."permissions" p
         where coalesce(
           (select bool_and(ov."granted") from "better_supabase"."permission_overrides" ov
-            where ov."organization_id" = set_permission_override.tenant and ov."role_id" = r."id" and ov."permission_id" = p."id"),
+            where ov."tenant_id" = set_permission_override.tenant and ov."role_id" = r."id" and ov."permission_id" = p."id"),
           exists (select 1 from "better_supabase"."role_permissions" x where x."role_id" = r."id" and x."permission_id" = p."id")
         )
       ), '[]'::jsonb),
       'overrides', coalesce((
         select jsonb_agg(jsonb_build_object('permission', p."key", 'granted', ov."granted") order by p."key")
         from "better_supabase"."permission_overrides" ov join "better_supabase"."permissions" p on p."id" = ov."permission_id"
-        where ov."organization_id" = set_permission_override.tenant and ov."role_id" = r."id"
+        where ov."tenant_id" = set_permission_override.tenant and ov."role_id" = r."id"
       ), '[]'::jsonb)
     ) from "better_supabase"."roles" r where r."id" = v_role);
 end;
@@ -1111,25 +1039,6 @@ grant execute on function better_supabase.can_assign_as(uuid, uuid, text) to ser
 -- blocks.permissions.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."tenant_disabled"(tenant uuid)
 returns boolean
@@ -1349,16 +1258,3 @@ set search_path = ''
 as $$ select "better_supabase"."can_assign_as"($1, $2, $3) $$;
 revoke execute on function "api"."can_assign_as"(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function "api"."can_assign_as"(uuid, uuid, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

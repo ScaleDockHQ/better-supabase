@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { SQL_MODULES } from "../../../src/sql/registry.ts";
 import { moduleBody } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
@@ -19,25 +18,20 @@ describe("queue block", () => {
     expect(sql).toContain(
       "grant execute on function better_supabase.ensure_job_queue(text) to service_role;",
     );
-    expect(SQL_MODULES["queue"]!.sql).toBe(sql);
   });
 
   it("renders the table backend without pgmq", () => {
     const sql = jobs({ backend: "table" });
     expect(sql).not.toContain("create extension if not exists pgmq");
     expect(sql).not.toMatch(/pgmq\.\w/);
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."job_messages"',
-    );
+    expect(sql).toContain('create table "better_supabase"."job_messages"');
     expect(sql).toContain("for update skip locked");
     expect(sql).not.toContain("ensure_job_queue");
   });
 
   it("renders the drain scheduler with a schedules table", () => {
     const sql = jobs({ scheduler: "drain" });
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."job_schedules"',
-    );
+    expect(sql).toContain('create table "better_supabase"."job_schedules"');
     expect(sql).toContain("pg_timezone_names");
     expect(sql).not.toContain("cron.schedule(");
   });
@@ -102,7 +96,7 @@ describe("queue block", () => {
   it("keeps a tenant per drain schedule and refuses one under pg_cron", () => {
     const drain = jobs({ scheduler: "drain" });
     expect(drain).toContain(
-      'alter table "better_supabase"."job_schedules" add column if not exists "tenant" text;',
+      'alter table "better_supabase"."job_schedules" add column "tenant" text;',
     );
     expect(drain).toContain(
       "create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)",

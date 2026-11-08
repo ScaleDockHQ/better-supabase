@@ -451,7 +451,7 @@ describe.skipIf(!live)("knowledge module", () => {
       ).toBe("uuid");
       expect(
         await s.value<string>(
-          "(select organization_id::text from better_supabase.knowledge_collection_grants where collection_id = $1)",
+          "(select tenant_id::text from better_supabase.knowledge_collection_grants where collection_id = $1)",
           [collection],
         ),
       ).toBe(tenant);

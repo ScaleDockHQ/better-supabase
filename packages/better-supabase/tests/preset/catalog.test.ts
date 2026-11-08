@@ -55,7 +55,7 @@ describe("CONVENTION_FIELDS", () => {
 
   it("covers every integration name", () => {
     const integrations = CONVENTION_FIELDS.find(
-      (field) => field.key === "integrations",
+      (field) => field.key === "adapters",
     );
 
     expect(integrations?.values).toEqual(

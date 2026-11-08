@@ -41,6 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useSearchParam } from "@/lib/url-filters";
 import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";
 
@@ -150,7 +151,7 @@ export function EmployeeTable({
   canViewSensitive: boolean;
 }) {
   const t = useExtracted("people");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useSearchParam();
   const deferred = useDeferredValue(query.trim().toLowerCase());
   const [selected, setSelected] = useState<DirectoryEmployee | null>(null);
   const read = useAction(getPrivateDetails);

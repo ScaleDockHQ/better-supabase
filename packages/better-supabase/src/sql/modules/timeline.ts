@@ -9,19 +9,16 @@ import type { ActivitySourceName } from "./timeline-reads.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { SERVICE_CALLER, schemaPreamble, pageSize, fail } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
-import { storedTypesData } from "./event-type-renames.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { activityReads } from "./timeline-reads.ts";
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("timeline", 1),
   entities: {
     timeline_entry: {
       table: "activity",
       singular: "timeline_entry",
-      formerly: "activity_entry",
+      keyed: true,
       primary: true,
     },
   },
@@ -32,7 +29,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         event: "event_id",
         type: "type",
         actor: "actor_id",
@@ -148,7 +145,7 @@ create table if not exists ${activity} (
 create index if not exists ${sqlIdent(`${ctx.tableName("activity").name}_feed_idx`)} on ${activity} (${a("tenant")}, ${a("occurredAt")} desc, ${a("id")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("activity").name}_subject_idx`)} on ${activity} (${a("tenant")}, ${a("subjectType")}, ${a("subjectId")});
 ${ctx.has("activity", "actor") ? `create index if not exists ${sqlIdent(`${ctx.tableName("activity").name}_actor_idx`)} on ${activity} (${a("actor")});\n` : ""}${lockModuleTable(ctx, "activity", { read: true })}
-${reads.readable}${renderPolicy(makePolicy({ table: activity, name: sqlIdent(`${ctx.tableName("activity").name}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(a("tenant"), read)}${reads.rowCheck}` }), { drop: true, target: activity })}${reads.dropReadable}${reads.helpers}
+${reads.readable}${renderPolicy(makePolicy({ table: activity, name: sqlIdent(`${ctx.tableName("activity").name}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(a("tenant"), read)}${reads.rowCheck}` }), { target: activity })}${reads.dropReadable}${reads.helpers}
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -263,7 +260,6 @@ export const ACTIVITY: BlockSqlDefinition = {
   modes: ["managed", "custom"],
   version: 2,
   names: NAMES,
-  data: (ctx) => storedTypesData(ctx, [["activity", "type"]]),
   contract,
   build,
 };

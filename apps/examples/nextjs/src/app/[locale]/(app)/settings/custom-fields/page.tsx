@@ -12,7 +12,9 @@ export default function CustomFieldsSettingsPage({
 }) {
   return (
     <Suspense fallback={<CustomFieldsEditorSkeleton />}>
-      <CustomFieldsEditor searchParams={searchParams} />
+      {searchParams.then((query) => (
+        <CustomFieldsEditor query={query} />
+      ))}
     </Suspense>
   );
 }

@@ -39,9 +39,9 @@ export interface ShiftsOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the shift's extra columns
-   * (`blocks.shifts.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `upsert`.
+   * A Standard Schema for the shift's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `upsert`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -346,7 +346,7 @@ export interface Shifts<F extends object = Record<never, never>> {
     weekStart: Temporal.PlainDate;
   }): AsyncResult<readonly ShiftHours[]>;
   /**
-   * Time entries for assigned shifts that ended (time-tracking block); returns
+   * Time entries for assigned shifts that ended (time-entries block); returns
    * how many. Service role only.
    */
   toTimeEntries(
@@ -704,11 +704,7 @@ export function createShifts<
     requestSwap: ({ assignmentId, toUserId, note }) =>
       call(
         "request_shift_swap",
-        {
-          assignment_id: assignmentId,
-          to_user_id: toUserId,
-          note: note ?? null,
-        },
+        { assignment_id: assignmentId, to_id: toUserId, note: note ?? null },
         one("request_shift_swap", swapOf),
       ),
     decideSwap: ({ swapId, approve, ...decide }) =>

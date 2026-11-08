@@ -10,7 +10,6 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -39,7 +38,7 @@ const EVENTS: BlockSqlEvents<TeamsEvents> = {
     subject: "teams",
     payload: ["organizationId", "id", "userId"],
   },
-  "team_member.removed": {
+  "team_member.deleted": {
     subject: "teams",
     payload: ["organizationId", "id", "userId"],
   },
@@ -49,7 +48,7 @@ const NAMES: BlockSqlNames = {
   entities: { team: { table: "teams", singular: "team", primary: true } },
   events: EVENTS,
   hooks: ["before_team_create", "after_team_create"],
-  options: ["teamIdType", "extraColumns", "patch", "restore"],
+  options: ["teamIdType", "patch", "restore"],
   tables: {
     teams: {
       name: "teams",
@@ -169,9 +168,9 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   ${createdAt} timestamptz not null default now(),
   ${updatedAt} timestamptz not null default now(),
   unique (${tenant}, ${slug})
-);${addExtraColumns(teams, extras)}
+);
 ${lockTable(teams, { read: true })}
-${renderPolicy(makePolicy({ table: teams, name: ctx.naming.rename("teams_read"), command: "select", roles: ["authenticated"], using: `${tenant} in (select ${ctx.scope.ids(read)})` }), { drop: true, target: teams })}
+${renderPolicy(makePolicy({ table: teams, name: ctx.naming.rename("teams_read"), command: "select", roles: ["authenticated"], using: `${tenant} in (select ${ctx.scope.ids(read)})` }), { target: teams })}
 
 create table if not exists ${members} (
   ${memberTeam} ${idType} not null references ${teams} (${id}) on delete cascade,
@@ -183,7 +182,7 @@ create table if not exists ${members} (
 create index if not exists ${ctx.naming.rename("team_members_user_idx")} on ${members} (${memberUser});
 create index if not exists ${ctx.naming.rename("team_members_membership_idx")} on ${members} (${memberTenant}, ${memberUser});
 ${lockTable(members, { read: true })}
-${renderPolicy(makePolicy({ table: members, name: ctx.naming.rename("team_members_read"), command: "select", roles: ["authenticated"], using: `${memberTenant} in (select ${ctx.scope.ids(read)})` }), { drop: true, target: members })}
+${renderPolicy(makePolicy({ table: members, name: ctx.naming.rename("team_members_read"), command: "select", roles: ["authenticated"], using: `${memberTenant} in (select ${ctx.scope.ids(read)})` }), { target: members })}
 ${membershipFk(ctx, members, memberTenant, memberUser)}
 `
     : "";
@@ -199,7 +198,7 @@ ${membershipFk(ctx, members, memberTenant, memberUser)}
   return `${schemaPreamble(ctx)}
 -- Teams belong to a tenant. Inbox assignment uses these rows when inbox is installed.
 ${tables}
-${inboxMove(ctx, teams, members, id, tenant, name, slug)}
+${inboxTeamKey(ctx, teams, id)}
 -- A signed-in caller may only read their own teams; the service role and
 -- direct database sessions (no request role) may read anyone's.
 create or replace function ${fn("team_ids_of")}(member uuid)
@@ -219,7 +218,7 @@ end;
 $$;
 ${userGrant(`${fn("team_ids_of")}(uuid)`)}
 
--- fields: the extra columns (blocks.teams.options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 ${
   patching
     ? drops(fn("create_team"), `${ctx.idType}, text, text`, [
@@ -431,7 +430,7 @@ begin
   end if;
   delete from ${members}
   where ${memberTeam} = remove_team_member.team and ${memberUser} = remove_team_member.member;
-  ${record(ctx, "team_member.removed", "remove_team_member.team", "v_tenant", undefined, "remove_team_member.member")}
+  ${record(ctx, "team_member.deleted", "remove_team_member.team", "v_tenant", undefined, "remove_team_member.member")}
   return found;
 end;
 $$;
@@ -513,20 +512,36 @@ function membershipCheck(
   end if;`;
 }
 
-function inboxMove(
-  ctx: BlockSqlContext,
-  teams: string,
-  members: string,
-  id: string,
-  tenant: string,
-  name: string,
-  slug: string,
-): string {
+/** Inbox conversations point at the shared teams table. */
+function inboxTeamKey(ctx: BlockSqlContext, teams: string, id: string): string {
   if (!ctx.installed("inbox") || !ctx.owns("teams")) {
     return "";
   }
 
   const inbox = ctx.of("inbox");
+
+  return `alter table ${inbox.table("conversations")}
+  add constraint conversations_team_fkey
+  foreign key (${inbox.col("conversations", "team")}) references ${teams} (${id}) on delete set null;`;
+}
+
+/**
+ * Moves the inbox's own team rows into the shared tables and drops the old
+ * tables. Rows only an installed database holds, so it runs as an upgrade step
+ * before the module file adds the new foreign key.
+ */
+function inboxMove(ctx: BlockSqlContext): string {
+  if (!ctx.installed("inbox") || !ctx.owns("teams")) {
+    return "";
+  }
+
+  const inbox = ctx.of("inbox");
+  const teams = ctx.table("teams");
+  const members = ctx.table("members");
+  const id = ctx.col("teams", "id");
+  const tenant = ctx.col("teams", "tenant");
+  const name = ctx.col("teams", "name");
+  const slug = ctx.col("teams", "slug");
   const oldTeams = inbox.table("teams");
   const oldMembers = inbox.table("teamMembers");
   const conversations = inbox.table("conversations");
@@ -535,7 +550,6 @@ function inboxMove(
   const oldName = inbox.col("teams", "name");
   const oldTeam = inbox.col("teamMembers", "team");
   const oldUser = inbox.col("teamMembers", "user");
-  const conversationTeam = inbox.col("conversations", "team");
   const memberTeam = ctx.col("members", "team");
   const memberUser = ctx.col("members", "user");
   const memberTenant = ctx.col("members", "tenant");
@@ -569,10 +583,7 @@ begin
 end
 $shared_teams$;
 alter table ${conversations}
-  drop constraint if exists conversations_team_fkey;
-alter table ${conversations}
-  add constraint conversations_team_fkey
-  foreign key (${conversationTeam}) references ${teams} (${id}) on delete set null;`;
+  drop constraint if exists conversations_team_fkey;`;
 }
 
 function record(
@@ -652,13 +663,19 @@ export const TEAMS: BlockSqlDefinition = {
   integrates: ["inbox", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "team_ids_of(member) refuses a signed-in caller that names another user; the service role and direct database sessions still read anyone's teams.",
       sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "The inbox's own team tables move into teams and team_members, and inbox conversations point at teams.",
+      sql: inboxMove,
     },
   ],
   names: NAMES,

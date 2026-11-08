@@ -118,11 +118,10 @@ export interface AiSchedulesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   /**
-   * A Standard Schema for the task columns the app adds
-   * (`blocks["ai-schedules"].options.extraColumns`), keyed by column name. It
-   * types and parses them on `create`, `update`, `pause`, `resume` and `list`,
-   * and validates them on `create` and `update`, which return a `validation`
-   * error for a bad value.
+   * A Standard Schema for the task columns the app adds (the columns your
+   * schema files add), keyed by column name. It types and parses them on
+   * `create`, `update`, `pause`, `resume` and `list`, and validates them on
+   * `create` and `update`, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -229,10 +228,10 @@ function runOf(value: unknown): AiTaskRun {
   return {
     id: textOf(row["id"]),
     taskId: textOf(row["task_id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     userId: textOf(row["user_id"]),
     status: runStateOf(row["status"], STATUSES, "failed"),
-    scheduledFor: instantOf(row["scheduled_for"]),
+    scheduledFor: instantOf(row["scheduled_at"]),
     chatId: optionalText(row["chat_id"]),
     error: optionalText(row["error"]),
     startedAt: optionalInstant(row["started_at"]),
@@ -246,7 +245,7 @@ function taskOf(value: unknown): AiTask {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     userId: textOf(row["user_id"]),
     chatId: optionalText(row["chat_id"]),
     agentId: optionalText(row["agent_id"]),

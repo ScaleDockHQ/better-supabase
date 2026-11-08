@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { OrpcRequestContext } from "../../src/orpc/index.ts";
 
 import { writeSession } from "../../src/auth/session.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createOrpc } from "../../src/orpc/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -32,7 +32,7 @@ const sessionCookie = async (): Promise<string> =>
     .join("; ");
 
 describe("oRPC middleware", () => {
-  const bsb = createOrpc(defineSupabase(schema), {
+  const bsb = createOrpc(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
   });

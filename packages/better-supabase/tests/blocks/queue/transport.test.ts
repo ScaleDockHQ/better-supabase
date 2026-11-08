@@ -40,9 +40,9 @@ function fakeTransport(answers: Readonly<Record<string, unknown>>): {
 
 /** The argument names of each wrapper `blocks.<module>.api` writes. */
 function wrapperArgs(module: string): Map<string, readonly string[]> {
-  const [file] = renderBlocks([module], {
+  const file = renderBlocks([module], {
     modules: { [module]: { api: "api" } },
-  });
+  }).find((entry) => entry.module === module);
 
   const args = new Map<string, readonly string[]>();
 
@@ -122,7 +122,7 @@ describe("transportQueueProvider", () => {
           tenant: null,
           next_run: "2026-01-02T03:00:00Z",
           last_run: null,
-          locked_until: null,
+          lock_expires_at: null,
           created_at: "2026-01-01T00:00:00Z",
         },
       ],

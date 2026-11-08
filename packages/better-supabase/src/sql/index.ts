@@ -5,16 +5,41 @@ export {
   renderBlocks,
 } from "./render.ts";
 
+export {
+  LEGACY_OPTION,
+  legacyOptionTables,
+  legacyOptionTarget,
+} from "./legacy-options.ts";
+
+export { moduleContext, redundantNulls } from "./module-context.ts";
+
 export { isBlockSqlIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
 
 export { moduleDeprecations, upgradePlan } from "./upgrade.ts";
 
 export {
-  BLOCK_RENAMES,
-  currentBlockName,
-  formerBlockName,
-  renamedBlock,
-} from "./block-renames.ts";
+  appColumnsOf,
+  buildModel,
+  conflicts,
+  duplicatePolicies,
+  ownerOf,
+  parseDeclared,
+  setParseStore,
+  type Declaration,
+  type ParseStore,
+  type SchemaModel,
+} from "./pipeline/model.ts";
+
+export {
+  moduleRenderStats,
+  setModuleRenderStore,
+  type ModuleRenderEntry,
+  type ModuleRenderStore,
+} from "./pipeline/module-cache.ts";
+
+export { renderKey } from "./pipeline/render-key.ts";
+
+export { splitStatements, type SqlStatement } from "./pipeline/split.ts";
 
 export { entityRenamePlan } from "./entity-upgrade.ts";
 
@@ -58,6 +83,10 @@ export {
   appTablesFiles,
 } from "./modules/app-tables.ts";
 
+export { PRELUDE_FUNCTIONS, PRELUDE_MODULE } from "./pipeline/prelude.ts";
+
+export { UNSCOPED_MODULE } from "./pipeline/unscoped.ts";
+
 export { resolveBlock } from "../config/blocks.ts";
 
 export { appTableEventTypes } from "../config/app-tables.ts";
@@ -97,11 +126,22 @@ export {
   moduleWritesText,
 } from "./adopted-columns.ts";
 
+export {
+  clearMemo,
+  memoStats,
+  memoized,
+  setMemoBackend,
+} from "./result-memo.ts";
+
+export type { MemoBackend } from "./result-memo.ts";
+
 export { auditRegistrations } from "./audit-registrations.ts";
 
 export { excludedColumns, resolveExposeColumns } from "./expose-columns.ts";
 
 export { type DeclaredForeignKey, sameTenantLayout } from "./foreign-keys.ts";
+
+export { type OwnedColumn, ownedColumns } from "./owned-columns.ts";
 
 export {
   type DataExportPlan,
@@ -206,6 +246,8 @@ export {
   declaredPolicies,
   widenedCommands,
 } from "./policy-cover.ts";
+
+export { bsbPolicyName } from "./policy-names.ts";
 
 export {
   catalogPolicy,

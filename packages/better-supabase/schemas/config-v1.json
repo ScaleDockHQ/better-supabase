@@ -59,7 +59,7 @@
               "enum": ["none", "api"],
               "type": "string"
             },
-            "integrations": {
+            "adapters": {
               "type": "array",
               "items": {
                 "enum": [
@@ -277,7 +277,7 @@
               "type": "string",
               "default": "supabase/seed.ts"
             },
-            "output": {
+            "file": {
               "type": "string",
               "default": "supabase/seeds/000_better_supabase.sql"
             },
@@ -323,7 +323,7 @@
                 "locale": {
                   "type": "string"
                 },
-                "output": {
+                "file": {
                   "type": "string"
                 }
               },
@@ -571,13 +571,13 @@
                     "type": "string"
                   }
                 },
-                "output": {
+                "file": {
                   "type": "string"
                 }
               },
-              "required": ["from", "output"],
+              "required": ["from", "file"],
               "additionalProperties": false,
-              "description": "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `upgrade`; `upgrade --check` fails when the file is stale."
+              "description": "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `file` on `upgrade`; `upgrade --check` fails when the file is stale."
             },
             "triggers": {
               "type": "array",
@@ -704,7 +704,7 @@
                 "required": ["topic", "table"],
                 "additionalProperties": false
               },
-              "description": "Broadcast triggers `upgrade` writes to `policies.output` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function."
+              "description": "Broadcast triggers `upgrade` writes to `policies.file` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function."
             }
           },
           "additionalProperties": false,
@@ -917,10 +917,6 @@
                 "permissionsFor": {
                   "type": "string",
                   "description": "The permission keys {user} holds in {tenant}, as a text[]."
-                },
-                "canApprove": {
-                  "type": "string",
-                  "description": "Whether the caller may decide the tool call {tool} waits on in {tenant}."
                 },
                 "isApprover": {
                   "type": "string"
@@ -1377,15 +1373,9 @@
               },
               "additionalProperties": false
             },
-            "approvals": {
-              "type": "object",
-              "properties": {
-                "distinctApprover": {
-                  "type": "boolean",
-                  "description": "The user who asked for a tool call can't approve it. Default false."
-                }
-              },
-              "additionalProperties": false
+            "wildcards": {
+              "enum": ["all", "prefix", "none"],
+              "type": "string"
             },
             "problems": {
               "type": "array",
@@ -1522,7 +1512,7 @@
       },
       "additionalProperties": false
     },
-    "subjects": {
+    "recordTypes": {
       "type": "object",
       "propertyNames": {
         "type": "string",
@@ -1813,7 +1803,7 @@
               "billable-time",
               "billing",
               "bookings",
-              "bulk",
+              "bulk-actions",
               "calendar",
               "care-plans",
               "cases",
@@ -1954,7 +1944,7 @@
               "teams",
               "templates",
               "tills",
-              "time-tracking",
+              "time-entries",
               "timeline",
               "trash",
               "updated-at",
@@ -2009,7 +1999,7 @@
                   "billable-time",
                   "billing",
                   "bookings",
-                  "bulk",
+                  "bulk-actions",
                   "calendar",
                   "care-plans",
                   "cases",
@@ -2150,7 +2140,7 @@
                   "teams",
                   "templates",
                   "tills",
-                  "time-tracking",
+                  "time-entries",
                   "timeline",
                   "trash",
                   "updated-at",
@@ -2252,8 +2242,8 @@
             "bookings": {
               "$ref": "#/$defs/blocks/bookings"
             },
-            "bulk": {
-              "$ref": "#/$defs/blocks/bulk"
+            "bulk-actions": {
+              "$ref": "#/$defs/blocks/bulk-actions"
             },
             "calendar": {
               "$ref": "#/$defs/blocks/calendar"
@@ -2675,8 +2665,8 @@
             "tills": {
               "$ref": "#/$defs/blocks/tills"
             },
-            "time-tracking": {
-              "$ref": "#/$defs/blocks/time-tracking"
+            "time-entries": {
+              "$ref": "#/$defs/blocks/time-entries"
             },
             "timeline": {
               "$ref": "#/$defs/blocks/timeline"
@@ -2765,6 +2755,16 @@
           "description": "Serve the schema types through the TypeScript 7.1 content mapper: gen writes a slim generated.ts and schema.bsb instead of the type files.",
           "default": false
         },
+        "tableModules": {
+          "type": "boolean",
+          "description": "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses. false writes the single module.",
+          "default": true
+        },
+        "blockModules": {
+          "type": "boolean",
+          "description": "Write one module per block instance, blocks/<instance>.ts, with its config slice, and blocks/permissions.ts. false writes blockConfig as one object.",
+          "default": true
+        },
         "clientBlocks": {
           "type": "array",
           "items": {
@@ -2786,6 +2786,26 @@
             },
             "import": {
               "type": "string"
+            },
+            "children": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "table": {
+                    "type": "string",
+                    "pattern": "^[a-z_][a-z0-9_]*\\.[a-z_][a-z0-9_]*$"
+                  },
+                  "parent": {
+                    "type": "string"
+                  },
+                  "column": {
+                    "type": "string"
+                  }
+                },
+                "required": ["table", "parent", "column"],
+                "additionalProperties": false
+              }
             }
           },
           "required": ["instances"],
@@ -2810,7 +2830,7 @@
           },
           "additionalProperties": false
         },
-        "output": {
+        "file": {
           "type": "string",
           "description": "Main generated module.",
           "default": "src/lib/supabase/generated.ts"
@@ -2825,14 +2845,22 @@
           "description": "PostgREST major version written to database.types.ts.",
           "default": "13"
         },
-        "recordTypes": {
+        "records": {
           "type": "boolean"
         },
         "hooks": {
           "anyOf": [
             {
-              "enum": ["react", "vue", "svelte", "solid"],
-              "type": "string"
+              "anyOf": [
+                {
+                  "enum": ["react", "svelte", "vue", "solid"],
+                  "type": "string"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                }
+              ]
             },
             {
               "const": false
@@ -2841,8 +2869,16 @@
               "type": "object",
               "properties": {
                 "framework": {
-                  "enum": ["react", "vue", "svelte", "solid"],
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "enum": ["react", "svelte", "vue", "solid"],
+                      "type": "string"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]*$"
+                    }
+                  ]
                 },
                 "select": {
                   "type": "object",
@@ -3014,6 +3050,12 @@
           },
           "description": "Generator plugins. Only available in better-supabase.config.ts."
         },
+        "frameworks": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
         "readSets": {
           "type": "array",
           "items": {
@@ -3028,27 +3070,12 @@
     "api": {
       "type": "object",
       "properties": {
-        "openapi": {
-          "type": "object",
-          "properties": {
-            "entry": {
-              "type": "string",
-              "default": "src/lib/openapi.ts"
-            },
-            "output": {
-              "type": "string",
-              "default": "openapi.json"
-            }
-          },
-          "additionalProperties": false,
-          "description": "Deprecated: use specs. openapi.entry and openapi.output map onto it."
-        },
         "specs": {
           "type": "object",
           "properties": {
             "entry": {
               "type": "string",
-              "description": "Module exporting a defineApi() result (or a function returning one) as api or default. Defaults to openapi.entry.",
+              "description": "Module exporting a defineApi() result (or a function returning one) as api or default. ",
               "default": "src/lib/openapi.ts"
             },
             "outputs": {
@@ -3065,7 +3092,7 @@
                     "type": "string",
                     "description": "Defaults to the format's default version."
                   },
-                  "output": {
+                  "file": {
                     "type": "string",
                     "description": "File to write, relative to the root. Defaults to the format's file name."
                   },
@@ -3142,7 +3169,7 @@
               "description": "Report format. The global --json flag still picks the JSON report.",
               "default": "text"
             },
-            "output": {
+            "file": {
               "type": "string",
               "description": "Write the report to this file."
             },
@@ -3182,7 +3209,7 @@
         "env": {
           "type": "object",
           "properties": {
-            "output": {
+            "file": {
               "type": "string",
               "default": ".env.local"
             },
@@ -3197,7 +3224,7 @@
         "keys": {
           "type": "object",
           "properties": {
-            "output": {
+            "file": {
               "type": "string",
               "description": "Signing key file better-supabase dev keys writes. Defaults to supabase/signing_keys.json."
             }
@@ -3253,8 +3280,8 @@
         "auth": {
           "$ref": "#/properties/auth"
         },
-        "subjects": {
-          "$ref": "#/properties/subjects"
+        "recordTypes": {
+          "$ref": "#/properties/recordTypes"
         },
         "blocks": {
           "$ref": "#/properties/blocks"
@@ -3957,13 +3984,7 @@
                 "type": "boolean",
                 "default": false
               },
-              "emergency": {},
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
+              "emergency": {}
             }
           }
         }
@@ -3976,12 +3997,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "chart": {
                 "type": "string",
                 "default": "generic"
@@ -4034,12 +4049,6 @@
               "types": {
                 "type": "array",
                 "items": {
-                  "type": "string"
-                }
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
                   "type": "string"
                 }
               },
@@ -4112,12 +4121,6 @@
               "maxInstructions": {
                 "type": "number",
                 "default": 100000
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -4182,102 +4185,6 @@
               "messages": {},
               "teamMembership": {
                 "type": "string"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "projectExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "participantExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "messageExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "runExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "approvalExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "policyExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "inputExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "sourceExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "feedbackExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "shareExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "modelExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "moderationExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "stepExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "sandboxExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "harnessExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -4323,12 +4230,6 @@
               "pendingTtl": {
                 "type": "string",
                 "default": "1 day"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -4384,12 +4285,6 @@
               "maxPrompt": {
                 "type": "number",
                 "default": 20000
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -4410,12 +4305,6 @@
               "event": {
                 "type": "string",
                 "default": "announcement_changed"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -4443,12 +4332,6 @@
               "prefix": {
                 "type": "string",
                 "default": "bs"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -4492,21 +4375,9 @@
                   "type": "string"
                 }
               },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "notifications": {
                 "type": "boolean",
                 "default": true
-              },
-              "policyExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -4584,12 +4455,6 @@
               },
               "offline": {
                 "type": "boolean"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               },
               "topic": {
                 "type": "string",
@@ -4740,14 +4605,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -4795,12 +4653,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "recurring": {
                 "type": "boolean",
                 "default": false
@@ -4809,7 +4661,7 @@
           }
         }
       },
-      "bulk": {
+      "bulk-actions": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -4834,18 +4686,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "calendarExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "access": {
                 "type": "boolean",
                 "default": false
@@ -4908,12 +4748,6 @@
               },
               "guestRead": {
                 "type": "boolean"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -4942,12 +4776,6 @@
               "kinds": {},
               "intakeKind": {
                 "type": "string"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -4964,24 +4792,6 @@
               "storefront": {
                 "type": "string",
                 "default": "private"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "variantExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "categoryExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               },
               "locales": {
                 "type": "array",
@@ -5045,14 +4855,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -5099,14 +4902,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -5129,12 +4925,6 @@
               "sessionTtl": {
                 "type": "string",
                 "default": "1 hour"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -5164,12 +4954,6 @@
               "roles": {
                 "type": "array",
                 "items": {
-                  "type": "string"
-                }
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
                   "type": "string"
                 }
               },
@@ -5223,12 +5007,6 @@
               "reminderDays": {
                 "type": "number",
                 "default": 14
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -5241,14 +5019,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -5320,12 +5091,7 @@
                 "default": "tenant"
               },
               "packs": {},
-              "entityMap": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
+              "entityMap": {}
             }
           }
         }
@@ -5407,18 +5173,6 @@
                 "type": "boolean",
                 "default": true
               },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "lineExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "lineRates": {
                 "type": "string",
                 "default": "bps"
@@ -5439,12 +5193,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "timeZone": {
                 "type": "string",
                 "default": "UTC"
@@ -5520,14 +5268,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -5586,12 +5327,6 @@
                 "type": "string",
                 "default": "_previews"
               },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "maxTextBytes": {
                 "type": "number",
                 "default": 1048576
@@ -5640,24 +5375,6 @@
               "employmentTypes": {
                 "type": "array",
                 "items": {
-                  "type": "string"
-                }
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "privateDetailsExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "contractExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
                   "type": "string"
                 }
               },
@@ -5732,18 +5449,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "categoryExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "approvals": {
                 "type": "boolean",
                 "default": true
@@ -5808,13 +5513,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "contexts": {},
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
+              "contexts": {}
             }
           }
         }
@@ -5839,13 +5538,7 @@
             "additionalProperties": false,
             "properties": {
               "handlers": {},
-              "publicLimit": {},
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
+              "publicLimit": {}
             }
           }
         }
@@ -5867,12 +5560,6 @@
               },
               "timeCategory": {
                 "type": "string"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -5885,14 +5572,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -5933,18 +5613,6 @@
               "candidate": {
                 "type": "string",
                 "default": "person"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "applicationExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               },
               "stages": {
                 "default": "pipelines"
@@ -6084,14 +5752,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -6123,12 +5784,6 @@
               },
               "calendar": {
                 "type": "string"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -6142,12 +5797,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "receiptInspection": {
                 "type": "string"
               },
@@ -6199,12 +5848,6 @@
                 "type": "string",
                 "default": "7 days"
               },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "defaultRole": {
                 "type": "string",
                 "default": "member"
@@ -6242,27 +5885,9 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "lineExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "lineRates": {
                 "type": "string",
                 "default": "bps"
-              },
-              "chargeExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               },
               "totals": {
                 "type": "string",
@@ -6275,7 +5900,6 @@
                 },
                 "default": ["stripe", "order"]
               },
-              "uniqueNumber": {},
               "linePositionKey": {
                 "type": "boolean",
                 "default": true
@@ -6401,12 +6025,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "noOverlap": {
                 "type": "boolean",
                 "default": false
@@ -6434,12 +6052,6 @@
               "allowNegative": {
                 "type": "boolean",
                 "default": false
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               },
               "feed": {},
               "approvals": {
@@ -6521,7 +6133,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "engagementType": {
+              "activityType": {
                 "type": "string"
               },
               "matchDomains": {
@@ -6550,12 +6162,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "purchaseSuggestions": {
                 "type": "string",
                 "default": "order"
@@ -6583,26 +6189,8 @@
                 "type": "string",
                 "default": "UTC"
               },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "guestRead": {
                 "type": "boolean"
-              },
-              "medicationExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "administrationExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -6624,12 +6212,6 @@
               },
               "calendar": {
                 "type": "string"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -6704,12 +6286,6 @@
               "scheduleQueue": {
                 "type": "string",
                 "default": "messaging"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               },
               "notify": {
                 "type": "boolean",
@@ -6794,8 +6370,7 @@
                 "default": ["in_app"]
               },
               "createdEvent": {
-                "type": "string",
-                "default": "notification_created"
+                "type": "string"
               },
               "maxRecipients": {
                 "type": "number",
@@ -6813,22 +6388,17 @@
                 "default": ["low", "normal", "high", "urgent"]
               },
               "realtime": {
-                "type": "string",
-                "default": "broadcast"
+                "type": "string"
+              },
+              "resolveAddress": {
+                "type": "string"
               },
               "topic": {
                 "type": "string",
                 "default": "notifications:{userId}"
               },
               "updatedEvent": {
-                "type": "string",
-                "default": "notification_updated"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
+                "type": "string"
               }
             }
           }
@@ -6877,12 +6447,6 @@
               "partitioned": {
                 "type": "boolean",
                 "default": false
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -6926,12 +6490,6 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "kitchen": {
                 "type": "boolean",
                 "default": false
@@ -6971,12 +6529,6 @@
               "deleteMode": {
                 "type": "string",
                 "default": "hard"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               },
               "formerOwnerRole": {
                 "type": "string",
@@ -7160,12 +6712,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "brand": {}
             }
           }
@@ -7186,12 +6732,6 @@
               "maxBodyLength": {
                 "type": "number",
                 "default": 20000
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -7211,12 +6751,6 @@
               },
               "columnGrants": {
                 "type": "boolean"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               },
               "metadata": {},
               "mirrorEmail": {
@@ -7274,14 +6808,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -7307,14 +6834,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -7336,12 +6856,6 @@
               "renewalWindowDays": {
                 "type": "number",
                 "default": 30
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -7391,18 +6905,6 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "lineExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "lineRates": {
                 "type": "string",
                 "default": "bps"
@@ -7414,12 +6916,6 @@
               "versionLines": {
                 "type": "boolean",
                 "default": false
-              },
-              "versionLineExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               },
               "totals": {
                 "type": "string",
@@ -7552,13 +7048,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "kinds": {},
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
+              "kinds": {}
             }
           }
         }
@@ -7574,12 +7064,6 @@
               "ruleFormat": {
                 "type": "string",
                 "default": "rrule"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -7635,12 +7119,6 @@
               "requirePurchase": {
                 "type": "boolean",
                 "default": false
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -7671,13 +7149,7 @@
                   "type": "string"
                 }
               },
-              "defaultMatrix": {},
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
+              "defaultMatrix": {}
             }
           }
         }
@@ -7700,14 +7172,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -7820,14 +7285,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -7881,12 +7339,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "tokenHash": {
                 "type": "boolean",
                 "default": false
@@ -7918,12 +7370,6 @@
               "timeZone": {
                 "type": "string",
                 "default": "UTC"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -7936,14 +7382,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -7955,12 +7394,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "meanings": {
                 "type": "array",
                 "items": {
@@ -7995,13 +7428,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "businessHours": {},
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
+              "businessHours": {}
             }
           }
         }
@@ -8096,12 +7523,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "patch": {
                 "type": "boolean",
                 "default": false
@@ -8125,12 +7546,6 @@
               "maxAssignees": {
                 "type": "number",
                 "default": 0
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               },
               "authorCanDelete": {
                 "type": "boolean",
@@ -8178,12 +7593,6 @@
                 "type": "string",
                 "default": "uuid"
               },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "patch": {
                 "type": "boolean",
                 "default": false
@@ -8205,12 +7614,6 @@
             "additionalProperties": false,
             "properties": {
               "brand": {},
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
               "types": {}
             }
           }
@@ -8227,7 +7630,7 @@
           }
         }
       },
-      "time-tracking": {
+      "time-entries": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -8239,12 +7642,6 @@
               "timeZone": {
                 "type": "string",
                 "default": "UTC"
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               },
               "approvals": {
                 "type": "boolean",
@@ -8264,6 +7661,12 @@
                 "default": "one"
               },
               "lockedColumns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "on": {
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -8295,12 +7698,6 @@
               "retentionDays": {
                 "type": "number",
                 "default": 30
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               },
               "deletedAt": {
                 "type": "string",
@@ -8398,12 +7795,6 @@
               "debounce": {
                 "type": "number",
                 "default": 300
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -8430,12 +7821,6 @@
                 "items": {
                   "type": "string"
                 }
-              },
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
               }
             }
           }
@@ -8459,14 +7844,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -8532,14 +7910,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -8584,14 +7955,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "runExtraColumns": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "properties": {}
           }
         }
       }

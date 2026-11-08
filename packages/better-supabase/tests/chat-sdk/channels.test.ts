@@ -772,7 +772,7 @@ describe("deliver", () => {
     for (const overrides of [
       { message: null },
       { message: { ...messageRow, kind: "note" } },
-      { message: { ...messageRow, deleted_at: AT } },
+      { message: { ...messageRow, archived_at: AT } },
       { conversation: null },
     ]) {
       const { chat, inbox } = setup(overrides);

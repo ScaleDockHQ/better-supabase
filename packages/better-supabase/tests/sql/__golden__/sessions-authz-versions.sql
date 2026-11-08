@@ -1,7 +1,7 @@
 -- blocks['sessions'].options.authzVersions: one authorization version per
 -- user. Attach better_supabase.bump_authz_version() to the tables a user's
 -- access comes from; the access token hook reads better_supabase.authz_version().
-create table if not exists better_supabase.user_authz_versions (
+create table better_supabase.user_authz_versions (
   user_id uuid primary key references auth.users on delete cascade,
   version bigint not null default 1,
   updated_at timestamptz not null default now()
@@ -13,7 +13,6 @@ revoke all on better_supabase.user_authz_versions from public, anon, authenticat
 grant select on better_supabase.user_authz_versions to supabase_auth_admin;
 grant all on better_supabase.user_authz_versions to service_role;
 
-drop policy if exists bsb_authz_versions_auth_admin on better_supabase.user_authz_versions;
 create policy bsb_authz_versions_auth_admin on better_supabase.user_authz_versions
   for select to supabase_auth_admin
   using (true);
@@ -94,22 +93,13 @@ end;
 $$;
 
 revoke execute on function better_supabase.broadcast_authz_version() from public, anon, authenticated;
-
-drop trigger if exists bsb_authz_versions_broadcast on better_supabase.user_authz_versions;
 create trigger bsb_authz_versions_broadcast
   after insert or update on better_supabase.user_authz_versions
   for each row execute function better_supabase.broadcast_authz_version();
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-    drop policy if exists bsb_authz_versions_receive on realtime.messages;
 create policy bsb_authz_versions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'authz:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- The caller's own authorization version, null without a signed-in user.
 -- Clients compare it with the token's authz_ver to catch up on a broadcast

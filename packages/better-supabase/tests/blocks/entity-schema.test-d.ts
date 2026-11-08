@@ -2,10 +2,10 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { describe, expectTypeOf, it } from "vitest";
 
-import type { EngagementInput } from "../../src/blocks/activities/activities.ts";
+import type { ActivityInput } from "../../src/blocks/activities/activities.ts";
 import type {
-  engagementChangeSchema,
-  engagementInputSchema,
+  activityChangeSchema,
+  activityInputSchema,
 } from "../../src/blocks/activities/schemas.ts";
 import type { NewAttachment } from "../../src/blocks/attachments/attachments.ts";
 import type { attachmentInputSchema } from "../../src/blocks/attachments/schemas.ts";
@@ -45,14 +45,14 @@ import type {
   employeeInputSchema,
 } from "../../src/blocks/employees/schemas.ts";
 import type {
-  workItemChangeSchema,
-  workItemInputSchema,
-  workItemListFilterSchema,
+  taskChangeSchema,
+  taskInputSchema,
+  taskListFilterSchema,
 } from "../../src/blocks/tasks/schemas.ts";
 import type {
-  WorkItemChange,
-  WorkItemInput,
-  WorkItemListOptions,
+  TaskChange,
+  TaskInput,
+  TaskListOptions,
 } from "../../src/blocks/tasks/tasks.ts";
 
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
@@ -68,14 +68,14 @@ interface Note {
 describe("entitySchema", () => {
   it("outputs the hand-written types", () => {
     expectTypeOf<
-      StandardSchemaV1.InferOutput<typeof workItemInputSchema>
-    >().toEqualTypeOf<WorkItemInput>();
+      StandardSchemaV1.InferOutput<typeof taskInputSchema>
+    >().toEqualTypeOf<TaskInput>();
     expectTypeOf<
-      StandardSchemaV1.InferOutput<typeof workItemChangeSchema>
-    >().toEqualTypeOf<WorkItemChange>();
+      StandardSchemaV1.InferOutput<typeof taskChangeSchema>
+    >().toEqualTypeOf<TaskChange>();
     expectTypeOf<
-      StandardSchemaV1.InferOutput<typeof workItemListFilterSchema>
-    >().toEqualTypeOf<WorkItemListOptions>();
+      StandardSchemaV1.InferOutput<typeof taskListFilterSchema>
+    >().toEqualTypeOf<TaskListOptions>();
   });
 
   it("outputs the other entity blocks' types", () => {
@@ -107,12 +107,12 @@ describe("entitySchema", () => {
     expectTypeOf<
       Out<typeof attachmentInputSchema>
     >().toEqualTypeOf<NewAttachment>();
-    expectTypeOf<Out<typeof engagementInputSchema>>().toEqualTypeOf<
-      EngagementInput & { readonly type: string; readonly title: string }
+    expectTypeOf<Out<typeof activityInputSchema>>().toEqualTypeOf<
+      ActivityInput & { readonly type: string; readonly title: string }
     >();
     expectTypeOf<
-      Out<typeof engagementChangeSchema>
-    >().toEqualTypeOf<EngagementInput>();
+      Out<typeof activityChangeSchema>
+    >().toEqualTypeOf<ActivityInput>();
     expectTypeOf<
       Out<typeof calendarEventInputSchema>
     >().toEqualTypeOf<CalendarEventInput>();

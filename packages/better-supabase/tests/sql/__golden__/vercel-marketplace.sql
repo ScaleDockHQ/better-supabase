@@ -1,84 +1,82 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:67ab0478b9faaacd970302f92521db1b7da458518271d4b59ac84b2e80bb8c62
+-- @bsb-hash sha256:643c80a690656cebc6b95eb8e4aea188dec9adebc054149a5f33c96257a32356
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Vercel Marketplace: the teams that installed the integration, the resources
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an
 -- installation through its tenant.
-create table if not exists "better_supabase"."marketplace_installations" (
+create table "better_supabase"."marketplace_installations" (
   "id" uuid primary key default gen_random_uuid(),
   "configuration_id" text not null unique,
   "team_id" text,
   "user_id" text,
   "tenant" text,
-  "status" text not null default 'active' check ("status" in ('active', 'suspended', 'removed')),
+  "status" text not null default 'active' constraint bsb_marketplace_installations_status_check check ("status" in ('active', 'suspended', 'removed')),
   "metadata" jsonb not null default '{}'::jsonb,
   "removed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."marketplace_installations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_installations";
+alter table "better_supabase"."marketplace_installations" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_installations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- tenant_created: the installation created its tenant, so removing the
 -- installation may delete it. access_token_secret_id: the Vault secret with
 -- the access token Vercel handed out at installation.
-alter table "better_supabase"."marketplace_installations" add column if not exists "tenant_created" boolean not null default false;
-alter table "better_supabase"."marketplace_installations" add column if not exists "access_token_secret_id" uuid;
-create index if not exists marketplace_installations_tenant_idx on "better_supabase"."marketplace_installations" ("tenant") where "tenant" is not null;
+alter table "better_supabase"."marketplace_installations" add column "tenant_created" boolean not null default false;
+alter table "better_supabase"."marketplace_installations" add column "access_token_secret_id" uuid;
+create index marketplace_installations_tenant_idx on "better_supabase"."marketplace_installations" ("tenant") where "tenant" is not null;
 alter table "better_supabase"."marketplace_installations" enable row level security;
 revoke all on "better_supabase"."marketplace_installations" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_installations" to service_role;
 
-create table if not exists "better_supabase"."marketplace_plans" (
+create table "better_supabase"."marketplace_plans" (
   "id" text primary key,
   "name" text not null,
-  "kind" text not null default 'subscription' check ("kind" in ('subscription', 'prepayment')),
+  "kind" text not null default 'subscription' constraint bsb_marketplace_plans_kind_check check ("kind" in ('subscription', 'prepayment')),
   "details" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."marketplace_plans" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_plans";
+alter table "better_supabase"."marketplace_plans" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_plans"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_plans" enable row level security;
 revoke all on "better_supabase"."marketplace_plans" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_plans" to service_role;
 
-create table if not exists "better_supabase"."marketplace_resources" (
+create table "better_supabase"."marketplace_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "external_id" text not null,
   "name" text not null,
   "plan_id" text references "better_supabase"."marketplace_plans" ("id") on delete set null,
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
+  "status" text not null default 'ready' constraint bsb_marketplace_resources_status_check check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
   "metadata" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
 );
-alter table "better_supabase"."marketplace_resources" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_resources";
+alter table "better_supabase"."marketplace_resources" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_resources"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- tenant: the app's tenant the provision hook created or chose for the
 -- resource. secret_refs: the app's handles for the secrets it handed out
 -- (never the values), so a rotation can revoke the previous ones.
-alter table "better_supabase"."marketplace_resources" add column if not exists "tenant" text;
-alter table "better_supabase"."marketplace_resources" add column if not exists "tenant_created" boolean not null default false;
-alter table "better_supabase"."marketplace_resources" add column if not exists "secret_refs" jsonb not null default '[]'::jsonb;
-create index if not exists marketplace_resources_plan_idx on "better_supabase"."marketplace_resources" ("plan_id") where "plan_id" is not null;
+alter table "better_supabase"."marketplace_resources" add column "tenant" text;
+alter table "better_supabase"."marketplace_resources" add column "tenant_created" boolean not null default false;
+alter table "better_supabase"."marketplace_resources" add column "secret_refs" jsonb not null default '[]'::jsonb;
+create index marketplace_resources_plan_idx on "better_supabase"."marketplace_resources" ("plan_id") where "plan_id" is not null;
 alter table "better_supabase"."marketplace_resources" enable row level security;
 revoke all on "better_supabase"."marketplace_resources" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_resources" to service_role;
 
-create table if not exists "better_supabase"."marketplace_invoices" (
+create table "better_supabase"."marketplace_invoices" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "external_id" text not null,
@@ -92,29 +90,29 @@ create table if not exists "better_supabase"."marketplace_invoices" (
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
 );
-alter table "better_supabase"."marketplace_invoices" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_invoices";
+alter table "better_supabase"."marketplace_invoices" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_invoices"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_invoices" enable row level security;
 revoke all on "better_supabase"."marketplace_invoices" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_invoices" to service_role;
 
-create table if not exists "better_supabase"."marketplace_meter_reports" (
+create table "better_supabase"."marketplace_meter_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "resource_external_id" text not null default '',
   "meter_id" text not null,
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
-  "quantity" numeric not null check ("quantity" >= 0),
+  "quantity" numeric not null constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0),
   "reported_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end")
 );
 -- reported_quantity: the total Vercel accepted for the period, so the next
 -- report sends the rest as dayValue.
-alter table "better_supabase"."marketplace_meter_reports" add column if not exists "reported_quantity" numeric not null default 0;
+alter table "better_supabase"."marketplace_meter_reports" add column "reported_quantity" numeric not null default 0;
 alter table "better_supabase"."marketplace_meter_reports" enable row level security;
 revoke all on "better_supabase"."marketplace_meter_reports" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_meter_reports" to service_role;
@@ -591,19 +589,6 @@ grant execute on function "better_supabase"."marketplace_resources"(text) to ser
 revoke execute on function "better_supabase"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."delete_marketplace_resource"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
@@ -621,84 +606,82 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:42f3a726a30ba3f0007503e9228e6c2b8bafe3aa13d3781504b433642f2812ac
+-- @bsb-hash sha256:c998efd05259b37ac9c1812f39e7b550a070e7d738cb6312a721b72e194e9279
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Vercel Marketplace: the teams that installed the integration, the resources
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an
 -- installation through its tenant.
-create table if not exists "better_supabase"."marketplace_installations" (
+create table "better_supabase"."marketplace_installations" (
   "id" uuid primary key default gen_random_uuid(),
   "configuration_id" text not null unique,
   "team_id" text,
   "user_id" text,
   "tenant" text,
-  "status" text not null default 'active' check ("status" in ('active', 'suspended', 'removed')),
+  "status" text not null default 'active' constraint bsb_marketplace_installations_status_check check ("status" in ('active', 'suspended', 'removed')),
   "metadata" jsonb not null default '{}'::jsonb,
   "removed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."marketplace_installations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_installations";
+alter table "better_supabase"."marketplace_installations" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_installations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- tenant_created: the installation created its tenant, so removing the
 -- installation may delete it. access_token_secret_id: the Vault secret with
 -- the access token Vercel handed out at installation.
-alter table "better_supabase"."marketplace_installations" add column if not exists "tenant_created" boolean not null default false;
-alter table "better_supabase"."marketplace_installations" add column if not exists "access_token_secret_id" uuid;
-create index if not exists marketplace_installations_tenant_idx on "better_supabase"."marketplace_installations" ("tenant") where "tenant" is not null;
+alter table "better_supabase"."marketplace_installations" add column "tenant_created" boolean not null default false;
+alter table "better_supabase"."marketplace_installations" add column "access_token_secret_id" uuid;
+create index marketplace_installations_tenant_idx on "better_supabase"."marketplace_installations" ("tenant") where "tenant" is not null;
 alter table "better_supabase"."marketplace_installations" enable row level security;
 revoke all on "better_supabase"."marketplace_installations" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_installations" to service_role;
 
-create table if not exists "better_supabase"."marketplace_plans" (
+create table "better_supabase"."marketplace_plans" (
   "id" text primary key,
   "name" text not null,
-  "kind" text not null default 'subscription' check ("kind" in ('subscription', 'prepayment')),
+  "kind" text not null default 'subscription' constraint bsb_marketplace_plans_kind_check check ("kind" in ('subscription', 'prepayment')),
   "details" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."marketplace_plans" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_plans";
+alter table "better_supabase"."marketplace_plans" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_plans"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_plans" enable row level security;
 revoke all on "better_supabase"."marketplace_plans" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_plans" to service_role;
 
-create table if not exists "better_supabase"."marketplace_resources" (
+create table "better_supabase"."marketplace_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "external_id" text not null,
   "name" text not null,
   "plan_id" text references "better_supabase"."marketplace_plans" ("id") on delete set null,
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
+  "status" text not null default 'ready' constraint bsb_marketplace_resources_status_check check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
   "metadata" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
 );
-alter table "better_supabase"."marketplace_resources" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_resources";
+alter table "better_supabase"."marketplace_resources" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_resources"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- tenant: the app's tenant the provision hook created or chose for the
 -- resource. secret_refs: the app's handles for the secrets it handed out
 -- (never the values), so a rotation can revoke the previous ones.
-alter table "better_supabase"."marketplace_resources" add column if not exists "tenant" text;
-alter table "better_supabase"."marketplace_resources" add column if not exists "tenant_created" boolean not null default false;
-alter table "better_supabase"."marketplace_resources" add column if not exists "secret_refs" jsonb not null default '[]'::jsonb;
-create index if not exists marketplace_resources_plan_idx on "better_supabase"."marketplace_resources" ("plan_id") where "plan_id" is not null;
+alter table "better_supabase"."marketplace_resources" add column "tenant" text;
+alter table "better_supabase"."marketplace_resources" add column "tenant_created" boolean not null default false;
+alter table "better_supabase"."marketplace_resources" add column "secret_refs" jsonb not null default '[]'::jsonb;
+create index marketplace_resources_plan_idx on "better_supabase"."marketplace_resources" ("plan_id") where "plan_id" is not null;
 alter table "better_supabase"."marketplace_resources" enable row level security;
 revoke all on "better_supabase"."marketplace_resources" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_resources" to service_role;
 
-create table if not exists "better_supabase"."marketplace_invoices" (
+create table "better_supabase"."marketplace_invoices" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "external_id" text not null,
@@ -712,29 +695,29 @@ create table if not exists "better_supabase"."marketplace_invoices" (
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
 );
-alter table "better_supabase"."marketplace_invoices" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_invoices";
+alter table "better_supabase"."marketplace_invoices" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_invoices"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_invoices" enable row level security;
 revoke all on "better_supabase"."marketplace_invoices" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_invoices" to service_role;
 
-create table if not exists "better_supabase"."marketplace_meter_reports" (
+create table "better_supabase"."marketplace_meter_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "resource_external_id" text not null default '',
   "meter_id" text not null,
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
-  "quantity" numeric not null check ("quantity" >= 0),
+  "quantity" numeric not null constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0),
   "reported_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end")
 );
 -- reported_quantity: the total Vercel accepted for the period, so the next
 -- report sends the rest as dayValue.
-alter table "better_supabase"."marketplace_meter_reports" add column if not exists "reported_quantity" numeric not null default 0;
+alter table "better_supabase"."marketplace_meter_reports" add column "reported_quantity" numeric not null default 0;
 alter table "better_supabase"."marketplace_meter_reports" enable row level security;
 revoke all on "better_supabase"."marketplace_meter_reports" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_meter_reports" to service_role;
@@ -1239,19 +1222,6 @@ grant execute on function "better_supabase"."marketplace_resources"(text) to ser
 revoke execute on function "better_supabase"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."delete_marketplace_resource"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
@@ -1269,13 +1239,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:3d9ad0a38e157821d24b9a5e277c1a32057bd11c31a6d263f9f3035df4ec5f35
+-- @bsb-hash sha256:79b86c1e80e4c97d05cdaceef35f9f231fc8d43ac242532ffecc358ee3ece16e
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -1285,73 +1253,73 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an
 -- installation through its tenant.
-create table if not exists "app_private"."marketplace_installations" (
+create table "app_private"."marketplace_installations" (
   "id" uuid primary key default gen_random_uuid(),
   "configuration_id" text not null unique,
   "team_id" text,
   "user_id" text,
   "tenant" text,
-  "status" text not null default 'active' check ("status" in ('active', 'suspended', 'removed')),
+  "status" text not null default 'active' constraint bsb_marketplace_installations_status_check check ("status" in ('active', 'suspended', 'removed')),
   "metadata" jsonb not null default '{}'::jsonb,
   "removed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-alter table "app_private"."marketplace_installations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "app_private"."marketplace_installations";
+alter table "app_private"."marketplace_installations" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "app_private"."marketplace_installations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- tenant_created: the installation created its tenant, so removing the
 -- installation may delete it. access_token_secret_id: the Vault secret with
 -- the access token Vercel handed out at installation.
-alter table "app_private"."marketplace_installations" add column if not exists "tenant_created" boolean not null default false;
-alter table "app_private"."marketplace_installations" add column if not exists "access_token_secret_id" uuid;
-create index if not exists marketplace_installations_tenant_idx on "app_private"."marketplace_installations" ("tenant") where "tenant" is not null;
+alter table "app_private"."marketplace_installations" add column "tenant_created" boolean not null default false;
+alter table "app_private"."marketplace_installations" add column "access_token_secret_id" uuid;
+create index marketplace_installations_tenant_idx on "app_private"."marketplace_installations" ("tenant") where "tenant" is not null;
 alter table "app_private"."marketplace_installations" enable row level security;
 revoke all on "app_private"."marketplace_installations" from public, anon, authenticated;
 grant all on "app_private"."marketplace_installations" to service_role;
 
-create table if not exists "app_private"."marketplace_plans" (
+create table "app_private"."marketplace_plans" (
   "id" text primary key,
   "name" text not null,
-  "kind" text not null default 'subscription' check ("kind" in ('subscription', 'prepayment')),
+  "kind" text not null default 'subscription' constraint bsb_marketplace_plans_kind_check check ("kind" in ('subscription', 'prepayment')),
   "details" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now()
 );
-alter table "app_private"."marketplace_plans" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "app_private"."marketplace_plans";
+alter table "app_private"."marketplace_plans" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "app_private"."marketplace_plans"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."marketplace_plans" enable row level security;
 revoke all on "app_private"."marketplace_plans" from public, anon, authenticated;
 grant all on "app_private"."marketplace_plans" to service_role;
 
-create table if not exists "app_private"."marketplace_resources" (
+create table "app_private"."marketplace_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "app_private"."marketplace_installations" ("id") on delete cascade,
   "external_id" text not null,
   "name" text not null,
   "plan_id" text references "app_private"."marketplace_plans" ("id") on delete set null,
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
+  "status" text not null default 'ready' constraint bsb_marketplace_resources_status_check check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
   "metadata" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
 );
-alter table "app_private"."marketplace_resources" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "app_private"."marketplace_resources";
+alter table "app_private"."marketplace_resources" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "app_private"."marketplace_resources"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- tenant: the app's tenant the provision hook created or chose for the
 -- resource. secret_refs: the app's handles for the secrets it handed out
 -- (never the values), so a rotation can revoke the previous ones.
-alter table "app_private"."marketplace_resources" add column if not exists "tenant" text;
-alter table "app_private"."marketplace_resources" add column if not exists "tenant_created" boolean not null default false;
-alter table "app_private"."marketplace_resources" add column if not exists "secret_refs" jsonb not null default '[]'::jsonb;
-create index if not exists marketplace_resources_plan_idx on "app_private"."marketplace_resources" ("plan_id") where "plan_id" is not null;
+alter table "app_private"."marketplace_resources" add column "tenant" text;
+alter table "app_private"."marketplace_resources" add column "tenant_created" boolean not null default false;
+alter table "app_private"."marketplace_resources" add column "secret_refs" jsonb not null default '[]'::jsonb;
+create index marketplace_resources_plan_idx on "app_private"."marketplace_resources" ("plan_id") where "plan_id" is not null;
 alter table "app_private"."marketplace_resources" enable row level security;
 revoke all on "app_private"."marketplace_resources" from public, anon, authenticated;
 grant all on "app_private"."marketplace_resources" to service_role;
 
-create table if not exists "app_private"."marketplace_invoices" (
+create table "app_private"."marketplace_invoices" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "app_private"."marketplace_installations" ("id") on delete cascade,
   "external_id" text not null,
@@ -1365,29 +1333,29 @@ create table if not exists "app_private"."marketplace_invoices" (
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
 );
-alter table "app_private"."marketplace_invoices" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "app_private"."marketplace_invoices";
+alter table "app_private"."marketplace_invoices" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "app_private"."marketplace_invoices"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."marketplace_invoices" enable row level security;
 revoke all on "app_private"."marketplace_invoices" from public, anon, authenticated;
 grant all on "app_private"."marketplace_invoices" to service_role;
 
-create table if not exists "app_private"."marketplace_meter_reports" (
+create table "app_private"."marketplace_meter_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "app_private"."marketplace_installations" ("id") on delete cascade,
   "resource_external_id" text not null default '',
   "meter_id" text not null,
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
-  "quantity" numeric not null check ("quantity" >= 0),
+  "quantity" numeric not null constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0),
   "reported_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end")
 );
 -- reported_quantity: the total Vercel accepted for the period, so the next
 -- report sends the rest as dayValue.
-alter table "app_private"."marketplace_meter_reports" add column if not exists "reported_quantity" numeric not null default 0;
+alter table "app_private"."marketplace_meter_reports" add column "reported_quantity" numeric not null default 0;
 alter table "app_private"."marketplace_meter_reports" enable row level security;
 revoke all on "app_private"."marketplace_meter_reports" from public, anon, authenticated;
 grant all on "app_private"."marketplace_meter_reports" to service_role;
@@ -1864,19 +1832,6 @@ grant execute on function "app_private"."marketplace_resources"(text) to service
 revoke execute on function "app_private"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "app_private"."delete_marketplace_resource"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
@@ -1894,84 +1849,82 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:b8be61592098424ad409d4234e3e2904c3fef137d1dac8a8deb4dd525a9a1fcd
+-- @bsb-hash sha256:69e54b6ecdea549e44a146960df7a61c432a9496502c7be111cc96b21cbe1915
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Vercel Marketplace: the teams that installed the integration, the resources
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an
 -- installation through its tenant.
-create table if not exists "better_supabase"."marketplace_installations" (
+create table "better_supabase"."marketplace_installations" (
   "id" uuid primary key default gen_random_uuid(),
   "configuration_id" text not null unique,
   "team_id" text,
   "user_id" text,
   "tenant" text,
-  "status" text not null default 'active' check ("status" in ('active', 'suspended', 'removed')),
+  "status" text not null default 'active' constraint bsb_marketplace_installations_status_check check ("status" in ('active', 'suspended', 'removed')),
   "metadata" jsonb not null default '{}'::jsonb,
   "removed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."marketplace_installations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_installations";
+alter table "better_supabase"."marketplace_installations" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_installations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- tenant_created: the installation created its tenant, so removing the
 -- installation may delete it. access_token_secret_id: the Vault secret with
 -- the access token Vercel handed out at installation.
-alter table "better_supabase"."marketplace_installations" add column if not exists "tenant_created" boolean not null default false;
-alter table "better_supabase"."marketplace_installations" add column if not exists "access_token_secret_id" uuid;
-create index if not exists marketplace_installations_tenant_idx on "better_supabase"."marketplace_installations" ("tenant") where "tenant" is not null;
+alter table "better_supabase"."marketplace_installations" add column "tenant_created" boolean not null default false;
+alter table "better_supabase"."marketplace_installations" add column "access_token_secret_id" uuid;
+create index marketplace_installations_tenant_idx on "better_supabase"."marketplace_installations" ("tenant") where "tenant" is not null;
 alter table "better_supabase"."marketplace_installations" enable row level security;
 revoke all on "better_supabase"."marketplace_installations" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_installations" to service_role;
 
-create table if not exists "better_supabase"."marketplace_plans" (
+create table "better_supabase"."marketplace_plans" (
   "id" text primary key,
   "name" text not null,
-  "kind" text not null default 'subscription' check ("kind" in ('subscription', 'prepayment')),
+  "kind" text not null default 'subscription' constraint bsb_marketplace_plans_kind_check check ("kind" in ('subscription', 'prepayment')),
   "details" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."marketplace_plans" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_plans";
+alter table "better_supabase"."marketplace_plans" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_plans"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_plans" enable row level security;
 revoke all on "better_supabase"."marketplace_plans" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_plans" to service_role;
 
-create table if not exists "better_supabase"."marketplace_resources" (
+create table "better_supabase"."marketplace_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "external_id" text not null,
   "name" text not null,
   "plan_id" text references "better_supabase"."marketplace_plans" ("id") on delete set null,
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
+  "status" text not null default 'ready' constraint bsb_marketplace_resources_status_check check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
   "metadata" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
 );
-alter table "better_supabase"."marketplace_resources" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_resources";
+alter table "better_supabase"."marketplace_resources" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_resources"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- tenant: the app's tenant the provision hook created or chose for the
 -- resource. secret_refs: the app's handles for the secrets it handed out
 -- (never the values), so a rotation can revoke the previous ones.
-alter table "better_supabase"."marketplace_resources" add column if not exists "tenant" text;
-alter table "better_supabase"."marketplace_resources" add column if not exists "tenant_created" boolean not null default false;
-alter table "better_supabase"."marketplace_resources" add column if not exists "secret_refs" jsonb not null default '[]'::jsonb;
-create index if not exists marketplace_resources_plan_idx on "better_supabase"."marketplace_resources" ("plan_id") where "plan_id" is not null;
+alter table "better_supabase"."marketplace_resources" add column "tenant" text;
+alter table "better_supabase"."marketplace_resources" add column "tenant_created" boolean not null default false;
+alter table "better_supabase"."marketplace_resources" add column "secret_refs" jsonb not null default '[]'::jsonb;
+create index marketplace_resources_plan_idx on "better_supabase"."marketplace_resources" ("plan_id") where "plan_id" is not null;
 alter table "better_supabase"."marketplace_resources" enable row level security;
 revoke all on "better_supabase"."marketplace_resources" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_resources" to service_role;
 
-create table if not exists "better_supabase"."marketplace_invoices" (
+create table "better_supabase"."marketplace_invoices" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "external_id" text not null,
@@ -1985,29 +1938,29 @@ create table if not exists "better_supabase"."marketplace_invoices" (
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
 );
-alter table "better_supabase"."marketplace_invoices" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_invoices";
+alter table "better_supabase"."marketplace_invoices" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_invoices"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_invoices" enable row level security;
 revoke all on "better_supabase"."marketplace_invoices" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_invoices" to service_role;
 
-create table if not exists "better_supabase"."marketplace_meter_reports" (
+create table "better_supabase"."marketplace_meter_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "resource_external_id" text not null default '',
   "meter_id" text not null,
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
-  "quantity" numeric not null check ("quantity" >= 0),
+  "quantity" numeric not null constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0),
   "reported_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end")
 );
 -- reported_quantity: the total Vercel accepted for the period, so the next
 -- report sends the rest as dayValue.
-alter table "better_supabase"."marketplace_meter_reports" add column if not exists "reported_quantity" numeric not null default 0;
+alter table "better_supabase"."marketplace_meter_reports" add column "reported_quantity" numeric not null default 0;
 alter table "better_supabase"."marketplace_meter_reports" enable row level security;
 revoke all on "better_supabase"."marketplace_meter_reports" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_meter_reports" to service_role;
@@ -2646,19 +2599,6 @@ as $$ select "better_supabase"."delete_marketplace_resource"($1, $2) $$;
 revoke execute on function "api"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "api"."delete_marketplace_resource"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
@@ -2676,28 +2616,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:a590d5fee14556214deda4ea0f91c01f3fa6b2979a9fb549a3bd77453f4b2199
+-- @bsb-hash sha256:8f2a17902ee3c7f3d795afec8cc5ba83552fc67b9d37043109bea3b70f738025
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Vercel Marketplace: the teams that installed the integration, the resources
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an
@@ -2708,14 +2631,14 @@ alter table "better_supabase"."marketplace_installations" add column if not exis
 alter table "better_supabase"."marketplace_installations" add column if not exists "team_id" text;
 alter table "better_supabase"."marketplace_installations" add column if not exists "user_id" text;
 alter table "better_supabase"."marketplace_installations" add column if not exists "tenant" text;
-alter table "better_supabase"."marketplace_installations" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'suspended', 'removed'));
+alter table "better_supabase"."marketplace_installations" add column if not exists "status" text not null default 'active' constraint bsb_marketplace_installations_status_check check ("status" in ('active', 'suspended', 'removed'));
 alter table "better_supabase"."marketplace_installations" add column if not exists "metadata" jsonb not null default '{}'::jsonb;
 alter table "better_supabase"."marketplace_installations" add column if not exists "removed_at" timestamptz;
 alter table "better_supabase"."marketplace_installations" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."marketplace_installations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_installations";
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_installations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- tenant_created: the installation created its tenant, so removing the
 -- installation may delete it. access_token_secret_id: the Vault secret with
 -- the access token Vercel handed out at installation.
@@ -2729,13 +2652,13 @@ grant all on "better_supabase"."marketplace_installations" to service_role;
 -- better_supabase.marketplace_plans is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."marketplace_plans" add column if not exists "id" text;
 alter table "better_supabase"."marketplace_plans" add column if not exists "name" text;
-alter table "better_supabase"."marketplace_plans" add column if not exists "kind" text not null default 'subscription' check ("kind" in ('subscription', 'prepayment'));
+alter table "better_supabase"."marketplace_plans" add column if not exists "kind" text not null default 'subscription' constraint bsb_marketplace_plans_kind_check check ("kind" in ('subscription', 'prepayment'));
 alter table "better_supabase"."marketplace_plans" add column if not exists "details" jsonb not null default '{}'::jsonb;
 alter table "better_supabase"."marketplace_plans" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."marketplace_plans" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_plans";
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_plans"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 create unique index if not exists "bsb_marketplace_plans_id_key" on "better_supabase"."marketplace_plans" ("id");
 alter table "better_supabase"."marketplace_plans" enable row level security;
 grant all on "better_supabase"."marketplace_plans" to service_role;
@@ -2746,13 +2669,13 @@ alter table "better_supabase"."marketplace_resources" add column if not exists "
 alter table "better_supabase"."marketplace_resources" add column if not exists "external_id" text;
 alter table "better_supabase"."marketplace_resources" add column if not exists "name" text;
 alter table "better_supabase"."marketplace_resources" add column if not exists "plan_id" text references "better_supabase"."marketplace_plans" ("id") on delete set null;
-alter table "better_supabase"."marketplace_resources" add column if not exists "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'suspended', 'deleted'));
+alter table "better_supabase"."marketplace_resources" add column if not exists "status" text not null default 'ready' constraint bsb_marketplace_resources_status_check check ("status" in ('pending', 'ready', 'suspended', 'deleted'));
 alter table "better_supabase"."marketplace_resources" add column if not exists "metadata" jsonb not null default '{}'::jsonb;
 alter table "better_supabase"."marketplace_resources" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."marketplace_resources" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_resources";
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_resources"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- tenant: the app's tenant the provision hook created or chose for the
 -- resource. secret_refs: the app's handles for the secrets it handed out
 -- (never the values), so a rotation can revoke the previous ones.
@@ -2777,9 +2700,9 @@ alter table "better_supabase"."marketplace_invoices" add column if not exists "i
 alter table "better_supabase"."marketplace_invoices" add column if not exists "event_at" timestamptz not null default now();
 alter table "better_supabase"."marketplace_invoices" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."marketplace_invoices" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_invoices";
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_invoices"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 create unique index if not exists "bsb_marketplace_invoices_external_key" on "better_supabase"."marketplace_invoices" ("installation_id", "external_id");
 alter table "better_supabase"."marketplace_invoices" enable row level security;
 grant all on "better_supabase"."marketplace_invoices" to service_role;
@@ -2791,7 +2714,7 @@ alter table "better_supabase"."marketplace_meter_reports" add column if not exis
 alter table "better_supabase"."marketplace_meter_reports" add column if not exists "meter_id" text;
 alter table "better_supabase"."marketplace_meter_reports" add column if not exists "period_start" timestamptz;
 alter table "better_supabase"."marketplace_meter_reports" add column if not exists "period_end" timestamptz;
-alter table "better_supabase"."marketplace_meter_reports" add column if not exists "quantity" numeric check ("quantity" >= 0);
+alter table "better_supabase"."marketplace_meter_reports" add column if not exists "quantity" numeric constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0);
 alter table "better_supabase"."marketplace_meter_reports" add column if not exists "reported_at" timestamptz;
 alter table "better_supabase"."marketplace_meter_reports" add column if not exists "created_at" timestamptz not null default now();
 -- reported_quantity: the total Vercel accepted for the period, so the next
@@ -3273,19 +3196,6 @@ grant execute on function "better_supabase"."marketplace_resources"(text) to ser
 revoke execute on function "better_supabase"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."delete_marketplace_resource"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block-data vercel-marketplace
@@ -3303,84 +3213,82 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:c39a21fd3bbbb2ecc6cbf3dd1ddcd0142e38e0decdc0316b57a462e9b5575a1b
+-- @bsb-hash sha256:fcd99dd4a510618c6e390749616e31472f606c28b1dc5208f1cebe53008612d8
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Vercel Marketplace: the teams that installed the integration, the resources
 -- they provisioned, the plans, Vercel's invoices and the meter reports sent to
 -- Vercel. Only the service role writes; the app's own tables point at an
 -- installation through its tenant.
-create table if not exists "better_supabase"."marketplace_installations" (
+create table "better_supabase"."marketplace_installations" (
   "id" uuid primary key default gen_random_uuid(),
   "configuration_id" text not null unique,
   "team_id" text,
   "user_id" text,
   "org_id" text,
-  "status" text not null default 'active' check ("status" in ('active', 'suspended', 'removed')),
+  "status" text not null default 'active' constraint bsb_marketplace_installations_status_check check ("status" in ('active', 'suspended', 'removed')),
   "metadata" jsonb not null default '{}'::jsonb,
   "removed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."marketplace_installations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_installations";
+alter table "better_supabase"."marketplace_installations" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_installations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- tenant_created: the installation created its tenant, so removing the
 -- installation may delete it. access_token_secret_id: the Vault secret with
 -- the access token Vercel handed out at installation.
-alter table "better_supabase"."marketplace_installations" add column if not exists "tenant_created" boolean not null default false;
-alter table "better_supabase"."marketplace_installations" add column if not exists "access_token_secret_id" uuid;
-create index if not exists marketplace_installations_tenant_idx on "better_supabase"."marketplace_installations" ("org_id") where "org_id" is not null;
+alter table "better_supabase"."marketplace_installations" add column "tenant_created" boolean not null default false;
+alter table "better_supabase"."marketplace_installations" add column "access_token_secret_id" uuid;
+create index marketplace_installations_tenant_idx on "better_supabase"."marketplace_installations" ("org_id") where "org_id" is not null;
 alter table "better_supabase"."marketplace_installations" enable row level security;
 revoke all on "better_supabase"."marketplace_installations" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_installations" to service_role;
 
-create table if not exists "better_supabase"."marketplace_plans" (
+create table "better_supabase"."marketplace_plans" (
   "id" text primary key,
   "name" text not null,
-  "kind" text not null default 'subscription' check ("kind" in ('subscription', 'prepayment')),
+  "kind" text not null default 'subscription' constraint bsb_marketplace_plans_kind_check check ("kind" in ('subscription', 'prepayment')),
   "details" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."marketplace_plans" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_plans";
+alter table "better_supabase"."marketplace_plans" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_plans"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_plans" enable row level security;
 revoke all on "better_supabase"."marketplace_plans" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_plans" to service_role;
 
-create table if not exists "better_supabase"."marketplace_resources" (
+create table "better_supabase"."marketplace_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "external_id" text not null,
   "name" text not null,
   "plan_id" text references "better_supabase"."marketplace_plans" ("id") on delete set null,
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
+  "status" text not null default 'ready' constraint bsb_marketplace_resources_status_check check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
   "metadata" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
 );
-alter table "better_supabase"."marketplace_resources" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_resources";
+alter table "better_supabase"."marketplace_resources" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_resources"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 -- tenant: the app's tenant the provision hook created or chose for the
 -- resource. secret_refs: the app's handles for the secrets it handed out
 -- (never the values), so a rotation can revoke the previous ones.
-alter table "better_supabase"."marketplace_resources" add column if not exists "org_id" text;
-alter table "better_supabase"."marketplace_resources" add column if not exists "tenant_created" boolean not null default false;
-alter table "better_supabase"."marketplace_resources" add column if not exists "secret_refs" jsonb not null default '[]'::jsonb;
-create index if not exists marketplace_resources_plan_idx on "better_supabase"."marketplace_resources" ("plan_id") where "plan_id" is not null;
+alter table "better_supabase"."marketplace_resources" add column "org_id" text;
+alter table "better_supabase"."marketplace_resources" add column "tenant_created" boolean not null default false;
+alter table "better_supabase"."marketplace_resources" add column "secret_refs" jsonb not null default '[]'::jsonb;
+create index marketplace_resources_plan_idx on "better_supabase"."marketplace_resources" ("plan_id") where "plan_id" is not null;
 alter table "better_supabase"."marketplace_resources" enable row level security;
 revoke all on "better_supabase"."marketplace_resources" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_resources" to service_role;
 
-create table if not exists "better_supabase"."marketplace_invoices" (
+create table "better_supabase"."marketplace_invoices" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "external_id" text not null,
@@ -3394,29 +3302,29 @@ create table if not exists "better_supabase"."marketplace_invoices" (
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
 );
-alter table "better_supabase"."marketplace_invoices" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_invoices";
+alter table "better_supabase"."marketplace_invoices" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."marketplace_invoices"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_invoices" enable row level security;
 revoke all on "better_supabase"."marketplace_invoices" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_invoices" to service_role;
 
-create table if not exists "better_supabase"."marketplace_meter_reports" (
+create table "better_supabase"."marketplace_meter_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "resource_external_id" text not null default '',
   "meter_id" text not null,
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
-  "quantity" numeric not null check ("quantity" >= 0),
+  "quantity" numeric not null constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0),
   "reported_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end")
 );
 -- reported_quantity: the total Vercel accepted for the period, so the next
 -- report sends the rest as dayValue.
-alter table "better_supabase"."marketplace_meter_reports" add column if not exists "reported_quantity" numeric not null default 0;
+alter table "better_supabase"."marketplace_meter_reports" add column "reported_quantity" numeric not null default 0;
 alter table "better_supabase"."marketplace_meter_reports" enable row level security;
 revoke all on "better_supabase"."marketplace_meter_reports" from public, anon, authenticated;
 grant all on "better_supabase"."marketplace_meter_reports" to service_role;
@@ -3892,19 +3800,6 @@ revoke execute on function "better_supabase"."marketplace_resources"(text) from 
 grant execute on function "better_supabase"."marketplace_resources"(text) to service_role;
 revoke execute on function "better_supabase"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."delete_marketplace_resource"(text, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace

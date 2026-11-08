@@ -15,13 +15,7 @@ import type {
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { entityType } from "../resolved-names.ts";
-import {
-  addExtraColumns,
-  extraFieldsArg,
-  lockTable,
-  schemaPreamble,
-} from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
+import { extraFieldsArg, lockTable, schemaPreamble } from "../shared.ts";
 import { acknowledgementTables } from "./acknowledgements.ts";
 import { complianceFunctions } from "./compliance-functions.ts";
 import { OSCAL_CONTRACT, oscalFunctions } from "./compliance-oscal.ts";
@@ -36,7 +30,6 @@ import {
   FRAMEWORK_KINDS,
 } from "./compliance-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
-import { subjectTypeRenames } from "./subject-type-renames.ts";
 
 const EVENTS: BlockSqlEvents<ComplianceEvents> = {
   "control.created": {
@@ -72,7 +65,6 @@ const EVENTS: BlockSqlEvents<ComplianceEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("compliance", 2),
   entities: {
     control: {
       table: "controls",
@@ -88,7 +80,7 @@ const NAMES: BlockSqlNames = {
     compliance_policy: {
       table: "policies",
       singular: "compliance_policy",
-      formerly: "policy",
+      keyed: true,
       subject: {
         title: "title",
         permissions: { read: "read", write: "manage" },
@@ -96,7 +88,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["extraColumns"],
+  options: [],
   tables: {
     frameworks: {
       name: "control_frameworks",
@@ -216,7 +208,6 @@ function tables(ctx: BlockSqlContext): string {
   const read = ctx.permission("read", moduleOperations("compliance").read);
   const versions = ctx.of("versions");
   const attachments = evidenceAttachments(ctx);
-  const extras = ctx.extraColumns("controls", CONTROL_RESERVED);
 
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
@@ -252,7 +243,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
   };
 
@@ -288,7 +279,7 @@ create table if not exists ${controls} (
   unique (${k("framework")}, ${k("code")}),
   unique (${k("tenant")}, ${k("id")}),
   foreign key (${k("tenant")}, ${k("framework")}) references ${frameworks} (${f("tenant")}, ${f("id")}) on delete cascade
-);${added("controls", "source", label("source"))}${added("controls", "jurisdiction", label("jurisdiction"))}${addExtraColumns(controls, extras)}${appKey("controls", "framework_code", `${k("framework")}, ${k("code")}`)}${appKey("controls", "tenant_id", `${k("tenant")}, ${k("id")}`)}
+);${added("controls", "source", label("source"))}${added("controls", "jurisdiction", label("jurisdiction"))}${appKey("controls", "framework_code", `${k("framework")}, ${k("code")}`)}${appKey("controls", "tenant_id", `${k("tenant")}, ${k("id")}`)}
 create index if not exists ${name("controls", "tenant_idx")} on ${controls} (${k("tenant")}, ${k("framework")});${
     ctx.has("controls", "owner")
       ? `
@@ -581,8 +572,5 @@ export const COMPLIANCE: BlockSqlDefinition = {
   contract,
   build,
   contributes: CONTRIBUTES,
-  data: (ctx, layout) =>
-    [subjectTypeRenames(ctx, layout), widenPolicyAssignments(ctx)]
-      .filter((part) => part !== "")
-      .join("\n\n"),
+  data: widenPolicyAssignments,
 };

@@ -2,7 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, lockTable } from "../shared.ts";
+import { lockTable } from "../shared.ts";
 import {
   bankingSql,
   linked,
@@ -40,7 +40,7 @@ export function bankingTables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, q.read),
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const ref = (
@@ -67,7 +67,7 @@ create table if not exists ${q.accounts} (
   ${a("createdAt")} timestamptz not null default now(),
   ${a("updatedAt")} timestamptz not null default now(),
   unique (${a("tenant")}, ${a("id")})
-);${addExtraColumns(q.accounts, q.extras)}${appKey("accounts", "tenant_id", `${a("tenant")}, ${a("id")}`)}
+);${appKey("accounts", "tenant_id", `${a("tenant")}, ${a("id")}`)}
 create unique index if not exists ${name("accounts", "iban_key")} on ${q.accounts} (${a("tenant")}, ${a("iban")}) where ${a("iban")} is not null;
 create index if not exists ${name("accounts", "tenant_idx")} on ${q.accounts} (${a("tenant")}, ${a("name")});
 create index if not exists ${name("accounts", "journal_idx")} on ${q.accounts} (${a("journal")}) where ${a("journal")} is not null;

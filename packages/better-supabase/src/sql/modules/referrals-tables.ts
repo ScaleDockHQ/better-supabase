@@ -43,7 +43,7 @@ export function referralTables(q: ReferralSql): string {
         roles: ["authenticated"],
         using: `(${check} or ${owner} = (select auth.uid()))`,
       }),
-      { drop: true, target },
+      { target },
     );
   };
 

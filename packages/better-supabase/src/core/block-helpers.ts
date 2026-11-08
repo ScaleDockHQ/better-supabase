@@ -17,7 +17,7 @@ export interface BlockTemporalOptions {
   /**
    * The Temporal namespace for runtimes without a global one, such as `import {
    * Temporal } from "temporal-polyfill"`. Blocks use it instead of
-   * `globalThis.Temporal`, which stays untouched; like `defineSupabase(schema,
+   * `globalThis.Temporal`, which stays untouched; like `createSupabase(schema,
    * { temporal })`, it applies to the whole process.
    */
   readonly temporal?: typeof Temporal;

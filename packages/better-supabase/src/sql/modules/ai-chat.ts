@@ -30,7 +30,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const PROJECTS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   owner: "owner_id",
   name: "name",
   instructions: "instructions",
@@ -43,7 +43,7 @@ const PROJECTS = {
 
 const CHATS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   owner: "owner_id",
   project: "project_id",
   agent: "agent_id",
@@ -118,7 +118,7 @@ const APPROVALS = {
 } as const;
 
 const POLICIES = {
-  tenant: "organization_id",
+  tenant: "tenant_id",
   tool: "tool",
   policy: "policy",
   updatedAt: "updated_at",
@@ -181,7 +181,7 @@ const MODELS = {
 
 const MODERATION = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   chat: "chat_id",
   message: "message_id",
   user: "user_id",
@@ -207,7 +207,7 @@ const STEPS = {
 
 const SANDBOXES = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   user: "user_id",
   chat: "chat_id",
   harness: "harness_id",
@@ -233,7 +233,7 @@ const HARNESS = {
   continue: "continue_state",
   status: "status",
   holder: "lock_holder",
-  lockedUntil: "locked_until",
+  lockedUntil: "lock_expires_at",
   lastActiveAt: "last_active_at",
   createdAt: "created_at",
   updatedAt: "updated_at",
@@ -245,7 +245,7 @@ const PARTICIPANTS = {
   user: "user_id",
   kind: "kind",
   team: "team_id",
-  customerUser: "customer_user_id",
+  customerUser: "customer_id",
   email: "email",
   role: "role",
   addedBy: "added_by",
@@ -308,7 +308,6 @@ const NAMES: BlockSqlNames = {
     "tenant",
     "messages",
     "teamMembership",
-    ...Object.values(AI_CHAT_EXTRA_OPTIONS),
   ],
   tables: {
     projects: {
@@ -511,7 +510,7 @@ export interface AiChatNames {
   readonly staleAfter: string;
   /** Seconds a sandbox may sit unused before the idle-stop claim takes it. */
   readonly sandboxIdleAfter: number;
-  /** `options.extraColumns`, which the chats table gets. */
+  /** The columns your schema files add, which the chats table gets. */
   readonly chatExtras: readonly ExtraColumn[];
   /** The app columns of each table (`AI_CHAT_EXTRA_OPTIONS`). */
   readonly extras: { readonly [K in AiChatTable]: readonly ExtraColumn[] };
@@ -608,16 +607,12 @@ const EXTRA_RESERVED: { readonly [K in AiChatTable]?: readonly string[] } = {
 function extrasOf(ctx: BlockSqlContext): AiChatNames["extras"] {
   const extras: Partial<Record<AiChatTable, readonly ExtraColumn[]>> = {};
 
-  for (const [table, key] of Object.entries(AI_CHAT_EXTRA_OPTIONS)) {
+  for (const table of Object.keys(AI_CHAT_EXTRA_OPTIONS)) {
     if (isAiChatTable(table)) {
-      extras[table] = ctx.extraColumns(
-        table,
-        [
-          ...(table === "chats" ? CHAT_KEYS : ["fields"]),
-          ...(EXTRA_RESERVED[table] ?? []),
-        ],
-        key,
-      );
+      extras[table] = ctx.extraColumns(table, [
+        ...(table === "chats" ? CHAT_KEYS : ["fields"]),
+        ...(EXTRA_RESERVED[table] ?? []),
+      ]);
     }
   }
 
@@ -822,7 +817,7 @@ begin
         and substr((select realtime.topic()), ${String(prefix.length + 1)}) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and ${ctx.fn("ai_chat_can_read")}(substr((select realtime.topic()), ${String(prefix.length + 1)})::uuid)`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
         ${renderPolicy(
           makePolicy({
@@ -833,7 +828,7 @@ begin
             using: `realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = ${sqlString(`${names.listTopic}:`)} || (select auth.uid())::text`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
   end if;
 end;
@@ -974,6 +969,7 @@ export const AI_CHAT: BlockSqlDefinition = {
     "Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",
   requires: ["memberships", "permissions", "streams"],
   integrates: [
+    "share-links",
     "entitlements",
     "ai-keys",
     "approvals",

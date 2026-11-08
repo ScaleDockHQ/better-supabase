@@ -1,10 +1,10 @@
 "use client";
 
-import type { WorkItemState } from "better-supabase/blocks/tasks";
-
 import { useExtracted } from "next-intl";
 
 import type { BadgeProps } from "@/components/reui/badge";
+
+import type { WorkItemStateName } from "./work-types";
 
 /** The badge each state gets, by meaning: done is success, canceled is muted. */
 export function stateBadgeVariant(state: string): BadgeProps["variant"] {
@@ -36,7 +36,7 @@ export function stateBadgeVariant(state: string): BadgeProps["variant"] {
   }
 }
 
-export function useStateLabel(): (state: WorkItemState) => string {
+export function useStateLabel(): (state: WorkItemStateName) => string {
   const t = useExtracted("work");
 
   return (state) => {

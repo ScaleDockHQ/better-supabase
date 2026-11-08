@@ -1,7 +1,10 @@
 import { posix } from "node:path";
 
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
+import type { TableModuleInfo } from "./tables.ts";
 
+import { BUILT_IN_FRAMEWORKS, hooksSubpathOf } from "../../plugins/index.ts";
+import { byCodePoint } from "../compare.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import { importGroup, pureExport, sortImports } from "./layout.ts";
 import { pascal, q, runtimeSubpath, singular } from "./shared.ts";
@@ -37,9 +40,15 @@ export function hookNames(property: string): {
  * `undefined` with `hooks: false`.
  */
 export function emitHooks(
-  config: Pick<ResolvedConfig, "hooks" | "hooksSelect" | "output">,
+  config: Pick<ResolvedConfig, "hooks" | "hooksSelect" | "output"> & {
+    readonly frameworks?: ResolvedConfig["frameworks"];
+  },
   tables: readonly string[],
-  options: { readonly runtimeImport?: string } = {},
+  options: {
+    readonly runtimeImport?: string;
+    /** Per-table modules: the hooks read through `client.table(<module>)`. */
+    readonly tables?: readonly TableModuleInfo[];
+  } = {},
 ): GeneratedFile | undefined {
   if (config.hooks === false) {
     return undefined;
@@ -56,19 +65,37 @@ export function emitHooks(
   const wrap = (fn: string): string =>
     select === undefined ? fn : `${select.export}(${fn})`;
 
-  const hooksImport = `import { defineListHook, defineOneHook } from ${q(runtimeSubpath(runtime, config.hooks))};`;
+  const binding = (config.frameworks ?? BUILT_IN_FRAMEWORKS).find(
+    (candidate) => candidate.name === config.hooks,
+  );
+
+  if (binding === undefined) {
+    throw new Error(
+      `hooks framework "${config.hooks}" is not registered; \`resolveConfig\` checks it`,
+    );
+  }
+
+  const hooksImport = `import { defineListHook, defineOneHook } from ${q(binding.hooksModule ?? runtimeSubpath(runtime, hooksSubpathOf(binding)))};`;
 
   const selectImport =
     select && `import { ${select.export} } from ${q(select.module)};`;
 
   const group = select && importGroup(select.module);
 
+  const moduleOf = new Map(
+    (options.tables ?? []).map((table) => [table.key, table]),
+  );
+
+  const tableImports = [...moduleOf.values()]
+    .toSorted((a, b) => byCodePoint(a.specifier, b.specifier))
+    .map((table) => `import { ${table.name} } from ${q(table.specifier)};`);
+
   return {
     path: hooksPath(config),
     contents: [
       GENERATED_HEADER,
-      "/* oxlint-disable no-inline-comments -- the PURE annotations sit inline. */",
-      ...(config.hooks === "react" ? ['"use client";'] : []),
+      "/* oxlint-disable no-inline-comments, typescript/no-empty-interface -- the PURE annotations sit inline, and AppDb only names a type. */",
+      ...(binding.hooksDirective === undefined ? [] : [binding.hooksDirective]),
       "",
       `import type { DbOf } from ${q(runtime)};`,
       "",
@@ -78,15 +105,20 @@ export function emitHooks(
       ...(selectImport && group === "internal" ? ["", selectImport] : []),
       "",
       'import type { betterSupabase } from "./index";',
+      ...(tableImports.length > 0 ? ["", ...tableImports] : []),
       ...(selectImport && group === "relative" ? ["", selectImport] : []),
       "",
-      "type AppDb = DbOf<typeof betterSupabase>;",
+      "/** The `db` the hooks read, as one named type. */",
+      "export interface AppDb extends DbOf<typeof betterSupabase> {}",
       ...tables.flatMap((property) => {
         const names = hookNames(property);
+
+        const module = moduleOf.get(property);
 
         const select = [
           q(property),
           wrap(`(db: AppDb) => ${access(property)}`),
+          ...(module === undefined ? [] : [module.name]),
         ];
 
         return [

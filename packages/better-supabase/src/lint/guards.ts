@@ -1,4 +1,8 @@
-import type { HookArgs, Plugin, RepositoryExtension } from "../core/plugin.ts";
+import type {
+  HookParams,
+  Plugin,
+  RepositoryExtension,
+} from "../core/plugin.ts";
 import type { Condition, Operation, Selection } from "../ir/types.ts";
 import type { ColumnMeta, SchemaMeta, TableMeta } from "../schema/types.ts";
 
@@ -84,13 +88,13 @@ export interface GuardsOptions {
   readonly report?: (violation: GuardViolation) => void;
 }
 
-export interface GuardsFindArgs {
+export interface GuardsFindOptions {
   /** Allow reading `config.sensitive` columns in this call. */
   readonly sensitive?: boolean;
 }
 
 export interface GuardsExtension extends RepositoryExtension {
-  readonly findArgs: GuardsFindArgs;
+  readonly findArgs: GuardsFindOptions;
 }
 
 /** Catches data-exposure and correctness mistakes; everything else off. */
@@ -365,7 +369,7 @@ function pinsPrimaryKey(
   return columns.every((column) => pinned.has(column));
 }
 
-type Check = (op: Operation, hook: HookArgs) => string | undefined;
+type Check = (op: Operation, hook: HookParams) => string | undefined;
 
 function checks(rules: GuardSet): Record<GuardName, Check> {
   const maxLimit = optionOf(rules.maxLimit, 1000);
@@ -478,7 +482,7 @@ function defaultReport(violation: GuardViolation): void {
  * Runtime query guards, checked before each request is built:
  *
  * ```ts
- * defineSupabase(schema).use(guards({ rules: recommendedGuards() }));
+ * createSupabase(schema).use(guards({ rules: recommendedGuards() }));
  * ```
  *
  * Runs first (`enforce: 'first'`) so it sees the query as written, before

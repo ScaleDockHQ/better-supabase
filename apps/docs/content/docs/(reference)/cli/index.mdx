@@ -20,6 +20,8 @@ pnpm better-supabase <command> [options]
 | [`spec`](/docs/cli/spec)                               | Writes, checks and validates the OpenAPI, AsyncAPI and Arazzo documents of a `defineApi` module                       |
 | [`config`](/docs/cli/config#print-the-resolved-config) | Prints the resolved config, with every default filled in, or how it differs from its preset                           |
 | [`codemod`](/docs/cli/codemod)                         | Rewrites imports, calls, config keys and CLI calls for renamed better-supabase APIs                                   |
+| [`dev`](/docs/cli/dev)                                 | Regenerates the project on every change, and works with the local stack                                               |
+| [`cache`](/docs/cli/cache)                             | Deletes what the CLI caches between runs (`cache purge`)                                                              |
 | [`doctor`](/docs/cli/doctor)                           | Checks RLS, indexes, drift, auth config and env files; text, JSON, SARIF or GitHub annotations                        |
 | [`mcp`](/docs/cli/mcp)                                 | Serves the CLI to an agent over MCP on stdio                                                                          |
 | [`skills`](/docs/for-ai-agents)                        | Installs the Agent Skills that ship with the package                                                                  |
@@ -44,23 +46,30 @@ A mistyped command gets a suggestion: `Did you mean "gen"?`.
 
 ## Global options
 
-| Option                  | Effect                                                                                                                                                                                                                                                                                               |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--cwd <dir>`           | Project directory. Defaults to the current one. `supabase/config.toml` is read from here or the nearest parent that has one ([monorepos](/docs/guides/monorepo#the-cli-in-a-workspace)).                                                                                                             |
-| `--config <file>`       | Config file, relative to `--cwd`. Defaults to the nearest `better-supabase.config.*` in `--cwd` or a parent directory.                                                                                                                                                                               |
-| `--env <name>`          | Applies the config's [environment block](/docs/cli/config#environments) with that name. Defaults to `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set.                                                                                                                                             |
-| `--json`                | Prints one result envelope on stdout, with the data, Problem Details for an error, and the next commands. Never prompts.                                                                                                                                                                             |
-| `--agent <mode>`        | Agent mode: `auto` (the default) turns it on when a coding agent runs the CLI, `yes` and `no` decide. Defaults to `$BETTER_SUPABASE_AGENT`. In agent mode, `--json` is on unless you pass `--no-json`, prompts are off, and destructive work waits for consent ([agent mode](/docs/cli/agent-mode)). |
-| `--confirm <token>`     | Runs destructive work that a `consent_required` result named, once the user agreed. The token covers that command line only.                                                                                                                                                                         |
-| `--yes`, `-y`           | Never prompts; uses the flags and the defaults.                                                                                                                                                                                                                                                      |
-| `--color`, `--no-color` | Prints no ANSI colors on either stream, like `NO_COLOR`. `--color` is the default; it colors a terminal only, never a pipe.                                                                                                                                                                          |
-| `--debug`               | Prints, on stderr, the stack trace of an error, each child command the CLI runs with its exit code, and how long the run and each step took.                                                                                                                                                         |
-| `--help`, `-h`          | Prints the usage of the CLI, or of one command.                                                                                                                                                                                                                                                      |
-| `--version`             | Prints the version.                                                                                                                                                                                                                                                                                  |
+| Option                      | Effect                                                                                                                                                                                                                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--cwd <dir>`               | Project directory. Defaults to the current one. `supabase/config.toml` is read from here or the nearest parent that has one ([monorepos](/docs/guides/monorepo#the-cli-in-a-workspace)).                                                                                                             |
+| `--config <file>`           | Config file, relative to `--cwd`. Defaults to the nearest `better-supabase.config.*` in `--cwd` or a parent directory.                                                                                                                                                                               |
+| `--env <name>`              | Applies the config's [environment block](/docs/cli/config#environments) with that name. Defaults to `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set.                                                                                                                                             |
+| `--json`                    | Prints one result envelope on stdout, with the data, Problem Details for an error, and the next commands. Never prompts.                                                                                                                                                                             |
+| `--agent <mode>`            | Agent mode: `auto` (the default) turns it on when a coding agent runs the CLI, `yes` and `no` decide. Defaults to `$BETTER_SUPABASE_AGENT`. In agent mode, `--json` is on unless you pass `--no-json`, prompts are off, and destructive work waits for consent ([agent mode](/docs/cli/agent-mode)). |
+| `--effects-digest <digest>` | Together with `--yes`, confirms the destructive work that a `confirmation_required` result described. The digest covers that command line only.                                                                                                                                                      |
+| `--yes`, `-y`               | Answers yes to every confirmation and never prompts. In agent mode it also needs `--effects-digest`.                                                                                                                                                                                                 |
+| `--non-interactive`         | Never prompts, and fails with `input_required` when a value is missing. Already on in CI and agent mode.                                                                                                                                                                                             |
+| `--color`, `--no-color`     | Prints no ANSI colors on either stream, like `NO_COLOR`. `--color` is the default; it colors a terminal only, never a pipe.                                                                                                                                                                          |
+| `--debug`                   | Prints, on stderr, the stack trace of an error, each child command the CLI runs with its exit code, and how long the run and each step took.                                                                                                                                                         |
+| `--help`, `-h`              | Prints the usage of the CLI, or of one command.                                                                                                                                                                                                                                                      |
+| `--version`                 | Prints the version.                                                                                                                                                                                                                                                                                  |
 
 Prompts only run in a terminal. In CI (`$CI` is set), in agent mode, and
-under `--json` or `--yes`, commands use their flags and defaults instead of
-asking.
+under `--json`, `--yes` or `--non-interactive`, commands use their flags and
+defaults instead of asking.
+
+Interaction, format, color and confirmation are four separate settings. A
+pipe turns color off without turning prompts off, `--json` turns prompts off
+without turning color on, and `--yes` answers confirmations without changing
+the format. The CLI reads `NO_COLOR`, `FORCE_COLOR` and `$CI` in one place,
+so every command follows the same rules.
 
 ## Writing files
 
@@ -97,66 +106,99 @@ with its outcome (`create`, `update`, `unchanged`, `skip` or `remove`).
 ## Exit codes and JSON output
 
 The CLI exits with 0 on success, 1 when a command fails or finds a problem
-(`--check` drift, doctor errors), 2 when the command line, the config or
-the environment needs a change, and 3 when a person has to act first: give
-a missing value (`input_required`) or agree to destructive work
-(`consent_required`). Every error has a code, listed on the
+(`--check` drift, doctor errors), and 2 when the command or its input needs a
+change: a usage error, a missing value (`input_required`), a confirmation the
+user still owes (`confirmation_required`), or a login (`auth_required`). A
+rerun fails the same way until someone changes the command. Interrupted runs
+exit 130, a SIGTERM exits 143, and `gen --metadata` exits 65 when it rejects
+its input. Every error has a reason, listed on the
 [errors page](/docs/cli/errors).
 
-With `--json`, stdout holds exactly one JSON document, the result envelope
+Stdout is the answer and stderr is everything else: the receipt, progress,
+warnings, errors and the next steps. A script can pipe stdout without
+filtering.
+
+With `--json`, a run that succeeds prints one result document on stdout,
 described by
-[`cli-result-v1.json`](https://unpkg.com/better-supabase/schemas/cli-result-v1.json):
+[`cli-result-v2.json`](https://unpkg.com/better-supabase/schemas/cli-result-v2.json):
 
 ```json
 {
-  "$schema": "https://unpkg.com/better-supabase/schemas/cli-result-v1.json",
-  "status": "error",
-  "data": { "upToDate": false, "stale": ["src/lib/supabase/generated.ts"] },
-  "error": {
-    "type": "https://bettersupabase.com/docs/cli/errors#check_failed",
-    "title": "Out of date",
-    "detail": "Out of date: src/lib/supabase/generated.ts. Run `better-supabase gen`.",
-    "code": "check_failed",
-    "exitCode": 1
-  }
+  "$schema": "https://unpkg.com/better-supabase/schemas/cli-result-v2.json",
+  "status": "success",
+  "data": {
+    "files": [{ "path": "src/lib/supabase/generated.ts", "outcome": "update" }]
+  },
+  "next": [
+    {
+      "command": "better-supabase doctor",
+      "argv": ["better-supabase", "doctor"],
+      "when": "to check the result"
+    }
+  ]
 }
 ```
 
-| Field    | Holds                                                                                                                   |
-| -------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `status` | `success` for exit code 0, `action_required` for exit code 3, and `error` otherwise                                     |
-| `data`   | The command's result: `gen` gives `{ "tables", "written" }`, `doctor` its report, `blocks list --installed` the modules |
-| `error`  | A [Problem Details](https://www.rfc-editor.org/rfc/rfc9457) document with a stable `code` ([errors](/docs/cli/errors))  |
-| `next`   | The commands to run next, each as `{ "command", "when" }`                                                               |
+| Field      | Holds                                                                                                                   |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `status`   | `success` for exit code 0, `error` for a report that exits 1                                                            |
+| `data`     | The command's result: `gen` gives `{ "tables", "written" }`, `doctor` its report, `blocks list --installed` the modules |
+| `warnings` | Problems that did not stop the run                                                                                      |
+| `next`     | The commands to run next, each as `{ "command", "argv", "when" }`                                                       |
 
-A failed check keeps its `data`, so a script can read what is stale and the
-error together. Progress and the text output go to stderr, so
-`better-supabase gen --check --json | jq .data.stale` stays parseable. In a
-terminal the next commands print after the output, under `Next:`.
+A run that fails prints the error document as one line on stderr and nothing
+on stdout, so a caller that parses stdout never reads half an answer:
+
+```json
+{
+  "$schema": "https://unpkg.com/better-supabase/schemas/cli-result-v2.json",
+  "status": "error",
+  "reason": "unknown_command",
+  "message": "Unknown command \"genn\". Did you mean \"gen\"?",
+  "type": "https://bettersupabase.com/docs/cli/errors#unknown_command",
+  "next": [],
+  "data": { "suggestion": "gen" },
+  "userActionRequired": false,
+  "retryable": false
+}
+```
+
+`reason` is a stable name ([errors](/docs/cli/errors)), `userActionRequired`
+tells an agent to ask a person, and `retryable` says that running the same
+command again later can work. A report is not an error: `doctor` and
+`gen --check` print their findings on stdout, exit 1 and write no error
+document, so `better-supabase gen --check --json | jq .data.stale` stays
+parseable. In a terminal the next commands print on stderr under
+`Next steps:`, and each warning starts with `!`.
 
 `--help --json` prints the command tree instead, described by
-[`cli-commands-v1.json`](https://unpkg.com/better-supabase/schemas/cli-commands-v1.json),
+[`cli-commands-v2.json`](https://unpkg.com/better-supabase/schemas/cli-commands-v2.json),
 so an agent can learn the CLI without parsing help text. The document has the
-CLI's `name`, `version` and global `options`, and one entry per command with
-its `path`, `description`, `docs` link, `examples`, `effects` (the files,
-database and network access a run may have), `arguments` and `options`. After
-a command name it lists that command, or a group's subcommands:
+CLI's `name`, `version`, the `result` schema and global `options`, and one
+entry per command with its `path`, `description`, `docs` link, `examples`,
+`effects` (the files, database and network access a run may have),
+`arguments` and `options`. An option that takes a secret is marked `secret`.
+After a command name it lists that command, or a group's subcommands:
 
 ```sh
 better-supabase gen --help --json | jq '.commands[0].effects'
 ```
+
+A removed command or flag exits 2 and names its replacement, for example
+`--confirm was removed. Use --yes --effects-digest <digest> instead.` The CLI
+keeps no aliases.
 
 Stdout only ever carries the command's output: its text, its envelope, or
 the one file `gen --metadata` prints. Prompts, spinners, warnings and
 `--debug` lines go to stderr, and each stream is colored only when it is a
 terminal.
 
-`gen --watch` and `spec emit --watch` run until stopped. With `--json` they
-print one envelope per run on its own line (NDJSON), so a script can read
+`dev` and `spec emit --watch` run until stopped. With `--json` they
+print one result per run on its own line (NDJSON), so a script can read
 the stream line by line:
 
 ```sh
-better-supabase gen --watch --json | while read -r line; do
+better-supabase dev --json | while read -r line; do
   echo "$line" | jq -r .status
 done
 ```
@@ -167,7 +209,7 @@ The same failure in a row prints once, and the watch retries every interval.
 
 | Variable                | Used by                                                                                              |
 | ----------------------- | ---------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`          | `gen`, `doctor` and `db seed --apply`, when nothing else is set                                      |
+| `DATABASE_URL`          | `gen`, `doctor` and `db seed --yes`, when nothing else is set                                        |
 | `SUPABASE_DB_URL`       | The same commands, when `DATABASE_URL` is unset too                                                  |
 | `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `database.source.projectRef`                                                     |
 | `SUPABASE_API_URL`      | Another Management API host                                                                          |

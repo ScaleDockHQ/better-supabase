@@ -815,7 +815,7 @@ end;
 $$;
 ${authed(`${fn("assign_conversation")}(uuid, uuid, uuid)`)}
 
-create or replace function ${fn("set_conversation_status")}(conversation uuid, status text, snoozed_until timestamptz default null)
+create or replace function ${fn("set_conversation_status")}(conversation uuid, status text, snooze_expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -829,8 +829,8 @@ begin
   if not (${service} or ${command("set_status", "reply")}) then
     ${forbidden("not allowed to change this conversation")}
   end if;
-  if status = 'snoozed' and (snoozed_until is null or snoozed_until <= now()) then
-    ${fail("INBOX_SNOOZE_UNTIL", "snoozing needs a snoozed_until in the future", "22023")}
+  if status = 'snoozed' and (snooze_expires_at is null or snooze_expires_at <= now()) then
+    ${fail("INBOX_SNOOZE_UNTIL", "snoozing needs a snooze_expires_at in the future", "22023")}
   end if;
   v_before := v_conv.${cv("status")};
   ${ctx.hook("before_inbox_conversation_status_change", [
@@ -839,7 +839,7 @@ begin
   ])}
   update ${T("conversations")} set
     ${cv("status")} = ${q.cast("conversations", "status", "set_conversation_status.status")},
-    ${cv("snoozedUntil")} = case when set_conversation_status.status = 'snoozed' then set_conversation_status.snoozed_until end${
+    ${cv("snoozedUntil")} = case when set_conversation_status.status = 'snoozed' then set_conversation_status.snooze_expires_at end${
       has("conversations", "resolvedAt")
         ? `,
     ${cv("resolvedAt")} = case when set_conversation_status.status = 'resolved' then now() end`
@@ -848,7 +848,7 @@ begin
   where ${cv("id")} = v_conv.${cv("id")}
   returning * into v_conv;
   if status = 'snoozed' then
-    ${ctx.enqueue(q.scheduleQueue, `jsonb_build_object('type', 'inbox.wake', 'conversation_id', v_conv.${cv("id")})`, `'inbox-wake:' || v_conv.${cv("id")}::text || ':' || extract(epoch from set_conversation_status.snoozed_until)::text`, { delay: `greatest(ceil(extract(epoch from (set_conversation_status.snoozed_until - now())))::integer, 0)` })}
+    ${ctx.enqueue(q.scheduleQueue, `jsonb_build_object('type', 'inbox.wake', 'conversation_id', v_conv.${cv("id")})`, `'inbox-wake:' || v_conv.${cv("id")}::text || ':' || extract(epoch from set_conversation_status.snooze_expires_at)::text`, { delay: `greatest(ceil(extract(epoch from (set_conversation_status.snooze_expires_at - now())))::integer, 0)` })}
   end if;
   if v_before is distinct from status then
     ${log("status", "jsonb_build_object('from', v_before, 'to', set_conversation_status.status)")}

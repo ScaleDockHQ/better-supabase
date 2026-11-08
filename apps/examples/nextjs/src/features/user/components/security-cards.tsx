@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { getOAuthGrants, getTotpFactorId } from "../security-queries";
+import { getOAuthGrants, getTotpFactorId } from "../user-queries";
 import { ConnectedAgentsCard } from "./connected-agents-card";
 import { TwoFactorCard } from "./two-factor-card";
 

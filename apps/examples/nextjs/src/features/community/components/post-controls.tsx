@@ -4,7 +4,6 @@ import { useAction, useActionForm } from "better-supabase/react";
 import { ChevronUpIcon, PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,9 +24,14 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { createFeedbackBoard, createPost, voteOnPost } from "../posts-actions";
+import {
+  createFeedbackBoard,
+  createPost,
+  voteOnPost,
+} from "../community-actions";
 
 /** Opens the organization's feedback board. */
 export function CreateBoardButton() {

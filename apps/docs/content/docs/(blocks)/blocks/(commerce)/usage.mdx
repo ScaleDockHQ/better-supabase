@@ -292,14 +292,14 @@ const { state } = useBlockController(createUsageMeterController, {
 
 ```svelte title="UsageMeter.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import {
     createUsage,
     createUsageMeterController,
     rpcTransport,
   } from "better-supabase/blocks/usage";
 
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const usage = useBlockController(createUsageMeterController, {
     client: createUsage({ transport: rpcTransport(supabase) }),
     organizationId: "org-id",

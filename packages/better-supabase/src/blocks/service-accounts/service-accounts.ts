@@ -70,9 +70,8 @@ export interface ServiceAccountsOptions<
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<ServiceAccounts<FieldsOf<S>>>>;
   /**
-   * A Standard Schema for the extra columns of the principals table
-   * (`blocks["service-accounts"].options.extraColumns`): writes are validated,
-   * reads parsed.
+   * A Standard Schema for the extra columns of the principals table (the
+   * columns your schema files add): writes are validated, reads parsed.
    */
   readonly fields?: S;
   /** Receives the errors `after` hooks throw. Default: `console`. */
@@ -87,7 +86,10 @@ export interface ServicePrincipal<F extends object = Record<never, never>> {
   readonly createdBy: string | null;
   readonly createdAt: Temporal.Instant;
   readonly disabledAt: Temporal.Instant | null;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
 }
 
@@ -105,7 +107,10 @@ export interface CreateServicePrincipalOptions<
 > extends ServicePrincipalActor {
   /** Makes it the tenant's default, which organization-owned work runs as. */
   readonly default?: boolean;
-  /** Values for the app's extra columns (`options.extraColumns`). */
+  /**
+   * Values for the app's extra columns (the columns the app's schema files
+   * add).
+   */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
@@ -117,7 +122,10 @@ export interface CreatedServicePrincipal<
   readonly name: string;
   readonly role: string;
   readonly isDefault: boolean;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
 }
 

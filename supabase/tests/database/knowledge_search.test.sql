@@ -14,7 +14,7 @@ select hasnt_function(
   'the earlier signature is gone'
 );
 
-insert into better_supabase.knowledge_documents (id, organization_id, scope, scope_id, title, status)
+insert into better_supabase.knowledge_documents (id, tenant_id, scope, scope_id, title, status)
 values ('00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-000000000001', 'organization',
   null, 'Refunds', 'ready');
 insert into better_supabase.knowledge_chunks (document_id, idx, content)

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createEdge } from "../../src/edge/index.ts";
 import { ENV_VARIABLES, EnvValidationError } from "../../src/env/index.ts";
 import { createHono } from "../../src/hono/index.ts";
@@ -19,7 +19,7 @@ describe("env loading", () => {
       vi.stubEnv(name, "");
     }
 
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const servers = [
       createServer(betterSupabase),
@@ -47,7 +47,7 @@ describe("env loading", () => {
 
     vi.stubGlobal("fetch", fetch);
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env: {
         SUPABASE_URL: "http://127.0.0.1:54321",
         SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test",
@@ -76,7 +76,7 @@ describe("env loading", () => {
   it("fails on a missing variable in the env object instead of using the runtime's", () => {
     vi.stubEnv("SUPABASE_URL", "https://leaked.supabase.co");
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env: { SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test" },
     });
 

@@ -17,7 +17,7 @@ better-supabase add data-lifecycle   # adds tenant and access as well
 | Table                    | Holds                                                                                                   |
 | ------------------------ | ------------------------------------------------------------------------------------------------------- |
 | `data_exports`           | `subject` (`user`, `organization` or `record`), `status`, the object paths in `files`, and `expires_at` |
-| `organization_deletions` | `requested_by`, `requested_at`, `purge_after`, `cancelled_at` and `purged_at`                           |
+| `organization_deletions` | `requested_by`, `requested_at`, `purge_at`, `cancelled_at` and `purged_at`                              |
 
 | Permission              | Lets a member                       | Default roles    |
 | ----------------------- | ----------------------------------- | ---------------- |
@@ -213,7 +213,7 @@ const pending = await db.dataLifecycle
   .orThrow();
 ```
 
-The subject type is one declared in [`config.subjects`](/docs/repository/record-types)
+The subject type is one declared in [`config.recordTypes`](/docs/repository/record-types)
 or by an app table. The caller needs `organization.export` in the record's
 organization, or the record's `manage` action when the subject declares one,
 so a clinician who manages a chart can export it without exporting the whole

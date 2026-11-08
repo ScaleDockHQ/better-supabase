@@ -70,6 +70,30 @@ describe("entityNames", () => {
   });
 });
 
+describe("keyed entities", () => {
+  const names = entityNames([
+    {
+      from: entityNoun("task", "tasks"),
+      to: entityNoun("ticket", "tickets"),
+      keyed: true,
+    },
+  ]);
+
+  it("keeps the plural key of the block and renames the rest", () => {
+    expect(
+      ["tasks.read", "tasks.*", "task.created", "list_tasks", "tasks/"].map(
+        (name) => names.rename(name),
+      ),
+    ).toEqual([
+      "tasks.read",
+      "tasks.*",
+      "ticket.created",
+      "list_tickets",
+      "tickets/",
+    ]);
+  });
+});
+
 describe("tenantNames", () => {
   it("renames the tenant inside any identifier, lowercase forms only", () => {
     const names = tenantNames("workspace");

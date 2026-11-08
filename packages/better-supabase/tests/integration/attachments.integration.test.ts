@@ -112,7 +112,7 @@ describe.skipIf(!live)("attachments", () => {
 
       expect(
         await s.hint(
-          "insert into better_supabase.attachments (organization_id, name, mime_type, size) values ($1, 'x.exe', 'application/x-msdownload', 1)",
+          "insert into better_supabase.attachments (tenant_id, name, mime_type, size) values ($1, 'x.exe', 'application/x-msdownload', 1)",
           [organization],
         ),
       ).not.toBe("no error");
@@ -146,7 +146,7 @@ describe.skipIf(!live)("attachments", () => {
       await s.service();
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 order by position",
+        "select type from better_supabase.outbox_events where tenant_id = $1 order by position",
         [organization],
       );
 

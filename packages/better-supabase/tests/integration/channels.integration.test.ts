@@ -166,7 +166,7 @@ describe.skipIf(!live)("channels", () => {
 
       const events = await s.rows<{ type: string }>(
         `select type from better_supabase.outbox_events
-         where organization_id = $1 and type like 'channel.%'
+         where tenant_id = $1 and type like 'channel.%'
          order by position`,
         [organization],
       );

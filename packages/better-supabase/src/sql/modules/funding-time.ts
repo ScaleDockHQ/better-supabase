@@ -4,15 +4,11 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, serviceGrant } from "../shared.ts";
 import { subjectsOption } from "../subjects.ts";
 import { fromTime, timeCategory } from "./funding-shared.ts";
-import {
-  byEmployee,
-  entryEnded,
-  entrySubjects,
-} from "./time-tracking-owner.ts";
-import { userTimeZoneOf } from "./time-tracking-status.ts";
+import { byEmployee, entryEnded, entrySubjects } from "./time-entries-owner.ts";
+import { userTimeZoneOf } from "./time-entries-status.ts";
 
 /**
- * `register_funding_deliveries_from_time`, when time-tracking is installed:
+ * `register_funding_deliveries_from_time`, when time-entries is installed:
  * registers the approved time entries of a range as deliveries.
  */
 export function fundingTimeFunctions(ctx: BlockSqlContext): string {
@@ -20,7 +16,7 @@ export function fundingTimeFunctions(ctx: BlockSqlContext): string {
     return "";
   }
 
-  const time = ctx.of("time-tracking");
+  const time = ctx.of("time-entries");
   const entries = time.table("entries");
   const timesheets = time.table("timesheets");
   const e = (column: string): string => time.col("entries", column);
@@ -67,7 +63,7 @@ export function fundingTimeFunctions(ctx: BlockSqlContext): string {
 
   return `
 -- Registers the approved time entries that started from since to until (days
--- in the time-tracking zone) as deliveries. An entry delivers on the active
+-- in the time-entries zone) as deliveries. An entry delivers on the active
 -- award of its record${category === undefined ? "" : ` whose product code is its ${category}`}; an
 -- entry with no award, or with several, is returned as unmatched. Minutes and
 -- hours count the entry's duration; other units count one per entry. An entry

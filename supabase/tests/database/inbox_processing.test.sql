@@ -35,7 +35,7 @@ select is(
 );
 
 reset role;
-update better_supabase.inbox_inbound_events set locked_until = now() - interval '1 second';
+update better_supabase.inbox_inbound_events set lock_expires_at = now() - interval '1 second';
 set local role service_role;
 
 select is(
@@ -54,7 +54,7 @@ select is(
   'a failed event waits for available_at'
 );
 select is(
-  (select locked_until from better_supabase.inbox_inbound_events where id = (select id from ids where name = 'event')),
+  (select lock_expires_at from better_supabase.inbox_inbound_events where id = (select id from ids where name = 'event')),
   null,
   'a failure clears the lease'
 );

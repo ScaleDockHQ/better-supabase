@@ -35,7 +35,7 @@ export interface MeetingActionItemEventData {
   readonly organizationId: string;
   readonly meetingId: string;
   /** The work item the `tasks` block owns. */
-  readonly workItemId: string;
+  readonly taskId: string;
   readonly title: string;
 }
 

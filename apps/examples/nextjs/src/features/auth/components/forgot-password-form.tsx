@@ -19,30 +19,36 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Link } from "@/i18n/navigation";
-import { useSupabase } from "@/lib/hooks";
+import { loadBrowserClient } from "@/lib/supabase/load-client";
 
-type State = { readonly error: string } | { readonly sent: true } | null;
+type State =
+  | { readonly error: string; readonly email: string }
+  | { readonly sent: true }
+  | null;
 
 /** Locally the email lands in Mailpit (`supabase status` prints its URL). */
 export function ForgotPasswordForm() {
   const t = useExtracted("auth");
   const fieldId = useId();
   const locale = useLocale();
-  const supabase = useSupabase();
 
   const [state, submit, pending] = useActionState(
     async (_previous: State, form: FormData): Promise<State> => {
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        String(form.get("email")),
-        { redirectTo: `${window.location.origin}/${locale}/reset-password` },
-      );
+      const email = String(form.get("email"));
 
-      return error ? { error: error.message } : { sent: true };
+      const { supabase } = await loadBrowserClient();
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/${locale}/reset-password`,
+      });
+
+      return error ? { error: error.message, email } : { sent: true };
     },
     null,
   );
 
-  const error = state && "error" in state ? state.error : null;
+  const kept = state && "error" in state ? state : null;
+  const error = kept?.error ?? null;
 
   return (
     <Card>
@@ -63,6 +69,7 @@ export function ForgotPasswordForm() {
                 id={`${fieldId}-email`}
                 name="email"
                 type="email"
+                defaultValue={kept?.email}
                 autoComplete="email"
                 required
               />

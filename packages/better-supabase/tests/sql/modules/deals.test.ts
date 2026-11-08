@@ -19,7 +19,7 @@ describe("deals module", () => {
     expect(modules.indexOf("deals")).toBeLessThan(modules.indexOf("pipelines"));
     const pipelines = body("pipelines", render());
     expect(pipelines).toContain(
-      'create trigger bsb_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."deals"',
+      'create trigger bsb_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_id" on "better_supabase"."deals"',
     );
     expect(pipelines).toContain(
       "'closed_won', 'Closed won', ('won'), ('success')",
@@ -58,7 +58,7 @@ describe("deals module", () => {
 
     expect(scoped).toContain("deal_members");
     expect(scoped).toMatch(
-      /create policy deals_read[\s\S]*owner_user_id" = auth.uid\(\)/,
+      /create policy bsb_deals_read[\s\S]*owner_id" = auth.uid\(\)/,
     );
 
     const numbered = body(
@@ -81,7 +81,7 @@ describe("deals module", () => {
     expect(body("deals", render())).toContain("'DEAL-' || v_seq::text");
   });
 
-  it("reads the next step from engagements when installed", () => {
+  it("reads the next step from activities when installed", () => {
     expect(body("deals", render({}, ["activities"]))).toContain(
       "next_activity\"('deal'",
     );

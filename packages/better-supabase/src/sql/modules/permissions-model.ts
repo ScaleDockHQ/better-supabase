@@ -1,7 +1,6 @@
 import type { AccessBlockConfig } from "../../config/blocks.ts";
 import type { BlockSqlContext } from "../context.ts";
 
-import { currentPermissionKeys } from "../../core/renames.ts";
 import { sqlString } from "../../core/template.ts";
 
 export type AccessModel = NonNullable<AccessBlockConfig["model"]>;
@@ -46,7 +45,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "imports.*",
     "saved_views.*",
     "relations.*",
-    "bulk.*",
+    "bulk_actions.*",
     "search.*",
     "metrics.*",
     "calendar.*",
@@ -61,7 +60,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "forms.*",
     "signatures.*",
     "templates.*",
-    "time_tracking.*",
+    "time_entries.*",
     "service_accounts.*",
     "pipelines.*",
     "option_sets.*",
@@ -178,7 +177,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "reminders.read",
     "saved_views.read",
     "relations.read",
-    "bulk.run",
+    "bulk_actions.run",
     "search.read",
     "metrics.read",
     "calendar.read",
@@ -207,7 +206,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "signatures.request",
     "templates.read",
     "templates.apply",
-    "time_tracking.track",
+    "time_entries.track",
     "leave.request",
     "pipelines.read",
     "option_sets.read",
@@ -294,8 +293,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
  * verb is `read`, `write`, `delete`, `manage` or a domain verb, never `view`,
  * `edit` or `admin`. `messaging`, `comments` and `channels` share `messages.*`;
  * `organizations` owns `organization.*`, `members.*` and `platform.*` (or a key
- * `is_platform()` checks). Renamed keys go in `PERMISSION_KEY_RENAMES`
- * (`src/core/renames.ts`) for one minor.
+ * `is_platform()` checks).
  */
 export const OPERATIONS = {
   "organizations.update": "organization.update",
@@ -418,7 +416,7 @@ export const OPERATIONS = {
   "saved-views.share": "saved_views.share",
   "relations.read": "relations.read",
   "relations.manage": "relations.manage",
-  "bulk.run": "bulk.run",
+  "bulk-actions.run": "bulk_actions.run",
   "search.read": "search.read",
   "metrics.read": "metrics.read",
   "metrics.manage": "metrics.manage",
@@ -464,10 +462,10 @@ export const OPERATIONS = {
   "templates.read": "templates.read",
   "templates.apply": "templates.apply",
   "templates.manage": "templates.manage",
-  "time-tracking.read": "time_tracking.read",
-  "time-tracking.track": "time_tracking.track",
-  "time-tracking.approve": "time_tracking.approve",
-  "time-tracking.manage": "time_tracking.manage",
+  "time-entries.read": "time_entries.read",
+  "time-entries.track": "time_entries.track",
+  "time-entries.approve": "time_entries.approve",
+  "time-entries.manage": "time_entries.manage",
   "service-accounts.read": "service_accounts.read",
   "service-accounts.manage": "service_accounts.manage",
   "pipelines.read": "pipelines.read",
@@ -773,7 +771,7 @@ export function rolesOf(
     return Object.fromEntries(
       Object.entries(configured).map(([role, keys]) => [
         role,
-        [...new Set(keys.flatMap((k) => [k, ...currentPermissionKeys(k)]))],
+        [...new Set(keys)],
       ]),
     );
   }

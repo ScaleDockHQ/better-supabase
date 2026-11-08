@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthorizationRequest } from "../../src/core/authorizer.ts";
 
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createMcp } from "../../src/mcp/index.ts";
 import {
   checkTool,
@@ -203,7 +203,7 @@ describe("createMcp authorizer", () => {
     evaluate: decide,
   });
 
-  const mcp = createMcp(defineSupabase(schema), {
+  const mcp = createMcp(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     name: "crm",
@@ -261,7 +261,7 @@ describe("createMcp authorizer", () => {
   it("takes a tool's permission from the operations table first", async () => {
     const keyed: string[] = [];
 
-    const swapped = createMcp(defineSupabase(schema), {
+    const swapped = createMcp(createSupabase(schema), {
       env,
       auth: { jwks: signer.jwks },
       name: "crm",
@@ -318,7 +318,7 @@ describe("createMcp authorizer", () => {
   it("warns once, naming the tools a missing authorizer hides", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const bare = createMcp(defineSupabase(schema), {
+    const bare = createMcp(createSupabase(schema), {
       env,
       auth: { jwks: signer.jwks },
       name: "crm",

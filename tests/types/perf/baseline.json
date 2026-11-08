@@ -1,8 +1,8 @@
 {
   "calibration": {
-    "ts6": 1.05,
-    "ts7": 0.168,
-    "ts71": 0.196
+    "ts6": 0.1,
+    "ts7": 0.022,
+    "ts71": 0.02
   },
   "profiles": {
     "default": {
@@ -13,34 +13,51 @@
         "ts6": {
           "types": 12566,
           "instantiations": 38449,
-          "checkTime": 1.56
+          "checkTime": 0.18
         },
         "ts7": {
           "types": 17560,
           "instantiations": 40130,
-          "checkTime": 0.174
+          "checkTime": 0.024
         },
         "ts71": {
           "types": 17653,
           "instantiations": 39953,
-          "checkTime": 0.169
+          "checkTime": 0.016
         },
         "ts71Mapper": {
           "types": 18849,
           "instantiations": 40401,
-          "checkTime": 0.136
+          "checkTime": 0.015
         }
       },
       "gen": {
-        "cold": 8.65,
-        "warm": 4.13,
-        "incremental": 15.98
+        "cold": 0.48,
+        "warm": 0.33,
+        "incremental": 0.33
       },
       "mapper": {
-        "files": 1.38,
-        "cold": 12.27,
-        "warm": 8.51,
-        "incremental": 9.67
+        "files": 0.08,
+        "cold": 0.43,
+        "warm": 0.37,
+        "incremental": 0.43
+      },
+      "server": {
+        "ts6": {
+          "types": 13530,
+          "instantiations": 38693,
+          "checkTime": 0.0
+        },
+        "ts7": {
+          "types": 17036,
+          "instantiations": 38842,
+          "checkTime": 0.0
+        },
+        "ts71": {
+          "types": 17146,
+          "instantiations": 38745,
+          "checkTime": 0.0
+        }
       }
     },
     "centrakit": {
@@ -51,35 +68,91 @@
         "ts6": {
           "types": 18985,
           "instantiations": 48626,
-          "checkTime": 13.94
+          "checkTime": 0.27
         },
         "ts7": {
           "types": 28189,
           "instantiations": 50328,
-          "checkTime": 0.309
+          "checkTime": 0.043
         },
         "ts71": {
           "types": 28316,
           "instantiations": 50139,
-          "checkTime": 0.448
+          "checkTime": 0.03
         },
         "ts71Mapper": {
-          "types": 32717,
-          "instantiations": 216193,
-          "checkTime": 0.254
+          "types": 29154,
+          "instantiations": 215805,
+          "checkTime": 0.047
         }
       },
       "gen": {
-        "cold": 12.61,
-        "warm": 10.43,
-        "incremental": 7.58
+        "cold": 0.38,
+        "warm": 0.33,
+        "incremental": 0.35
       },
       "mapper": {
-        "files": 2.95,
-        "cold": 7.94,
-        "warm": 4.21,
-        "incremental": 4.65
+        "files": 0.1,
+        "cold": 0.5,
+        "warm": 0.43,
+        "incremental": 0.5
+      },
+      "server": {
+        "ts6": {
+          "types": 17684,
+          "instantiations": 42804,
+          "checkTime": 0.0
+        },
+        "ts7": {
+          "types": 23288,
+          "instantiations": 42966,
+          "checkTime": 0.0
+        },
+        "ts71": {
+          "types": 23398,
+          "instantiations": 42869,
+          "checkTime": 0.0
+        }
       }
+    }
+  },
+  "upgrade": {
+    "cold": {
+      "seconds": 0.95,
+      "rendered": 76,
+      "written": 76
+    },
+    "warm": {
+      "seconds": 0.36,
+      "rendered": 0,
+      "written": 0
+    },
+    "edit": {
+      "seconds": 0.36,
+      "rendered": 0,
+      "written": 0
+    },
+    "audit": {
+      "seconds": 0.75,
+      "rendered": 45,
+      "written": 2
+    }
+  },
+  "config": {
+    "ts6": {
+      "types": 4080,
+      "instantiations": 17260,
+      "checkTime": 0.0
+    },
+    "ts7": {
+      "types": 4608,
+      "instantiations": 17260,
+      "checkTime": 0.0
+    },
+    "ts71": {
+      "types": 4618,
+      "instantiations": 17260,
+      "checkTime": 0.0
     }
   }
 }

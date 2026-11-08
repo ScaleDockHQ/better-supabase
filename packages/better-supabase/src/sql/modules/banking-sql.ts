@@ -55,7 +55,7 @@ export interface BankingSql {
   readonly transactions: string;
   readonly matches: string;
   readonly rules: string;
-  /** `options.extraColumns` on the bank accounts table. */
+  /** The columns your schema files add on the bank accounts table. */
   readonly extras: readonly ExtraColumn[];
   readonly read: string;
   readonly import: string;

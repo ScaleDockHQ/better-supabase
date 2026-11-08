@@ -97,7 +97,7 @@ describe("inventory module", () => {
   it("gives locations an address with a validated setter", () => {
     const sql = sqlOf("inventory");
 
-    expect(sql).toContain('add column if not exists "address" jsonb');
+    expect(sql).toContain('add column "address" jsonb');
     expect(sql).toContain(
       'create or replace function "better_supabase"."set_location_address"(location uuid, address jsonb)',
     );

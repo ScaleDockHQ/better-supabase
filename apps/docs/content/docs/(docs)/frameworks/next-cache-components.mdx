@@ -421,6 +421,30 @@ const { db } = await bsb.cached({
 });
 ```
 
+### Max life and render stage
+
+`life: "max"` is the profile of Next.js's `cacheLife("max")`, `{ stale: 300,
+revalidate: 2592000, expire: 31536000 }`. Use it where every write calls
+`updateTag`, so the entry never expires on its own:
+
+```ts
+const { db } = await bsb.cached({ tables: ["customers"], id, life: "max" });
+```
+
+`stage` holds the read back until a render stage. `stage: "navigation"` awaits
+`navigation()` from `next/cache` and `stage: "prefetch"` awaits `prefetch()`,
+both before the context resolves, so the read stays out of the App Shell and
+out of the runtime prefetch (`"navigation"`) or the shell (`"prefetch"`):
+
+```ts
+const { db } = await bsb.cached({ tables: ["customers"], stage: "navigation" });
+```
+
+`bsb.bootstrap()` takes the same two options. The gates throw inside a
+`"use cache"` scope, and a Next.js build without Cache Components and Partial
+Prefetching has none. In both cases `stage` is skipped, the read still runs,
+and development logs it once.
+
 ### Remote scope
 
 `'use cache: remote'` keeps an entry on the server, shared across instances,

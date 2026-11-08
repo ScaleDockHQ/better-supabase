@@ -56,7 +56,7 @@ const config = resolveConfig(
       tickets: {
         block: "tasks",
         schema: SCRATCH,
-        entities: { work_item: "ticket" },
+        entities: { task: "ticket" },
         uses: { pipelines: "hiringPipelines" },
       },
     },
@@ -74,7 +74,10 @@ describe.skipIf(!live)("block instances against Postgres", () => {
     await client.query("begin");
     await client.query(`create schema ${SCRATCH}`);
 
-    for (const file of renderBlocks(config.blockNames, moduleLayout(config))) {
+    for (const file of renderBlocks(config.blockNames, {
+      ...moduleLayout(config),
+      rerunnable: true,
+    })) {
       if (file.kind !== "test") {
         await client.query(file.contents);
       }

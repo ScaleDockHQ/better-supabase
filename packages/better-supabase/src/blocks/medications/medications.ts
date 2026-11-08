@@ -67,8 +67,8 @@ export interface Medication {
   readonly highRisk: boolean;
   readonly archivedAt?: Temporal.Instant;
   /**
-   * The extra columns (`blocks.medications.options.medicationExtraColumns`),
-   * keyed by database name.
+   * The extra columns (the columns your schema files add), keyed by database
+   * name.
    */
   readonly fields?: Readonly<Record<string, unknown>>;
 }
@@ -238,9 +238,8 @@ export interface MedicationAdministration {
   /** The member's signature on the dose, when it was recorded with one. */
   readonly signatureId?: string;
   /**
-   * The extra columns
-   * (`blocks.medications.options.administrationExtraColumns`), keyed by
-   * database name.
+   * The extra columns (the columns your schema files add), keyed by database
+   * name.
    */
   readonly fields?: Readonly<Record<string, unknown>>;
 }
@@ -301,9 +300,9 @@ export interface MedicationsOptions<
   /** The drug database for `searchCatalog` and `importFromCatalog`. */
   readonly catalog?: MedicationCatalog;
   /**
-   * A Standard Schema for the order's extra columns
-   * (`blocks.medications.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on writes.
+   * A Standard Schema for the order's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on writes.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

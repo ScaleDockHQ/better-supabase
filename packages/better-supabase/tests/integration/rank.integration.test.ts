@@ -128,7 +128,7 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
 
     for (const file of renderBlocks(
       ["rank", "state-machine", "tags", "custom-fields"],
-      layout,
+      { ...layout, rerunnable: true },
     )) {
       if (file.kind !== "test") {
         await client.query(file.contents);

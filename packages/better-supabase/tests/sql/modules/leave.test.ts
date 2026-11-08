@@ -129,7 +129,7 @@ describe("leave module", () => {
     expect(sqlOf(BASE)).not.toContain("add column if not exists employee_id");
     const sql = sqlOf(["approvals", "employees", "leave"]);
     expect(sql).toContain(
-      'alter table "better_supabase"."leave_requests" add column if not exists employee_id uuid',
+      'alter table "better_supabase"."leave_requests" add column employee_id uuid',
     );
     expect(sql).toContain("create trigger bsb_leave_requests_employee_sync");
   });

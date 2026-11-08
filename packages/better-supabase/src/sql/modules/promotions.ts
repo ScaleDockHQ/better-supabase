@@ -9,7 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { PromotionsNames } from "./promotions-functions.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { columns } from "./orders-shared.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -47,7 +47,7 @@ const NAMES: BlockSqlNames = {
     "after_promotion_save",
     "before_promotion_activate",
   ],
-  options: ["extraColumns"],
+  options: [],
   tables: {
     promotions: {
       name: "promotions",
@@ -151,7 +151,7 @@ function tables(ctx: BlockSqlContext, names: PromotionsNames): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   // A column definition, left out when the app maps the column to null.
@@ -195,7 +195,7 @@ create table if not exists ${t("promotions")} (
   check ((${p("amount")} is null and ${p("minSubtotal")} is null) or ${p("currency")} is not null),
   check (${p("endsAt")} is null or ${p("startsAt")} is null or ${p("endsAt")} > ${p("startsAt")})
 );
-create index if not exists ${ctx.naming.rename("promotions_tenant_idx")} on ${t("promotions")} (${p("tenant")}, ${p("active")}, ${p("automatic")});${addExtraColumns(t("promotions"), promotionExtras(ctx))}
+create index if not exists ${ctx.naming.rename("promotions_tenant_idx")} on ${t("promotions")} (${p("tenant")}, ${p("active")}, ${p("automatic")});
 ${lockModuleTable(ctx, "promotions", { read: true })}
 ${policy("promotions", tenantRead("promotions"))}
 

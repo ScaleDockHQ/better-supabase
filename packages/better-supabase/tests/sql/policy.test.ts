@@ -28,9 +28,9 @@ describe("policy", () => {
       using: "owner_id = auth.uid()",
     });
 
-    const sql = renderPolicy(built, { drop: true });
+    const sql = renderPolicy(built);
 
-    expect(sql.startsWith("drop policy if exists notes_read on")).toBe(true);
+    expect(sql.startsWith("create policy notes_read on")).toBe(true);
     expect(readPolicy(sql)).toEqual(built);
   });
 

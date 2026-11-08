@@ -1,5 +1,5 @@
 import type { CaseKindDefinition } from "../../sql/modules/cases-sql.ts";
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -30,7 +30,6 @@ export type CasesSqlOptions = {
    */
   readonly intakeKind?: string;
   /** Extra columns on the cases table, set through `fields`. */
-  readonly extraColumns?: ExtraColumns;
 };
 
 export const casesSqlOptions: BlockOptionsSchema<CasesSqlOptions> =
@@ -39,5 +38,4 @@ export const casesSqlOptions: BlockOptionsSchema<CasesSqlOptions> =
     sources: option.strings(),
     kinds: option.unknown<readonly CaseKindDefinition[]>(),
     intakeKind: option.string(),
-    extraColumns: option.extraColumns(),
   });

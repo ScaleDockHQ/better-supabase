@@ -14,7 +14,6 @@ import { sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   columnsObject,
   extraFieldsArg,
   extraFieldsJson,
@@ -82,7 +81,7 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_relation_link", "after_relation_link"],
-  options: ["kinds", "extraColumns"],
+  options: ["kinds"],
   tables: {
     relations: {
       name: "relations",
@@ -366,8 +365,8 @@ function subjectTables(list: readonly (readonly [string, Subject])[]): string {
 }
 
 /**
- * `options.extraColumns`, added to a managed relations table. The keys
- * `relations_of` returns next to them are reserved.
+ * The columns your schema files add, added to a managed relations table. The
+ * keys `relations_of` returns next to them are reserved.
  */
 const extrasOf = (ctx: BlockSqlContext) =>
   ctx.extraColumns("relations", [
@@ -428,7 +427,7 @@ function build(ctx: BlockSqlContext): string {
   unique (${tenant}, ${kind}, ${sourceType}, ${sourceId}, ${targetType}, ${targetId}),
   check (not (${sourceType} = ${targetType} and ${sourceId} = ${targetId}))
 );
-create index if not exists ${ctx.naming.rename("relations_target_idx")} on ${relations} (${tenant}, ${targetType}, ${targetId}, ${kind});${addExtraColumns(relations, extras)}
+create index if not exists ${ctx.naming.rename("relations_target_idx")} on ${relations} (${tenant}, ${targetType}, ${targetId}, ${kind});
 ${lockTable(relations, { read: true })}
 `
     : "";
@@ -533,7 +532,7 @@ ${lockTable(relations, { read: true })}
 
   return `${schemaPreamble(ctx)}
 ${tables}
-${renderPolicy(makePolicy({ table: relations, name: ctx.naming.rename("relations_read"), command: "select", roles: ["authenticated"], using: `${tenant} in (select ${ctx.scope.ids(read)})` }), { drop: true, target: relations })}
+${renderPolicy(makePolicy({ table: relations, name: ctx.naming.rename("relations_read"), command: "select", roles: ["authenticated"], using: `${tenant} in (select ${ctx.scope.ids(read)})` }), { target: relations })}
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
@@ -930,7 +929,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 const CONTRIBUTES: BlockContributes = {
-  bulk: (own) => [
+  "bulk-actions": (own) => [
     {
       name: "relations.link",
       run: `perform ${own.fn("link")}(bulk_row.tenant, bulk_row.args ->> 'kind', bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'targetType', bulk_row.args ->> 'targetId', bulk_row.args -> 'data');`,

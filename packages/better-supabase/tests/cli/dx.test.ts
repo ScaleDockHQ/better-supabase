@@ -94,10 +94,10 @@ describe("init and add", () => {
     expect(
       await readFile(join(dir, "src/lib/supabase/client.ts"), "utf-8"),
     ).toContain("process.env.NEXT_PUBLIC_SUPABASE_URL!");
-    expect(init.stdout).toContain(
+    expect(init.stderr).toContain(
       "pnpm add better-supabase @supabase/supabase-js @supabase/ssr",
     );
-    expect(init.stdout).not.toContain("pnpm add -D pg");
+    expect(init.stderr).not.toContain("pnpm add -D pg");
     expect(
       await readFile(join(dir, "src/lib/supabase/generated.ts"), "utf-8"),
     ).toBe("// generated\n");
@@ -106,10 +106,10 @@ describe("init and add", () => {
     await rm(join(dir, "better-supabase.config.ts"));
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      '{"gen": {"output": "src/db/generated.ts"}}',
+      '{"gen": {"file": "src/db/generated.ts"}}',
     );
     const again = await run(["init", "--cwd", dir]);
-    expect(again.stderr).toBe("");
+    expect(again.stderr).not.toMatch(/^! /m);
     expect(again.stdout).toContain(
       "Skipped src/proxy.ts (exists; pass --force to overwrite)",
     );
@@ -122,9 +122,9 @@ describe("init and add", () => {
     await project({});
     const init = await run(["init", "--lite", "--cwd", dir]);
     expect(init.code).toBe(0);
-    expect(init.stdout).toContain("pnpm add -D @supabase/lite@0.11");
-    expect(init.stdout).not.toContain("pnpm add -D pg");
-    expect(init.stdout).toContain("npx lite init");
+    expect(init.stderr).toContain("pnpm add -D @supabase/lite@0.11");
+    expect(init.stderr).not.toContain("pnpm add -D pg");
+    expect(init.stderr).toContain("npx lite init");
     expect(init.stdout).toContain("npx lite dev");
     expect(init.stdout).toContain("SUPABASE_JWT_SECRET");
     expect(init.stdout).toContain("Pass backend: 'lite'");
@@ -196,7 +196,7 @@ describe("init and add", () => {
       },
     );
     const refused = await run(["init", "--cwd", dir]);
-    expect(refused.code).toBe(3);
+    expect(refused.code).toBe(2);
     expect(refused.stderr).toContain(
       "pnpm-workspace.yaml makes this a workspace root. Pass --package with the package that owns the runtime (apps/web, packages/runtime)",
     );
@@ -212,16 +212,16 @@ describe("init and add", () => {
       true,
     );
     expect(existsSync(join(dir, "better-supabase.config.ts"))).toBe(false);
-    expect(init.stdout).toContain(
+    expect(init.stderr).toContain(
       "pnpm --filter @acme/web add better-supabase @supabase/supabase-js @supabase/ssr",
     );
-    expect(init.stdout).toContain("pnpm --filter @acme/web add -D pg");
-    expect(init.stdout).not.toContain("supabase init");
-    expect(init.stdout).toContain("better-supabase gen --cwd apps/web");
+    expect(init.stderr).toContain("pnpm --filter @acme/web add -D pg");
+    expect(init.stderr).not.toContain("supabase init");
+    expect(init.stderr).toContain("better-supabase gen --cwd apps/web");
 
     await writeFile(
       join(dir, "apps/web/better-supabase.config.json"),
-      '{"gen": {"output": "src/db/generated.ts"}}',
+      '{"gen": {"file": "src/db/generated.ts"}}',
     );
     await rm(join(dir, "apps/web/better-supabase.config.ts"));
 
@@ -400,6 +400,12 @@ describe("templates", () => {
       for (const file of [
         ...files,
         { path: context.generated, contents: generated },
+        {
+          // The fixture is one module; the templates import `schema` from the
+          // default layout's schema module.
+          path: context.generated.replace(/\.ts$/, "-schema.ts"),
+          contents: 'export { schema } from "./generated.ts";\n',
+        },
         ...metaFiles,
         {
           path: context.generated.replace(/[^/]+$/, "database.types.ts"),
@@ -577,7 +583,19 @@ describe("env", () => {
     );
   });
 
-  it("writes plain and prefixed variables with --write and --prefix next", async () => {
+  it("exits 1 when the status JSON has no API URL or key", async () => {
+    await project({}, { "status.json": JSON.stringify({ DB_URL: "x" }) });
+
+    const result = await run(
+      ["dev", "env", "--status-file", "status.json", "--cwd", dir],
+      { io: { stdout: () => {}, stderr: () => {} } },
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("has no API_URL or publishable key");
+  });
+
+  it("writes plain and prefixed variables with --out and --prefix next", async () => {
     await project({}, { "status.json": JSON.stringify(status) });
 
     const result = await run(
@@ -586,7 +604,7 @@ describe("env", () => {
         "env",
         "--status-file",
         "status.json",
-        "--write",
+        "--out",
         ".env.supabase.local",
         "--prefix",
         "next",
@@ -614,8 +632,8 @@ describe("env", () => {
   });
 
   it.each([
-    ["--write", "../.env.local"],
-    ["--write", "/tmp/better-supabase-escape.env"],
+    ["--out", "../.env.local"],
+    ["--out", "/tmp/better-supabase-escape.env"],
     ["--status-file", "../status.json"],
   ])("refuses %s %s outside the project root", async (flag, path) => {
     await project({}, { "status.json": JSON.stringify(status) });
@@ -722,11 +740,11 @@ describe("keys in a monorepo package", () => {
 });
 
 describe("read sets", () => {
-  const readSetModule = `import { defineSupabase } from ${JSON.stringify(join(src, "core/define.ts"))};
+  const readSetModule = `import { createSupabase } from ${JSON.stringify(join(src, "core/define.ts"))};
 import { defineReadSet } from ${JSON.stringify(join(src, "core/read-set.ts"))};
 import { schema } from ${JSON.stringify(join(packageRoot, "tests/fixtures/generated-camel.ts"))};
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organizationId: 'uuid' } }, (s, p) => ({
   customers: s.customers.count({ where: { organizationId: p.organizationId, status: 'active' } }),
@@ -742,7 +760,7 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organi
       },
     );
     const added = await run(["add", "read-sets", "--cwd", dir]);
-    expect(added.stderr).toBe("");
+    expect(added.stderr).not.toMatch(/^! /m);
 
     const path = join(
       dir,
@@ -754,6 +772,7 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organi
       "create or replace function public.rs_chrome(p jsonb)",
     );
     expect(sql).toContain("((p->>'organizationId')::uuid)");
+    expect((await run(["add", "--adopt", "--cwd", dir])).code).toBe(0);
     expect((await run(["upgrade", "--check", "--cwd", dir])).code).toBe(0);
 
     await writeFile(path, sql.replace("'active'", "'lead'"));
@@ -769,11 +788,11 @@ describe("seed", () => {
       {},
       {
         "supabase/config.toml": '[db.seed]\nsql_paths = ["./seed.sql"]\n',
-        "supabase/seed.ts": `import { defineSupabase } from ${JSON.stringify(join(src, "core/define.ts"))};
+        "supabase/seed.ts": `import { createSupabase } from ${JSON.stringify(join(src, "core/define.ts"))};
 import { schema } from ${JSON.stringify(join(packageRoot, "tests/fixtures/generated-camel.ts"))};
 import { defineSeed } from ${JSON.stringify(join(src, "testing/seed.ts"))};
 
-export const seed = defineSeed(defineSupabase(schema), {
+export const seed = defineSeed(createSupabase(schema), {
   customers: { acme: { id: 'c1', organizationId: 'o1', name: "Acme's" } },
   organizations: { one: { id: 'o1', name: 'One', slug: 'one' } },
 });
@@ -966,7 +985,7 @@ describe("flags from the config", () => {
       },
     );
     await configure({
-      tooling: { env: { output: ".env.development.local", prefix: "VITE_" } },
+      tooling: { env: { file: ".env.development.local", prefix: "VITE_" } },
     });
     expect(
       (await run(["dev", "env", "--status-file", "status.json", "--cwd", dir]))
@@ -994,7 +1013,7 @@ describe("flags from the config", () => {
   it("writes the signing key to keys.output", async () => {
     await project({}, { "supabase/config.toml": "[auth]\n" });
     await configure({
-      tooling: { keys: { output: "supabase/keys/local.json" } },
+      tooling: { keys: { file: "supabase/keys/local.json" } },
     });
     expect((await run(["dev", "keys", "--cwd", dir])).code).toBe(0);
     expect(existsSync(join(dir, "supabase/keys/local.json"))).toBe(true);

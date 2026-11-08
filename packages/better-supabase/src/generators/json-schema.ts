@@ -3,24 +3,30 @@ import type {
   Generator,
   GeneratorInput,
 } from "../config/index.ts";
-import type { ExtraSchemas, FieldMeta, ResultSchema } from "./extras.ts";
 import type { JsonSchemaTarget } from "./json-schema-target.ts";
-import type { DocsSource } from "./shared.ts";
+import type {
+  DocsSource,
+  ExtraSchemas,
+  FieldMeta,
+  ResultSchema,
+} from "./kit.ts";
 
 import { fieldJsonSchema, tableJsonSchema } from "../core/table-json-schema.ts";
 import { forTarget } from "../core/table-schema.ts";
-import { extraSchemas, fieldMeta } from "./extras.ts";
+import { VERSION } from "../core/version.ts";
 import { toDraft07 } from "./json-schema-target.ts";
 import {
+  extraSchemas,
   fieldDocs,
-  fieldSpec,
+  fieldMeta,
   fieldsFor,
+  fieldSpec,
   siblingPath,
   tableDocs,
   tableEntries,
   variantsFor,
   variantTitle,
-} from "./shared.ts";
+} from "./kit.ts";
 
 export type { JsonSchemaTarget } from "./json-schema-target.ts";
 
@@ -148,7 +154,7 @@ function withLabels(
  * `target` lowers the document to draft-07 or the OpenAPI 3.0 dialect, which
  * keep the schemas under `definitions`.
  */
-export function buildJsonSchema(
+export function toJsonSchema(
   input: DocsSource,
   id?: string,
   target: JsonSchemaTarget = "draft-2020-12",
@@ -251,7 +257,15 @@ export function jsonSchema(
   options: JsonSchemaGeneratorOptions = {},
 ): Generator {
   return {
-    apiVersion: 1,
+    apiVersion: 2,
+    version: VERSION,
+    options,
+    pure: true,
+    workerSafe: true,
+    module: {
+      specifier: "better-supabase/generators/json-schema",
+      export: "jsonSchema",
+    },
     name: "json-schema",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =
@@ -259,12 +273,7 @@ export function jsonSchema(
 
       const extras = extraSchemas(input);
 
-      const document = buildJsonSchema(
-        input,
-        options.id,
-        options.target,
-        extras,
-      );
+      const document = toJsonSchema(input, options.id, options.target, extras);
 
       return [
         {

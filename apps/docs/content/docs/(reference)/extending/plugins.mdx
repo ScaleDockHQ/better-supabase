@@ -42,7 +42,7 @@ an `unexpected` error with the thrown message, the `table`, and `details`
 naming the plugin and hook (`plugin "audit" beforeMutation threw`), and the
 `error` event fires.
 
-`defineSupabase().use()` and `new BetterSupabase(schema, plugins)` both
+`createSupabase().use()` and `new BetterSupabase(schema, plugins)` both
 refuse a plugin with another `apiVersion` and two plugins with the same name.
 
 `context` runs once per `connect()` and `$with()`, in plugin order, and its

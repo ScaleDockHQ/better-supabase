@@ -142,7 +142,7 @@ export const navItems: readonly NavItem[] = [
     id: "time",
     href: "/people/time",
     group: "workspace",
-    requires: "time_tracking.track",
+    requires: "time_entries.track",
   },
   {
     id: "calendar",

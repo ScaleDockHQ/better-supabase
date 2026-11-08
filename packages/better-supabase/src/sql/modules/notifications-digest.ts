@@ -2,6 +2,7 @@ import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
 import { fail, revokeTable } from "../shared.ts";
+import { addressSql } from "./notifications-address.ts";
 import { itemJson } from "./notifications-items.ts";
 
 /** How often a digest of held notifications goes out, per cadence. */
@@ -14,7 +15,7 @@ export const DIGEST_TABLE = {
   columns: {
     id: "id",
     user: "user_id",
-    tenant: "organization_id",
+    tenant: "tenant_id",
     channel: "channel",
     cadence: "cadence",
     items: "items",
@@ -296,7 +297,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
     'digest_id', l.${g("id")},
     'user_id', l.${g("user")},
-    'email', u.email,
+    'email', ${addressSql(ctx, `l.${g("user")}`, `l.${g("channel")}`, "u.email")},
     'channel', l.${g("channel")},
     'cadence', l.${g("cadence")},${digestTenant ? `\n    'tenant', l.${g("tenant")},` : ""}
     'item_count', l.${g("itemCount")},

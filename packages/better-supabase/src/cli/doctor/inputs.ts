@@ -64,12 +64,8 @@ export async function sqlFiles(
   return [...schemas, ...(await Promise.all(migrations.map(read)))];
 }
 
-/** The `.sql` files under the seeds folder, sorted by name (BS356). */
-export async function seedFiles(
-  root: string,
-  toml: SupabaseToml | undefined,
-): Promise<TextFile[]> {
-  const folder = `${toml?.dir ?? "supabase"}/seeds`;
+/** The `.sql` files directly under `folder`, sorted by name. */
+async function sqlInFolder(root: string, folder: string): Promise<TextFile[]> {
   const directory = resolve(root, folder);
 
   if (!existsSync(directory)) {
@@ -86,6 +82,19 @@ export async function seedFiles(
       })),
   );
 }
+
+/** The `.sql` files under the seeds folder, sorted by name (BS356). */
+export const seedFiles = (
+  root: string,
+  toml: SupabaseToml | undefined,
+): Promise<TextFile[]> => sqlInFolder(root, `${toml?.dir ?? "supabase"}/seeds`);
+
+/** The block data files, next to the schema folder (BS357, BS358). */
+export const dataFiles = (
+  root: string,
+  toml: SupabaseToml | undefined,
+): Promise<TextFile[]> =>
+  sqlInFolder(root, `${toml?.dir ?? "supabase"}/better-supabase-data`);
 
 /**
  * The `doctor.sources` globs. Left at the default in a workspace root, they

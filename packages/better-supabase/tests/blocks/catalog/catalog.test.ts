@@ -263,8 +263,8 @@ describe("catalog block", () => {
         amount: "900719925474099300",
         compare_at: "900719925474099400",
         price_list: null,
-        valid_from: "2026-01-01T00:00:00Z",
-        valid_until: null,
+        starts_at: "2026-01-01T00:00:00Z",
+        expires_at: null,
       },
     });
   });

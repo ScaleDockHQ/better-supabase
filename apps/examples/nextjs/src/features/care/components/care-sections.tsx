@@ -1,5 +1,6 @@
 import { EyeIcon, FileCheckIcon, UsersIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
+import { navigation } from "next/cache";
 import { notFound } from "next/navigation";
 import { after } from "next/server";
 
@@ -32,7 +33,7 @@ import {
 import { AccessLogGrid, ClientsGrid, ConsentsGrid } from "./care-grids";
 import { CareLoadError } from "./care-load-error";
 
-/** Render inside `<Suspense>`; the fallback is `CareSectionSkeleton`. */
+/** Render inside `<Suspense>`. */
 export async function ClientList() {
   const [clients, t] = await Promise.all([getClients(), getExtracted("care")]);
 
@@ -103,8 +104,10 @@ export function ClientHeadingSkeleton() {
   return <Skeleton className="h-8 w-56" aria-busy="true" />;
 }
 
-/** Render inside `<Suspense>`; the fallback is `CareSectionSkeleton`. */
+/** Render inside `<Suspense>`. */
 export async function ClientConsents({ clientId }: { clientId: string }) {
+  await navigation();
+
   const [consents, t] = await Promise.all([
     getConsents(clientId),
     getExtracted("care"),
@@ -157,8 +160,10 @@ export async function ClientConsents({ clientId }: { clientId: string }) {
   );
 }
 
-/** Render inside `<Suspense>`; the fallback is `CareSectionSkeleton`. */
+/** Render inside `<Suspense>`. */
 export async function ClientAccessLog({ clientId }: { clientId: string }) {
+  await navigation();
+
   const [reads, t] = await Promise.all([
     getAccessLog(clientId),
     getExtracted("care"),
@@ -211,7 +216,7 @@ export async function ClientAccessLog({ clientId }: { clientId: string }) {
   );
 }
 
-export function CareSectionSkeleton() {
+function CareSectionSkeleton() {
   return (
     <Frame spacing="sm" aria-busy="true">
       <FrameHeader className="gap-1">
@@ -223,4 +228,16 @@ export function CareSectionSkeleton() {
       </FramePanel>
     </Frame>
   );
+}
+
+export function ClientListSkeleton() {
+  return <CareSectionSkeleton />;
+}
+
+export function ClientConsentsSkeleton() {
+  return <CareSectionSkeleton />;
+}
+
+export function ClientAccessLogSkeleton() {
+  return <CareSectionSkeleton />;
 }

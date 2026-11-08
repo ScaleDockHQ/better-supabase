@@ -27,7 +27,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const DOCUMENTS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   owner: "owner_id",
   scope: "scope",
   scopeId: "scope_id",
@@ -477,7 +477,7 @@ alter table ${documents} enable row level security;
 ${revokeTable(documents)}
 grant select on ${documents} to authenticated;
 grant all on ${documents} to service_role;${subjectReadableFn}
-${renderPolicy(makePolicy({ table: documents, name: ctx.naming.rename("knowledge_documents_read"), command: "select", roles: ["authenticated"], using: readable }), { drop: true, target: documents })}
+${renderPolicy(makePolicy({ table: documents, name: ctx.naming.rename("knowledge_documents_read"), command: "select", roles: ["authenticated"], using: readable }), { target: documents })}
 
 -- A chunk is visible when its document is, so search inherits the scopes.
 create table if not exists ${chunks} (
@@ -493,7 +493,7 @@ alter table ${chunks} enable row level security;
 ${revokeTable(chunks)}
 grant select on ${chunks} to authenticated;
 grant all on ${chunks} to service_role;
-${renderPolicy(makePolicy({ table: chunks, name: "knowledge_chunks_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${documents} doc where doc.${d.id} = ${c.document})` }), { drop: true, target: chunks })}
+${renderPolicy(makePolicy({ table: chunks, name: "knowledge_chunks_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${documents} doc where doc.${d.id} = ${c.document})` }), { target: chunks })}
 
 -- Creates a document for the caller (or for owner, as the service role).
 -- Organization and agent knowledge needs the manage permission. Only the

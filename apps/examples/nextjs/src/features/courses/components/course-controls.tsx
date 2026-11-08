@@ -3,10 +3,10 @@
 import { useAction } from "better-supabase/react";
 import { CheckIcon, GraduationCapIcon, PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { useRouter } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import {

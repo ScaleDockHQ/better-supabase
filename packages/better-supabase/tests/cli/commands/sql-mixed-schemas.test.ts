@@ -321,10 +321,10 @@ create index if not exists customers_block_idx on public.customers (organization
 
     const text = unquote(await read(CONTACTS));
 
-    expect(text).toContain("create table if not exists public.contacts (");
+    expect(text).toContain("create table public.contacts (");
     expect(addedColumns(text, "public.contacts")).toEqual([]);
     expect(unquote(await read(INVOICES))).not.toContain(
-      "create table if not exists public.invoices",
+      "create table public.invoices",
     );
   });
 

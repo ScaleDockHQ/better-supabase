@@ -39,7 +39,7 @@ describe("resolveTargets", () => {
     ]);
     expect(
       resolveTargets(
-        [{ format: "openapi", output: "api.yml", ui: "scalar" }],
+        [{ format: "openapi", file: "api.yml", ui: "scalar" }],
         registry,
         {},
       ),
@@ -64,8 +64,8 @@ describe("resolveTargets", () => {
 
   it("picks the configured output at a version, or writes a versioned file", () => {
     const outputs = [
-      { format: "openapi", version: "3.0", output: "legacy.json" },
-      { format: "openapi", version: "3.2", output: "next.json" },
+      { format: "openapi", version: "3.0", file: "legacy.json" },
+      { format: "openapi", version: "3.2", file: "next.json" },
     ];
 
     expect(

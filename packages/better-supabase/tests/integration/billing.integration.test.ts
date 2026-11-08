@@ -741,7 +741,7 @@ describe.skipIf(!live)("billing", () => {
 
       expect(
         await refused(
-          "insert into better_supabase.billing_customers (organization_id) values ($1)",
+          "insert into better_supabase.billing_customers (tenant_id) values ($1)",
         ),
       ).toMatch(/bsb_billing_customers_party/);
       expect(

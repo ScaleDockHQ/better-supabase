@@ -438,12 +438,9 @@ describe("createShifts", () => {
       ["decide_shift_request", { assignment_id: "a2", approve: true }],
       [
         "request_shift_swap",
-        { assignment_id: "a1", to_user_id: "u2", note: "Dentist" },
+        { assignment_id: "a1", to_id: "u2", note: "Dentist" },
       ],
-      [
-        "request_shift_swap",
-        { assignment_id: "a1", to_user_id: "u2", note: null },
-      ],
+      ["request_shift_swap", { assignment_id: "a1", to_id: "u2", note: null }],
       [
         "decide_shift_swap",
         { swap_id: "w1", approve: true, approval_id: "ap1" },

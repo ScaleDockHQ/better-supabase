@@ -158,7 +158,7 @@ const { state, actions } = useBlockController(createApiKeysController, {
 ```svelte title="ApiKeys.svelte"
 <script lang="ts">
   import {
-    getBetterSupabase,
+    betterSupabase,
     useBlockController,
   } from "better-supabase/svelte";
   import {
@@ -168,7 +168,7 @@ const { state, actions } = useBlockController(createApiKeysController, {
   } from "better-supabase/blocks/api-keys";
 
   let { organizationId }: { organizationId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const keys = useBlockController(createApiKeysController, {
     client: createApiKeys({ transport: rpcTransport(supabase), schema: "api" }),
     organizationId,
@@ -402,7 +402,7 @@ the key's user or tenant and its scopes, `invalid` or `rate_limited`.
 
 ## Your own fields
 
-`blocks.api-keys.options.extraColumns` adds columns to the `api_keys` table,
+Columns you add to `api_keys` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createApiKeys` a Standard Schema
 for them as `fields`: `create` (`rotate` copies them) take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and `list`, `verify` return them

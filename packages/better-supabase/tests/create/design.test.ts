@@ -11,7 +11,6 @@ import {
   columnError,
   connect,
   deleteColumn,
-  deleteExtraColumn,
   defaultError,
   deleteTable,
   designIssues,
@@ -19,14 +18,12 @@ import {
   EMPTY_DESIGN,
   freeTableName,
   identifierError,
-  isEmptyDesign,
   moveTables,
   referenceFrom,
   renameColumn,
   renameTable,
   subjectTypeError,
   setColumn,
-  setExtraColumn,
   setTableId,
   singular,
   tidy,
@@ -177,13 +174,6 @@ describe("edits", () => {
       design.appTables?.["projects"],
     );
     expect(design.positions?.[appTableId("projects_copy")]).toEqual([40, 40]);
-  });
-
-  it("extra columns come and go per module", () => {
-    const one = setExtraColumn(EMPTY_DESIGN, "tenant", "plan", "text");
-
-    expect(one.extraColumns).toEqual({ tenant: { plan: "text" } });
-    expect(isEmptyDesign(deleteExtraColumn(one, "tenant", "plan"))).toBe(true);
   });
 
   it("tidy drops every position", () => {
@@ -378,25 +368,6 @@ describe("withDesign", () => {
     });
     expect(merged.manifests[appTableId("projects")]).toBe("app-tables");
   });
-
-  it("appends extra columns to the tables that take them", () => {
-    const [id] = data.extraColumns;
-    const table = data.tables.find((each) => each.id === id);
-
-    expect(table).toBeDefined();
-
-    const merged = withDesign(
-      data,
-      setExtraColumn(EMPTY_DESIGN, table?.module ?? "", "nickname", "text"),
-      preset,
-    );
-
-    expect(
-      merged.tables
-        .find((each) => each.id === id)
-        ?.columns.some((column) => column.name === "nickname"),
-    ).toBe(true);
-  });
 });
 
 describe("designIssues", () => {
@@ -404,23 +375,23 @@ describe("designIssues", () => {
     expect(designIssues(projects, data, preset)).toEqual([]);
   });
 
-  it("flags clashes, missing references, set null on required columns and orphan extra columns", () => {
+  it("flags clashes, missing references and set null on required columns", () => {
     const blockName = data.tables[0]?.name ?? "";
 
-    const design = setExtraColumn(
-      setColumn(addTable(projects, blockName), "projects", "board_id", {
+    const design = setColumn(
+      addTable(projects, blockName),
+      "projects",
+      "board_id",
+      {
         type: "uuid",
         nullable: false,
         references: { table: "boards", onDelete: "set null" },
-      }),
-      "not-a-block",
-      "x",
-      "text",
+      },
     );
 
     expect(
       designIssues(design, data, preset).map((issue) => issue.table),
-    ).toEqual(["projects", "projects", blockName, "not-a-block"]);
+    ).toEqual(["projects", "projects", blockName]);
   });
 
   it("flags a required column members can't write that has no default", () => {
@@ -457,10 +428,11 @@ describe("designIssues", () => {
 
     expect(designIssues(design, data, preset).length).toBeGreaterThan(0);
 
-    const long = setColumn(projects, "projects", "x".repeat(50), {
-      type: "text",
-      options: ["a"],
-    });
+    const long = updateTable(
+      setColumn(projects, "projects", "x".repeat(55), { type: "text" }),
+      "projects",
+      { unique: [["x".repeat(55)]] },
+    );
 
     expect(
       designIssues(long, data, preset).some((issue) =>

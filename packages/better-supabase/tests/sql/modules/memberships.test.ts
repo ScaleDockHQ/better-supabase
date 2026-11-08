@@ -288,6 +288,41 @@ alter table public.notes add constraint notes_task_fk foreign key (task_id) refe
     );
   });
 
+  it("derives the entries without the option, and false turns them off", () => {
+    const withLayout = (sameTenant: unknown) =>
+      moduleBody("memberships", {
+        modules: {
+          memberships: {
+            options: sameTenant === undefined ? {} : { sameTenant },
+          },
+        },
+        ...inputs,
+      })!;
+
+    expect(withLayout(undefined)).toBe(body(derived));
+    expect(withLayout(false)).not.toContain("bsb_same_tenant");
+    expect(withLayout([derived[0]])).toBe(body(derived));
+    expect(body(undefined)).not.toContain("bsb_same_tenant");
+  });
+
+  it("skips a key a composite pair on the tenant column already covers", () => {
+    const text = `
+create table public.parents (id uuid, organization_id uuid not null, unique (organization_id, id));
+create table public.kids (
+  id uuid primary key,
+  organization_id uuid not null,
+  parent_id uuid references public.parents (id),
+  foreign key (organization_id, parent_id) references public.parents (organization_id, id)
+);`;
+
+    const sql = moduleBody("memberships", {
+      modules: { memberships: {} },
+      ...sameTenantLayout([{ text }], ["public"]),
+    })!;
+
+    expect(sql).not.toContain("bsb_same_tenant");
+  });
+
   it("renders only the entries with auto off, and needs the scan with it on", () => {
     expect(autoBody({ auto: false, entries: [derived[0]] })).toBe(
       body([derived[0]]),
@@ -326,5 +361,56 @@ describe("tenant role helpers under a provider", () => {
   it("read the memberships table under the built-in roles", () => {
     const sql = moduleBody("memberships", { accessProvider: moduleProvider })!;
     expect(sql).not.toContain("authz.");
+  });
+});
+
+describe("tenant module sameTenant over app triggers", () => {
+  const schema = `
+create table public.customers (id uuid primary key, organization_id uuid not null);
+create table public.jobs (
+  id uuid primary key,
+  organization_id uuid not null,
+  customer_id uuid references public.customers,
+  team_id uuid references public.customers
+);
+create function public.jobs_organization_fixed() returns trigger
+language plpgsql as $$
+begin
+  if new.customer_id is distinct from old.customer_id
+     and (select organization_id from public.customers where id = new.customer_id) <> new.organization_id then
+    raise exception 'customer must share the organization';
+  end if;
+  return new;
+end;
+$$;
+create trigger jobs_organization_fixed before update on public.jobs
+  for each row execute function public.jobs_organization_fixed();
+create trigger bsb_same_tenant_team_id before update on public.jobs
+  for each row execute function public.jobs_organization_fixed();
+`;
+
+  const render = (text: string) =>
+    moduleBody("memberships", {
+      modules: { memberships: { options: { sameTenant: { auto: true } } } },
+      ...sameTenantLayout([{ text }], ["public"]),
+    })!;
+
+  it("reads the columns of app triggers and ignores bsb_* triggers", () => {
+    expect(
+      sameTenantLayout([{ text: schema }], ["public"]).appTriggerColumns,
+    ).toStrictEqual({ "public.jobs": ["customer_id", "organization_id"] });
+  });
+
+  it("emits no second trigger for a column an app trigger guards", () => {
+    const sql = render(schema);
+
+    expect(sql).not.toContain('"bsb_same_tenant_customer_id"');
+    expect(sql).toContain('"bsb_same_tenant_team_id"');
+  });
+
+  it("emits the trigger without the app's", () => {
+    expect(
+      render(schema.slice(0, schema.indexOf("create function"))),
+    ).toContain('"bsb_same_tenant_customer_id"');
   });
 });

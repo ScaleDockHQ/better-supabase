@@ -8,7 +8,7 @@ import { moduleSchemaExtensions } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
-import { stampAfter } from "./migrations.ts";
+import { hasMigrationSuffix, migrationFile } from "./migration-names.ts";
 
 /** The migration the migrations workflow writes the SQL modules into. */
 export const MODULES_SUFFIX = "_better_supabase_modules.sql";
@@ -116,7 +116,9 @@ export async function latestMigration(
     () => [],
   );
 
-  const latest = names.toSorted().findLast((name) => name.endsWith(suffix));
+  const latest = names
+    .toSorted()
+    .findLast((name) => hasMigrationSuffix(name, suffix));
 
   if (latest === undefined) {
     return undefined;
@@ -195,7 +197,10 @@ export async function writeLatestMigration(
     () => [],
   );
 
-  const path = `${dir}/${stampAfter(names, options.now)}${suffix}`;
+  const path = `${dir}/${
+    migrationFile(names, options.now, suffix, contents, options.force !== true)
+      .name
+  }`;
 
   const applied = await applyPlan(
     sqlPlan(config, {

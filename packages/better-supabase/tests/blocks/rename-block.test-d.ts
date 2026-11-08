@@ -7,7 +7,7 @@ import type {
   RenameKey,
   RenamesOf,
 } from "../../src/blocks/rename-block.ts";
-import type { WorkItem, Tasks } from "../../src/blocks/tasks/tasks.ts";
+import type { Task, Tasks } from "../../src/blocks/tasks/tasks.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
 
 import { renameBlock } from "../../src/blocks/rename-block.ts";
@@ -31,7 +31,7 @@ type R = RenamesOf<typeof NAMES>;
 describe("RenameKey", () => {
   it("renames snake, camel and pascal forms on word bounds", () => {
     expectTypeOf<RenameKey<"list_tasks", R>>().toEqualTypeOf<"list_tasks">();
-    expectTypeOf<RenameKey<"workItemIds", R>>().toEqualTypeOf<"taskIds">();
+    expectTypeOf<RenameKey<"taskIds", R>>().toEqualTypeOf<"taskIds">();
     expectTypeOf<
       RenameKey<"saveProject", R>
     >().toEqualTypeOf<"saveInitiative">();
@@ -61,17 +61,17 @@ describe("RenameKey", () => {
 
 describe("RenamedType", () => {
   it("renames row keys and leaves extra fields alone", () => {
-    type Task = RenamedType<WorkItem<{ readonly project_code: string }>, R>;
+    type Renamed = RenamedType<Task<{ readonly project_code: string }>, R>;
 
-    expectTypeOf<Task["initiativeId"]>().toEqualTypeOf<string | undefined>();
-    expectTypeOf<Task["fields"]>().toEqualTypeOf<
-      WorkItem<{ readonly project_code: string }>["fields"]
+    expectTypeOf<Renamed["initiativeId"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<Renamed["fields"]>().toEqualTypeOf<
+      Task<{ readonly project_code: string }>["fields"]
     >();
-    expectTypeOf<Task>().not.toHaveProperty("projectId");
+    expectTypeOf<Renamed>().not.toHaveProperty("projectId");
   });
 
   it("is the type itself without renames", () => {
-    expectTypeOf<RenamedType<WorkItem, []>>().toEqualTypeOf<WorkItem>();
+    expectTypeOf<RenamedType<Task, []>>().toEqualTypeOf<Task>();
   });
 });
 
@@ -103,7 +103,7 @@ describe("renameBlock", () => {
   it("renames the event map", () => {
     expectTypeOf<
       keyof RenamedEvents<
-        { "work_item.closed": { readonly workItemId: string } },
+        { "work_item.closed": { readonly taskId: string } },
         R
       >
     >().toEqualTypeOf<"task.closed">();

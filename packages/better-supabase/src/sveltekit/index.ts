@@ -8,7 +8,7 @@ export type {
   BetterSvelteKit,
   SvelteKitAppError,
   SvelteKitDepends,
-  SvelteKitFailure,
+  SvelteKitError,
   SvelteKitHelpers,
   SvelteKitOptions,
   SvelteKitRequestEvent,

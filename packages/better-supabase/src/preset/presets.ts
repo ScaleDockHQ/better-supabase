@@ -143,7 +143,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "crm",
     title: "CRM",
     description:
-      "SaaS plus parties, pipelines, deals, quotes, sales targets and engagements, with synced mailboxes, email sequences, segments, assignment queues, enrichment, forecasts and lead scoring, a job queue for the sequence timers, tags, comments, an activity feed, custom fields, saved views and search.",
+      "SaaS plus parties, pipelines, deals, quotes, sales targets and activities, with synced mailboxes, email sequences, segments, assignment queues, enrichment, forecasts and lead scoring, a job queue for the sequence timers, tags, comments, an activity feed, custom fields, saved views and search.",
     group: "products",
     blocks: [
       ...SAAS_LINKED,
@@ -172,7 +172,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "state-machine",
       "rank",
       "reminders",
-      "time-tracking",
+      "time-entries",
     ],
   },
   helpdesk: {
@@ -261,7 +261,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "attachments",
       "custom-fields",
       "imports",
-      "bulk",
+      "bulk-actions",
       "tags",
       "saved-views",
       "search",
@@ -301,7 +301,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     blocks: [
       ...SAAS_LINKED,
       "recruiting",
-      "time-tracking",
+      "time-entries",
       "approvals",
       "documents",
       "automations",
@@ -317,7 +317,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       ...SAAS_LINKED,
       "contacts",
       "tasks",
-      "time-tracking",
+      "time-entries",
       "billable-time",
       "shifts",
       "expenses",
@@ -527,7 +527,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     blocks: [
       ...SAAS,
       "contacts",
-      "time-tracking",
+      "time-entries",
       "billable-time",
       "invoices",
       "ledger",
@@ -588,7 +588,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "customer-success",
     title: "Customer success",
     description:
-      "SaaS plus accounts as parties, health scores from rules and metrics, NPS forms, playbooks as enrollments and engagements.",
+      "SaaS plus accounts as parties, health scores from rules and metrics, NPS forms, playbooks as enrollments and activities.",
     group: "verticals",
     blocks: [
       ...SAAS,
@@ -899,7 +899,14 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus feature flags, metrics, approvals, saved views and bulk actions.",
     group: "platforms",
-    blocks: [...SAAS, "flags", "metrics", "approvals", "saved-views", "bulk"],
+    blocks: [
+      ...SAAS,
+      "flags",
+      "metrics",
+      "approvals",
+      "saved-views",
+      "bulk-actions",
+    ],
   },
   everything: {
     name: "everything",

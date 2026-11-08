@@ -7,7 +7,7 @@ import type {
   SqliteContextLike,
 } from "../../src/powersync/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { provideTemporal } from "../../src/core/temporal.ts";
@@ -23,7 +23,7 @@ import { testExecutor } from "../../src/testing/kits/executor.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { createSqlite } from "../fixtures/sqlite.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const ORG = "00000000-0000-4000-8000-000000000001";
 const OTHER = "00000000-0000-4000-8000-000000000002";
 
@@ -57,7 +57,7 @@ describe("powersyncExecutor", () => {
       provideTemporal(undefined);
       vi.unstubAllGlobals();
     });
-    const definition = defineSupabase(coded, { temporal: Polyfill });
+    const definition = createSupabase(coded, { temporal: Polyfill });
     const sqlite = createSqlite(definition.meta);
     const client = definition.connect(powersyncExecutor(sqlite.db));
 

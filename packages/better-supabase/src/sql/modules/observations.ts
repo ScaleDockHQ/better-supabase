@@ -10,7 +10,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   defaultPartition,
   defaultPartitionName,
   extraFieldsArg,
@@ -94,7 +93,7 @@ const NAMES: BlockSqlNames = {
     "before_observation_mark_error",
     "after_observation_mark_error",
   ],
-  options: ["defaults", "partitioned", "extraColumns"],
+  options: ["defaults", "partitioned"],
   tables: {
     definitions: {
       name: "observation_definitions",
@@ -162,7 +161,6 @@ function tables(ctx: BlockSqlContext): string {
   const d = (column: string): string => ctx.col("definitions", column);
   const o = (column: string): string => ctx.col("observations", column);
   const read = ctx.permission("read", moduleOperations("observations").read);
-  const extras = ctx.extraColumns("observations", OBSERVATION_RESERVED);
   const partitioned = observationsPartitioned(ctx);
   const canSubject = ctx.of("subjects").fn("can_subject");
 
@@ -197,7 +195,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const appKey = (logical: string, what: string, unique: string): string =>
@@ -294,7 +292,7 @@ create table if not exists ${observations} (
   ${o("submission")} uuid${submissionRef},
   ${o("performer")} uuid,${text("note", 4000)}
   ${o("createdAt")} timestamptz not null default now()${partitioned ? `,\n  primary key (${o("id")}, ${o("createdAt")})` : ""}
-)${partitioned ? ` partition by range (${o("createdAt")});\n${defaultPartition(observations, fallback)}` : ";"}${addExtraColumns(observations, extras)}
+)${partitioned ? ` partition by range (${o("createdAt")});\n${defaultPartition(observations, fallback)}` : ";"}
 create index if not exists ${name("observations", "series_idx")} on ${observations} (${o("subjectType")}, ${o("subjectId")}, ${o("definition")}, ${o("observedAt")} desc);
 create index if not exists ${name("observations", "definition_idx")} on ${observations} (${o("definition")});
 create index if not exists ${name("observations", "tenant_idx")} on ${observations} (${o("tenant")}, ${o("observedAt")} desc);

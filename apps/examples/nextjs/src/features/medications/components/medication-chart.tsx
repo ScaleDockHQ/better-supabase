@@ -2,8 +2,7 @@ import type { MedicationAdministrationStatus } from "better-supabase/blocks/medi
 
 import { PillIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
-import { refresh } from "next/cache";
-import { connection } from "next/server";
+import { io, refresh } from "next/cache";
 
 import {
   Alert,
@@ -55,7 +54,7 @@ const DOSE_VARIANT = {
 export async function MedicationChart({
   clientId,
 }: { clientId?: string } = {}) {
-  await connection();
+  await io();
 
   const [state, t, format] = await Promise.all([
     getCustomerChart(clientId),

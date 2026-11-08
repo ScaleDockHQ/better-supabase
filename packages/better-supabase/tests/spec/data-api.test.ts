@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineSchema } from "../../src/index.ts";
 import { defineApi } from "../../src/spec/api.ts";
-import { buildApiModel } from "../../src/spec/build.ts";
+import { defineApiModel } from "../../src/spec/build.ts";
 import meta from "../fixtures/generated-camel.meta.js";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const info = { title: "CRM", version: "1.0.0" };
 const supabaseUrl = "https://abc.supabase.co/";
 
 const operation = (
-  model: ReturnType<typeof buildApiModel>["model"],
+  model: ReturnType<typeof defineApiModel>["model"],
   id: string,
 ) => {
   const found = model.operations.find((entry) => entry.id === id);
@@ -24,8 +24,8 @@ const operation = (
   return found;
 };
 
-describe("buildApiModel: dataApi", () => {
-  const { model, diagnostics } = buildApiModel(betterSupabase, {
+describe("defineApiModel: dataApi", () => {
+  const { model, diagnostics } = defineApiModel(betterSupabase, {
     info,
     supabaseUrl,
     resources: { customers: true },
@@ -155,7 +155,7 @@ describe("buildApiModel: dataApi", () => {
   });
 
   it("skips Data API writes in requirePermissions", () => {
-    const built = buildApiModel(betterSupabase, {
+    const built = defineApiModel(betterSupabase, {
       info,
       supabaseUrl,
       resources: false,
@@ -167,7 +167,7 @@ describe("buildApiModel: dataApi", () => {
   });
 
   it("limits the operations per table", () => {
-    const built = buildApiModel(betterSupabase, {
+    const built = defineApiModel(betterSupabase, {
       info,
       supabaseUrl,
       resources: false,
@@ -180,7 +180,7 @@ describe("buildApiModel: dataApi", () => {
   });
 
   it("documents every table and function with true", () => {
-    const built = buildApiModel(betterSupabase, {
+    const built = defineApiModel(betterSupabase, {
       info,
       supabaseUrl,
       dataApi: { tables: true, functions: true },
@@ -203,7 +203,7 @@ describe("buildApiModel: dataApi", () => {
   });
 
   it("maps Postgres types the way PostgREST writes them", () => {
-    const typed = defineSupabase(
+    const typed = createSupabase(
       defineSchema({
         ...meta,
         functions: {
@@ -236,7 +236,7 @@ describe("buildApiModel: dataApi", () => {
       }),
     );
 
-    const built = buildApiModel(typed, {
+    const built = defineApiModel(typed, {
       info,
       supabaseUrl,
       dataApi: { functions: ["typed", "missing_table"] },
@@ -268,7 +268,7 @@ describe("buildApiModel: dataApi", () => {
   });
 
   it("reports operations for an unknown table", () => {
-    const built = buildApiModel(betterSupabase, {
+    const built = defineApiModel(betterSupabase, {
       info,
       supabaseUrl,
       dataApi: { operations: { nope: ["select"] } },
@@ -283,7 +283,7 @@ describe("buildApiModel: dataApi", () => {
   });
 
   it("reports unknown tables and functions and a missing project URL", () => {
-    const built = buildApiModel(betterSupabase, {
+    const built = defineApiModel(betterSupabase, {
       info,
       resources: false,
       dataApi: { tables: ["nope"], functions: ["missing"] },

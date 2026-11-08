@@ -1,30 +1,14 @@
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:1749eda6f42f3397652bfa47fa0dcbe1eaec67f69b2cf2c9b15352b24baacaec
+-- @bsb-hash sha256:905b22ecea3bfcfbf1d30779bc057089225d728f5ef44c08bc51cbe31fa60d81
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."timeline_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- The activity feed: one row per outbox event, written by activitySink().
-create table if not exists "better_supabase"."timeline_entries" (
+create table "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "event_id" text not null unique,
   "type" text not null,
   "actor_id" uuid references auth.users (id) on delete set null,
@@ -34,9 +18,9 @@ create table if not exists "better_supabase"."timeline_entries" (
   "data" jsonb not null default '{}'::jsonb,
   "occurred_at" timestamptz not null default now()
 );
-create index if not exists "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
-create index if not exists "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("organization_id", "subject_type", "subject_id");
-create index if not exists "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
+create index "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("tenant_id", "occurred_at" desc, "id" desc);
+create index "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("tenant_id", "subject_type", "subject_id");
+create index "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
 alter table "better_supabase"."timeline_entries" enable row level security;
 revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
 grant select on "better_supabase"."timeline_entries" to authenticated;
@@ -55,14 +39,12 @@ end;
 $$;
 revoke execute on function "better_supabase"."activity_subject_readable"(text, text) from public, anon;
 grant execute on function "better_supabase"."activity_subject_readable"(text, text) to authenticated, service_role;
-drop policy if exists timeline_entries_read on "better_supabase"."timeline_entries";
-create policy timeline_entries_read on "better_supabase"."timeline_entries"
+create policy bsb_timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read'))
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('timeline.read'))
     and ("subject_type" is null or "subject_id" is null
       or not ("subject_type" = any ('{quote,note}'::text[]))
       or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")));
-drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -81,7 +63,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records activity' using errcode = '42501', hint = 'TIMELINE_ENTRY_FORBIDDEN';
   end if;
-  insert into "better_supabase"."timeline_entries" ("event_id", "organization_id", "type", "actor_id", "subject_type", "subject_id", "summary", "data", "occurred_at")
+  insert into "better_supabase"."timeline_entries" ("event_id", "tenant_id", "type", "actor_id", "subject_type", "subject_id", "summary", "data", "occurred_at")
   select e ->> 'event_id', (e ->> 'organization_id')::uuid, e ->> 'type', nullif(e ->> 'actor_id', '')::uuid,
     e ->> 'subject_type', e ->> 'subject_id', e ->> 'summary', coalesce(e -> 'data', '{}'::jsonb),
     coalesce((e ->> 'occurred_at')::timestamptz, now())
@@ -128,7 +110,7 @@ begin
     (select to_jsonb(y.*) || jsonb_build_object('source', 'event') as entry,
       y."occurred_at" as at, y."id"::text as id
     from "better_supabase"."timeline_entries" y
-    where y."organization_id" = list_activity.tenant
+    where y."tenant_id" = list_activity.tenant
       and (list_activity.sources is null or 'event' = any (list_activity.sources))
       and (list_activity.subject_type is null or y."subject_type" = list_activity.subject_type)
       and (list_activity.subject_id is null or y."subject_id" = list_activity.subject_id)
@@ -143,7 +125,7 @@ begin
     order by y."occurred_at" desc, y."id" desc
     limit v_limit)
     union all
-    (select jsonb_build_object('id', h."id"::text, 'organization_id', h."tenant_id", 'event_id', null::text, 'type', 'status.changed', 'actor_id', h."actor_user_id", 'subject_type', list_activity.subject_type, 'subject_id', list_activity.subject_id, 'summary', null::text, 'data', jsonb_strip_nulls(jsonb_build_object('from', h."from_status"::text, 'to', h."to_status"::text, 'reason', h."reason")), 'occurred_at', h."created_at", 'source', 'transition') as entry,
+    (select jsonb_build_object('id', h."id"::text, 'tenant_id', h."tenant_id", 'event_id', null::text, 'type', 'status.changed', 'actor_id', h."actor_id", 'subject_type', list_activity.subject_type, 'subject_id', list_activity.subject_id, 'summary', null::text, 'data', jsonb_strip_nulls(jsonb_build_object('from', h."from_status"::text, 'to', h."to_status"::text, 'reason', h."reason")), 'occurred_at', h."created_at", 'source', 'transition') as entry,
       h."created_at" as at, h."id"::text as id
     from "better_supabase"."status_history" h
     where list_activity.subject_id is not null
@@ -157,7 +139,7 @@ begin
     order by h."created_at" desc, h."id" desc
     limit v_limit)
     union all
-    (select jsonb_build_object('id', m."id"::text, 'organization_id', m."tenant_id", 'event_id', null::text, 'type', case when c."kind" = 'subject' then 'comment.posted' else 'message.sent' end, 'actor_id', m."author_id", 'subject_type', list_activity.subject_type, 'subject_id', list_activity.subject_id, 'summary', left(m."body", 280), 'data', jsonb_strip_nulls(jsonb_build_object('messageId', m."id", 'conversationId', m."conversation_id", 'threadId', m."thread_id", 'kind', m."kind"::text)), 'occurred_at', m."sent_at", 'source', 'message') as entry,
+    (select jsonb_build_object('id', m."id"::text, 'tenant_id', m."tenant_id", 'event_id', null::text, 'type', case when c."kind" = 'subject' then 'comment.posted' else 'message.sent' end, 'actor_id', m."author_id", 'subject_type', list_activity.subject_type, 'subject_id', list_activity.subject_id, 'summary', left(m."body", 280), 'data', jsonb_strip_nulls(jsonb_build_object('messageId', m."id", 'conversationId', m."conversation_id", 'threadId', m."thread_id", 'kind', m."kind"::text)), 'occurred_at', m."sent_at", 'source', 'message') as entry,
       m."sent_at" as at, m."id"::text as id
     from "better_supabase"."messages" m
     join "better_supabase"."conversations" c on c."id" = m."conversation_id"
@@ -168,7 +150,7 @@ begin
       and c."subject_type" = list_activity.subject_type
       and c."subject_id" = list_activity.subject_id
       and m."sent_at" is not null
-      and m."deleted_at" is null
+      and m."archived_at" is null
       and (list_activity.before is null or m."sent_at" < list_activity.before)
     order by m."sent_at" desc, m."id" desc
     limit v_limit)
@@ -187,165 +169,33 @@ grant execute on function "better_supabase"."record_activity"(jsonb) to service_
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."timeline_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read'))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('timeline.read'))
     and ("subject_type" is null or "subject_id" is null
       or not ("subject_type" = any ('{quote,note}'::text[]))
       or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."timeline_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."timeline_entries" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."timeline_entries";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."timeline_entries" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."timeline_entries";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."timeline_entries" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:5a1567d2385eb7c2b64b6d63db7b53d28d637a8bbcdc99c716970ce4554a312f
+-- @bsb-hash sha256:d848a1ff9ce4646dd21e8c8cc1d4eede70b528c84e5c63207bb31df77fb5996f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "better_supabase"."timeline_entries" t set "type" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."type" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('timeline', 2, 'managed')

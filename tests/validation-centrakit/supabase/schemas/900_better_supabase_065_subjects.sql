@@ -1,63 +1,13 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:796f6e6e39109c9e961a6f1a6cf4d315719e344c1824f7f5c4d2522be10c0da7
+-- @bsb-hash sha256:89984c99dba6a698b6b800f14a0be4fb8aed590e3349c0f3076327f4268f53ee
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Record teams (subjects.<type>.team, ADR 0134): the users and teams on one
 -- record, each with a role and the days the membership counts.
-create table if not exists "better_supabase"."subject_members" (
+create table "better_supabase"."subject_members" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -72,14 +22,13 @@ create table if not exists "better_supabase"."subject_members" (
   "reason" text,
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
-  constraint subject_members_one_member check (("user_id" is null) <> ("team_id" is null)),
-  constraint subject_members_dates check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
+  constraint bsb_subject_members_one_member check (("user_id" is null) <> ("team_id" is null)),
+  constraint bsb_subject_members_dates check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
 );
-create unique index if not exists subject_members_user_key on "better_supabase"."subject_members" ("subject_type", "subject_id", "user_id", "role") where "user_id" is not null;
-create unique index if not exists subject_members_team_key on "better_supabase"."subject_members" ("subject_type", "subject_id", "team_id", "role") where "team_id" is not null;
-create index if not exists subject_members_user_idx on "better_supabase"."subject_members" ("user_id", "tenant_id");
-create index if not exists subject_members_team_idx on "better_supabase"."subject_members" ("team_id");
-alter table "better_supabase"."subject_members" add column if not exists "ends_at" timestamptz;
+create unique index subject_members_user_key on "better_supabase"."subject_members" ("subject_type", "subject_id", "user_id", "role") where "user_id" is not null;
+create unique index subject_members_team_key on "better_supabase"."subject_members" ("subject_type", "subject_id", "team_id", "role") where "team_id" is not null;
+create index subject_members_user_idx on "better_supabase"."subject_members" ("user_id", "tenant_id");
+create index subject_members_team_idx on "better_supabase"."subject_members" ("team_id");
 alter table "better_supabase"."subject_members" enable row level security;
 revoke all on "better_supabase"."subject_members" from public, anon, authenticated;
 grant select on "better_supabase"."subject_members" to authenticated;
@@ -164,7 +113,7 @@ as $$
 begin
   case subject_title.subject_type
     when 'message' then
-      return (select s."body"::text from "better_supabase"."messages" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
+      return (select s."body"::text from "better_supabase"."messages" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'conversation' then
       return (select s."title"::text from "better_supabase"."conversations" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     else
@@ -221,7 +170,7 @@ begin
       'type', 'message', 'id', s."id"::text,
       'title', s."body"::text, 'url', null::text))
     from "better_supabase"."messages" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'message')::uuid[]) and s."deleted_at" is null), '[]'::jsonb);
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'message')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'conversation', 'id', s."id"::text,
@@ -279,7 +228,7 @@ begin
     when 'message' then
       return exists (
         select 1 from "better_supabase"."messages" s
-        where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
+        where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
@@ -369,7 +318,7 @@ begin
         and c."kind" = 'subject'
       where c."subject_type"::text = record_summary.subject_type
         and c."subject_id"::text = record_summary.subject_id
-        and x."sent_at" is not null and x."deleted_at" is null;
+        and x."sent_at" is not null and x."archived_at" is null;
     v_seen := coalesce((select "better_supabase"."conversation_read_at"(c."id") from "better_supabase"."conversations" c
         where c."kind" = 'subject'
           and c."subject_type" = record_summary.subject_type
@@ -419,7 +368,7 @@ begin
     when 'message' then
       return exists (
         select 1 from "better_supabase"."messages" s
-        where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
+        where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.create'), false)
@@ -482,8 +431,7 @@ grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, 
 -- A caller reads their own record team rows, those of their teams, every row
 -- of a tenant where they hold subjects.manage, and the team of a record they
 -- can read.
-drop policy if exists subject_members_read on "better_supabase"."subject_members";
-create policy subject_members_read on "better_supabase"."subject_members"
+create policy bsb_subject_members_read on "better_supabase"."subject_members"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or ("team_id" is not null and "team_id" in (select "better_supabase"."team_ids_of"((select auth.uid()))))
     or "tenant_id" in (select better_supabase.tenant_ids_with('people.manage'))
@@ -907,7 +855,7 @@ begin
     from "better_supabase"."messages" m
     join "better_supabase"."conversations" c on c."id" = m."conversation_id" and c."kind" = 'subject'
     where v_me = any (m."mentions")
-      and m."deleted_at" is null
+      and m."archived_at" is null
       and m."sent_at" > now() - interval '30 days'
       and (my_work.tenant is null or m."tenant_id" = my_work.tenant)
     union all
@@ -948,42 +896,20 @@ $$;
 revoke execute on function "better_supabase"."subject_presence_allowed"(text) from public, anon;
 grant execute on function "better_supabase"."subject_presence_allowed"(text) to authenticated, service_role;
 
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_subject_presence_receive on realtime.messages;
 create policy bsb_subject_presence_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
         and "better_supabase"."subject_presence_allowed"((select realtime.topic())));
-        drop policy if exists bsb_subject_presence_send on realtime.messages;
 create policy bsb_subject_presence_send on realtime.messages
   for insert to authenticated
   with check ((realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
         and "better_supabase"."subject_presence_allowed"((select realtime.topic()))) and (select centrakit.authz_actor_may_write()));
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."subject_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_members";
 create policy bsb_tenant_scope_select on "better_supabase"."subject_members" as restrictive
   for select to public
   using (
@@ -992,29 +918,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."subject_members" as 
     or "tenant_id" in (select better_supabase.tenant_ids_with('people.manage'))
     or coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."subject_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_members";
 create policy bsb_tenant_scope_update on "better_supabase"."subject_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

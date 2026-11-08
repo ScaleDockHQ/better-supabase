@@ -1,78 +1,20 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:2e85b3a55f127088f211239095a3dec42fff7c7dcf546d7a5aed2f62af2e5e57
+-- @bsb-hash sha256:557e1eaa45c2d9b59d3e966e6d70c5470c56399ada80a9d3ddbb1b6014f916c4
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Segments: a tenant's saved filter over one subject type, with materialized
 -- members and events when a record enters or leaves.
-create table if not exists "better_supabase"."segments" (
+create table "better_supabase"."segments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "conditions" jsonb not null check (jsonb_typeof("conditions") = 'object'),
+  "name" text not null constraint bsb_segments_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_segments_description_check check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_segments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "conditions" jsonb not null constraint bsb_segments_conditions_check check (jsonb_typeof("conditions") = 'object'),
   "member_count" integer not null default 0,
   "refreshed_at" timestamptz,
   "created_by" uuid references auth.users (id) on delete set null,
@@ -80,30 +22,28 @@ create table if not exists "better_supabase"."segments" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "name")
 );
-create index if not exists segments_due_idx on "better_supabase"."segments" ("refreshed_at" nulls first);
-create index if not exists segments_created_by_idx on "better_supabase"."segments" ("created_by") where "created_by" is not null;
+create index segments_due_idx on "better_supabase"."segments" ("refreshed_at" nulls first);
+create index segments_created_by_idx on "better_supabase"."segments" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."segments" enable row level security;
 revoke all on "better_supabase"."segments" from public, anon, authenticated;
 grant select on "better_supabase"."segments" to authenticated;
 grant all on "better_supabase"."segments" to service_role;
-create table if not exists "better_supabase"."segment_members" (
+create table "better_supabase"."segment_members" (
   "segment_id" uuid not null references "better_supabase"."segments" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "subject_id" text not null,
   "entered_at" timestamptz not null default now(),
   primary key ("segment_id", "subject_id")
 );
-create index if not exists segment_members_subject_idx on "better_supabase"."segment_members" ("tenant_id", "subject_id");
+create index segment_members_subject_idx on "better_supabase"."segment_members" ("tenant_id", "subject_id");
 alter table "better_supabase"."segment_members" enable row level security;
 revoke all on "better_supabase"."segment_members" from public, anon, authenticated;
 grant select on "better_supabase"."segment_members" to authenticated;
 grant all on "better_supabase"."segment_members" to service_role;
-drop policy if exists segments_read on "better_supabase"."segments";
-create policy segments_read on "better_supabase"."segments"
+create policy bsb_segments_read on "better_supabase"."segments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
-drop policy if exists segment_members_read on "better_supabase"."segment_members";
-create policy segment_members_read on "better_supabase"."segment_members"
+create policy bsb_segment_members_read on "better_supabase"."segment_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
 
@@ -424,73 +364,38 @@ grant execute on function "better_supabase"."refresh_due_segments"(integer, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."segments";
 create policy bsb_tenant_scope_select on "better_supabase"."segments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segments";
 create policy bsb_tenant_scope_insert on "better_supabase"."segments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."segments";
 create policy bsb_tenant_scope_update on "better_supabase"."segments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segments";
 create policy bsb_tenant_scope_delete on "better_supabase"."segments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_select on "better_supabase"."segment_members" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."segment_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_update on "better_supabase"."segment_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."segment_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
@@ -509,78 +414,20 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:f729dc618ce3a35b4d781722c16d58210dac07eae99e49803228e58e24eca110
+-- @bsb-hash sha256:fec0c3015f6c3fb157313dfb62fa7784b49e8ababed1f743c06aead52ccc81fb
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Segments: a tenant's saved filter over one subject type, with materialized
 -- members and events when a record enters or leaves.
-create table if not exists "better_supabase"."segments" (
+create table "better_supabase"."segments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "conditions" jsonb not null check (jsonb_typeof("conditions") = 'object'),
+  "name" text not null constraint bsb_segments_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_segments_description_check check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_segments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "conditions" jsonb not null constraint bsb_segments_conditions_check check (jsonb_typeof("conditions") = 'object'),
   "member_count" integer not null default 0,
   "refreshed_at" timestamptz,
   "created_by" uuid references auth.users (id) on delete set null,
@@ -588,30 +435,28 @@ create table if not exists "better_supabase"."segments" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "name")
 );
-create index if not exists segments_due_idx on "better_supabase"."segments" ("refreshed_at" nulls first);
-create index if not exists segments_created_by_idx on "better_supabase"."segments" ("created_by") where "created_by" is not null;
+create index segments_due_idx on "better_supabase"."segments" ("refreshed_at" nulls first);
+create index segments_created_by_idx on "better_supabase"."segments" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."segments" enable row level security;
 revoke all on "better_supabase"."segments" from public, anon, authenticated;
 grant select on "better_supabase"."segments" to authenticated;
 grant all on "better_supabase"."segments" to service_role;
-create table if not exists "better_supabase"."segment_members" (
+create table "better_supabase"."segment_members" (
   "segment_id" uuid not null references "better_supabase"."segments" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "subject_id" text not null,
   "entered_at" timestamptz not null default now(),
   primary key ("segment_id", "subject_id")
 );
-create index if not exists segment_members_subject_idx on "better_supabase"."segment_members" ("tenant_id", "subject_id");
+create index segment_members_subject_idx on "better_supabase"."segment_members" ("tenant_id", "subject_id");
 alter table "better_supabase"."segment_members" enable row level security;
 revoke all on "better_supabase"."segment_members" from public, anon, authenticated;
 grant select on "better_supabase"."segment_members" to authenticated;
 grant all on "better_supabase"."segment_members" to service_role;
-drop policy if exists segments_read on "better_supabase"."segments";
-create policy segments_read on "better_supabase"."segments"
+create policy bsb_segments_read on "better_supabase"."segments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
-drop policy if exists segment_members_read on "better_supabase"."segment_members";
-create policy segment_members_read on "better_supabase"."segment_members"
+create policy bsb_segment_members_read on "better_supabase"."segment_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
 
@@ -959,80 +804,41 @@ grant execute on function "better_supabase"."refresh_due_segments"(integer, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."segments";
 create policy bsb_tenant_scope_select on "better_supabase"."segments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segments";
 create policy bsb_tenant_scope_insert on "better_supabase"."segments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."segments";
 create policy bsb_tenant_scope_update on "better_supabase"."segments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segments";
 create policy bsb_tenant_scope_delete on "better_supabase"."segments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_select on "better_supabase"."segment_members" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."segment_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_update on "better_supabase"."segment_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."segment_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.segments', target_type => 'segment', event_prefix => 'segment', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.segments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"segment","event_prefix":"segment"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
@@ -1051,69 +857,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:fe9e557ee5af280a6a2abc922f509eab0855caaeab15738f906f3d871b070e14
+-- @bsb-hash sha256:c976a6630af5da89170a56e8e6d2ebed9490f0e00267a74a23a5b35c1ad9fc54
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."segments";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."segments";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."segments";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."segments";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."segments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."segment_members";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."segment_members";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."segment_members";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."segment_members";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."segment_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -1121,13 +869,13 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Segments: a tenant's saved filter over one subject type, with materialized
 -- members and events when a record enters or leaves.
-create table if not exists "app_private"."segments" (
+create table "app_private"."segments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "conditions" jsonb not null check (jsonb_typeof("conditions") = 'object'),
+  "name" text not null constraint bsb_segments_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_segments_description_check check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_segments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "conditions" jsonb not null constraint bsb_segments_conditions_check check (jsonb_typeof("conditions") = 'object'),
   "member_count" integer not null default 0,
   "refreshed_at" timestamptz,
   "created_by" uuid references auth.users (id) on delete set null,
@@ -1135,30 +883,28 @@ create table if not exists "app_private"."segments" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "name")
 );
-create index if not exists segments_due_idx on "app_private"."segments" ("refreshed_at" nulls first);
-create index if not exists segments_created_by_idx on "app_private"."segments" ("created_by") where "created_by" is not null;
+create index segments_due_idx on "app_private"."segments" ("refreshed_at" nulls first);
+create index segments_created_by_idx on "app_private"."segments" ("created_by") where "created_by" is not null;
 alter table "app_private"."segments" enable row level security;
 revoke all on "app_private"."segments" from public, anon, authenticated;
 grant select on "app_private"."segments" to authenticated;
 grant all on "app_private"."segments" to service_role;
-create table if not exists "app_private"."segment_members" (
+create table "app_private"."segment_members" (
   "segment_id" uuid not null references "app_private"."segments" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "subject_id" text not null,
   "entered_at" timestamptz not null default now(),
   primary key ("segment_id", "subject_id")
 );
-create index if not exists segment_members_subject_idx on "app_private"."segment_members" ("tenant_id", "subject_id");
+create index segment_members_subject_idx on "app_private"."segment_members" ("tenant_id", "subject_id");
 alter table "app_private"."segment_members" enable row level security;
 revoke all on "app_private"."segment_members" from public, anon, authenticated;
 grant select on "app_private"."segment_members" to authenticated;
 grant all on "app_private"."segment_members" to service_role;
-drop policy if exists segments_read on "app_private"."segments";
-create policy segments_read on "app_private"."segments"
+create policy bsb_segments_read on "app_private"."segments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
-drop policy if exists segment_members_read on "app_private"."segment_members";
-create policy segment_members_read on "app_private"."segment_members"
+create policy bsb_segment_members_read on "app_private"."segment_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
 
@@ -1479,73 +1225,38 @@ grant execute on function "app_private"."refresh_due_segments"(integer, interval
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."segments";
-drop policy if exists bsb_tenant_scope_select on "app_private"."segments";
 create policy bsb_tenant_scope_select on "app_private"."segments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."segments";
 create policy bsb_tenant_scope_insert on "app_private"."segments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."segments";
 create policy bsb_tenant_scope_update on "app_private"."segments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."segments";
 create policy bsb_tenant_scope_delete on "app_private"."segments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."segment_members";
-drop policy if exists bsb_tenant_scope_select on "app_private"."segment_members";
 create policy bsb_tenant_scope_select on "app_private"."segment_members" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."segment_members";
 create policy bsb_tenant_scope_insert on "app_private"."segment_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."segment_members";
 create policy bsb_tenant_scope_update on "app_private"."segment_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."segment_members";
 create policy bsb_tenant_scope_delete on "app_private"."segment_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
@@ -1564,78 +1275,20 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:3fdf4d98ce0e5f932aab3261c53172c2337016ab9d341706526153359e8e03fb
+-- @bsb-hash sha256:a0eec1653e4c6580ddb4072e8c1e86de11b6498766e7e7ec9c8e494ec91e40bd
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Segments: a tenant's saved filter over one subject type, with materialized
 -- members and events when a record enters or leaves.
-create table if not exists "better_supabase"."segments" (
+create table "better_supabase"."segments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "conditions" jsonb not null check (jsonb_typeof("conditions") = 'object'),
+  "name" text not null constraint bsb_segments_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_segments_description_check check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_segments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "conditions" jsonb not null constraint bsb_segments_conditions_check check (jsonb_typeof("conditions") = 'object'),
   "member_count" integer not null default 0,
   "refreshed_at" timestamptz,
   "created_by" uuid references auth.users (id) on delete set null,
@@ -1643,30 +1296,28 @@ create table if not exists "better_supabase"."segments" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "name")
 );
-create index if not exists segments_due_idx on "better_supabase"."segments" ("refreshed_at" nulls first);
-create index if not exists segments_created_by_idx on "better_supabase"."segments" ("created_by") where "created_by" is not null;
+create index segments_due_idx on "better_supabase"."segments" ("refreshed_at" nulls first);
+create index segments_created_by_idx on "better_supabase"."segments" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."segments" enable row level security;
 revoke all on "better_supabase"."segments" from public, anon, authenticated;
 grant select on "better_supabase"."segments" to authenticated;
 grant all on "better_supabase"."segments" to service_role;
-create table if not exists "better_supabase"."segment_members" (
+create table "better_supabase"."segment_members" (
   "segment_id" uuid not null references "better_supabase"."segments" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "subject_id" text not null,
   "entered_at" timestamptz not null default now(),
   primary key ("segment_id", "subject_id")
 );
-create index if not exists segment_members_subject_idx on "better_supabase"."segment_members" ("tenant_id", "subject_id");
+create index segment_members_subject_idx on "better_supabase"."segment_members" ("tenant_id", "subject_id");
 alter table "better_supabase"."segment_members" enable row level security;
 revoke all on "better_supabase"."segment_members" from public, anon, authenticated;
 grant select on "better_supabase"."segment_members" to authenticated;
 grant all on "better_supabase"."segment_members" to service_role;
-drop policy if exists segments_read on "better_supabase"."segments";
-create policy segments_read on "better_supabase"."segments"
+create policy bsb_segments_read on "better_supabase"."segments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
-drop policy if exists segment_members_read on "better_supabase"."segment_members";
-create policy segment_members_read on "better_supabase"."segment_members"
+create policy bsb_segment_members_read on "better_supabase"."segment_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
 
@@ -1987,57 +1638,35 @@ grant execute on function "better_supabase"."refresh_due_segments"(integer, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."segments";
 create policy bsb_tenant_scope_select on "better_supabase"."segments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segments";
 create policy bsb_tenant_scope_insert on "better_supabase"."segments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."segments";
 create policy bsb_tenant_scope_update on "better_supabase"."segments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segments";
 create policy bsb_tenant_scope_delete on "better_supabase"."segments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_select on "better_supabase"."segment_members" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."segment_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_update on "better_supabase"."segment_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."segment_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2045,25 +1674,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."segment_members" as 
 -- blocks.segments.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."save_segment"(tenant uuid, segment jsonb)
 returns jsonb
@@ -2141,19 +1751,6 @@ as $$ select "better_supabase"."refresh_due_segments"($1, $2) $$;
 revoke execute on function "api"."refresh_due_segments"(integer, interval) from public, anon, authenticated;
 grant execute on function "api"."refresh_due_segments"(integer, interval) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block-data segments
@@ -2171,78 +1768,20 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:fccb4fa94bca49264b25a8be1ab2b8ee24bf7b9cde2b345ec891c7a0811dbd21
+-- @bsb-hash sha256:1d27ed7cb95b9dfce124382511716e8cff4f16c5228b9b9bd5808b47b89903e6
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Segments: a tenant's saved filter over one subject type, with materialized
 -- members and events when a record enters or leaves.
 -- better_supabase.segments is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."segments" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."segments" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."segments" add column if not exists "name" text check (length("name") between 1 and 200);
-alter table "better_supabase"."segments" add column if not exists "description" text check (length("description") <= 2000);
-alter table "better_supabase"."segments" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."segments" add column if not exists "conditions" jsonb check (jsonb_typeof("conditions") = 'object');
+alter table "better_supabase"."segments" add column if not exists "name" text constraint bsb_segments_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."segments" add column if not exists "description" text constraint bsb_segments_description_check check (length("description") <= 2000);
+alter table "better_supabase"."segments" add column if not exists "subject_type" text constraint bsb_segments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."segments" add column if not exists "conditions" jsonb constraint bsb_segments_conditions_check check (jsonb_typeof("conditions") = 'object');
 alter table "better_supabase"."segments" add column if not exists "member_count" integer not null default 0;
 alter table "better_supabase"."segments" add column if not exists "refreshed_at" timestamptz;
 alter table "better_supabase"."segments" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
@@ -2263,11 +1802,9 @@ create index if not exists segment_members_subject_idx on "better_supabase"."seg
 alter table "better_supabase"."segment_members" enable row level security;
 grant select on "better_supabase"."segment_members" to authenticated;
 grant all on "better_supabase"."segment_members" to service_role;
-drop policy if exists bsb_segments_select on "better_supabase"."segments";
 create policy bsb_segments_select on "better_supabase"."segments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
-drop policy if exists bsb_segment_members_select on "better_supabase"."segment_members";
 create policy bsb_segment_members_select on "better_supabase"."segment_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
@@ -2589,73 +2126,38 @@ grant execute on function "better_supabase"."refresh_due_segments"(integer, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."segments";
 create policy bsb_tenant_scope_select on "better_supabase"."segments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segments";
 create policy bsb_tenant_scope_insert on "better_supabase"."segments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."segments";
 create policy bsb_tenant_scope_update on "better_supabase"."segments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segments";
 create policy bsb_tenant_scope_delete on "better_supabase"."segments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_select on "better_supabase"."segment_members" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."segment_members" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_update on "better_supabase"."segment_members" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."segment_members" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
@@ -2674,78 +2176,20 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:d1876014ff24b7f1bc6e9abee0d0e880a2aea3c7302601b9d9414e30538fbbc5
+-- @bsb-hash sha256:cb6779a847c46473b30b76adb683e895f4fe2c9ba803187b30add3f690d65503
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."segments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."segment_members";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_members";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Segments: a tenant's saved filter over one subject type, with materialized
 -- members and events when a record enters or leaves.
-create table if not exists "better_supabase"."segments" (
+create table "better_supabase"."segments" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "conditions" jsonb not null check (jsonb_typeof("conditions") = 'object'),
+  "name" text not null constraint bsb_segments_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_segments_description_check check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_segments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "conditions" jsonb not null constraint bsb_segments_conditions_check check (jsonb_typeof("conditions") = 'object'),
   "member_count" integer not null default 0,
   "refreshed_at" timestamptz,
   "created_by" uuid references auth.users (id) on delete set null,
@@ -2753,30 +2197,28 @@ create table if not exists "better_supabase"."segments" (
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "name")
 );
-create index if not exists segments_due_idx on "better_supabase"."segments" ("refreshed_at" nulls first);
-create index if not exists segments_created_by_idx on "better_supabase"."segments" ("created_by") where "created_by" is not null;
+create index segments_due_idx on "better_supabase"."segments" ("refreshed_at" nulls first);
+create index segments_created_by_idx on "better_supabase"."segments" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."segments" enable row level security;
 revoke all on "better_supabase"."segments" from public, anon, authenticated;
 grant select on "better_supabase"."segments" to authenticated;
 grant all on "better_supabase"."segments" to service_role;
-create table if not exists "better_supabase"."segment_members" (
+create table "better_supabase"."segment_members" (
   "segment_id" uuid not null references "better_supabase"."segments" ("id") on delete cascade,
   "org_id" uuid not null,
   "subject_id" text not null,
   "entered_at" timestamptz not null default now(),
   primary key ("segment_id", "subject_id")
 );
-create index if not exists segment_members_subject_idx on "better_supabase"."segment_members" ("org_id", "subject_id");
+create index segment_members_subject_idx on "better_supabase"."segment_members" ("org_id", "subject_id");
 alter table "better_supabase"."segment_members" enable row level security;
 revoke all on "better_supabase"."segment_members" from public, anon, authenticated;
 grant select on "better_supabase"."segment_members" to authenticated;
 grant all on "better_supabase"."segment_members" to service_role;
-drop policy if exists segments_read on "better_supabase"."segments";
-create policy segments_read on "better_supabase"."segments"
+create policy bsb_segments_read on "better_supabase"."segments"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('segments.read')));
-drop policy if exists segment_members_read on "better_supabase"."segment_members";
-create policy segment_members_read on "better_supabase"."segment_members"
+create policy bsb_segment_members_read on "better_supabase"."segment_members"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('segments.read')));
 
@@ -3097,73 +2539,38 @@ grant execute on function "better_supabase"."refresh_due_segments"(integer, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."segments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."segments";
 create policy bsb_tenant_scope_select on "better_supabase"."segments" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('segments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segments";
 create policy bsb_tenant_scope_insert on "better_supabase"."segments" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."segments";
 create policy bsb_tenant_scope_update on "better_supabase"."segments" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segments";
 create policy bsb_tenant_scope_delete on "better_supabase"."segments" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."segment_members";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_select on "better_supabase"."segment_members" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('segments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_insert on "better_supabase"."segment_members" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_update on "better_supabase"."segment_members" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."segment_members";
 create policy bsb_tenant_scope_delete on "better_supabase"."segment_members" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_133_segments.sql
 -- better-supabase module: segments

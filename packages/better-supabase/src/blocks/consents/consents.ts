@@ -458,7 +458,7 @@ export function createConsents(options: ConsentsOptions): Consents {
           status: input.status,
           given_by: input.givenBy ?? "self",
           given_by_contact_id: input.givenByContactId ?? null,
-          valid_until:
+          expires_at:
             input.validUntil === undefined
               ? null
               : instantArg(input.validUntil),

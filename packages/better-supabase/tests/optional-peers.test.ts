@@ -62,10 +62,11 @@ const FRAMEWORKS = [
 ] as const;
 
 /**
- * Libraries only generated code imports (`nuqs()` writes `nuqs/server`). The
- * app installs them; the tests import the generated fixtures.
+ * Libraries only generated code imports (`nuqs()` writes `nuqs/server`, `zod()`
+ * writes `zod`, `valibot()` writes `valibot`). The app installs them; the tests
+ * import the generated fixtures.
  */
-const GENERATED = ["nuqs"] as const;
+const GENERATED = ["nuqs", "valibot", "zod"] as const;
 
 /**
  * SDKs one subpath imports at its top (`better-supabase/chat-sdk` imports

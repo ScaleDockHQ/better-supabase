@@ -4,10 +4,8 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   lockTable,
-  SCHEMA,
   serviceOnly,
   withExtraFields,
   writeExtraColumns,
@@ -25,7 +23,7 @@ const MESSAGE_COLUMNS = {
   maxAttempts: "max_attempts",
   availableAt: "available_at",
   lockedBy: "locked_by",
-  lockedUntil: "locked_until",
+  lockedUntil: "lock_expires_at",
   lastError: "last_error",
   receivedAt: "received_at",
   processedAt: "processed_at",
@@ -51,7 +49,7 @@ const ROW: readonly (readonly [MessageColumn, string, string])[] = [
   ["maxAttempts", "max_attempts", "integer"],
   ["availableAt", "available_at", "timestamptz"],
   ["lockedBy", "locked_by", "text"],
-  ["lockedUntil", "locked_until", "timestamptz"],
+  ["lockedUntil", "lock_expires_at", "timestamptz"],
   ["lastError", "last_error", "text"],
   ["receivedAt", "received_at", "timestamptz"],
   ["processedAt", "processed_at", "timestamptz"],
@@ -73,7 +71,7 @@ create table if not exists better_supabase.webhook_inbox (
   max_attempts integer not null default 8,
   available_at timestamptz not null default now(),
   locked_by text,
-  locked_until timestamptz,
+  lock_expires_at timestamptz,
   last_error text,
   received_at timestamptz not null default now(),
   processed_at timestamptz
@@ -84,19 +82,9 @@ alter table better_supabase.webhook_inbox add column if not exists tenant text;
 alter table better_supabase.webhook_inbox add column if not exists checkpoint jsonb not null default '{}';
 -- Message ids are unique per source and tenant: two tenants of one provider
 -- can send the same id. A null tenant counts as one tenant.
-do $$
-begin
-  if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conrelid = 'better_supabase.webhook_inbox'::regclass
-      and conname = 'webhook_inbox_source_tenant_message_id_key'
-  ) then
-    alter table better_supabase.webhook_inbox
-      add constraint webhook_inbox_source_tenant_message_id_key
-      unique nulls not distinct (source, tenant, message_id);
-  end if;
-end;
-$$;
+alter table better_supabase.webhook_inbox
+  add constraint webhook_inbox_source_tenant_message_id_key
+  unique nulls not distinct (source, tenant, message_id);
 alter table better_supabase.webhook_inbox drop constraint if exists webhook_inbox_source_message_id_key;
 create index if not exists webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
@@ -155,7 +143,7 @@ function webhookInboxSql(ctx: BlockSqlContext): string {
       ? `${tenantText(alias)} is not distinct from ${value}`
       : `${value} is null`;
 
-  // The extra columns (options.extraColumns): receive_webhook writes them
+  // The extra columns (columns your schema files add): receive_webhook writes them
   // from fields on a new message, the reads return them under fields.
   const extras = ctx.extraColumns("messages", ["fields"]);
   const extra = extraFieldsArg(extras);
@@ -253,8 +241,7 @@ ${extra.drop("better_supabase.receive_webhook", "text, text, text, jsonb, jsonb,
 drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
 drop function if exists better_supabase.list_webhooks(text, text, text, integer);`;
 
-  return `${SCHEMA}
-${managed ? `${TABLE}${addExtraColumns(t, extras)}` : `\n-- The webhook inbox over an app's table: ${t}.\n-- The app owns its columns, a unique key per source, tenant and message id,\n-- and its indexes.\n`}
+  return `${managed ? TABLE : `\n-- The webhook inbox over an app's table: ${t}.\n-- The app owns its columns, a unique key per source, tenant and message id,\n-- and its indexes.\n`}
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
@@ -518,7 +505,7 @@ export const WEBHOOK_INBOX: BlockSqlDefinition = {
   target: "schema",
   modes: ["managed"],
   names: {
-    options: ["extraColumns"],
+    options: [],
     tables: {
       messages: {
         name: "webhook_inbox",
@@ -578,7 +565,7 @@ export const WEBHOOK_INBOX: BlockSqlDefinition = {
     {
       from: 6,
       description:
-        "receive_webhook, claim_webhooks and list_webhooks return jsonb, so the block calls them over any transport; options.extraColumns adds columns to the messages.",
+        "receive_webhook, claim_webhooks and list_webhooks return jsonb, so the block calls them over any transport; the columns your schema files add to the messages table are fields.",
       sql: () => "",
     },
     {

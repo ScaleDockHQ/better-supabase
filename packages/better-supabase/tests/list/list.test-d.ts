@@ -12,12 +12,12 @@ import type {
   ListQuery,
 } from "../../src/list/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const db = betterSupabase.connect(client);
 
 describe("list types", () => {

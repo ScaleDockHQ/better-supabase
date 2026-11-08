@@ -9,7 +9,7 @@ export default defineConfig({
   },
   gen: {
     casing: "snake",
-    output: "src/lib/supabase/generated.ts",
+    file: "src/lib/supabase/generated.ts",
     hooks: "react",
     // Only the TypeScript: the block SQL and the PowerSync publication
     // migration belong to the Next.js example.

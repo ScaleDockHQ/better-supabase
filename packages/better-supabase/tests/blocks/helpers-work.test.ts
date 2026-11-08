@@ -26,10 +26,7 @@ const TASK = {
   updated_at: AT,
 };
 
-const MOVED = {
-  accepted: [{ workItemId: "w1", field: "stageId" }],
-  rejected: [],
-};
+const MOVED = { accepted: [{ taskId: "w1", field: "stageId" }], rejected: [] };
 
 describe("tasks.complete, cancel and reopen", () => {
   it("move the item and check the state its stage gives", async () => {
@@ -41,7 +38,7 @@ describe("tasks.complete, cancel and reopen", () => {
     const tasks = createTasks({ transport: t });
 
     expect(
-      await tasks.complete({ workItemId: "w1", stageId: "done" }).orThrow(),
+      await tasks.complete({ taskId: "w1", stageId: "done" }).orThrow(),
     ).toBe(true);
     expect(t.calls.map(([fn]) => fn)).toEqual(["update_tasks", "get_task"]);
   });
@@ -54,11 +51,11 @@ describe("tasks.complete, cancel and reopen", () => {
 
     const tasks = createTasks({ transport: t });
 
-    const canceled = await tasks.cancel({ workItemId: "w1", stageId: "doing" });
+    const canceled = await tasks.cancel({ taskId: "w1", stageId: "doing" });
     expect(canceled.ok ? undefined : canceled.error.kind).toBe("invalid_input");
 
     expect(
-      await tasks.reopen({ workItemId: "w1", stageId: "doing" }).orThrow(),
+      await tasks.reopen({ taskId: "w1", stageId: "doing" }).orThrow(),
     ).toBe(true);
   });
 });
@@ -73,11 +70,11 @@ describe("tasks.assignToMe", () => {
     const tasks = createTasks({ transport: t });
 
     expect(
-      await tasks.assignToMe({ workItemId: "w1", userId: "u2" }).orThrow(),
+      await tasks.assignToMe({ taskId: "w1", userId: "u2" }).orThrow(),
     ).toBe(2);
     expect(t.calls[1]).toEqual([
       "set_task_assignees",
-      { work_item: "w1", users: ["u1", "u2"] },
+      { task: "w1", users: ["u1", "u2"] },
     ]);
   });
 
@@ -89,7 +86,7 @@ describe("tasks.assignToMe", () => {
     const tasks = createTasks({ transport: t });
 
     expect(
-      await tasks.assignToMe({ workItemId: "w1", userId: "u1" }).orThrow(),
+      await tasks.assignToMe({ taskId: "w1", userId: "u1" }).orThrow(),
     ).toBe(1);
     expect(t.calls).toHaveLength(1);
   });

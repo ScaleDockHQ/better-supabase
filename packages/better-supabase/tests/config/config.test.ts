@@ -40,36 +40,16 @@ describe("resolveConfig specs", () => {
   it("defaults to one OpenAPI output", () => {
     expect(resolveConfig({}, "/app").specs).toEqual({
       entry: "src/lib/openapi.ts",
-      outputs: [{ format: "openapi", output: "openapi.json" }],
+      outputs: [{ format: "openapi", file: "openapi.json" }],
       failOn: "error",
     });
   });
 
-  it("reads the deprecated openapi key as an alias", () => {
-    expect(
-      resolveConfig(
-        // oxlint-disable-next-line typescript/no-deprecated -- the alias under test
-        { api: { openapi: { entry: "api.ts", output: "docs/openapi.json" } } },
-        "/app",
-      ).specs,
-    ).toEqual({
-      entry: "api.ts",
-      outputs: [{ format: "openapi", output: "docs/openapi.json" }],
-      failOn: "error",
-    });
-  });
-
-  it("prefers specs over openapi", () => {
+  it("reads specs", () => {
     const outputs = [{ format: "asyncapi" }] as const;
     expect(
       resolveConfig(
-        {
-          api: {
-            // oxlint-disable-next-line typescript/no-deprecated -- the alias under test
-            openapi: { entry: "old.ts" },
-            specs: { entry: "new.ts", outputs, failOn: "warning" },
-          },
-        },
+        { api: { specs: { entry: "new.ts", outputs, failOn: "warning" } } },
         "/app",
       ).specs,
     ).toEqual({ entry: "new.ts", outputs, failOn: "warning" });
@@ -179,7 +159,7 @@ describe("flattenConfig and groupConfig", () => {
       tasks: ["types"],
     },
     tooling: { doctor: { strict: true } },
-    subjects: { customer: { table: "customers" } },
+    recordTypes: { customer: { table: "customers" } },
     adapters: ["next"],
     blocks: {
       teams: { ownership: "custom", owner: "user" },
@@ -192,13 +172,13 @@ describe("flattenConfig and groupConfig", () => {
       schemas: ["public"],
       sql: { scope: "user" },
       claims: { tenant: "app_metadata.org_id" },
-      organization: { column: "org_id" },
+      tenant: { column: "org_id" },
       casing: "camel",
       tables: { audit: { serviceRole: true } },
       gen: { tasks: ["types"] },
       doctor: { strict: true },
-      subjects: { customer: { table: "customers" } },
-      integrations: ["next"],
+      recordTypes: { customer: { table: "customers" } },
+      adapters: ["next"],
       blocks: {
         teams: { mode: "custom", scope: "user" },
         memberships: { entities: { organization: "workspace" } },
@@ -208,5 +188,41 @@ describe("flattenConfig and groupConfig", () => {
 
   it("groups a flat config back", () => {
     expect(groupConfig(flattenConfig(grouped))).toEqual(grouped);
+  });
+});
+
+describe("resolveConfig vector search", () => {
+  it("installs the vector-search block for an app with a vectorSearch table", () => {
+    const search = { database: { vectorSearch: { chunks: "embedding" } } };
+
+    expect(resolveConfig(search, "/app").blockNames).toContain("vector-search");
+    expect(
+      resolveConfig({ ...search, blocks: ["vector-search"] }, "/app")
+        .blockNames,
+    ).toEqual(["vector-search"]);
+    expect(resolveConfig({}, "/app").blockNames).not.toContain("vector-search");
+  });
+});
+
+describe("resolveConfig notifications", () => {
+  it("installs the notifications block where only it can answer", () => {
+    const stream = { gen: { powersync: { instances: ["notifications"] } } };
+    const client = { gen: { clientBlocks: ["notifications"] } };
+
+    for (const input of [stream, client]) {
+      expect(resolveConfig(input, "/app").blockNames).toEqual([
+        "notifications",
+      ]);
+      expect(
+        resolveConfig({ ...input, blocks: ["notifications"] }, "/app")
+          .blockNames,
+      ).toEqual(["notifications"]);
+    }
+
+    expect(resolveConfig({}, "/app").blockNames).not.toContain("notifications");
+    expect(
+      resolveConfig({ gen: { powersync: { instances: ["teams"] } } }, "/app")
+        .blockNames,
+    ).not.toContain("notifications");
   });
 });

@@ -75,11 +75,11 @@ may be your own enum or domain.
   - `better_supabase.acknowledgements`: `id`, `tenant_id`, `subject_type`, `subject_id`, `version_id`, `user_id`, `acknowledged_at`
   - `better_supabase.acknowledgement_notices`: `id`, `tenant_id`, `subject_type`, `subject_id`, `version_id`, `user_id`, `notified_at`
 - `activities`
-  - `better_supabase.activities`: `id`, `tenant_id`, `type`, `title`, `body`, `outcome`, `owner_user_id`, `due_at`, `done_at`, `created_at`; typed: `type`
-  - `better_supabase.engagement_subjects`: `tenant_id`, `activity_id`, `subject_type`, `subject_id`
-  - `better_supabase.engagement_recordings`: `id`, `tenant_id`, `activity_id`, `file_id`, `filename`, `media_type`, `status`, `created_at`; typed: `status`
-  - `better_supabase.engagement_transcript_segments`: `recording_id`, `tenant_id`, `position`, `starts_ms`, `ends_ms`, `text`
-  - `better_supabase.engagement_notes`: `activity_id`, `tenant_id`, `summary`, `source`; typed: `source`
+  - `better_supabase.activities`: `id`, `tenant_id`, `type`, `title`, `body`, `outcome`, `owner_id`, `due_at`, `done_at`, `created_at`; typed: `type`
+  - `better_supabase.activity_subjects`: `tenant_id`, `activity_id`, `subject_type`, `subject_id`
+  - `better_supabase.activity_recordings`: `id`, `tenant_id`, `activity_id`, `file_id`, `filename`, `media_type`, `status`, `created_at`; typed: `status`
+  - `better_supabase.activity_transcript_segments`: `recording_id`, `tenant_id`, `position`, `starts_ms`, `ends_ms`, `text`
+  - `better_supabase.activity_notes`: `activity_id`, `tenant_id`, `summary`, `source`; typed: `source`
   - `better_supabase.activity_note_actions`: `id`, `tenant_id`, `activity_id`, `task_id`
 - `advisories`
   - `better_supabase.advisory_products`: `id`, `tenant_id`, `key`, `name`, `vendor`, `description`, `archived_at`, `created_by`, `created_at`, `updated_at`
@@ -93,58 +93,58 @@ may be your own enum or domain.
   - `better_supabase.checkout_sessions`: `id`, `tenant_id`, `cart_id`, `protocol`, `status`, `idempotency_key`, `request_hash`, `buyer`, `order_id`, `expires_at`, `created_by`, `created_at`, `updated_at`
   - `better_supabase.agent_mandates`: `id`, `tenant_id`, `session_id`, `vct`, `status`, `credential`, `credential_hash`, `issuer_kid`, `subject`, `expires_at`, `consumed_at`, `created_by`, `created_at`
 - `agents`
-  - `better_supabase.agents`: `id`, `organization_id`, `owner_id`, `slug`, `name`, `instructions`, `visibility`, `published_at`, `updated_at`; typed: `visibility`
-  - `better_supabase.agent_installs`: `agent_id`, `user_id`, `organization_id`
+  - `better_supabase.agents`: `id`, `tenant_id`, `owner_id`, `slug`, `name`, `instructions`, `visibility`, `published_at`, `updated_at`; typed: `visibility`
+  - `better_supabase.agent_installs`: `agent_id`, `user_id`, `tenant_id`
   - `better_supabase.agent_ratings`: `agent_id`, `user_id`, `rating`
   - `better_supabase.agent_skills`: `id`, `agent_id`, `provider`, `reference`, `name`, `files`, `content_hash`, `latest_version`, `provider_refs`
 - `ai-cache`
-  - `better_supabase.ai_cache_entries`: `key`, `organization_id`, `kind`, `value`, `expires_at`; typed: `kind`
+  - `better_supabase.ai_cache_entries`: `key`, `tenant_id`, `kind`, `value`, `expires_at`; typed: `kind`
 - `ai-chat`
-  - `better_supabase.ai_projects`: `id`, `organization_id`, `owner_id`, `name`, `instructions`, `default_model`, `updated_at`
-  - `better_supabase.ai_chats`: `id`, `organization_id`, `owner_id`, `project_id`, `title`, `model`, `visibility`, `is_temporary`, `expires_at`, `current_leaf_id`, `active_stream_id`, `active_run_id`, `last_message_at`, `updated_at`, `search_tsv`; typed: `visibility`
+  - `better_supabase.ai_projects`: `id`, `tenant_id`, `owner_id`, `name`, `instructions`, `default_model`, `updated_at`
+  - `better_supabase.ai_chats`: `id`, `tenant_id`, `owner_id`, `project_id`, `title`, `model`, `visibility`, `is_temporary`, `expires_at`, `current_leaf_id`, `active_stream_id`, `active_run_id`, `last_message_at`, `updated_at`, `search_tsv`; typed: `visibility`
   - `better_supabase.ai_chat_participants`: `chat_id`, `user_id`, `role`; typed: `role`, `kind`
   - `better_supabase.ai_chat_links`: `chat_id`, `salt`, `created_by`
   - `better_supabase.ai_messages`: `chat_id`, `id`, `owner_id`, `role`, `parts`, `status`, `seq`, `created_at`, `search_tsv`; typed: `role`, `status`
   - `better_supabase.ai_runs`: `id`, `chat_id`, `owner_id`, `assistant_message_id`, `stream_id`, `engine`, `external_run_id`, `model`, `status`, `usage`, `started_at`, `ended_at`; typed: `status`
   - `better_supabase.ai_tool_approvals`: `approval_id`, `chat_id`, `owner_id`, `run_id`, `tool`, `tool_call_id`, `decision`, `decided_at`, `created_at`; typed: `decision`
-  - `better_supabase.ai_tool_policies`: `organization_id`, `tool`, `policy`; typed: `policy`
+  - `better_supabase.ai_tool_policies`: `tenant_id`, `tool`, `policy`; typed: `policy`
   - `better_supabase.ai_pending_inputs`: `id`, `chat_id`, `owner_id`, `run_id`, `question`, `answer`, `answered_at`
   - `better_supabase.ai_message_sources`: `chat_id`, `message_id`, `source_id`, `source_type`, `url`; typed: `source_type`
   - `better_supabase.ai_message_feedback`: `chat_id`, `message_id`, `user_id`, `rating`
   - `better_supabase.ai_chat_shares`: `id`, `chat_id`, `token_hash`, `leaf_id`, `created_by`, `created_at`, `revoked_at`
   - `better_supabase.ai_model_catalog`: `model_id`, `provider`, `name`, `plans`, `enabled`
-  - `better_supabase.ai_moderation_events`: `id`, `organization_id`, `chat_id`, `user_id`, `stage`, `category`, `action`, `created_at`; typed: `stage`, `action`
+  - `better_supabase.ai_moderation_events`: `id`, `tenant_id`, `chat_id`, `user_id`, `stage`, `category`, `action`, `created_at`; typed: `stage`, `action`
   - `better_supabase.ai_run_steps`: `id`, `run_id`, `chat_id`, `owner_id`, `step_key`, `label`, `status`, `started_at`, `ended_at`; typed: `status`
-  - `better_supabase.ai_sandboxes`: `id`, `organization_id`, `user_id`, `chat_id`, `harness_id`, `provider`, `sandbox_id`, `status`, `idle_seconds`, `last_used_at`, `expires_at`, `stopped_at`, `created_at`, `updated_at`; typed: `status`
-  - `better_supabase.ai_harness_sessions`: `chat_id`, `harness_id`, `owner_id`, `resume_state`, `status`, `lock_holder`, `locked_until`, `last_active_at`, `updated_at`; typed: `status`
+  - `better_supabase.ai_sandboxes`: `id`, `tenant_id`, `user_id`, `chat_id`, `harness_id`, `provider`, `sandbox_id`, `status`, `idle_seconds`, `last_used_at`, `expires_at`, `stopped_at`, `created_at`, `updated_at`; typed: `status`
+  - `better_supabase.ai_harness_sessions`: `chat_id`, `harness_id`, `owner_id`, `resume_state`, `status`, `lock_holder`, `lock_expires_at`, `last_active_at`, `updated_at`; typed: `status`
 - `ai-evals`
-  - `better_supabase.eval_datasets`: `id`, `organization_id`, `name`, `description`, `created_at`
+  - `better_supabase.eval_datasets`: `id`, `tenant_id`, `name`, `description`, `created_at`
   - `better_supabase.eval_items`: `id`, `dataset_id`, `input`, `expected`, `metadata`, `source_chat_id`, `source_message_id`, `created_at`
-  - `better_supabase.eval_runs`: `id`, `dataset_id`, `organization_id`, `prompt_name`, `prompt_version`, `model`, `scorers`, `status`, `summary`, `created_at`, `finished_at`
+  - `better_supabase.eval_runs`: `id`, `dataset_id`, `tenant_id`, `prompt_name`, `prompt_version`, `model`, `scorers`, `status`, `summary`, `created_at`, `finished_at`
   - `better_supabase.eval_results`: `run_id`, `item_id`, `output`, `scores`, `passed`, `error`, `latency_ms`, `created_at`
 - `ai-files`
-  - `better_supabase.ai_files`: `id`, `organization_id`, `owner_id`, `chat_id`, `bucket`, `path`, `media_type`, `filename`, `byte_size`, `status`, `created_at`; typed: `status`, `source`
+  - `better_supabase.ai_files`: `id`, `tenant_id`, `owner_id`, `chat_id`, `bucket`, `path`, `media_type`, `filename`, `byte_size`, `status`, `created_at`; typed: `status`, `source`
   - `better_supabase.ai_provider_files`: `file_id`, `provider`, `reference`
-  - `better_supabase.ai_documents`: `id`, `organization_id`, `owner_id`, `chat_id`, `kind`, `title`, `current_version`; typed: `kind`
+  - `better_supabase.ai_documents`: `id`, `tenant_id`, `owner_id`, `chat_id`, `kind`, `title`, `current_version`; typed: `kind`
   - `better_supabase.ai_suggestions`: `id`, `document_id`, `version`, `original_text`, `suggested_text`, `resolved_at`, `accepted`
 - `ai-guardrails`
-  - `better_supabase.guardrail_policies`: `id`, `organization_id`, `agent`, `stage`, `config`, `enabled`, `updated_at`
-  - `better_supabase.guardrail_decisions`: `id`, `organization_id`, `agent`, `stage`, `decision`, `reasons`, `chat_id`, `content_hash`, `created_at`
+  - `better_supabase.guardrail_policies`: `id`, `tenant_id`, `agent`, `stage`, `config`, `enabled`, `updated_at`
+  - `better_supabase.guardrail_decisions`: `id`, `tenant_id`, `agent`, `stage`, `decision`, `reasons`, `chat_id`, `content_hash`, `created_at`
 - `ai-keys`
-  - `better_supabase.ai_provider_keys`: `id`, `organization_id`, `provider`, `name`, `credential_ref`
-  - `better_supabase.ai_batches`: `id`, `organization_id`, `user_id`, `provider`, `reference`, `status`, `results_saved`, `next_poll_at`, `created_at`; typed: `status`
-  - `better_supabase.ai_batch_items`: `batch_id`, `request_id`, `organization_id`, `status`, `output`; typed: `status`
+  - `better_supabase.ai_provider_keys`: `id`, `tenant_id`, `provider`, `name`, `credential_ref`
+  - `better_supabase.ai_batches`: `id`, `tenant_id`, `user_id`, `provider`, `reference`, `status`, `results_saved`, `next_poll_at`, `created_at`; typed: `status`
+  - `better_supabase.ai_batch_items`: `batch_id`, `request_id`, `tenant_id`, `status`, `output`; typed: `status`
 - `ai-schedules`
-  - `better_supabase.ai_scheduled_tasks`: `id`, `organization_id`, `user_id`, `title`, `prompt`, `cron`, `timezone`, `enabled`, `next_run_at`, `created_at`
-  - `better_supabase.ai_task_runs`: `id`, `task_id`, `organization_id`, `user_id`, `status`, `scheduled_for`, `started_at`, `created_at`; typed: `status`
+  - `better_supabase.ai_scheduled_tasks`: `id`, `tenant_id`, `user_id`, `title`, `prompt`, `cron`, `timezone`, `enabled`, `next_run_at`, `created_at`
+  - `better_supabase.ai_task_runs`: `id`, `task_id`, `tenant_id`, `user_id`, `status`, `scheduled_at`, `started_at`, `created_at`; typed: `status`
 - `announcements`
   - `better_supabase.announcements`: `id`, `title`, `severity`, `audience`, `targets`, `starts_at`, `ends_at`, `dismissible`; typed: `severity`, `audience`
   - `better_supabase.announcement_dismissals`: `announcement_id`, `user_id`
 - `api-keys`
-  - `better_supabase.api_keys`: `id`, `organization_id`, `user_id`, `name`, `prefix`, `public_id`, `secret_hash`, `scopes`, `expires_at`, `revoked_at`, `created_at`; typed: `kind`
+  - `better_supabase.api_keys`: `id`, `tenant_id`, `user_id`, `name`, `prefix`, `public_id`, `secret_hash`, `scopes`, `expires_at`, `revoked_at`, `created_at`; typed: `kind`
 - `appraisals`
   - `better_supabase.appraisal_cycles`: `id`, `tenant_id`, `name`, `starts_on`, `ends_on`, `program`, `status`, `anonymity`, `share_feedback`, `opened_at`, `closed_at`, `created_by`, `created_at`
-  - `better_supabase.appraisals`: `id`, `tenant_id`, `cycle_id`, `subject_user_id`, `manager_id`, `status`, `rating`, `calibrated_rating`, `calibrated_competencies`, `approval_id`, `signed_off_at`, `signed_off_by`, `created_at`, `updated_at`
+  - `better_supabase.appraisals`: `id`, `tenant_id`, `cycle_id`, `appraisee_id`, `manager_id`, `status`, `rating`, `calibrated_rating`, `calibrated_competencies`, `approval_id`, `signed_off_at`, `signed_off_by`, `created_at`, `updated_at`
   - `better_supabase.appraisal_reviews`: `id`, `tenant_id`, `appraisal_id`, `reviewer_id`, `kind`, `rating`, `comments`, `submission_id`, `submitted_at`
   - `better_supabase.appraisal_calibrations`: `id`, `tenant_id`, `appraisal_id`, `from_rating`, `to_rating`, `competency_ratings`, `reason`, `calibrated_by`, `calibrated_at`
   - `better_supabase.appraisal_competencies`: `id`, `tenant_id`, `cycle_id`, `key`, `name`, `weight`, `position`
@@ -165,20 +165,20 @@ may be your own enum or domain.
   - `better_supabase.assignment_queue_members`: `queue_id`, `tenant_id`, `user_id`, `weight`, `active`, `credit`, `last_assigned_at`
   - `better_supabase.assignments`: `id`, `tenant_id`, `queue_id`, `subject_type`, `subject_id`, `user_id`, `assigned_at`
 - `attachments`
-  - `better_supabase.attachments`: `id`, `organization_id`, `subject_type`, `subject_id`, `bucket`, `object_path`, `name`, `mime_type`, `size`, `status`, `uploaded_by`, `created_at`, `uploaded_at`, `version`; typed: `status`
-  - `better_supabase.attachment_document_types`: `id`, `organization_id`, `key`, `name`, `fields`, `created_at`, `updated_at`
-  - `better_supabase.attachment_versions`: `id`, `organization_id`, `attachment_id`, `version`, `bucket`, `object_path`, `name`, `mime_type`, `size`, `status`, `uploaded_by`, `uploaded_at`; typed: `status`
+  - `better_supabase.attachments`: `id`, `tenant_id`, `subject_type`, `subject_id`, `bucket`, `object_path`, `name`, `mime_type`, `size`, `status`, `uploaded_by`, `created_at`, `uploaded_at`, `version`; typed: `status`
+  - `better_supabase.attachment_document_types`: `id`, `tenant_id`, `key`, `name`, `fields`, `created_at`, `updated_at`
+  - `better_supabase.attachment_versions`: `id`, `tenant_id`, `attachment_id`, `version`, `bucket`, `object_path`, `name`, `mime_type`, `size`, `status`, `uploaded_by`, `uploaded_at`; typed: `status`
   - `better_supabase.scanned_objects`: `bucket`, `object_path`, `status`, `scanned_at`; typed: `status`
   - `better_supabase.attachment_cleanup`: `bucket`, `path`, `queued_by`, `queued_at`, `attempts`
 - `audit`
-  - `better_supabase.audit_events`: `id`, `actor_id`, `organization_id`, `occurred_at`
+  - `better_supabase.audit_events`: `id`, `actor_id`, `tenant_id`, `occurred_at`
   - `better_supabase.audit_events_restricted`, once mapped: `entry_id`
   - `better_supabase.audited_tables`: `target`
 - `automations`
-  - `better_supabase.automations`: `id`, `organization_id`, `subject_type`, `trigger`, `name`, `conditions`, `actions`, `enabled`, `rank`, `version`, `created_at`, `updated_at`
+  - `better_supabase.automations`: `id`, `tenant_id`, `subject_type`, `trigger`, `name`, `conditions`, `actions`, `enabled`, `rank`, `version`, `created_at`, `updated_at`
   - `better_supabase.automation_defaults`: `key`, `block`, `subject_type`, `trigger`, `name`, `description`, `conditions`, `actions`, `enabled`, `updated_at`
-  - `better_supabase.automation_versions`: `rule_id`, `version`, `organization_id`, `name`, `conditions`, `actions`, `saved_at`
-  - `better_supabase.automation_evaluations`: `id`, `organization_id`, `rule_id`, `version`, `subject_type`, `trigger`, `matched`, `mode`, `evaluated_at`; typed: `mode`
+  - `better_supabase.automation_versions`: `rule_id`, `version`, `tenant_id`, `name`, `conditions`, `actions`, `saved_at`
+  - `better_supabase.automation_evaluations`: `id`, `tenant_id`, `rule_id`, `version`, `subject_type`, `trigger`, `matched`, `mode`, `evaluated_at`; typed: `mode`
   - `better_supabase.automation_fields`: `subject_type`, `field_id`, `label`, `type`, `path`, `column_type`; typed: `type`
 - `banking`
   - `better_supabase.bank_accounts`: `id`, `tenant_id`, `name`, `iban`, `bic`, `currency`, `journal_id`, `archived_at`, `created_at`, `updated_at`
@@ -192,21 +192,21 @@ may be your own enum or domain.
   - `better_supabase.time_rates`: `id`, `tenant_id`, `user_id`, `subject_type`, `subject_id`, `rate`, `currency`, `effective_from`
   - `better_supabase.time_invoice_entries`: `entry_id`, `tenant_id`, `invoice_id`, `rate`, `currency`, `seconds`
 - `billing`
-  - `better_supabase.billing_native_subscriptions`: `id`, `organization_id`, `plan`, `currency`, `unit_amount`, `quantity`, `billing_interval`, `status`, `period_start`, `period_end`, `canceled_at`, `created_at`
-  - `better_supabase.billing_customers`: `organization_id`, `stripe_customer_id`
-  - `better_supabase.billing_subscriptions`: `organization_id`, `subscription_id`, `status`, `event_at`; typed: `status`
+  - `better_supabase.billing_native_subscriptions`: `id`, `tenant_id`, `plan`, `currency`, `unit_amount`, `quantity`, `billing_interval`, `status`, `period_start`, `period_end`, `canceled_at`, `created_at`
+  - `better_supabase.billing_customers`: `tenant_id`, `stripe_customer_id`
+  - `better_supabase.billing_subscriptions`: `tenant_id`, `subscription_id`, `status`, `event_at`; typed: `status`
 - `bookings`
   - `better_supabase.booking_resources`: `id`, `tenant_id`, `name`, `kind`, `capacity`, `tz`, `active`, `created_at`
   - `better_supabase.booking_availability`: `id`, `tenant_id`, `resource_id`, `weekday`, `starts_at`, `ends_at`
   - `better_supabase.booking_exceptions`: `id`, `tenant_id`, `resource_id`, `during`, `available`, `reason`
   - `better_supabase.booking_services`: `id`, `tenant_id`, `name`, `duration`, `buffer_before`, `buffer_after`, `resource_kinds`, `step`, `min_notice`, `hold_for`, `active`, `created_at`
-  - `better_supabase.bookings`: `id`, `tenant_id`, `resource_id`, `service_id`, `seat`, `during`, `blocked`, `status`, `hold_expires_at`, `customer_name`, `customer_email`, `customer_user_id`, `access_hash`, `created_at`, `updated_at`, `cancelled_at`, `cancel_reason`; typed: `status`
-  - `better_supabase.booking_series`: `id`, `tenant_id`, `service_id`, `resource_id`, `rule`, `starts_at`, `tz`, `customer_name`, `customer_email`, `customer_user_id`, `status`, `ends_at`, `created_by`, `created_at`, `updated_at`
-- `bulk`
+  - `better_supabase.bookings`: `id`, `tenant_id`, `resource_id`, `service_id`, `seat`, `during`, `blocked`, `status`, `hold_expires_at`, `customer_name`, `customer_email`, `customer_id`, `access_hash`, `created_at`, `updated_at`, `cancelled_at`, `cancel_reason`; typed: `status`
+  - `better_supabase.booking_series`: `id`, `tenant_id`, `service_id`, `resource_id`, `rule`, `starts_at`, `tz`, `customer_name`, `customer_email`, `customer_id`, `status`, `ends_at`, `created_by`, `created_at`, `updated_at`
+- `bulk-actions`
   - `better_supabase.bulk_runs`: `id`, `tenant_id`, `subject_type`, `action`, `args`, `ids`, `position`, `succeeded`, `failed`, `results`, `status`, `created_by`, `created_at`, `finished_at`; typed: `status`
 - `calendar`
   - `better_supabase.calendars`: `id`, `tenant_id`, `name`, `tz`, `created_at`; typed: `visibility`, `rank`; typed with values: `owner_id`
-  - `better_supabase.calendar_events`: `id`, `tenant_id`, `calendar_id`, `uid`, `title`, `starts_at`, `ends_at`, `all_day`, `tz`, `status`, `recurrence_id`, `original_start`, `created_at`, `updated_at`; typed: `status`, `visibility`, `kind`, `transparency`
+  - `better_supabase.calendar_events`: `id`, `tenant_id`, `calendar_id`, `uid`, `title`, `starts_at`, `ends_at`, `all_day`, `tz`, `status`, `recurrence_id`, `original_starts_at`, `created_at`, `updated_at`; typed: `status`, `visibility`, `kind`, `transparency`
   - `better_supabase.calendar_attendees`: `id`, `tenant_id`, `event_id`, `user_id`, `response`; typed: `role`, `response`
   - `better_supabase.calendar_event_alarms`: `id`, `tenant_id`, `event_id`, `offset_minutes`; typed: `method`
   - `better_supabase.calendar_default_alarms`, once mapped: `id`, `tenant_id`, `calendar_id`, `all_day`, `offset_minutes`; typed: `method`
@@ -267,7 +267,7 @@ may be your own enum or domain.
   - `better_supabase.collection_favorites`: `user_id`, `tenant_id`, `subject_type`, `subject_id`, `rank`
   - `better_supabase.saved_items`: `id`, `user_id`, `tenant_id`, `subject_type`, `subject_id`, `remind_at`, `reminded_at`, `completed_at`, `created_at`
 - `comments`
-  - `better_supabase.comment_tasks`: `message_id`, `organization_id`, `task_id`
+  - `better_supabase.comment_tasks`: `message_id`, `tenant_id`, `task_id`
 - `commissions`
   - `better_supabase.commission_plans`: `id`, `tenant_id`, `name`, `kind`, `rate_bps`, `tiers`, `archived_at`, `created_at`, `updated_at`
   - `better_supabase.commission_assignments`: `id`, `tenant_id`, `plan_id`, `seller_id`, `subject_type`, `subject_id`, `starts_on`, `ends_on`, `created_at`
@@ -280,18 +280,18 @@ may be your own enum or domain.
   - `better_supabase.evidence_tasks`: `id`, `tenant_id`, `control_id`, `title`, `interval_days`, `due_on`, `notified_for`, `active`
   - `better_supabase.compliance_policies`: `id`, `tenant_id`, `key`, `title`, `requires_acknowledgement`, `current_version_id`, `version_number`, `published_at`, `archived_at`
 - `connectors`
-  - `better_supabase.connector_servers`: `id`, `organization_id`, `name`, `url`, `auth_type`, `credential_ref`; typed: `transport`, `auth_type`
-  - `better_supabase.connector_grants`: `id`, `user_id`, `server_id`, `organization_id`, `credential_ref`, `revoked_at`
+  - `better_supabase.connector_servers`: `id`, `tenant_id`, `name`, `url`, `auth_type`, `credential_ref`; typed: `transport`, `auth_type`
+  - `better_supabase.connector_grants`: `id`, `user_id`, `server_id`, `tenant_id`, `credential_ref`, `revoked_at`
   - `better_supabase.connector_sessions`: `server_id`, `user_id`, `chat_key`, `session_id`, `expires_at`
   - `better_supabase.connector_tool_fingerprints`: `server_id`, `fingerprint`, `status`; typed: `status`
 - `consents`
   - `better_supabase.consent_purposes`: `id`, `tenant_id`, `key`, `title`, `legal_basis`, `version`, `requires_signature`, `valid_months`, `archived_at`, `created_at`; typed: `legal_basis`
-  - `better_supabase.consents`: `id`, `tenant_id`, `purpose_id`, `subject_type`, `subject_id`, `given_by`, `given_by_contact_id`, `given_by_user_id`, `status`, `granted_at`, `valid_until`, `withdrawn_at`, `created_at`; typed: `given_by`, `status`
+  - `better_supabase.consents`: `id`, `tenant_id`, `purpose_id`, `subject_type`, `subject_id`, `given_by`, `given_by_contact_id`, `grantor_id`, `status`, `granted_at`, `expires_at`, `withdrawn_at`, `created_at`; typed: `given_by`, `status`
   - `better_supabase.consent_signals`: `id`, `tenant_id`, `subject_type`, `subject_id`, `kind`, `raw`, `parsed`, `consent_ids`, `created_by`, `received_at`
   - `better_supabase.consent_receipts`: `id`, `tenant_id`, `subject_type`, `subject_id`, `consent_id`, `status`, `receipt`, `digest`, `issued_at`
 - `contacts`
   - `better_supabase.companies`: `id`, `tenant_id`, `name`, `domain`, `website`, `lifecycle`, `merged_into`, `archived_at`, `created_at`, `updated_at`; typed: `lifecycle`
-  - `better_supabase.people`: `id`, `tenant_id`, `name`, `email`, `phone`, `title`, `lifecycle`, `owner_user_id`, `user_id`, `merged_into`, `archived_at`, `created_at`, `updated_at`; typed: `lifecycle`
+  - `better_supabase.people`: `id`, `tenant_id`, `name`, `email`, `phone`, `title`, `lifecycle`, `owner_id`, `user_id`, `merged_into`, `archived_at`, `created_at`, `updated_at`; typed: `lifecycle`
   - `better_supabase.company_people`: `tenant_id`, `company_id`, `person_id`, `is_primary`, `created_at`
   - `better_supabase.payment_terms`: `id`, `tenant_id`, `code`, `name`, `days`, `discount_bps`, `discount_days`, `credit_restriction_bps`, `created_at`, `updated_at`
   - `better_supabase.document_delivery_preferences`: `id`, `tenant_id`, `party_id`, `document_type`, `channel`, `copies`, `email`, `created_at`, `updated_at`
@@ -317,18 +317,18 @@ may be your own enum or domain.
   - `better_supabase.dam_usage_rights`: `id`, `tenant_id`, `node_id`, `licensee`, `territory`, `channel`, `starts_on`, `expires_on`, `note`, `revoked_at`, `reminded_for`, `created_by`, `created_at`
   - `better_supabase.dam_renditions`: `id`, `tenant_id`, `node_id`, `kind`, `status`, `format`, `width`, `height`, `size_bytes`, `path`, `error`, `created_at`, `updated_at`
 - `data-lifecycle`
-  - `better_supabase.data_exports`: `id`, `subject`, `user_id`, `organization_id`, `status`, `bucket`, `files`, `requested_by`, `requested_at`, `completed_at`, `expires_at`; typed: `status`, `subject`
+  - `better_supabase.data_exports`: `id`, `subject`, `user_id`, `tenant_id`, `status`, `bucket`, `files`, `requested_by`, `requested_at`, `completed_at`, `expires_at`; typed: `status`, `subject`
   - `better_supabase.data_export_contents`: `export_id`, `parts`
-  - `better_supabase.organization_deletions`: `organization_id`, `purge_after`, `cancelled_at`, `purged_at`, `previously_disabled`
-  - `better_supabase.retention_policies`: `id`, `organization_id`, `kind`, `keep`; typed: `kind`
-  - `better_supabase.legal_holds`: `id`, `organization_id`, `kind`, `reason`, `placed_at`, `released_at`; typed: `kind`
-  - `better_supabase.data_subject_requests`: `id`, `organization_id`, `kind`, `requester`, `subject_type`, `subject_id`, `details`, `status`, `received_at`, `received_by`, `due_at`, `extended_at`, `extension_reason`, `verified_at`, `verified_by`, `verification_method`, `export_id`, `resolution`, `closed_at`, `closed_by`
+  - `better_supabase.organization_deletions`: `tenant_id`, `purge_at`, `cancelled_at`, `purged_at`, `previously_disabled`
+  - `better_supabase.retention_policies`: `id`, `tenant_id`, `kind`, `keep`; typed: `kind`
+  - `better_supabase.legal_holds`: `id`, `tenant_id`, `kind`, `reason`, `placed_at`, `released_at`; typed: `kind`
+  - `better_supabase.data_subject_requests`: `id`, `tenant_id`, `kind`, `requester`, `subject_type`, `subject_id`, `details`, `status`, `received_at`, `received_by`, `due_at`, `extended_at`, `extension_reason`, `verified_at`, `verified_by`, `verification_method`, `export_id`, `resolution`, `closed_at`, `closed_by`
 - `deadlines`
   - `better_supabase.deadline_rule_sets`: `id`, `jurisdiction`, `kind`, `title`, `created_at`
   - `better_supabase.deadline_rule_versions`: `id`, `rule_set_id`, `version`, `status`, `rules`, `groups`, `counting`, `meta`, `content_hash`, `effective_from`, `approved_by`, `approved_at`, `approval_id`, `created_at`
   - `better_supabase.deadlines`: `id`, `tenant_id`, `subject_type`, `subject_id`, `jurisdiction`, `kind`, `group_key`, `rule_key`, `period`, `rule_version_id`, `facts`, `result`, `due_on`, `provisional`, `missing`, `exception`, `review`, `basis`, `deadline`, `citation`, `as_of`, `state`, `satisfied_at`, `satisfied_by`, `satisfied_action`, `computed_at`, `created_at`
 - `deals`
-  - `better_supabase.deals`: `id`, `tenant_id`, `number`, `identifier`, `name`, `company_type`, `company_id`, `owner_user_id`, `amount`, `currency`, `value_period`, `amount_source`, `pipeline_id`, `stage_id`, `stage_entered_at`, `outcome`, `probability`, `forecast_category`, `opened_on`, `expected_close_on`, `closed_at`, `note`, `locked`, `rank`, `archived_at`, `created_at`, `updated_at`, `list_total`, `discount_total`, `subtotal`, `tax_total`, `total`; typed: `value_period`, `amount_source`, `outcome`, `forecast_category`
+  - `better_supabase.deals`: `id`, `tenant_id`, `number`, `identifier`, `name`, `company_type`, `company_id`, `owner_id`, `amount`, `currency`, `value_period`, `amount_source`, `pipeline_id`, `stage_id`, `stage_entered_at`, `outcome`, `probability`, `forecast_category`, `opened_on`, `expected_close_on`, `closed_at`, `note`, `locked`, `rank`, `archived_at`, `created_at`, `updated_at`, `list_total`, `discount_total`, `subtotal`, `tax_total`, `total`; typed: `value_period`, `amount_source`, `outcome`, `forecast_category`
   - `better_supabase.deal_contacts`: `tenant_id`, `deal_id`, `contact_type`, `contact_id`, `is_primary`
   - `better_supabase.deal_members`: `tenant_id`, `deal_id`, `user_id`
   - `better_supabase.deal_lines`: `id`, `tenant_id`, `parent_id`, `description`, `quantity`, `unit_amount`, `position`; typed: `product_type`
@@ -347,7 +347,7 @@ may be your own enum or domain.
   - `better_supabase.document_snapshots`: `document_id`, `tenant_id`, `state`, `seq`
   - `better_supabase.document_suggestions`: `id`, `document_id`, `tenant_id`, `payload`, `status`, `created_by`, `created_at`; typed: `status`
 - `domains`
-  - `better_supabase.hostnames`: `id`, `organization_id`, `hostname`, `kind`, `verification_token`, `verified_at`, `is_primary`, `created_at`; typed: `kind`
+  - `better_supabase.hostnames`: `id`, `tenant_id`, `hostname`, `kind`, `verification_token`, `verified_at`, `is_primary`, `created_at`; typed: `kind`
 - `donations`
   - `better_supabase.donation_funds`: `id`, `tenant_id`, `key`, `name`, `kind`, `currency`, `archived_at`, `created_at`, `updated_at`; typed: `kind`
   - `better_supabase.pledges`: `id`, `tenant_id`, `donor_type`, `donor_id`, `fund_id`, `amount`, `currency`, `frequency`, `starts_on`, `ends_on`, `status`, `provider`, `provider_customer`, `created_by`, `created_at`, `updated_at`; typed: `frequency`, `status`
@@ -383,7 +383,7 @@ may be your own enum or domain.
   - `better_supabase.flags`: `key`, `type`, `variants`, `default_variant`, `enabled`, `rules`; typed: `type`
   - `better_supabase.flag_revisions`: `id`, `flag_key`, `revision`, `definition`, `message`, `changed_by`, `changed_at`
   - `better_supabase.flag_segments`: `name`, `description`, `rules`, `updated_at`
-  - `better_supabase.flag_overrides`: `id`, `flag_key`, `organization_id`, `user_id`, `context`, `context_key`, `variant`
+  - `better_supabase.flag_overrides`: `id`, `flag_key`, `tenant_id`, `user_id`, `context`, `context_key`, `variant`
 - `forecasts`
   - `better_supabase.forecast_snapshots`: `id`, `tenant_id`, `pipeline_id`, `period_start`, `period_end`, `currency`, `totals`, `deal_count`, `taken_at`
   - `better_supabase.forecast_snapshot_deals`: `snapshot_id`, `tenant_id`, `deal_id`, `name`, `outcome`, `amount`; typed: `forecast_category`, `outcome`
@@ -399,43 +399,43 @@ may be your own enum or domain.
   - `better_supabase.funding_claims`: `id`, `tenant_id`, `funder_id`, `number`, `period_start`, `period_end`, `format`, `status`, `external_ref`, `sent_at`, `payload_sha256`, `response`, `total`, `currency`
   - `better_supabase.funding_claim_lines`: `id`, `tenant_id`, `claim_id`, `award_id`, `product_id`, `units`, `amount`, `status`, `rejection_code`
 - `goals`
-  - `better_supabase.goals`: `id`, `tenant_id`, `name`, `metric`, `owner_user_id`, `period_start`, `period_end`, `currency`, `goal`, `actual`
+  - `better_supabase.goals`: `id`, `tenant_id`, `name`, `metric`, `owner_id`, `period_start`, `period_end`, `currency`, `goal`, `actual`
 - `guests`
   - `better_supabase.guests`: `id`, `tenant_id`, `email`, `user_id`, `status`, `token_hash`, `created_at`; typed: `status`
   - `better_supabase.guest_grants`: `id`, `tenant_id`, `guest_id`, `subject_type`, `subject_id`, `actions`, `created_at`
 - `hiring`
   - `better_supabase.job_openings`: `id`, `tenant_id`, `title`, `status`, `created_at`, `updated_at`; typed: `status`; typed with values: `employment_type`
   - `better_supabase.applications`: `id`, `tenant_id`, `job_id`, `candidate_id`, `stage_id`, `state`, `rank`, `created_at`, `updated_at`; typed: `state`; typed with values: `source`
-  - `better_supabase.application_scorecards`: `id`, `tenant_id`, `application_id`, `reviewer_user_id`, `rating`, `submitted_at`; typed: `recommendation`
+  - `better_supabase.application_scorecards`: `id`, `tenant_id`, `application_id`, `reviewer_id`, `rating`, `submitted_at`; typed: `recommendation`
   - `better_supabase.interviews`: `id`, `tenant_id`, `application_id`, `starts_at`, `ends_at`, `created_at`; typed with values: `kind`
   - `better_supabase.interview_interviewers`, once mapped: `interview_id`, `user_id`
   - `better_supabase.application_scorecard_scores`, once mapped: `scorecard_id`, `criterion_key`, `score`
 - `housekeeping`
   - `better_supabase.maintenance_state`: `job`, `last_run_at`, `last_status`, `last_result`, `last_error`, `runs`
 - `idempotency`
-  - `better_supabase.idempotency_keys`: `scope`, `key`, `request_hash`, `status`, `status_code`, `response`, `locked_until`, `expires_at`, `holder`; typed: `status`
+  - `better_supabase.idempotency_keys`: `scope`, `key`, `request_hash`, `status`, `status_code`, `response`, `lock_expires_at`, `expires_at`, `holder`; typed: `status`
   - `better_supabase.idempotency_leases`: `scope`, `key`, `holder`, `expires_at`
 - `identities`
   - `better_supabase.identity_links`: `id`, `kind`, `provider`, `value`, `user_id`, `source`; typed: `kind`, `source`
   - `better_supabase.identity_link_codes`: `id`, `user_id`, `kind`, `provider`, `code_hash`, `expires_at`, `used_at`; typed: `kind`
 - `impersonation`
   - `better_supabase.support_sessions`: `id`, `admin_id`, `target_user_id`, `reason`, `started_at`, `expires_at`, `ended_at`
-  - `better_supabase.support_requests`: `id`, `admin_id`, `target_user_id`, `reason`, `organization_id`, `read_only`, `metadata`, `requested_at`, `expires_at`, `approved_by`, `approved_at`, `session_id`
+  - `better_supabase.support_requests`: `id`, `admin_id`, `target_user_id`, `reason`, `tenant_id`, `read_only`, `metadata`, `requested_at`, `expires_at`, `approved_by`, `approved_at`, `session_id`
 - `imports`
   - `better_supabase.import_runs`: `id`, `tenant_id`, `source`, `status`, `mapping`, `counts`, `errors`, `dry_run`, `full`, `input_checksum`, `correlation_id`, `scope_aliases`, `created_by`, `created_at`, `started_at`, `finished_at`; typed: `status`
-  - `better_supabase.import_records`: `id`, `tenant_id`, `source`, `scope`, `entity`, `external_key`, `role`, `subject_type`, `subject_id`, `content_hash`, `first_run_id`, `last_run_id`, `subject_updated_at_at_import`, `missing_since`
+  - `better_supabase.import_records`: `id`, `tenant_id`, `source`, `scope`, `entity`, `external_key`, `role`, `subject_type`, `subject_id`, `content_hash`, `first_run_id`, `last_run_id`, `subject_imported_updated_at`, `went_missing_at`
 - `inbox`
   - `better_supabase.inboxes`: `id`, `tenant_id`, `name`, `channel`, `bot_mode`, `updated_at`; typed: `channel`, `bot_mode`
   - `better_supabase.inbox_members`: `inbox_id`, `user_id`, `role`; typed: `role`
   - `better_supabase.inbox_teams`: `id`, `tenant_id`, `name`
   - `better_supabase.inbox_team_members`: `team_id`, `user_id`
-  - `better_supabase.inbox_conversations`: `id`, `tenant_id`, `inbox_id`, `contact_id`, `status`, `assignee_id`, `team_id`, `bot_mode`, `thread_id`, `snoozed_until`, `last_message_at`, `created_at`, `updated_at`; typed: `status`, `priority`, `bot_mode`
+  - `better_supabase.inbox_conversations`: `id`, `tenant_id`, `inbox_id`, `contact_id`, `status`, `assignee_id`, `team_id`, `bot_mode`, `thread_id`, `snooze_expires_at`, `last_message_at`, `created_at`, `updated_at`; typed: `status`, `priority`, `bot_mode`
   - `better_supabase.inbox_conversation_events`: `id`, `tenant_id`, `conversation_id`, `type`, `created_at`
   - `better_supabase.inbox_message_details`: `message_id`, `tenant_id`, `conversation_id`, `direction`, `author_type`, `external_id`; typed: `direction`, `author_type`, `format`
   - `better_supabase.inbox_message_deliveries`: `id`, `tenant_id`, `message_id`, `channel`, `status`, `external_id`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.inbox_inbound_events`: `id`, `tenant_id`, `adapter`, `external_id`, `inbox_id`, `headers`, `body`, `status`, `attempts`, `received_at`; typed: `status`
   - `better_supabase.inbox_message_templates`: `id`, `tenant_id`, `inbox_id`, `name`, `channel`, `language`, `body`, `created_at`, `updated_at`
-  - `better_supabase.scheduled_inbox_messages`: `id`, `tenant_id`, `conversation_id`, `author_id`, `input`, `scheduled_for`, `updated_at`
+  - `better_supabase.scheduled_inbox_messages`: `id`, `tenant_id`, `conversation_id`, `author_id`, `input`, `scheduled_at`, `updated_at`
   - `better_supabase.inbox_drafts`: `id`, `tenant_id`, `conversation_id`, `author_id`, `source`, `input`, `status`, `updated_at`
 - `incidents`
   - `better_supabase.incident_status_components`: `id`, `tenant_id`, `name`, `public`, `status`; typed: `status`
@@ -455,7 +455,7 @@ may be your own enum or domain.
   - `better_supabase.inspection_findings`: `id`, `tenant_id`, `inspection_id`, `number`, `type`, `title`, `control_id`, `case_id`, `created_at`, `updated_at`
 - `inventory`
   - `better_supabase.inventory_locations`: `id`, `tenant_id`, `code`, `name`, `kind`, `active`, `created_at`, `updated_at`
-  - `better_supabase.stock_levels`: `tenant_id`, `variant_id`, `location_id`, `on_hand`, `reserved`, `held`, `incoming`, `available`, `reorder_point`, `updated_at`
+  - `better_supabase.stock_levels`: `tenant_id`, `variant_id`, `location_id`, `on_hand`, `reserved`, `held`, `incoming`, `available`, `reorder_point`, `reorder_quantity`, `updated_at`
   - `better_supabase.stock_reservations`: `id`, `tenant_id`, `variant_id`, `location_id`, `quantity`, `status`, `reference_type`, `reference_id`, `expires_at`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.stock_transfers`: `id`, `tenant_id`, `from_location_id`, `to_location_id`, `status`, `note`, `created_at`, `shipped_at`, `received_at`; typed: `status`
   - `better_supabase.stock_transfer_lines`: `tenant_id`, `transfer_id`, `variant_id`, `quantity`, `detail`
@@ -474,7 +474,7 @@ may be your own enum or domain.
   - `better_supabase.stock_counts`: `id`, `tenant_id`, `location_id`, `status`, `note`, `opened_by`, `posted_by`, `opened_at`, `posted_at`, `updated_at`; typed: `status`
   - `better_supabase.stock_count_lines`: `id`, `tenant_id`, `count_id`, `variant_id`, `bin_id`, `lot_id`, `serial`, `expected`, `counted`, `variance`, `movement_id`, `updated_at`
 - `invitations`
-  - `better_supabase.invitations`: `id`, `email`, `role`, `token_hash`, `expires_at`, `accepted_at`, `organization_id`
+  - `better_supabase.invitations`: `id`, `email`, `role`, `token_hash`, `expires_at`, `accepted_at`, `tenant_id`
   - `better_supabase.platform_invitations`, once mapped: `id`, `email`, `role`, `token_hash`, `expires_at`, `accepted_at`
 - `invoices`
   - `better_supabase.invoices`: `id`, `tenant_id`, `kind`, `number`, `identifier`, `original_id`, `title`, `currency`, `status`, `terms_days`, `issued_on`, `due_on`, `paid_total`, `credited_total`, `paid_at`, `voided_at`, `created_at`, `updated_at`, `subtotal`, `tax_total`, `total`; typed: `status`, `kind`, `direction`
@@ -488,12 +488,12 @@ may be your own enum or domain.
   - `better_supabase.invoice_line_sources`: `id`, `tenant_id`, `invoice_id`, `position`, `source`, `source_id`, `quantity`, `created_at`
   - `better_supabase.invoice_approval_levels`: `id`, `tenant_id`, `legal_entity_id`, `level`, `min_amount`, `currency`, `approver_id`, `created_at`
   - `better_supabase.invoice_approvals`: `id`, `tenant_id`, `invoice_id`, `level`, `approver_id`, `comment`, `decided_at`
-  - `better_supabase.invoice_e_endpoints`: `id`, `tenant_id`, `party_kind`, `party_id`, `scheme`, `endpoint_id`, `created_at`, `updated_at`
+  - `better_supabase.e_invoice_endpoints`: `id`, `tenant_id`, `party_kind`, `party_id`, `scheme`, `endpoint_id`, `created_at`, `updated_at`
   - `better_supabase.e_invoice_deliveries`: `id`, `tenant_id`, `invoice_id`, `direction`, `format`, `channel`, `message_id`, `state`, `reason`, `document_hash`, `created_at`, `updated_at`
 - `knowledge`
-  - `better_supabase.knowledge_documents`: `id`, `organization_id`, `owner_id`, `scope`, `scope_id`, `title`, `status`, `updated_at`; typed: `scope`, `status`
-  - `better_supabase.knowledge_collections`: `id`, `organization_id`, `name`, `description`, `visibility`, `priority`, `created_by`, `created_at`, `updated_at`; typed: `visibility`
-  - `better_supabase.knowledge_collection_grants`: `collection_id`, `organization_id`, `user_id`, `team_id`, `created_at`
+  - `better_supabase.knowledge_documents`: `id`, `tenant_id`, `owner_id`, `scope`, `scope_id`, `title`, `status`, `updated_at`; typed: `scope`, `status`
+  - `better_supabase.knowledge_collections`: `id`, `tenant_id`, `name`, `description`, `visibility`, `priority`, `created_by`, `created_at`, `updated_at`; typed: `visibility`
+  - `better_supabase.knowledge_collection_grants`: `collection_id`, `tenant_id`, `user_id`, `team_id`, `created_at`
   - `better_supabase.knowledge_chunks`: `document_id`, `idx`, `content`, `embedding`
 - `lead-scoring`
   - `better_supabase.lead_score_checks`: `tenant_id`, `subject_type`, `subject_id`, `stale`, `checked_at`
@@ -552,19 +552,19 @@ may be your own enum or domain.
 - `memberships`
   - `better_supabase.memberships`: `organization_id`, `user_id`, `role`, `created_at`
 - `memory`
-  - `better_supabase.memories`: `id`, `organization_id`, `owner_id`, `scope`, `agent_id`, `chat_id`, `project_id`, `kind`, `path`, `content`, `version`, `embedding`, `superseded_by`, `updated_at`; typed: `scope`, `kind`
-  - `better_supabase.memory_message_embeddings`: `chat_id`, `message_id`, `user_id`, `organization_id`, `embedding`
+  - `better_supabase.memories`: `id`, `tenant_id`, `owner_id`, `scope`, `agent_id`, `chat_id`, `project_id`, `kind`, `path`, `content`, `version`, `embedding`, `superseded_by`, `updated_at`; typed: `scope`, `kind`
+  - `better_supabase.memory_message_embeddings`: `chat_id`, `message_id`, `user_id`, `tenant_id`, `embedding`
   - `better_supabase.memory_documents`: `scope_key`, `path`, `content`, `version`
 - `messaging`
   - `better_supabase.conversations`: `id`, `tenant_id`, `kind`, `access`, `subject_type`, `subject_id`, `title`, `member_key`, `created_by`, `last_message_at`, `archived_at`, `created_at`, `updated_at`; typed: `kind`, `access`
   - `better_supabase.conversation_members`: `conversation_id`, `tenant_id`, `user_id`, `role`, `last_read_at`; typed: `role`, `notify`
-  - `better_supabase.messages`: `id`, `tenant_id`, `conversation_id`, `parent_id`, `thread_id`, `author_id`, `kind`, `body`, `document`, `mentions`, `mention_scope`, `broadcast`, `reply_count`, `last_reply_at`, `reply_user_ids`, `pinned_at`, `pinned_by`, `sent_at`, `edited_at`, `deleted_at`, `created_at`; typed: `kind`, `mention_scope`
+  - `better_supabase.messages`: `id`, `tenant_id`, `conversation_id`, `parent_id`, `thread_id`, `author_id`, `kind`, `body`, `document`, `mentions`, `mention_scope`, `broadcast`, `reply_count`, `last_reply_at`, `reply_user_ids`, `pinned_at`, `pinned_by`, `sent_at`, `edited_at`, `archived_at`, `created_at`; typed: `kind`, `mention_scope`
   - `better_supabase.message_edits`: `id`, `tenant_id`, `message_id`, `body`, `edited_at`
   - `better_supabase.thread_reads`: `tenant_id`, `user_id`, `conversation_id`, `thread_id`, `last_read_at`
   - `better_supabase.message_record_mentions`: `tenant_id`, `message_id`, `conversation_id`, `subject_type`, `subject_id`, `created_at`
   - `better_supabase.thread_summaries`: `id`, `tenant_id`, `conversation_id`, `thread_id`, `summary`, `message_count`, `through_at`
 - `metrics`
-  - `better_supabase.metric_points`: `tenant_id`, `metric`, `grain`, `bucket_start`, `dims`, `value`, `count`, `updated_at`
+  - `better_supabase.metric_points`: `tenant_id`, `metric`, `grain`, `bucket_started_at`, `dims`, `value`, `count`, `updated_at`
 - `moderation`
   - `better_supabase.moderation_items`: `id`, `tenant_id`, `subject_type`, `subject_id`, `author_id`, `status`, `open_reports`, `reason`, `decided_by`, `decided_at`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.moderation_reports`: `id`, `tenant_id`, `item_id`, `reporter_id`, `reason`, `status`, `created_at`; typed: `status`
@@ -616,10 +616,10 @@ may be your own enum or domain.
   - `better_supabase.organizations`: `id`, `name`
 - `outbox`
   - `better_supabase.outbox_events`: `id`, `position`, `type`, `payload`, `created_at`
-  - `better_supabase.outbox_consumers`: `name`, `cursor_xid`, `cursor_position`, `types`, `lease_owner`, `lease_until`, `attempts`, `last_error`, `retry_at`, `updated_at`
+  - `better_supabase.outbox_consumers`: `name`, `cursor_xid`, `cursor_position`, `types`, `lease_owner`, `lease_expires_at`, `attempts`, `last_error`, `retry_at`, `updated_at`
   - `better_supabase.outbox_dead_letters`: `consumer`, `position`, `event_id`, `type`, `event`, `attempts`, `error`, `dead_at`
 - `passes`
-  - `better_supabase.passes`: `id`, `tenant_id`, `kind`, `holder_user_id`, `booking_id`, `resource_id`, `uses_allowed`, `uses`, `valid_from`, `valid_until`, `status`, `nonce`, `created_at`; typed: `status`
+  - `better_supabase.passes`: `id`, `tenant_id`, `kind`, `holder_id`, `booking_id`, `resource_id`, `uses_allowed`, `uses`, `starts_at`, `expires_at`, `status`, `nonce`, `created_at`; typed: `status`
   - `better_supabase.pass_check_ins`: `id`, `tenant_id`, `pass_id`, `resource_id`, `booking_id`, `method`, `admitted`, `reason`, `created_at`; typed: `method`, `reason`
 - `payroll-export`
   - `better_supabase.payroll_runs`: `id`, `tenant_id`, `period_from`, `period_to`, `label`, `status`, `format`, `checksum`, `exported_at`, `exported_by`, `created_by`, `created_at`, `updated_at`
@@ -630,7 +630,7 @@ may be your own enum or domain.
   - `better_supabase.roles`: `id`, `key`
   - `better_supabase.permissions`: `id`, `key`
   - `better_supabase.role_permissions`: `role_id`, `permission_id`
-  - `better_supabase.permission_overrides`: `organization_id`, `role_id`, `permission_id`, `granted`
+  - `better_supabase.permission_overrides`: `tenant_id`, `role_id`, `permission_id`, `granted`
   - `better_supabase.platform_roles`: `user_id`, `role_id`
 - `pipelines`
   - `better_supabase.pipelines`: `id`, `tenant_id`, `subject_type`, `scope_id`, `key`, `name`, `rank`, `is_default`, `archived_at`
@@ -648,8 +648,8 @@ may be your own enum or domain.
   - `better_supabase.cart_promotion_codes`: `tenant_id`, `cart_id`, `code_id`, `created_at`
   - `better_supabase.promotion_redemptions`: `id`, `tenant_id`, `promotion_id`, `code_id`, `order_id`, `customer_id`, `currency`, `amount`, `status`, `created_at`; typed: `status`
 - `prompts`
-  - `better_supabase.prompt_versions`: `id`, `organization_id`, `name`, `version`, `template`, `variables`
-  - `better_supabase.prompt_labels`: `organization_id`, `name`, `label`, `version`
+  - `better_supabase.prompt_versions`: `id`, `tenant_id`, `name`, `version`, `template`, `variables`
+  - `better_supabase.prompt_labels`: `tenant_id`, `name`, `label`, `version`
 - `push`
   - `better_supabase.push_devices`: `id`, `user_id`, `token`, `platform`, `provider`; typed: `platform`, `provider`
   - `better_supabase.push_tickets`: `id`, `delivery_id`, `token`, `ticket_id`, `status`, `created_at`, `checked_at`; typed: `status`
@@ -660,23 +660,23 @@ may be your own enum or domain.
 - `queue`
   - `better_supabase.job_messages`: `id`, `queue`, `message`, `attempts`, `enqueued_at`, `visible_at`, `archived_at`, `dead`, `dedupe_key`, `max_attempts`
   - `better_supabase.job_leases`: `scope`, `key`, `holder`, `state`, `expires_at`
-  - `better_supabase.job_schedules`: `job_name`, `schedule`, `timezone`, `queue`, `payload`, `next_run`, `last_run`, `locked_until`, `created_at`, `tenant`, `first_after`
+  - `better_supabase.job_schedules`: `job_name`, `schedule`, `timezone`, `queue`, `payload`, `next_run`, `last_run`, `lock_expires_at`, `created_at`, `tenant`, `first_after`
 - `quotes`
-  - `better_supabase.quotes`: `id`, `tenant_id`, `number`, `identifier`, `revision`, `title`, `owner_user_id`, `currency`, `status`, `valid_until`, `token_hash`, `sent_at`, `decided_at`, `decided_by`, `created_at`, `updated_at`, `subtotal`, `tax_total`, `total`; typed: `status`
-  - `better_supabase.quote_lines`: `id`, `tenant_id`, `parent_id`, `description`, `quantity`, `unit_amount`, `position`; typed: `product_type`
+  - `better_supabase.quotes`: `id`, `tenant_id`, `number`, `identifier`, `revision`, `title`, `owner_id`, `currency`, `status`, `valid_until`, `token_hash`, `sent_at`, `decided_at`, `decided_by`, `created_at`, `updated_at`, `subtotal`, `tax_total`, `total`; typed: `status`
+  - `better_supabase.quote_lines`: `id`, `tenant_id`, `parent_id`, `description`, `quantity`, `unit_amount`, `position`; typed: `product_type`, `discount_kind`
   - `better_supabase.quote_versions`: `id`, `tenant_id`, `quote_id`, `revision`, `snapshot`, `total`, `currency`, `published_at`
-  - `better_supabase.quote_version_lines`: `id`, `tenant_id`, `version_id`, `position`, `description`, `quantity`, `unit_amount`; typed: `product_type`
+  - `better_supabase.quote_version_lines`: `id`, `tenant_id`, `version_id`, `position`, `description`, `quantity`, `unit_amount`; typed: `product_type`, `discount_kind`
   - `better_supabase.quote_tax_lines`: `id`, `tenant_id`, `parent_id`, `tax_rate_bps`, `net`, `tax`, `gross`
 - `rate-limit`
-  - `better_supabase.rate_limit_rules`: `scope`, `max_requests`, `period`, `key_claim`, `organization_id`
-  - `better_supabase.rate_limits`: `scope`, `key`, `window_start`, `hits`, `period`
+  - `better_supabase.rate_limit_rules`: `scope`, `max_requests`, `period`, `key_claim`, `tenant_id`
+  - `better_supabase.rate_limits`: `scope`, `key`, `window_started_at`, `hits`, `period`
 - `reactions`
   - `better_supabase.reactions`: `id`, `tenant_id`, `subject_type`, `subject_id`, `actor`, `user_id`, `kind`, `emoji`, `value`; typed: `kind`
   - `better_supabase.reaction_scores`: `tenant_id`, `subject_type`, `subject_id`, `score`, `up`, `down`
   - `better_supabase.custom_emoji`: `id`, `tenant_id`, `shortcode`, `url`
 - `referrals`
   - `better_supabase.referral_codes`: `id`, `tenant_id`, `code`, `referrer_id`, `invitation_id`, `reward_amount`, `reward_unit`, `max_uses`, `uses`, `active`, `expires_at`, `created_at`
-  - `better_supabase.referrals`: `id`, `tenant_id`, `code_id`, `referrer_id`, `referred_user_id`, `referred_organization_id`, `referred_email`, `status`, `reward_amount`, `reward_unit`, `qualified_at`, `qualified_by`, `rewarded_at`, `ledger_transaction_id`, `voided_at`, `created_at`
+  - `better_supabase.referrals`: `id`, `tenant_id`, `code_id`, `referrer_id`, `referred_id`, `referred_organization_id`, `referred_email`, `status`, `reward_amount`, `reward_unit`, `qualified_at`, `qualified_by`, `rewarded_at`, `ledger_transaction_id`, `voided_at`, `created_at`
 - `relations`
   - `better_supabase.relations`: `id`, `tenant_id`, `kind`, `source_type`, `source_id`, `target_type`, `target_id`, `data`, `created_by`, `created_at`
 - `reminders`
@@ -720,7 +720,7 @@ may be your own enum or domain.
   - `better_supabase.service_principals`: `id`, `tenant_id`, `name`, `role`, `is_default`, `created_by`, `created_at`, `disabled_at`
 - `settings`
   - `better_supabase.user_settings`: `user_id`, `key`, `value`
-  - `better_supabase.organization_settings`: `organization_id`, `key`, `value`
+  - `better_supabase.organization_settings`: `tenant_id`, `key`, `value`
   - `better_supabase.platform_settings`: `key`, `value`
 - `share-links`
   - `better_supabase.share_links`: `id`, `tenant_id`, `subject_type`, `subject_id`, `token_hash`, `role`, `version`, `expires_at`, `revoked_at`, `max_uses`, `created_by`
@@ -730,7 +730,7 @@ may be your own enum or domain.
   - `better_supabase.shift_templates`: `id`, `tenant_id`, `name`, `team_id`, `starts_time`, `ends_time`, `break_minutes`, `headcount`, `required_qualifications`, `weekdays`, `archived_at`
   - `better_supabase.shifts`: `id`, `tenant_id`, `template_id`, `team_id`, `starts_at`, `ends_at`, `break_minutes`, `headcount`, `required_qualifications`, `status`, `published_at`, `canceled_at`
   - `better_supabase.shift_assignments`: `id`, `tenant_id`, `shift_id`, `user_id`, `status`, `starts_at`, `ends_at`
-  - `better_supabase.shift_swaps`: `id`, `tenant_id`, `assignment_id`, `from_user_id`, `to_user_id`, `status`, `decided_at`
+  - `better_supabase.shift_swaps`: `id`, `tenant_id`, `assignment_id`, `from_id`, `to_id`, `status`, `decided_at`
   - `better_supabase.shift_availability`: `id`, `tenant_id`, `user_id`, `on_date`, `from_time`, `until_time`, `kind`
 - `shipments`
   - `better_supabase.shipments`: `id`, `tenant_id`, `reference`, `status`, `from_address`, `to_address`, `carrier`, `service`, `tracking_number`, `label_id`, `label_format`, `label_cost`, `currency`, `labeled_at`, `delivered_at`, `cancelled_at`, `created_at`, `updated_at`; typed: `status`
@@ -742,33 +742,33 @@ may be your own enum or domain.
   - `better_supabase.signature_requests`: `id`, `tenant_id`, `subject_type`, `subject_id`, `version_id`, `content_hash`, `signers`, `sign_order`, `status`, `approval_request_id`, `message`, `requested_by`, `created_at`, `completed_at`
   - `better_supabase.signatures`: `id`, `request_id`, `tenant_id`, `signer`, `method`, `typed_name`, `image_attachment_id`, `signed_hash`, `ip`, `user_agent`, `signed_at`
 - `signing-keys`
-  - `better_supabase.signing_keys`: `id`, `owner_type`, `owner_id`, `kid`, `alg`, `public_jwk`, `vault_secret_id`, `state`, `publish_until`; typed: `alg`, `state`
+  - `better_supabase.signing_keys`: `id`, `owner_type`, `owner_id`, `kid`, `alg`, `public_jwk`, `vault_secret_id`, `state`, `publish_expires_at`; typed: `alg`, `state`
 - `sla`
   - `better_supabase.sla_policies`: `id`, `tenant_id`, `subject_type`, `name`, `priority`, `first_response_minutes`, `next_response_minutes`, `resolution_minutes`
   - `better_supabase.sla_escalations`: `id`, `tenant_id`, `clock_id`, `at_percent`, `action`, `target`, `result`, `fired_at`
   - `better_supabase.sla_clocks`: `id`, `tenant_id`, `subject_type`, `subject_id`, `policy_id`, `metric`, `started_at`, `due_at`, `paused_at`, `paused_seconds`, `warned_at`, `breached_at`, `met_at`; typed: `metric`
 - `sso`
-  - `better_supabase.sso_domains`: `id`, `organization_id`, `domain`, `verification_token`, `verified_at`, `auto_join_role`, `enforce_sso`; typed: `auto_join_role`
-  - `better_supabase.sso_providers`: `id`, `organization_id`, `type`, `domains`, `created_at`; typed: `type`
-  - `better_supabase.scim_users`: `id`, `organization_id`, `user_id`, `external_id`, `user_name`, `email`, `emails`, `active`, `version`, `created_at`
-  - `better_supabase.scim_groups`: `id`, `organization_id`, `display_name`, `external_id`, `role`, `version`, `created_at`; typed: `role`
+  - `better_supabase.sso_domains`: `id`, `tenant_id`, `domain`, `verification_token`, `verified_at`, `auto_join_role`, `enforce_sso`; typed: `auto_join_role`
+  - `better_supabase.sso_providers`: `id`, `tenant_id`, `type`, `domains`, `created_at`; typed: `type`
+  - `better_supabase.scim_users`: `id`, `tenant_id`, `user_id`, `external_id`, `user_name`, `email`, `emails`, `active`, `version`, `created_at`
+  - `better_supabase.scim_groups`: `id`, `tenant_id`, `display_name`, `external_id`, `role`, `version`, `created_at`; typed: `role`
   - `better_supabase.scim_group_members`: `group_id`, `scim_user_id`
-  - `better_supabase.scim_sync_log`: `id`, `organization_id`, `operation`, `resource_type`, `resource_id`, `status`, `created_at`; typed: `operation`, `resource_type`
+  - `better_supabase.scim_sync_log`: `id`, `tenant_id`, `operation`, `resource_type`, `resource_id`, `status`, `created_at`; typed: `operation`, `resource_type`
 - `state-machine`
-  - `better_supabase.status_history`: `id`, `tenant_id`, `subject_type`, `subject_id`, `from_status`, `to_status`, `actor_user_id`, `reason`, `created_at`; typed: `from_status`, `to_status`
+  - `better_supabase.status_history`: `id`, `tenant_id`, `subject_type`, `subject_id`, `from_status`, `to_status`, `actor_id`, `reason`, `created_at`; typed: `from_status`, `to_status`
   - `better_supabase.status_stages`: `id`, `tenant_id`, `subject_type`, `subject_id`, `label`, `outcome`, `display`, `cleared_at`, `created_at`; typed: `label`
-  - `better_supabase.subject_lifecycles`: `id`, `tenant_id`, `subject_type`, `subject_id`, `version`, `flags`, `paused_at`, `paused_until`, `pause_reason`, `paused_by_user_id`, `created_at`, `updated_at`
+  - `better_supabase.subject_lifecycles`: `id`, `tenant_id`, `subject_type`, `subject_id`, `version`, `flags`, `paused_at`, `pause_expires_at`, `pause_reason`, `paused_by`, `created_at`, `updated_at`
 - `streams`
   - `better_supabase.streams`: `id`, `tenant_id`, `owner_id`, `closed_at`, `cancel_requested_at`, `expires_at`
   - `better_supabase.stream_chunks`: `stream_id`, `idx`, `data`
-  - `better_supabase.stream_kv`: `key`, `value`, `expires_at`
+  - `better_supabase.stream_entries`: `key`, `value`, `expires_at`
 - `subjects`
   - `better_supabase.subject_members`: `id`, `tenant_id`, `subject_type`, `subject_id`, `user_id`, `team_id`, `role`, `starts_on`, `ends_on`, `emergency`, `reason`, `created_by`, `created_at`
 - `tags`
   - `better_supabase.tags`: `id`, `tenant_id`, `kind`, `name`, `slug`, `color`, `description`, `created_at`, `updated_at`; typed: `kind`
   - `better_supabase.taggings`: `tenant_id`, `tag_id`, `subject_type`, `subject_id`, `created_at`; typed: `subject_type`
 - `tasks`
-  - `better_supabase.tasks`: `id`, `tenant_id`, `number`, `identifier`, `title`, `parent_id`, `team_id`, `priority`, `due_at`, `pipeline_id`, `stage_id`, `stage_entered_at`, `state`, `close_reason`, `closed_at`, `locked`, `rank`, `archived_at`, `created_at`, `updated_at`; typed: `state`, `close_reason`; typed with values: `priority`
+  - `better_supabase.tasks`: `id`, `tenant_id`, `number`, `identifier`, `title`, `parent_id`, `team_id`, `priority`, `due_at`, `pipeline_id`, `stage_id`, `stage_entered_at`, `state`, `close_reason`, `closed_at`, `rank`, `archived_at`, `created_at`, `updated_at`; typed: `state`, `close_reason`; typed with values: `priority`
   - `better_supabase.task_checklist_items`: `id`, `tenant_id`, `task_id`, `title`, `done`, `rank`, `created_at`
   - `better_supabase.task_assignees`: `tenant_id`, `task_id`, `user_id`
   - `better_supabase.projects`: `id`, `tenant_id`, `key`, `name`, `status`, `archived_at`, `created_at`, `updated_at`; typed: `status`
@@ -795,21 +795,21 @@ may be your own enum or domain.
   - `better_supabase.till_movements`: `id`, `tenant_id`, `session_id`, `kind`, `amount`, `reason`, `reference`, `created_by`, `created_at`
   - `better_supabase.till_counts`: `id`, `tenant_id`, `session_id`, `denominations`, `expected_amount`, `counted_amount`, `variance_amount`, `counted_by`, `counted_at`, `entry_id`, `notes`
   - `better_supabase.till_deposits`: `id`, `tenant_id`, `session_id`, `amount`, `deposited_on`, `reference`, `status`, `entry_id`, `bank_transaction_id`, `reconciled_at`, `created_by`, `created_at`
-- `time-tracking`
+- `time-entries`
   - `better_supabase.time_entries`: `id`, `tenant_id`, `user_id`, `started_at`, `billable`, `rate`, `rate_currency`, `note`, `created_at`, `updated_at`, `seconds`
   - `better_supabase.timesheets`: `id`, `tenant_id`, `week`, `note`, `submitted_at`, `approved_at`, `created_at`; typed: `status`
 - `timeline`
-  - `better_supabase.timeline_entries`: `id`, `organization_id`, `event_id`, `type`, `subject_type`, `subject_id`, `data`, `occurred_at`
+  - `better_supabase.timeline_entries`: `id`, `tenant_id`, `event_id`, `type`, `subject_type`, `subject_id`, `data`, `occurred_at`
 - `trash`
-  - `better_supabase.trash_items`: `id`, `tenant_id`, `subject_type`, `subject_id`, `title`, `batch_id`, `depth`, `trashed_by`, `trashed_at`, `purge_after`
+  - `better_supabase.trash_items`: `id`, `tenant_id`, `subject_type`, `subject_id`, `title`, `batch_id`, `depth`, `trashed_by`, `trashed_at`, `purge_at`
 - `usage`
-  - `better_supabase.usage_counters`: `organization_id`, `meter`, `day`, `value`
-  - `better_supabase.usage_events`: `organization_id`, `meter`, `idempotency_key`, `quantity`, `recorded_at`
-  - `better_supabase.usage_history`: `id`, `organization_id`, `meter`, `quantity`, `actor_id`, `recorded_at`
-  - `better_supabase.usage_distinct`: `organization_id`, `meter`, `period_start`, `subject`
+  - `better_supabase.usage_counters`: `tenant_id`, `meter`, `day`, `value`
+  - `better_supabase.usage_events`: `tenant_id`, `meter`, `idempotency_key`, `quantity`, `recorded_at`
+  - `better_supabase.usage_history`: `id`, `tenant_id`, `meter`, `quantity`, `actor_id`, `recorded_at`
+  - `better_supabase.usage_distinct`: `tenant_id`, `meter`, `period_start`, `subject`
   - `better_supabase.usage_meter_prices`: `meter`, `currency`, `unit_amount`, `included`
-  - `better_supabase.usage_billed_periods`: `organization_id`, `period_start`, `period_end`, `invoice_id`, `billed_at`
-  - `better_supabase.usage_quotas`: `id`, `organization_id`, `plan`, `meter`, `limit`, `period`; typed: `period`
+  - `better_supabase.usage_billed_periods`: `tenant_id`, `period_start`, `period_end`, `invoice_id`, `billed_at`
+  - `better_supabase.usage_quotas`: `id`, `tenant_id`, `plan`, `meter`, `limit`, `period`; typed: `period`
 - `vercel-marketplace`
   - `better_supabase.marketplace_installations`: `id`, `configuration_id`, `tenant`, `access_token_secret_id`, `status`; typed: `status`
   - `better_supabase.marketplace_resources`: `id`, `installation_id`, `external_id`, `name`, `status`, `tenant`; typed: `status`
@@ -820,7 +820,7 @@ may be your own enum or domain.
   - `better_supabase.versions`: `id`, `tenant_id`, `subject_type`, `subject_id`, `number`, `label`, `content`, `storage_path`, `content_hash`, `file_hash`, `hash_version`, `source`, `frozen`, `created_by`, `created_at`
 - `waitlist`
   - `better_supabase.waitlist_entries`: `id`, `email`, `status`, `position`, `user_id`, `created_at`; typed: `status`
-  - `better_supabase.invite_codes`: `id`, `code_hash`, `max_uses`, `uses`, `organization_id`, `role`, `revoked_at`; typed: `role`
+  - `better_supabase.invite_codes`: `id`, `code_hash`, `max_uses`, `uses`, `tenant_id`, `role`, `revoked_at`; typed: `role`
   - `better_supabase.invite_code_redemptions`: `code_id`, `user_id`
 - `warehouse`
   - `better_supabase.pick_waves`: `id`, `tenant_id`, `name`, `location_id`, `status`, `released_at`, `completed_at`, `created_by`, `created_at`
@@ -831,13 +831,13 @@ may be your own enum or domain.
   - `better_supabase.bin_slots`: `id`, `tenant_id`, `bin_id`, `walk_rank`, `capacity`, `updated_at`
   - `better_supabase.variant_sizes`: `id`, `tenant_id`, `variant_id`, `size`, `updated_at`
 - `webhook-inbox`
-  - `better_supabase.webhook_inbox`: `id`, `source`, `message_id`, `payload`, `status`, `attempts`, `available_at`, `locked_by`, `locked_until`, `received_at`
+  - `better_supabase.webhook_inbox`: `id`, `source`, `message_id`, `payload`, `status`, `attempts`, `available_at`, `locked_by`, `lock_expires_at`, `received_at`
 - `webhooks-in`
   - `better_supabase.incoming_webhooks`: `id`, `tenant`, `name`, `token_hash`, `verify`, `enabled`
 - `webhooks-out`
   - `better_supabase.webhook_endpoints`: `id`, `url`, `enabled`, `event_types`, `created_at`
   - `better_supabase.webhook_endpoint_secrets`: `id`, `endpoint_id`, `created_at`
-  - `better_supabase.webhook_deliveries`: `id`, `endpoint_id`, `event_type`, `payload`, `status`, `attempt`, `available_at`, `leased_until`, `created_at`
+  - `better_supabase.webhook_deliveries`: `id`, `endpoint_id`, `event_type`, `payload`, `status`, `attempt`, `available_at`, `lease_expires_at`, `created_at`
 - `workflow-editor`
   - `better_supabase.workflow_definitions`: `id`, `tenant_id`, `slug`, `name`, `description`, `restricted`, `created_by`, `created_at`, `updated_at`; typed: `scope`
   - `better_supabase.workflow_opt_outs`: `tenant_id`, `definition_id`, `created_by`, `created_at`
@@ -846,16 +846,16 @@ may be your own enum or domain.
   - `better_supabase.workflow_triggers`: `id`, `definition_id`, `kind`, `config`, `enabled`, `created_at`, `updated_at`; typed: `kind`
   - `better_supabase.workflow_webhook_tokens`: `token_hash`, `trigger_id`, `created_at`
   - `better_supabase.workflow_credentials`: `id`, `tenant_id`, `kind`, `name`, `credential_ref`, `scopes`, `created_by`, `created_at`
-  - `better_supabase.workflow_step_library`: `name`, `title`, `input_schema`, `output_schema`, `credential_kind`, `operation`, `updated_at`
+  - `better_supabase.workflow_step_templates`: `name`, `title`, `input_schema`, `output_schema`, `credential_kind`, `operation`, `updated_at`
   - `better_supabase.workflow_node_kinds`: `kind`, `title`, `description`, `branches`, `config_schema`, `updated_at`
   - `better_supabase.workflow_node_runs`: `run_id`, `node_id`, `status`, `attempts`, `output`, `error`, `started_at`, `ended_at`; typed: `status`
   - `better_supabase.workflow_alerts`: `id`, `definition_id`, `on_event`, `threshold`, `channel`, `created_by`, `created_at`; typed: `on_event`
   - `better_supabase.workflow_alert_fires`: `alert_id`, `run_id`, `fired_at`
 - `workflows`
   - `better_supabase.workflow_runs`: `id`, `engine`, `external_id`, `definition`, `tenant_id`, `actor_id`, `status`, `attributes`, `error`, `created_at`, `updated_at`, `started_at`, `completed_at`, `cancel_requested_at`; typed: `status`, `mode`
-  - `better_supabase.workflow_schedules`: `id`, `tenant_id`, `name`, `workflow`, `input`, `cron`, `timezone`, `next_run_at`, `locked_until`, `paused`, `created_by`, `created_at`
+  - `better_supabase.workflow_schedules`: `id`, `tenant_id`, `name`, `workflow`, `input`, `cron`, `timezone`, `next_run_at`, `lock_expires_at`, `paused`, `created_by`, `created_at`
   - `better_supabase.workflow_semaphores`: `key`, `holder`, `acquired_at`, `expires_at`
-  - `better_supabase.workflow_start_requests`: `id`, `key`, `workflow`, `input`, `tenant_id`, `actor_id`, `concurrency`, `status`, `not_before`, `claimed_until`, `run_id`, `created_at`, `started_at`; typed: `status`
+  - `better_supabase.workflow_start_requests`: `id`, `key`, `workflow`, `input`, `tenant_id`, `actor_id`, `concurrency`, `status`, `not_before_at`, `claim_expires_at`, `run_id`, `created_at`, `started_at`; typed: `status`
 
 {/* adoptable-tables:end */}
 
@@ -970,22 +970,14 @@ already has, such as `parent_id`, is refused.
 
 The line tables of `quotes`, `invoices` and `deals` (`quote_lines`,
 `invoice_lines`, `deal_lines`) can be yours too. Map them with `tables.lines`
-and `columns.lines`, and declare the columns of yours that `set_*_lines`
-should write in `options.lineExtraColumns`: each line's `fields` sets them, a
+and `columns.lines`, and list the columns of yours that `set_*_lines`
+should write in the line table comment as `@bsb fields`: each line's `fields` sets them, a
 key it leaves out keeps the column's default, and reads return them under
 `fields` on each line. `set_*_lines` replaces every line of the record, so
 give a column of yours that no line sets a default.
 
-```ts title="better-supabase.config.ts"
-export default defineConfig({
-  blocks: {
-    quotes: {
-      tables: { quotes: "public.quotes", lines: "public.quote_lines" },
-      columns: { lines: { parent: "quote_id" } },
-      options: { lineExtraColumns: { sku: "text" } },
-    },
-  },
-});
+```sql title="supabase/schemas/your_quote_lines.sql"
+alter table "better_supabase"."your_quote_lines" add column "sku" text;
 ```
 
 ### Names on your tables
@@ -1005,8 +997,9 @@ reports it as [BS348](/docs/cli/doctor#bs348). Postgres combines permissive
 policies with `or`, so the block adds no `bsb_` policy for a command one of
 your permissive policies already allows for the block's roles: with `true`,
 the block's condition, the block's condition without some of its `and`
-operands, or one of those as an `or` operand of your condition. A comment in the block's file names your policy, and the
-`drop policy if exists` before it removes the copy an earlier install left. A
+operands, or one of those as an `or` operand of your condition. A comment in the block's file names your policy, and the schema diff
+removes the copy an earlier install left, because the file no longer declares
+it. A
 `bsb_` policy whose condition is wider than yours stays, because it can open
 rows your policies keep closed; [BS347](/docs/cli/doctor#bs347) reports it.
 On tenant tables, one restrictive policy per command (`bsb_tenant_scope_select`,
@@ -1049,10 +1042,9 @@ grants, but no restrictive `bsb_tenant_scope` policy either: it would add
 its organization check to every one of your policies, and so close rows that
 your policies open on purpose, such as a platform permission that reads
 across organizations. Keeping rows inside an organization is then up to your
-policies. Its file keeps the
-`drop policy if exists` for each policy it leaves out, followed by a comment
-that names the policy and says your policies govern the table, so `upgrade`
-removes the copies an earlier install left. Only your tables change: the
+policies. Its file holds a comment
+that names each policy it leaves out and says your policies govern the table,
+so the schema diff removes the copies an earlier install left. Only your tables change: the
 block's own tables keep its policies. Doctor then skips the table in
 [BS347](/docs/cli/doctor#bs347) and reports
 [BS350](/docs/cli/doctor#bs350) when the table has row level security on but
@@ -1201,7 +1193,7 @@ pnpm better-supabase db backfill projects.organization_id --value "'0b7c...'::uu
 ```
 
 It touches only rows where the column is null, so you can run it again until
-nothing is left. Then run `better-supabase doctor --fix`: it validates the
+nothing is left. Then run `better-supabase doctor --yes`: it validates the
 check ([BS236](/docs/cli/doctor#bs236)), which scans the table without
 blocking reads or writes.
 
@@ -1209,9 +1201,9 @@ blocking reads or writes.
 
 | Code                            | What it means                                                                                                                    |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| [BS236](/docs/cli/doctor#bs236) | a `not valid` check that no row fails any more; `doctor --fix` validates it                                                      |
+| [BS236](/docs/cli/doctor#bs236) | a `not valid` check that no row fails any more; `doctor --yes` validates it                                                      |
 | [BS237](/docs/cli/doctor#bs237) | an enriched table keeps permissive policies or grants of its own beyond what its scope grants                                    |
-| [BS238](/docs/cli/doctor#bs238) | an enriched table has rows without an owner; it names the `db backfill` command, and after it `doctor --fix` validates the check |
+| [BS238](/docs/cli/doctor#bs238) | an enriched table has rows without an owner; it names the `db backfill` command, and after it `doctor --yes` validates the check |
 | [BS342](/docs/cli/doctor#bs342) | a column of your table has a type the block can't write into                                                                     |
 | [BS347](/docs/cli/doctor#bs347) | a block's `bsb_` policy can let a user reach rows your own policies keep closed                                                  |
 | [BS348](/docs/cli/doctor#bs348) | your table keeps its own `updated_at` trigger, so the block adds none                                                            |
@@ -1247,6 +1239,23 @@ Only files with a block marker count, so your own files are never removed.
    your tables (it says the table is the app's and which columns it adds),
    then write the migration with `supabase db schema declarative sync`.
 5. Apply the migration, then run `better-supabase db backfill` for each scope
-   column BS238 reports, and `better-supabase doctor --fix` to validate the
+   column BS238 reports, and `better-supabase doctor --yes` to validate the
    checks.
 6. Run `better-supabase doctor` and work through BS237, BS347 and BS348.
+
+## Columns your view lacks
+
+A view can't take the columns a block would add to a table. A column the block
+treats as optional (`updated_at`, `deleted_at`, `created_by` and similar) that
+your view does not have switches the feature that needs it off, with no `null`
+entry in the config. Mapping such a column to `null` when the view lacks it
+anyway is an error, because the block already leaves it out; the message names
+the entry to remove. Mapping an optional column to `null` while the view has it
+still turns the feature off on purpose. On a table you own, a `null` entry keeps
+meaning that the block does not add the column.
+
+`sql.tenantColumn` fills the tenant column of every block table. An entry such
+as `columns.teams.tenant: "org_id"` that repeats it is an error for the same
+reason. Add the columns the block should read and write as fields to the table
+comment with `@bsb fields`, see
+[columns your files add](/docs/blocks/sql#columns-your-files-add-to-a-block-table).

@@ -1,5 +1,5 @@
 import type { RiskMatrixDefinition } from "../../sql/modules/risks-sql.ts";
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -18,12 +18,10 @@ export type RisksSqlOptions = {
    */
   readonly defaultMatrix?: RiskMatrixDefinition;
   /** Extra columns on the risks table, set through `fields`. */
-  readonly extraColumns?: ExtraColumns;
 };
 
 export const risksSqlOptions: BlockOptionsSchema<RisksSqlOptions> =
   blockOptions<RisksSqlOptions>({
     categories: option.strings(),
     defaultMatrix: option.unknown<RiskMatrixDefinition>(),
-    extraColumns: option.extraColumns(),
   });

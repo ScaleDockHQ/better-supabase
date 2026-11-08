@@ -19,7 +19,7 @@ export {
   type GuardSet,
   type GuardSetting,
   type GuardsExtension,
-  type GuardsFindArgs,
+  type GuardsFindOptions,
   type GuardsOptions,
   type GuardViolation,
   recommendedGuards,

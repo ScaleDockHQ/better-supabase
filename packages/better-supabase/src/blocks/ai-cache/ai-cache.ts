@@ -98,7 +98,7 @@ function entryOf<T>(value: unknown): AiCacheEntry<T> {
 
   return {
     key: textOf(row["key"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     // SAFETY: KINDS holds exactly the AiCacheKind members.
     kind: KINDS.has(kind) ? (kind as AiCacheKind) : "other",
     model: optionalText(row["model"]),

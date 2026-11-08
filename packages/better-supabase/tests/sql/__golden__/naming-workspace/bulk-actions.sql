@@ -1,0 +1,252 @@
+-- ==== schema supabase/schemas/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block bulk-actions@1 managed
+-- @bsb-hash sha256:5d8f737aedaf7e1720dbba084d677660d67b84a7770f1c58e98ea39d1e6a0aa6
+-- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create table "better_supabase"."bulk_runs" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "subject_type" text not null,
+  "action" text not null,
+  "args" jsonb not null default '{}'::jsonb,
+  "ids" text[] not null,
+  "position" integer not null default 0,
+  "succeeded" integer not null default 0,
+  "failed" integer not null default 0,
+  "results" jsonb not null default '[]'::jsonb,
+  "status" text not null default 'pending' constraint bsb_bulk_runs_status_check check ("status" in ('pending', 'running', 'completed', 'failed')),
+  "created_by" uuid not null,
+  "created_at" timestamptz not null default now(),
+  "finished_at" timestamptz
+);
+create index bulk_runs_created_by_idx on "better_supabase"."bulk_runs" ("created_by", "created_at" desc);
+create index "bulk_runs_tenant_idx" on "better_supabase"."bulk_runs" ("tenant_id");
+alter table "better_supabase"."bulk_runs" enable row level security;
+revoke all on "better_supabase"."bulk_runs" from public, anon, authenticated;
+grant select on "better_supabase"."bulk_runs" to authenticated;
+grant all on "better_supabase"."bulk_runs" to service_role;
+create policy bsb_bulk_runs_read on "better_supabase"."bulk_runs"
+  for select to authenticated
+  using ("created_by" = (select auth.uid()));
+
+create or replace function "better_supabase"."bulk_row"(tenant uuid, subject_type text, subject_id text, action text, args jsonb)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
+end;
+$$;
+revoke execute on function "better_supabase"."bulk_row"(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."bulk_row"(uuid, text, text, text, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."bulk_apply"(tenant uuid, subject_type text, ids text[], action text, args jsonb, atomic boolean)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_chunk text[] := coalesce(bulk_apply.ids, array[]::text[]);
+  v_id text;
+  v_ok integer := 0;
+  v_failed integer := 0;
+  v_results jsonb := '[]'::jsonb;
+  v_message text;
+  v_hint text;
+  v_state text;
+begin
+  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk_actions.run'), false) then
+    raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
+  end if;
+  if not (bulk_apply.action = any (array[]::text[])) then
+    raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
+  end if;
+  if cardinality(v_chunk) > 500 then
+    raise exception 'more than 500 rows; start a background run' using errcode = '22023', hint = 'BULK_TOO_MANY';
+  end if;
+  foreach v_id in array v_chunk loop
+    begin
+      perform "better_supabase"."bulk_row"(bulk_apply.tenant, bulk_apply.subject_type, v_id, bulk_apply.action, coalesce(bulk_apply.args, '{}'::jsonb));
+      v_ok := v_ok + 1;
+      v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'ok', true));
+    exception when others then
+      get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint, v_state = returned_sqlstate;
+      if coalesce(bulk_apply.atomic, false) then
+        raise exception using message = v_message, hint = coalesce(v_hint, ''), errcode = v_state;
+      end if;
+      v_failed := v_failed + 1;
+      v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'ok', false, 'error', jsonb_build_object('code', nullif(v_hint, ''), 'message', v_message, 'sqlstate', v_state)));
+    end;
+  end loop;
+  return jsonb_build_object('total', cardinality(v_chunk), 'succeeded', v_ok, 'failed', v_failed, 'results', v_results);
+end;
+$$;
+revoke execute on function "better_supabase"."bulk_apply"(uuid, text, text[], text, jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."bulk_apply"(uuid, text, text[], text, jsonb, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."start_bulk"(tenant uuid, subject_type text, ids text[], action text, args jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+  v_total integer := cardinality(coalesce(start_bulk.ids, array[]::text[]));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk_actions.run'), false) then
+    raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
+  end if;
+  if not (start_bulk.action = any (array[]::text[])) then
+    raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
+  end if;
+  if v_total > 100000 then
+    raise exception 'a background run takes at most 100000 rows' using errcode = '22023', hint = 'BULK_TOO_MANY';
+  end if;
+  raise exception 'background bulk runs need the queue block' using errcode = '0A000', hint = 'BULK_NO_JOBS';
+  insert into "better_supabase"."bulk_runs" ("tenant_id", "subject_type", "action", "args", "ids", "created_by")
+  values (start_bulk.tenant, start_bulk.subject_type, start_bulk.action, coalesce(start_bulk.args, '{}'::jsonb), coalesce(start_bulk.ids, array[]::text[]), auth.uid())
+  returning "id" into v_id;
+  null;
+  return jsonb_build_object('id', v_id, 'total', v_total, 'topic', 'bulk:' || v_id::text);
+end;
+$$;
+revoke execute on function "better_supabase"."start_bulk"(uuid, text, text[], text, jsonb) from public, anon;
+grant execute on function "better_supabase"."start_bulk"(uuid, text, text[], text, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."bulk_run"(run_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'id', r."id", 'organizationId', r."tenant_id", 'subjectType', r."subject_type",
+    'action', r."action", 'status', r."status", 'total', cardinality(r."ids"),
+    'position', r."position", 'succeeded', r."succeeded", 'failed', r."failed",
+    'results', r."results", 'createdAt', r."created_at", 'finishedAt', r."finished_at")
+  from "better_supabase"."bulk_runs" r where r."id" = bulk_run.run_id;
+$$;
+revoke execute on function "better_supabase"."bulk_run"(uuid) from public, anon;
+grant execute on function "better_supabase"."bulk_run"(uuid) to authenticated, service_role;
+
+-- Runs the next rows of a background run as the user who started it, with
+-- their claims and the authenticated role, so their permissions and policies apply.
+create or replace function "better_supabase"."bulk_step"(run_id uuid, size integer)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_run "better_supabase"."bulk_runs"%rowtype;
+  v_role text := current_user;
+  v_claims text := current_setting('request.jwt.claims', true);
+  v_size integer := least(greatest(coalesce(bulk_step.size, 200), 1), 500);
+  v_chunk text[];
+  v_id text;
+  v_ok integer := 0;
+  v_failed integer := 0;
+  v_results jsonb := '[]'::jsonb;
+  v_message text;
+  v_hint text;
+  v_state text;
+  v_allowed boolean;
+  v_status text;
+  v_done boolean;
+begin
+  select * into v_run from "better_supabase"."bulk_runs" r where r."id" = bulk_step.run_id for update;
+  if not found then
+    raise exception 'bulk run not found' using errcode = 'P0002', hint = 'BULK_RUN_NOT_FOUND';
+  end if;
+  if v_run."status" in ('completed', 'failed') then
+    return jsonb_build_object('id', v_run."id", 'status', v_run."status", 'done', true);
+  end if;
+  v_chunk := v_run."ids"[v_run."position" + 1 : v_run."position" + v_size];
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', v_run."created_by", 'role', 'authenticated', 'aud', 'authenticated')::text, true);
+  set local role authenticated;
+  v_allowed := coalesce(better_supabase.can('tenant', v_run."tenant_id", 'bulk_actions.run'), false);
+  if v_allowed then
+    foreach v_id in array v_chunk loop
+    begin
+      perform "better_supabase"."bulk_row"(v_run."tenant_id", v_run."subject_type", v_id, v_run."action", v_run."args");
+      v_ok := v_ok + 1;
+      v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'ok', true));
+    exception when others then
+      get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint, v_state = returned_sqlstate;
+      if false then
+        raise exception using message = v_message, hint = coalesce(v_hint, ''), errcode = v_state;
+      end if;
+      v_failed := v_failed + 1;
+      v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'ok', false, 'error', jsonb_build_object('code', nullif(v_hint, ''), 'message', v_message, 'sqlstate', v_state)));
+    end;
+  end loop;
+  end if;
+  execute format('set local role %I', v_role);
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  v_done := not v_allowed or v_run."position" + cardinality(coalesce(v_chunk, array[]::text[])) >= cardinality(v_run."ids");
+  v_status := case when not v_allowed then 'failed' when v_done then 'completed' else 'running' end;
+  update "better_supabase"."bulk_runs" set
+    "position" = case when v_allowed then "position" + cardinality(coalesce(v_chunk, array[]::text[])) else "position" end,
+    "succeeded" = "succeeded" + v_ok,
+    "failed" = "failed" + v_failed,
+    "results" = "results" || v_results,
+    "status" = v_status,
+    "finished_at" = case when v_done then now() else null end
+  where "id" = v_run."id"
+  returning * into v_run;
+  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
+    perform realtime.send(jsonb_build_object('id', v_run."id", 'status', v_status, 'position', v_run."position", 'total', cardinality(v_run."ids"), 'succeeded', v_run."succeeded", 'failed', v_run."failed"), 'progress', 'bulk:' || v_run."id"::text, true);
+  end if;
+  if v_done then
+    null;
+  end if;
+  return jsonb_build_object('id', v_run."id", 'status', v_status, 'position', v_run."position", 'total', cardinality(v_run."ids"), 'succeeded', v_run."succeeded", 'failed', v_run."failed", 'done', v_done);
+end;
+$$;
+revoke execute on function "better_supabase"."bulk_step"(uuid, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."bulk_step"(uuid, integer) to service_role;
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+create policy bsb_tenant_scope_select on "better_supabase"."bulk_runs" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("created_by" = (select auth.uid()))
+  );
+create policy bsb_tenant_scope_insert on "better_supabase"."bulk_runs" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_update on "better_supabase"."bulk_runs" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+
+-- ==== data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block-data bulk-actions
+-- @bsb-hash sha256:f6f12b0c55c4dcc82ff19c67a5ffd411e97dfdea8218965c0ef89b4d8af3dc52
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('bulk-actions', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();

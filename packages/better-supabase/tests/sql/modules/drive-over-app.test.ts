@@ -49,7 +49,7 @@ create table public.file_drives (
   organization_id uuid not null,
   drive_type public.file_drive_type not null,
   name text not null,
-  owner_user_id uuid,
+  owner_id uuid,
   connection_id uuid references public.file_drive_connections (id) on delete cascade,
   created_by uuid,
   created_at timestamptz not null default now(),
@@ -119,6 +119,7 @@ const BLOCKS: AnyBlocksConfig = {
       nodes: {
         tenant: "organization_id",
         drive: "drive_id",
+        deletedAt: "deleted_at",
         attachment: null,
         path: null,
         rank: null,
@@ -145,7 +146,7 @@ const BLOCKS: AnyBlocksConfig = {
       drives: {
         tenant: "organization_id",
         kind: "drive_type",
-        owner: "owner_user_id",
+        owner: "owner_id",
         downloadBlocked: null,
       },
       connections: { tenant: "organization_id" },

@@ -12,13 +12,11 @@ describe("inbox drafts", () => {
   it("keeps one open user draft per author and ai drafts for staff", () => {
     const sql = body();
 
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."inbox_drafts" (',
-    );
+    expect(sql).toContain('create table "better_supabase"."inbox_drafts" (');
     expect(sql).toContain("check (\"source\" in ('user', 'ai'))");
     expect(sql).toContain("inbox_drafts_author_check");
     expect(sql).toContain(`where "source" = 'user' and "status" = 'draft';`);
-    expect(sql).toContain("create policy inbox_drafts_read");
+    expect(sql).toContain("create policy bsb_inbox_drafts_read");
     expect(sql).toContain(`or "source" = 'ai') and`);
   });
 

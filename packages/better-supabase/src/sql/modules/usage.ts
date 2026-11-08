@@ -46,7 +46,7 @@ const NAMES: BlockSqlNames = {
       app: { writes: false },
       lifecycle: { tenant: "tenant" },
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         meter: "meter",
         day: "day",
         value: "value",
@@ -60,7 +60,7 @@ const NAMES: BlockSqlNames = {
       app: { writes: false },
       lifecycle: { tenant: "tenant" },
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         meter: "meter",
         key: "idempotency_key",
         quantity: "quantity",
@@ -73,7 +73,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { user: "actor", tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         meter: "meter",
         quantity: "quantity",
         actor: "actor_id",
@@ -88,7 +88,7 @@ const NAMES: BlockSqlNames = {
       app: { writes: false },
       lifecycle: { tenant: "tenant" },
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         meter: "meter",
         periodStart: "period_start",
         subject: "subject",
@@ -113,7 +113,7 @@ const NAMES: BlockSqlNames = {
       app: { writes: false },
       lifecycle: { tenant: "tenant" },
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         periodStart: "period_start",
         periodEnd: "period_end",
         invoice: "invoice_id",
@@ -126,7 +126,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         plan: "plan",
         meter: "meter",
         limit: "limit",
@@ -316,7 +316,7 @@ alter table ${counters} enable row level security;
 ${revokeTable(counters)}
 grant select on ${counters} to authenticated;
 grant all on ${counters} to service_role;
-${renderPolicy(makePolicy({ table: counters, name: "usage_counters_read", command: "select", roles: ["authenticated"], using: readPolicy(cc("tenant")) }), { drop: true, target: counters })}
+${renderPolicy(makePolicy({ table: counters, name: "usage_counters_read", command: "select", roles: ["authenticated"], using: readPolicy(cc("tenant")) }), { target: counters })}
 
 -- One row per idempotency key, so a retried increment counts once.
 create table if not exists ${events} (
@@ -372,7 +372,7 @@ alter table ${history} enable row level security;
 ${revokeTable(history)}
 grant select on ${history} to authenticated;
 grant all on ${history} to service_role;
-${renderPolicy(makePolicy({ table: history, name: "usage_history_read", command: "select", roles: ["authenticated"], using: readPolicy(hc("tenant")) }), { drop: true, target: history })}${
+${renderPolicy(makePolicy({ table: history, name: "usage_history_read", command: "select", roles: ["authenticated"], using: readPolicy(hc("tenant")) }), { target: history })}${
         partitioned
           ? `
 
@@ -414,7 +414,7 @@ alter table ${quotas} enable row level security;
 ${revokeTable(quotas)}
 grant select on ${quotas} to authenticated;
 grant all on ${quotas} to service_role;
-${renderPolicy(makePolicy({ table: quotas, name: "usage_quotas_read", command: "select", roles: ["authenticated"], using: `${qc("tenant")} is null or ${readPolicy(qc("tenant"))}` }), { drop: true, target: quotas })}
+${renderPolicy(makePolicy({ table: quotas, name: "usage_quotas_read", command: "select", roles: ["authenticated"], using: `${qc("tenant")} is null or ${readPolicy(qc("tenant"))}` }), { target: quotas })}
 
 -- The bigint signatures and return types before quantities were numeric.
 drop function if exists ${fn("usage_quota")}(${id}, text);

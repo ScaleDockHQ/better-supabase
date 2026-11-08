@@ -10,12 +10,7 @@ import type { Names } from "./pipelines-bindings.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import {
-  addExtraColumns,
-  extraFieldsArg,
-  lockTable,
-  schemaPreamble,
-} from "../shared.ts";
+import { extraFieldsArg, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { pipelineBindings } from "./pipelines-bindings.ts";
 import { pipelineSeeds } from "./pipelines-seeds.ts";
@@ -83,7 +78,7 @@ const NAMES: BlockSqlNames = {
     "before_pipeline_stage_change",
     "after_pipeline_stage_change",
   ],
-  options: ["extraColumns", "brand"],
+  options: ["brand"],
   tables: {
     pipelines: {
       name: "pipelines",
@@ -170,7 +165,7 @@ const NAMES: BlockSqlNames = {
         outcome: "outcome",
         amount: "amount",
         currency: "currency",
-        actor: "actor_user_id",
+        actor: "actor_id",
         enteredAt: "entered_at",
         exitedAt: "exited_at",
       },
@@ -215,7 +210,7 @@ function tables(ctx: BlockSqlContext, names: Names): string {
         roles: ["authenticated"],
         using: ctx.scope.check(c(table, "tenant"), names.read),
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   const transitions = ctx.hasTable("transitions")
@@ -251,7 +246,7 @@ create table if not exists ${t("pipelines")} (
   unique nulls not distinct (${c("pipelines", "tenant")}, ${c("pipelines", "subjectType")}, ${c("pipelines", "scope")}, ${c("pipelines", "key")})
 );${key("pipelines", "key_key", `${c("pipelines", "tenant")}, ${c("pipelines", "subjectType")}, ${c("pipelines", "scope")}, ${c("pipelines", "key")}`, " nulls not distinct")}
 create unique index if not exists ${ctx.naming.rename("pipelines_default_idx")} on ${t("pipelines")} (${c("pipelines", "tenant")}, ${c("pipelines", "subjectType")}, coalesce(${c("pipelines", "scope")}, ''))
-  where ${c("pipelines", "isDefault")} and ${c("pipelines", "archivedAt")} is null;${addExtraColumns(t("pipelines"), names.extras)}
+  where ${c("pipelines", "isDefault")} and ${c("pipelines", "archivedAt")} is null;
 ${lockTable(t("pipelines"), { read: true })}
 ${read("pipelines")}
 
@@ -288,7 +283,7 @@ create index if not exists ${ctx.naming.rename("pipeline_stage_history_pipeline_
 create unique index if not exists ${ctx.naming.rename("pipeline_stage_history_open_idx")} on ${t("history")} (${h("subjectType")}, ${h("subjectId")}) where ${h("exitedAt")} is null;
 ${lockTable(t("history"), { read: true })}
 -- A history row is visible to whoever can read its record.
-${renderPolicy(makePolicy({ table: t("history"), name: ctx.naming.rename("pipeline_stage_history_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjectType")}, ${h("subjectId")}, 'read')` }), { drop: true, target: t("history") })}
+${renderPolicy(makePolicy({ table: t("history"), name: ctx.naming.rename("pipeline_stage_history_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjectType")}, ${h("subjectId")}, 'read')` }), { target: t("history") })}
 `;
 }
 
@@ -311,8 +306,8 @@ function rowJson(ctx: BlockSqlContext, table: string, alias: string): string {
 }
 
 /**
- * `options.extraColumns`, added to the pipelines table. `stages` is reserved:
- * `list_pipelines` returns it next to the row.
+ * The columns your schema files add, added to the pipelines table. `stages` is
+ * reserved: `list_pipelines` returns it next to the row.
  */
 const extrasOf = (ctx: BlockSqlContext) =>
   ctx.extraColumns("pipelines", ["stages", "fields"]);

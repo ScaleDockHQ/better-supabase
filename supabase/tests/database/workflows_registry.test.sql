@@ -41,7 +41,7 @@ select is(
   'a second caller finds the lease held'
 );
 
-update better_supabase.workflow_runs set dispatch_until = now() - interval '1 second'
+update better_supabase.workflow_runs set dispatch_expires_at = now() - interval '1 second'
 where id = (select id from ids where name = 'first');
 
 select isnt(

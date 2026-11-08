@@ -18,7 +18,7 @@ import { createObservations } from "better-supabase/blocks/observations";
 ```
 
 The module requires `memberships`, `permissions` and `subjects`: an
-observation belongs to any record type in `config.subjects`, and the caller
+observation belongs to any record type in `config.recordTypes`, and the caller
 needs access to that record. With [forms](/docs/blocks/forms) a submitted form
 records observations, with [notifications](/docs/blocks/notifications) a
 critical value notifies the record's leads, with `outbox` it records the
@@ -220,11 +220,10 @@ interpretation (`N`, `L`, `H`, `LL`, `HH`), and `final`, `amended` and
 
 ## Options
 
-| Option         | Default | Does                                                                                         |
-| -------------- | ------- | -------------------------------------------------------------------------------------------- |
-| `defaults`     | `none`  | `vitals` installs the nine system definitions above                                          |
-| `partitioned`  | `false` | Partitions the observations table by month; amendments keep their link without a foreign key |
-| `extraColumns` | none    | Extra columns on the observations table                                                      |
+| Option        | Default | Does                                                                                         |
+| ------------- | ------- | -------------------------------------------------------------------------------------------- |
+| `defaults`    | `none`  | `vitals` installs the nine system definitions above                                          |
+| `partitioned` | `false` | Partitions the observations table by month; amendments keep their link without a foreign key |
 
 Pass a Standard Schema as `fields` to type the extra columns, parse them on
 reads and validate them on `record`:

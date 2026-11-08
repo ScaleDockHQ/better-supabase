@@ -118,7 +118,7 @@ export interface MeetingDecision {
 /** A task opened from a meeting. */
 export interface MeetingActionItem {
   /** The work item the `tasks` block owns. */
-  readonly workItemId: string;
+  readonly taskId: string;
   readonly title: string;
   readonly state: string;
   readonly dueAt?: Temporal.Instant;
@@ -296,9 +296,9 @@ export interface MeetingsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the meeting's extra columns
-   * (`blocks.meetings.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `create` and `update`.
+   * A Standard Schema for the meeting's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `create` and `update`.
    */
   readonly fields?: S;
   /** `before` and `after` hooks per method (ADR 0015). */
@@ -424,7 +424,7 @@ function actionItemOf(
   value: Readonly<Record<string, unknown>>,
 ): MeetingActionItem {
   return {
-    workItemId: textOf(value["workItemId"]),
+    taskId: textOf(value["taskId"]),
     title: textOf(value["title"]),
     state: textOf(value["state"]),
     ...optional("dueAt", optionalInstant(value["dueAt"])),

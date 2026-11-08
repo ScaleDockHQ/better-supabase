@@ -1,8 +1,12 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { expiredFlagsQuery, moduleLayout } from "../../sql/index.ts";
+import {
+  appColumnsOf,
+  expiredFlagsQuery,
+  moduleLayout,
+} from "../../sql/index.ts";
 
-/** Flags past their `expires_at` extra column that aren't archived. */
+/** Flags past their `expires_at` column that aren't archived. */
 async function expiredFlags(context: DoctorContext): Promise<FindingInput[]> {
   const db = context.database;
 
@@ -14,7 +18,10 @@ async function expiredFlags(context: DoctorContext): Promise<FindingInput[]> {
 
   try {
     query = expiredFlagsQuery(
-      moduleLayout(context.config),
+      {
+        ...moduleLayout(context.config),
+        appColumns: appColumnsOf(context.sqlFiles ?? []),
+      },
       context.config.blockNames,
     );
   } catch {
@@ -45,7 +52,7 @@ export const FLAG_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Flag past its expiry",
     description:
-      "The flags table has an `expires_at` column (`blocks['flags'].options.extraColumns`), and a flag on the live database that isn't archived has an `expires_at` in the past. A release flag that outlives its rollout keeps a dead branch in the code. The finding names the `owner` column when the table has one.",
+      "The flags table has an `expires_at` column (an app schema file adds it to the flags table), and a flag on the live database that isn't archived has an `expires_at` in the past. A release flag that outlives its rollout keeps a dead branch in the code. The finding names the `owner` column when the table has one.",
     check: expiredFlags,
   },
 ];

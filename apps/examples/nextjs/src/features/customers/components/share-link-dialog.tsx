@@ -4,7 +4,6 @@ import { useAction } from "better-supabase/react";
 import { CopyIcon, Link2Icon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/reui/badge";
 import {
@@ -53,12 +52,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { revokeCustomerShareLinks } from "@/features/customers/customer-record-actions";
+import { revokeCustomerShareLinks } from "@/features/customers/customers-actions";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { Loaded, ShareLinkRow } from "../customer-record-queries";
+import type { Loaded, ShareLinkRow } from "../customers-queries";
 
-import { createShareLink } from "../customer-record-actions";
+import { createShareLink } from "../customers-actions";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:share-link-dialog
@@ -252,9 +252,9 @@ function CreateShareLink({ customerId }: { customerId: string }) {
                 size="icon"
                 aria-label={t("Copy link")}
                 onClick={() => {
-                  void navigator.clipboard
-                    .writeText(url)
-                    .then(() => toast.success(t("Link copied")));
+                  void navigator.clipboard.writeText(url).then(() => {
+                    toast.success(t("Link copied"));
+                  });
                 }}
               >
                 <CopyIcon />

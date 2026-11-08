@@ -21,7 +21,7 @@ const REFUSED = {
   rejected: [
     {
       dealId: "d1",
-      workItemId: "d1",
+      taskId: "d1",
       field: "stageId",
       hint: "LOCKED",
       reason: "locked",
@@ -30,7 +30,7 @@ const REFUSED = {
 };
 
 const OK = {
-  accepted: [{ dealId: "d1", workItemId: "d1", field: "stageId" }],
+  accepted: [{ dealId: "d1", taskId: "d1", field: "stageId" }],
   rejected: [],
 };
 
@@ -62,7 +62,7 @@ describe("moveStage and move", () => {
     });
 
     const tasks = createTasks({ transport: transport(REFUSED) });
-    const result = await tasks.move({ workItemId: "d1", stageId: "s2" });
+    const result = await tasks.move({ taskId: "d1", stageId: "s2" });
     expect(result.ok).toBe(false);
   });
 });

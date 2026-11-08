@@ -3,7 +3,6 @@
 
 import { KeyRoundIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,10 +23,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useApiKeys } from "@/hooks/use-api-keys";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { apiKeysConfig } from "@/lib/supabase/blocks/slices";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { apiKeyCreated } from "../api-key-actions";
+import { apiKeyCreated } from "../api-keys-actions";
 import { CreateApiKeyDialog } from "./create-api-key-dialog";
 
 /**
@@ -49,7 +49,7 @@ export function ApiKeyTable({
   const { keys, created, creating, revoking, error, create, revoke, dismiss } =
     useApiKeys({
       organizationId,
-      schema: blockConfig["api-keys"].api,
+      schema: apiKeysConfig.api,
       onChanged: async ({ kind }) => {
         if (kind === "created") {
           await apiKeyCreated({});

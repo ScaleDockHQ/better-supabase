@@ -12,7 +12,6 @@ import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsJson,
   fail,
   lockTable,
@@ -90,7 +89,7 @@ const NAMES: BlockSqlNames = {
     "after_form_submission",
     "before_public_form_submission",
   ],
-  options: ["handlers", "publicLimit", "extraColumns"],
+  options: ["handlers", "publicLimit"],
   tables: {
     forms: {
       name: "forms",
@@ -416,9 +415,9 @@ ${handlers.map(([key, name]) => `        when ${sqlString(key)} then v_link := $
   ${f("createdAt")} timestamptz not null default now(),
   ${f("updatedAt")} timestamptz not null default now(),
   unique (${f("tenant")}, ${f("key")})
-);${addExtraColumns(forms, extras)}
+);
 ${lockTable(forms, { read: true })}
-${renderPolicy(makePolicy({ table: forms, name: ctx.naming.rename("forms_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(f("tenant"), read) }), { drop: true, target: forms })}
+${renderPolicy(makePolicy({ table: forms, name: ctx.naming.rename("forms_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(f("tenant"), read) }), { target: forms })}
 
 create table if not exists ${versions} (
   ${v("id")} uuid primary key default gen_random_uuid(),
@@ -432,7 +431,7 @@ create table if not exists ${versions} (
   unique (${v("form")}, ${v("number")})
 );
 ${lockTable(versions, { read: true })}
-${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("form_versions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(v("tenant"), read) }), { drop: true, target: versions })}
+${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("form_versions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(v("tenant"), read) }), { target: versions })}
 
 create table if not exists ${submissions} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -457,7 +456,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_vers
 create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_respondent_idx`)} on ${submissions} (${s("respondent")}) where ${s("respondent")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_subject_idx`)} on ${submissions} (${s("subjectType")}, ${s("subjectId")}) where ${s("subjectType")} is not null;
 ${lockTable(submissions, { read: true })}
-${renderPolicy(makePolicy({ table: submissions, name: ctx.naming.rename("form_submissions_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(s("tenant"), review)} or ${s("respondent")} = (select auth.uid())` }), { drop: true, target: submissions })}
+${renderPolicy(makePolicy({ table: submissions, name: ctx.naming.rename("form_submissions_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(s("tenant"), review)} or ${s("respondent")} = (select auth.uid())` }), { target: submissions })}
 alter table ${submissions} add column if not exists ${s("score")} numeric;
 alter table ${submissions} add column if not exists ${s("maxScore")} numeric;
 alter table ${submissions} add column if not exists ${s("passed")} boolean;

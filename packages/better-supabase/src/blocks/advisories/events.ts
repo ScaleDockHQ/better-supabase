@@ -48,7 +48,7 @@ export interface VulnerabilityExploitedEventData extends VulnerabilityEventData 
   readonly kevDueOn: string | null;
 }
 
-/** `vex_statement.saved`. */
+/** `vex_statement.updated`. */
 export interface VexStatementEventData {
   readonly organizationId: string;
   readonly id: string;
@@ -82,7 +82,7 @@ export type AdvisoriesEvents = {
   readonly "vulnerability.created": VulnerabilityEventData;
   readonly "vulnerability.enriched": VulnerabilityEventData;
   readonly "vulnerability.exploited": VulnerabilityExploitedEventData;
-  readonly "vex_statement.saved": VexStatementEventData;
+  readonly "vex_statement.updated": VexStatementEventData;
   readonly "advisory.created": AdvisoryEventData;
   readonly "advisory.updated": AdvisoryEventData;
   readonly "advisory.published": AdvisoryEventData;
@@ -97,7 +97,7 @@ export const advisoriesEvents: Events<AdvisoriesEvents> = defineEvents({
   "vulnerability.created": event<VulnerabilityEventData>(),
   "vulnerability.enriched": event<VulnerabilityEventData>(),
   "vulnerability.exploited": event<VulnerabilityExploitedEventData>(),
-  "vex_statement.saved": event<VexStatementEventData>(),
+  "vex_statement.updated": event<VexStatementEventData>(),
   "advisory.created": event<AdvisoryEventData>(),
   "advisory.updated": event<AdvisoryEventData>(),
   "advisory.published": event<AdvisoryEventData>(),

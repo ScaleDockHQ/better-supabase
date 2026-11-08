@@ -1,45 +1,10 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:75c751b671f820a2136c0b9cb79833cf240fd6ed38089cba3f83e71ea1a7489d
+-- @bsb-hash sha256:18901deced284ddb60ca580653dbdf5fc8d8300f4c403e410143aa533a880ff1
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 
 -- "public"."invoices" is the app's table (supabase/schemas/010_app.sql): tables.invoices adds only the columns it lacks.
 alter table "public"."invoices" add column if not exists "organization_id" uuid references "better_supabase"."organizations" ("id") on delete cascade;
@@ -63,43 +28,33 @@ alter table "public"."invoices" enable row level security;
 -- "public"."invoices" keeps the app's own grants; these add what the scope needs.
 grant select, insert, update, delete on "public"."invoices" to authenticated;
 grant all on "public"."invoices" to service_role;
-drop policy if exists bsb_invoices_select on "public"."invoices";
 create policy bsb_invoices_select on "public"."invoices"
   for select to authenticated
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_invoices_insert on "public"."invoices";
 create policy bsb_invoices_insert on "public"."invoices"
   for insert to authenticated
   with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_invoices_update on "public"."invoices";
 create policy bsb_invoices_update on "public"."invoices"
   for update to authenticated
   using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()))
   with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_invoices_delete on "public"."invoices";
 create policy bsb_invoices_delete on "public"."invoices"
   for delete to authenticated
   using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_tenant_scope on "public"."invoices";
-drop policy if exists bsb_tenant_scope_select on "public"."invoices";
 create policy bsb_tenant_scope_select on "public"."invoices" as restrictive
   for select to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "public"."invoices";
 create policy bsb_tenant_scope_insert on "public"."invoices" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "public"."invoices";
 create policy bsb_tenant_scope_update on "public"."invoices" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "public"."invoices";
 create policy bsb_tenant_scope_delete on "public"."invoices" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "invoices_organization_id_idx" on "public"."invoices" ("organization_id");
-drop trigger if exists "bsb_updated_at" on "public"."invoices";
 create trigger "bsb_updated_at" before update on "public"."invoices"
   for each row execute function better_supabase.set_updated_at();
 create or replace function "better_supabase"."invoices_emit_event"()
@@ -134,7 +89,6 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."invoices_emit_event"() from public, anon, authenticated;
-drop trigger if exists "bsb_emit_event" on "public"."invoices";
 create trigger "bsb_emit_event" after insert or update or delete on "public"."invoices"
   for each row execute function "better_supabase"."invoices_emit_event"();
 

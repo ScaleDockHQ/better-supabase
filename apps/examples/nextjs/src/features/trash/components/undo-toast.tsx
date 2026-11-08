@@ -3,8 +3,8 @@
 
 import { useAction } from "better-supabase/react";
 import { useExtracted } from "next-intl";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { restoreTrashItem } from "../trash-actions";
@@ -33,7 +33,7 @@ export function useUndoToast() {
   });
 
   return function show({ trashItemId, name }: TrashedRecord) {
-    toast(
+    toast.message(
       <span data-recipe="undo-toast">
         {t("{name} moved to the trash", { name })}
       </span>,

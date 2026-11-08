@@ -37,6 +37,8 @@ export interface PreviewOptions {
   readonly ownTables?: Readonly<Record<string, string>>;
   /** The columns of the tables in `ownTables`. */
   readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
+  /** Each statement can run again, as a migration over a deployed design needs. */
+  readonly rerunnable?: boolean;
 }
 
 /**
@@ -69,16 +71,15 @@ export function previewFiles(
     provider,
   );
 
-  return renderBlocks(
-    config.blockNames,
-    options.ownTables === undefined
-      ? layout
+  return renderBlocks(config.blockNames, {
+    ...(options.rerunnable === true ? { ...layout, rerunnable: true } : layout),
+    ...(options.ownTables === undefined
+      ? {}
       : {
-          ...layout,
           ownTables: options.ownTables,
           ...(options.ownColumns ? { ownColumns: options.ownColumns } : {}),
-        },
-  ).map((file) => ({
+        }),
+  }).map((file) => ({
     path: file.path,
     module: file.module,
     contents: file.contents,

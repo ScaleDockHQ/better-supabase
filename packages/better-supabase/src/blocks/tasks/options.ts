@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -6,7 +6,6 @@ import { blockOptions, option } from "../options.ts";
 export type TasksSqlOptions = {
   readonly prefix?: string;
   readonly maxAssignees?: number;
-  readonly extraColumns?: ExtraColumns;
   /** Whether an item's author can delete it without the delete key. */
   readonly authorCanDelete?: boolean;
   readonly notify?: boolean;
@@ -29,7 +28,6 @@ export const tasksSqlOptions: BlockOptionsSchema<TasksSqlOptions> =
   blockOptions<TasksSqlOptions>({
     prefix: option.string({ default: "TASK-" }),
     maxAssignees: option.number({ default: 0 }),
-    extraColumns: option.extraColumns(),
     authorCanDelete: option.boolean({ default: true }),
     notify: option.boolean({ default: true }),
     actionPath: option.string(),

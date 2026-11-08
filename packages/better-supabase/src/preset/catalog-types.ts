@@ -28,11 +28,6 @@ export interface PresetCatalogBlock {
   /** Tenant names that would rename a table or column to a name it already uses. */
   readonly tenantNameClashes?: readonly PresetTenantName[];
   /**
-   * The logical table `options.extraColumns` adds columns to, when it takes
-   * them.
-   */
-  readonly extraColumns?: string;
-  /**
    * The nouns `blocks.<name>.names` renames, with what config resolution needs
    * to name them and register their subjects.
    */
@@ -152,7 +147,7 @@ export interface PresetCatalogInputSchema {
   readonly jsonSchema: Readonly<Record<string, unknown>>;
 }
 
-/** A block type named after one of its entities, such as `WorkItem`. */
+/** A block type named after one of its entities, such as `Task`. */
 export interface PresetCatalogEntityType {
   readonly name: string;
   /** Takes the extra columns as its first type parameter, `F`. */

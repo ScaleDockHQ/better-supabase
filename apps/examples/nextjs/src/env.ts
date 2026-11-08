@@ -1,6 +1,8 @@
 import { createEnv } from "@t3-oss/env-nextjs";
 import * as v from "valibot";
 
+import { publicEnv } from "./env-public";
+
 const flag = v.optional(v.picklist(["0", "1"]), "0");
 
 /**
@@ -26,6 +28,7 @@ const {
 } = process.env;
 
 export const env = createEnv({
+  extends: [publicEnv],
   shared: {
     NODE_ENV: v.optional(
       v.picklist(["development", "test", "production"]),
@@ -57,12 +60,6 @@ export const env = createEnv({
     // next.config.ts reads it directly, since the handler is set at build.
     BSB_REMOTE_CACHE_DIR: v.optional(v.string()),
   },
-  client: {
-    NEXT_PUBLIC_SUPABASE_URL: v.pipe(v.string(), v.url()),
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: v.pipe(v.string(), v.minLength(1)),
-    // The VAPID public key for web push; the push card hides without it.
-    NEXT_PUBLIC_VAPID_PUBLIC_KEY: v.optional(v.string()),
-  },
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
     EXPOSE_TESTING_API,
@@ -77,10 +74,6 @@ export const env = createEnv({
     CONNECT_GMAIL_CONNECTOR,
     CONNECT_OUTLOOK_CONNECTOR,
     BSB_REMOTE_CACHE_DIR,
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-    NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
   },
   emptyStringAsUndefined: true,
 });

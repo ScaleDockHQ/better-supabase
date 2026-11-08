@@ -107,7 +107,7 @@ select throws_ok(
 
 -- The ledger import: closed takes it, locked refuses it, a second run is a no-op.
 select set_config(
-  'bsb.run',
+  'better_supabase.run',
   (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'ledger', '{}'::jsonb) ->> 'id'),
   true
 );
@@ -115,11 +115,11 @@ select set_config(
 reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
 
 select is(
   (select better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'accounting_account',
+    current_setting('better_supabase.run')::uuid, 'accounting_account',
     '[{"key":"1900","data":{"code":"1900","name":"Clearing","type":"asset","parentCode":"1200"}}]'::jsonb
   ) ->> 'inserted'),
   '1',
@@ -135,7 +135,7 @@ select is(
 
 select is(
   (select better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'accounting_entry',
+    current_setting('better_supabase.run')::uuid, 'accounting_entry',
     '[{"key":"feb-1","data":{"journalCode":"SAL","entryDate":"2026-02-10","lines":[{"accountCode":"1200","debit":"500"},{"accountCode":"4000","credit":"500"}]}}]'::jsonb
   ) ->> 'inserted'),
   '1',
@@ -149,7 +149,7 @@ select is(
 );
 select is(
   (select better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'accounting_entry',
+    current_setting('better_supabase.run')::uuid, 'accounting_entry',
     '[{"key":"feb-1","data":{"journalCode":"SAL","entryDate":"2026-02-10","lines":[{"accountCode":"1200","debit":"500"},{"accountCode":"4000","credit":"500"}]}}]'::jsonb
   ) ->> 'unchanged'),
   '1',
@@ -163,7 +163,7 @@ select is(
 );
 select is(
   (select better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'accounting_entry',
+    current_setting('better_supabase.run')::uuid, 'accounting_entry',
     '[{"key":"mar-1","data":{"journalCode":"SAL","entryDate":"2026-03-12","lines":[{"accountCode":"1200","debit":"500"},{"accountCode":"4000","credit":"500"}]}}]'::jsonb
   ) -> 'errors' -> 0 ->> 'code'),
   'ACCOUNTING_PERIOD_LOCKED',
@@ -171,7 +171,7 @@ select is(
 );
 select is(
   (select better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'accounting_entry',
+    current_setting('better_supabase.run')::uuid, 'accounting_entry',
     '[{"key":"bad-1","data":{"journalCode":"SAL","entryDate":"2026-02-11","lines":[{"accountCode":"1200","debit":"500"},{"accountCode":"4000","credit":"400"}]}}]'::jsonb
   ) -> 'errors' -> 0 ->> 'code'),
   'IMPORT_ITEM_INVALID',
@@ -181,7 +181,7 @@ select is(
 -- Opening balances and the carry forward.
 select is(
   (select better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'accounting_opening_balance',
+    current_setting('better_supabase.run')::uuid, 'accounting_opening_balance',
     '[{"key":"2026-1200","data":{"fiscalYear":2026,"accountCode":"1200","amount":"7000"}},{"key":"2026-4000","data":{"fiscalYear":2026,"accountCode":"4000","amount":"-7000"}}]'::jsonb
   ) ->> 'inserted'),
   '2',

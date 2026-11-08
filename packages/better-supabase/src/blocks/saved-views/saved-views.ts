@@ -46,7 +46,10 @@ import { SAVED_VIEW_DENSITIES, SAVED_VIEW_SCOPES } from "./types.ts";
 export interface SavedViewRef<F extends object = Record<never, never>> {
   readonly id: string;
   readonly rank: string;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
 }
 
@@ -68,8 +71,8 @@ export interface SaveViewInput<
   /** Updates this view instead of adding one. */
   readonly id?: string;
   /**
-   * Values for the app's extra columns (`options.extraColumns`); left out keeps
-   * the stored ones.
+   * Values for the app's extra columns (the columns the app's schema files
+   * add); left out keeps the stored ones.
    */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
@@ -83,8 +86,8 @@ export interface SavedViewsOptions<
   /** List definitions by key; `upsert` checks a view's query against its list. */
   readonly lists?: Readonly<Record<string, SavedViewList>>;
   /**
-   * A Standard Schema for the extra columns of the saved views table
-   * (`blocks.saved-views.options.extraColumns`): writes are validated, reads
+   * A Standard Schema for the extra columns of the saved views table (columns
+   * the app's schema files add to the table): writes are validated, reads
    * parsed.
    */
   readonly fields?: S;

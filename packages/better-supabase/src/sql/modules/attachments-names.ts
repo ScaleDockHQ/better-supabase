@@ -62,7 +62,6 @@ export const NAMES: BlockSqlNames = {
     "scanBuckets",
     "publicBuckets",
     "offline",
-    "extraColumns",
     "topic",
     "sources",
   ],
@@ -86,7 +85,7 @@ export const NAMES: BlockSqlNames = {
       lifecycle: { user: "uploadedBy", tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         subjectType: "subject_type",
         subjectId: "subject_id",
         bucket: "bucket",
@@ -136,7 +135,7 @@ export const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         key: "key",
         name: "name",
         fields: "fields",
@@ -150,7 +149,7 @@ export const NAMES: BlockSqlNames = {
       lifecycle: { user: "uploadedBy", tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         attachment: "attachment_id",
         version: "version",
         bucket: "bucket",

@@ -71,9 +71,8 @@ export interface OrdersOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the extra columns of the orders table
-   * (`blocks.orders.options.extraColumns`): writes are validated, reads
-   * parsed.
+   * A Standard Schema for the extra columns of the orders table (columns the
+   * app's schema files add to the table): writes are validated, reads parsed.
    */
   readonly fields?: S;
   /** Takes the payment at checkout and the money back on refunds. */
@@ -136,7 +135,10 @@ export interface CheckoutInput<F extends object = Record<never, never>> {
   /** Where a redirecting payment method returns the customer. */
   readonly returnUrl?: string;
   readonly metadata?: Readonly<Record<string, string>>;
-  /** Values for the order's extra columns (`options.extraColumns`). */
+  /**
+   * Values for the order's extra columns (the columns the app's schema files
+   * add).
+   */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 

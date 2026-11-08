@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineListQuery, UNSET } from "../../src/list/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const list = defineListQuery(betterSupabase, "customers", {
   search: ["name", "kvk"],

@@ -18,10 +18,10 @@ describe("knowledge module", () => {
   it("owns the document and chunk tables with an hnsw and a gin index", () => {
     const sql = body();
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."knowledge_documents" (',
+      'create table "better_supabase"."knowledge_documents" (',
     );
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."knowledge_chunks" (',
+      'create table "better_supabase"."knowledge_chunks" (',
     );
     expect(sql).toContain('"embedding" extensions.vector(1536)');
     expect(sql).toContain("using hnsw");
@@ -140,10 +140,10 @@ describe("knowledge module", () => {
     const sql = body();
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."knowledge_collections" (',
+      'create table "better_supabase"."knowledge_collections" (',
     );
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."knowledge_collection_grants" (',
+      'create table "better_supabase"."knowledge_collection_grants" (',
     );
     expect(sql).toContain("('automatic', 'restricted', 'disabled')");
     expect(sql).toContain('"collection_id" uuid');
@@ -166,10 +166,7 @@ describe("knowledge module", () => {
     const sql = body();
 
     expect(sql).toContain("knowledge_documents_system_check");
-    expect(sql).toContain('"organization_id" is null');
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."create_knowledge_document"(',
-    );
+    expect(sql).toContain('"tenant_id" is null');
     expect(sql).toContain("collections uuid[] default null");
     expect(sql).toContain("<> 'disabled'");
     expect(sql).toContain('"priority"');
@@ -229,7 +226,7 @@ describe("knowledge module", () => {
     const [plan] = upgradePlan([{ module: "knowledge", version: 2 }]);
     const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
 
-    expect(sql).toContain('alter column "organization_id" drop not null');
+    expect(sql).toContain('alter column "tenant_id" drop not null');
   });
 
   it("types team grants with the teams id type and keeps the tenant", () => {
@@ -238,15 +235,10 @@ describe("knowledge module", () => {
     expect(sql).toContain('"team_id" uuid,');
     expect(sql).toContain('tm."team_id" = x."team_id"');
     expect(sql).toContain(
-      'drop function if exists "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, text, boolean);',
-    );
-    expect(sql).toContain(
       '"set_knowledge_collection_grant"(uuid, uuid, uuid, boolean)',
     );
-    expect(sql).toContain(
-      'alter table "better_supabase"."knowledge_collection_grants" add column if not exists "organization_id" uuid;',
-    );
-    expect(sql).toContain('values (v_row."id", v_row."organization_id",');
+    expect(sql).toContain('"tenant_id" uuid');
+    expect(sql).toContain('values (v_row."id", v_row."tenant_id",');
 
     const bigint = rendered(["teams"], {
       teams: { options: { teamIdType: "bigint" } },
@@ -260,7 +252,7 @@ describe("knowledge module", () => {
     const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
 
     expect(plan?.to).toBe(7);
-    expect(sql).toContain('add column if not exists "organization_id" uuid;');
-    expect(sql).toContain('set "organization_id" = c."organization_id"');
+    expect(sql).toContain('add column if not exists "tenant_id" uuid;');
+    expect(sql).toContain('set "tenant_id" = c."tenant_id"');
   });
 });

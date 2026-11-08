@@ -8,7 +8,7 @@ import type { ServerOptions } from "../../src/server/server-types.ts";
 import type { AdapterRun } from "../../src/testing/adapter.ts";
 
 import { bufferInPlace, toResponse } from "../../src/bridges/shared.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { toEdge } from "../../src/edge/index.ts";
 import { toElysia } from "../../src/elysia/index.ts";
 import { toExpo } from "../../src/expo/index.ts";
@@ -25,7 +25,7 @@ import { testAdapter } from "../../src/testing/adapter.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 type Bs = Parameters<AdapterRun>[0];
 

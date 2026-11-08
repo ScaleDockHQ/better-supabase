@@ -8,6 +8,7 @@ import type {
   Generator,
   TopicTriggerValueConfig,
 } from "../config/index.ts";
+import type { FrameworkBinding } from "../plugins/index.ts";
 import type { ParityPaths } from "./type-parity.ts";
 
 import {
@@ -20,6 +21,7 @@ import {
   providerApiProblem,
   SKILLS_AGENTS,
 } from "../config/index.ts";
+import { frameworkProblem } from "../plugins/index.ts";
 import { CONVENTION_FIELDS } from "../preset/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
 import * as blockSchemas from "./block-config-schema.ts";
@@ -71,6 +73,11 @@ const isGenerator = (value: unknown): value is Generator =>
 const generator = v.custom<Generator>(
   isGenerator,
   "must be a generator: { name, generate(input) }",
+);
+
+const framework = v.custom<FrameworkBinding>(
+  (value) => frameworkProblem(value) === undefined,
+  "must be a framework binding built with defineFramework",
 );
 
 /**
@@ -242,7 +249,6 @@ const authorization = v.strictObject({
     canAssign: v.optional(v.string()),
     canAssignFor: v.optional(v.string()),
     permissionsFor: v.optional(v.string()),
-    canApprove: v.optional(v.string()),
     isApprover: v.optional(v.string()),
     holdersOf: v.optional(v.string()),
     actorMayWrite: v.optional(v.string()),
@@ -395,9 +401,7 @@ const authorization = v.strictObject({
   delegation: v.optional(
     v.strictObject({ scopes: v.optional(v.record(v.string(), strings)) }),
   ),
-  approvals: v.optional(
-    v.strictObject({ distinctApprover: v.optional(v.boolean()) }),
-  ),
+  wildcards: v.optional(v.picklist(["all", "prefix", "none"])),
   problems: v.optional(strings),
 });
 
@@ -577,9 +581,9 @@ const FLAT = {
       }),
     ),
   ),
-  output: v.optional(v.string()),
+  file: v.optional(v.string()),
   postgrestVersion: v.optional(v.string()),
-  recordTypes: v.optional(v.boolean()),
+  records: v.optional(v.boolean()),
   hooks: v.optional(hooksSchema),
   json: v.optional(
     v.record(
@@ -635,6 +639,7 @@ const FLAT = {
   ),
   readSets: v.optional(strings),
   generators: v.optional(v.array(generator)),
+  frameworks: v.optional(v.array(framework)),
   organization: v.optional(
     v.strictObject({
       column: v.optional(v.string()),
@@ -657,9 +662,7 @@ const FLAT = {
       tables: v.optional(strings),
       global: v.optional(strings),
       users: v.optional(stringRecord),
-      policies: v.optional(
-        v.strictObject({ from: strings, output: v.string() }),
-      ),
+      policies: v.optional(v.strictObject({ from: strings, file: v.string() })),
       triggers: v.optional(
         v.array(
           v.strictObject({
@@ -773,7 +776,7 @@ const FLAT = {
       ]),
     ),
   ),
-  subjects: v.optional(
+  recordTypes: v.optional(
     v.record(
       v.pipe(
         v.string(),
@@ -840,7 +843,7 @@ const FLAT = {
   seed: v.optional(
     v.strictObject({
       entry: v.optional(v.string()),
-      output: v.optional(v.string()),
+      file: v.optional(v.string()),
       perTenant: v.optional(v.string()),
       defaults: v.optional(
         v.union([
@@ -857,15 +860,9 @@ const FLAT = {
           size: v.optional(v.picklist(["s", "m", "l"])),
           seed: v.optional(v.number()),
           locale: v.optional(v.string()),
-          output: v.optional(v.string()),
+          file: v.optional(v.string()),
         }),
       ),
-    }),
-  ),
-  openapi: v.optional(
-    v.strictObject({
-      entry: v.optional(v.string()),
-      output: v.optional(v.string()),
     }),
   ),
   specs: v.optional(
@@ -876,7 +873,7 @@ const FLAT = {
           v.strictObject({
             format: v.pipe(v.string(), v.minLength(1)),
             version: v.optional(v.string()),
-            output: v.optional(v.string()),
+            file: v.optional(v.string()),
             overlays: v.optional(strings),
             serialize: v.optional(v.picklist(["json", "yaml"])),
             ui: v.optional(
@@ -895,7 +892,7 @@ const FLAT = {
       only: v.optional(strings),
       strict: v.optional(v.boolean()),
       format: v.optional(v.picklist(["text", "sarif", "github"])),
-      output: v.optional(v.string()),
+      file: v.optional(v.string()),
       sources: v.optional(strings),
       policyHelperLimit: v.optional(v.number()),
       sealTriggers: v.optional(strings),
@@ -908,15 +905,15 @@ const FLAT = {
   ),
   env: v.optional(
     v.strictObject({
-      output: v.optional(v.string()),
+      file: v.optional(v.string()),
       prefix: v.optional(v.string()),
     }),
   ),
-  integrations: v.optional(v.array(v.picklist(INTEGRATIONS))),
+  adapters: v.optional(v.array(v.picklist(INTEGRATIONS))),
   skills: v.optional(
     v.strictObject({ agents: v.optional(v.array(v.picklist(SKILLS_AGENTS))) }),
   ),
-  keys: v.optional(v.strictObject({ output: v.optional(v.string()) })),
+  keys: v.optional(v.strictObject({ file: v.optional(v.string()) })),
 };
 
 const pickEntries = <const K extends keyof typeof FLAT>(
@@ -957,9 +954,9 @@ const ENTRIES = {
       ...pickEntries(["claims", "authorization", "entitlements"]),
     }),
   ),
-  subjects: FLAT.subjects,
+  recordTypes: FLAT.recordTypes,
   blocks: FLAT.blocks,
-  adapters: FLAT.integrations,
+  adapters: FLAT.adapters,
   gen: v.optional(
     v.strictObject({
       tasks: v.optional(v.array(v.picklist(GEN_TASKS))),
@@ -967,6 +964,8 @@ const ENTRIES = {
         v.pipe(v.number(), v.minValue(1, "must be a positive number of ms")),
       ),
       contentMapper: v.optional(v.boolean()),
+      tableModules: v.optional(v.boolean()),
+      blockModules: v.optional(v.boolean()),
       clientBlocks: v.optional(v.array(v.string())),
       powersync: v.optional(powersyncGenSchema),
       api: v.optional(
@@ -977,10 +976,10 @@ const ENTRIES = {
         }),
       ),
       ...pickEntries([
-        "output",
+        "file",
         "casing",
         "postgrestVersion",
-        "recordTypes",
+        "records",
         "hooks",
         "tables",
         "json",
@@ -990,11 +989,12 @@ const ENTRIES = {
         "storagePaths",
         "functions",
         "generators",
+        "frameworks",
         "readSets",
       ]),
     }),
   ),
-  api: v.optional(v.strictObject(pickEntries(["openapi", "specs"]))),
+  api: v.optional(v.strictObject(pickEntries(["specs"]))),
   tooling: v.optional(
     v.strictObject(pickEntries(["doctor", "env", "keys", "skills"])),
   ),
@@ -1032,7 +1032,6 @@ const DesignSchema = v.strictObject({
   version: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
   preset: v.optional(PresetSchema),
   appTables: v.optional(designAppTables),
-  extraColumns: v.optional(v.record(v.string(), stringRecord)),
   positions: v.optional(
     v.record(v.string(), v.pipe(v.array(v.number()), v.length(2))),
   ),
@@ -1136,6 +1135,8 @@ export interface ConfigSchemas {
   readonly triggerValue: v.GenericSchema;
   /** Checked by a function, so the renderer writes its JSON Schema. */
   readonly generator: v.GenericSchema;
+  /** A framework binding, checked by a function as `generator` is. */
+  readonly framework: v.GenericSchema;
   /** A `/create` design, rendered into `schemas/design-v1.json`. */
   readonly design: v.GenericSchema;
 }
@@ -1148,6 +1149,7 @@ const SCHEMAS = {
   privilege,
   triggerValue,
   generator,
+  framework,
   design: DesignSchema,
 } satisfies InStep<ConfigSchemas, ConfigDrift>;
 

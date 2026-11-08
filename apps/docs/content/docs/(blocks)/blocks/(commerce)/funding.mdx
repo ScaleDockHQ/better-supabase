@@ -20,8 +20,8 @@ import { createFunding } from "better-supabase/blocks/funding";
 
 The module requires `tenant`, `permissions`, [subjects](/docs/blocks/subjects)
 and [contacts](/docs/blocks/contacts). An award belongs to a record of any
-type in `config.subjects`, usually a client. With
-[time-tracking](/docs/blocks/time-tracking) approved time entries register as
+type in `config.recordTypes`, usually a client. With
+[time-entries](/docs/blocks/time-entries) approved time entries register as
 deliveries, with [bookings](/docs/blocks/bookings) a delivery can name the
 booking it came from, with [invoices](/docs/blocks/invoices) an accepted
 claim becomes an invoice to the funder, and with
@@ -128,7 +128,7 @@ newest first, by `awardId`, `status`, `since` and `until`.
 
 ### From time entries
 
-With time-tracking installed, `registerFromTime(organizationId, since, until)`
+With time-entries installed, `registerFromTime(organizationId, since, until)`
 registers the time entries that started in that range on an approved
 timesheet. Each entry delivers on the one active award of its record that
 covers its day. Minutes and hours count the entry's duration; other units
@@ -245,7 +245,6 @@ await testFundingClaimChannel(sandboxChannel, { claim, rendered });
 | -------------- | ------- | -------------------------------------------------------------- |
 | `formats`      | none    | The claim format keys `buildClaim` accepts; any key when empty |
 | `timeCategory` | none    | The time entry column that holds a product code                |
-| `extraColumns` | none    | Extra columns on the awards table                              |
 
 The client's `fields` schema types the extra columns on every award it
 returns.

@@ -165,7 +165,7 @@ describe.skipIf(!live)("mail-sync", () => {
         messageCount: 1,
         subjects: [person],
       });
-      expect(thread?.engagementId).toBeDefined();
+      expect(thread?.activityId).toBeDefined();
       expect(
         await mail.link({ threadId: thread!.id, subjects: [person] }),
       ).toMatchObject({ ok: false });
@@ -265,7 +265,7 @@ describe.skipIf(!live)("mail-sync", () => {
 
       const events = await s.rows<{ type: string }>(
         `select type from better_supabase.outbox_events
-         where organization_id = $1 and type like 'mail_%'
+         where tenant_id = $1 and type like 'mail_%'
          order by position`,
         [org],
       );

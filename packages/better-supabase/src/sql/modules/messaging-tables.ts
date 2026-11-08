@@ -2,7 +2,7 @@ import type { MessagingSql } from "./messaging-names.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, triggerGrant } from "../shared.ts";
+import { triggerGrant } from "../shared.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
 export const MESSAGE_RESERVED = ["fields"] as const;
@@ -209,7 +209,7 @@ create index if not exists ${idx("messaging_messages_author_idx")} on ${t("messa
         ? `\ncreate index if not exists ${idx("messaging_messages_file_anchor_idx")} on ${t("messages")} ((${ms("anchor")} ->> 'attachmentId')) where ${ms("anchor")} ->> 'kind' = 'file';`
         : ""
     }
-create index if not exists ${idx("messaging_messages_pinned_idx")} on ${t("messages")} (${ms("conversation")}, ${ms("pinnedAt")} desc) where ${ms("pinnedAt")} is not null;${addExtraColumns(t("messages"), ctx.extraColumns("messages", MESSAGE_RESERVED))}
+create index if not exists ${idx("messaging_messages_pinned_idx")} on ${t("messages")} (${ms("conversation")}, ${ms("pinnedAt")} desc) where ${ms("pinnedAt")} is not null;
 ${lock("messages")}`,
     edits: `create table if not exists ${t("edits")} (
   ${ed("id")} uuid primary key default gen_random_uuid(),
@@ -491,7 +491,7 @@ begin
         and (select realtime.topic()) like ${prefix} || '%'
         and ${fn("conversation_topic_allowed")}(substr((select realtime.topic()), ${start}))`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
         ${renderPolicy(
           makePolicy({
@@ -503,7 +503,7 @@ begin
         and (select realtime.topic()) like ${prefix} || '%'
         and ${fn("conversation_topic_allowed")}(substr((select realtime.topic()), ${start}))`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
   end if;
 end;

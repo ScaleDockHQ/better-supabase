@@ -10,6 +10,7 @@ import { sessionStats } from "../../../lib/supabase/server";
  * page load.
  */
 export async function GET(): Promise<Response> {
+  // The counters change on every call, so the handler must never be prerendered.
   await connection();
 
   if (env.EXPOSE_TESTING_API !== "1") {

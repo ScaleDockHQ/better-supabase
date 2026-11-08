@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 
 import {
-  MembersSection,
   MembersSectionSkeleton,
+  MembersSection,
 } from "@/features/members/components/members-section";
 
 export default function MembersSettingsPage() {

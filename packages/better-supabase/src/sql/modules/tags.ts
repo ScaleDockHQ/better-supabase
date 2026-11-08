@@ -15,7 +15,6 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter, rankBackfill } from "../rank-sql.ts";
 import { declareRead } from "../reads.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -92,7 +91,7 @@ const NAMES: BlockSqlNames = {
     ),
   ],
   hooks: ["before_tag_apply", "after_tag_apply"],
-  options: ["extraColumns", "patch"],
+  options: ["patch"],
   tables: {
     tags: {
       name: "tags",
@@ -287,7 +286,7 @@ function build(ctx: BlockSqlContext): string {
 ${ranked ? `  ${rank} text collate "C" not null default 'V',\n` : ""}  ${createdAt} timestamptz not null default now(),
   ${updatedAt} timestamptz not null default now(),
   unique${shared ? " nulls not distinct" : ""} (${tenant}, ${kind}, ${slug})
-);${addExtraColumns(tags, extras)}
+);
 ${lockTable(tags, { read: true })}
 ${
   taggings === ""
@@ -336,7 +335,7 @@ ${lockTable(taggings, { read: true })}
 
   return `${schemaPreamble(ctx)}
 ${tables}
--- fields: the extra columns (blocks.tags.options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 ${
   patching
     ? ["", ", jsonb", extras.length === 0 ? ", text, jsonb" : ", text"]
@@ -771,7 +770,7 @@ ${userGrant(`${ctx.fn("rank_tag")}(uuid, text)`)}
 }
 
 const CONTRIBUTES: BlockContributes = {
-  bulk: (own) => [
+  "bulk-actions": (own) => [
     {
       name: "tags.set",
       declare: "v_tag uuid;",

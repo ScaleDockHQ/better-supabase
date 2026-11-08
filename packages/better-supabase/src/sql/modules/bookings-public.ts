@@ -26,7 +26,7 @@ export interface Parts {
   readonly manage: string;
   readonly create: string;
   readonly read: string;
-  /** `options.extraColumns`, which the bookings table gets. */
+  /** The columns your schema files add, which the bookings table gets. */
   readonly extras: readonly ExtraColumn[];
 }
 

@@ -26,6 +26,23 @@ export function defineSchema<
   return { meta: validateMeta(meta), extensions };
 }
 
+/**
+ * A table's runtime metadata with its key as a literal type. Called from a
+ * generated `tables/<table>.ts` module, so a page that imports one table ships
+ * only that table's metadata.
+ */
+/*#__NO_SIDE_EFFECTS__*/
+export function defineTable<const K extends string>(
+  meta: TableMeta & { readonly key: K },
+): TableModule<K> {
+  return meta;
+}
+
+/** What a generated `tables/<table>.ts` exports as the table's runtime value. */
+export type TableModule<K extends string = string> = TableMeta & {
+  readonly key: K;
+};
+
 function validateMeta(meta: SchemaMeta): SchemaMeta {
   // oxlint-disable-next-line typescript/no-unnecessary-condition -- generated files from another release can carry another version.
   if (meta.version !== 1) {
@@ -34,7 +51,9 @@ function validateMeta(meta: SchemaMeta): SchemaMeta {
     );
   }
 
-  return meta;
+  return meta.lazyTables === true
+    ? { ...meta, tables: { ...meta.tables } }
+    : meta;
 }
 
 export function tableMeta(meta: SchemaMeta, table: string): TableMeta {
@@ -61,4 +80,26 @@ export function relationMeta(
   }
 
   return { relation: found, target: tableMeta(meta, found.table) };
+}
+
+/**
+ * Adds `table` to the metadata of a schema that sets `lazyTables`. Returns
+ * whether it was new.
+ */
+export function addLazyTable(meta: SchemaMeta, table: TableMeta): boolean {
+  if (meta.lazyTables !== true) {
+    throw new TypeError(
+      `better-supabase: cannot register table "${table.key}": the schema lists its tables. Use client.db.${table.key}.`,
+    );
+  }
+
+  const tables: Record<string, TableMeta> = meta.tables;
+
+  if (Object.hasOwn(tables, table.key)) {
+    return false;
+  }
+
+  tables[table.key] = table;
+
+  return true;
 }

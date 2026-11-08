@@ -483,7 +483,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: `${g("user")} = (select auth.uid()) or ${accessCall(ctx, g("calendar"), "manage", "(select auth.uid())")}`,
   }),
-  { drop: true, target: grants },
+  { target: grants },
 )}
 `;
 }
@@ -833,7 +833,7 @@ export function recurrenceTables(ctx: BlockSqlContext): string {
           ? eventAccessCall(ctx, tenant, "read", "(select auth.uid())")
           : ctx.scope.check(tenant, read),
       }),
-      { drop: true, target: table },
+      { target: table },
     );
 
   const rulesName = ctx.tableName("rules").name;

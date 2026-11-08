@@ -29,7 +29,7 @@ select is(
   'no comment.posted event is written without a follower'
 );
 
-insert into better_supabase.notification_subscriptions (organization_id, user_id, subject_type, subject_id, level)
+insert into better_supabase.notification_subscriptions (tenant_id, user_id, subject_type, subject_id, level)
 values ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', 'customer', '00000000-0000-4000-8000-00000000a001', 'all');
 
 set local role authenticated;

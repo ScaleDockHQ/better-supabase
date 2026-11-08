@@ -95,7 +95,7 @@ export function closingIndex(code: string, open: number): number {
   return -1;
 }
 
-export const skipSpace = (code: string, from: number): number => {
+const skipSpace = (code: string, from: number): number => {
   let index = from;
 
   while (index < code.length && /\s/.test(code[index]!)) {
@@ -224,7 +224,7 @@ export function configObject(code: string): number | undefined {
   return literal ? literal.index + literal[0].length - 1 : undefined;
 }
 
-export const indentAt = (source: string, index: number): string =>
+const indentAt = (source: string, index: number): string =>
   /^[ \t]*/.exec(source.slice(source.lastIndexOf("\n", index - 1) + 1))?.[0] ??
   "";
 
@@ -959,4 +959,62 @@ export function setPathInJson(
   const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
 
   return jsonEdit(source, config, withPath(config, path, value), indent);
+}
+
+/** The range to cut for `props[index]`, with its comma and line. */
+export function cutRange(
+  source: string,
+  code: string,
+  open: number,
+  props: readonly Property[],
+  index: number,
+  multiline: boolean,
+): { readonly start: number; readonly end: number; readonly text: string } {
+  const prop = props[index]!;
+  const previous = props[index - 1];
+  const after = skipSpace(code, prop.valueEnd);
+  const tailFrom = code[after] === "," ? after + 1 : prop.valueEnd;
+
+  if (!multiline) {
+    return {
+      start: prop.start,
+      end: code[after] === "," ? skipSpace(code, tailFrom) : prop.valueEnd,
+      text: source.slice(prop.start, prop.valueEnd),
+    };
+  }
+
+  let before = open + 1;
+
+  if (previous) {
+    before = skipSpace(code, previous.valueEnd) + 1;
+  }
+
+  const gap = source.slice(before, prop.start);
+  const newline = gap.indexOf("\n");
+  const start = newline === -1 ? before : before + newline + 1;
+  const lineEnd = source.indexOf("\n", tailFrom);
+
+  const restIsBlank =
+    lineEnd !== -1 && code.slice(tailFrom, lineEnd).trim() === "";
+
+  const trailing = restIsBlank ? source.slice(tailFrom, lineEnd).trimEnd() : "";
+
+  return {
+    start,
+    end: restIsBlank ? lineEnd + 1 : tailFrom,
+    text: `${source.slice(start, prop.valueEnd)},${trailing}`,
+  };
+}
+
+/** Removes the `, }` an inline regroup leaves before the object's brace. */
+export function tidyInline(text: string, open: number): string {
+  const close = closingIndex(mask(text), open);
+
+  if (text.slice(open + 1, close).trim() === "") {
+    return `${text.slice(0, open + 1)}${text.slice(close)}`;
+  }
+
+  const head = text.slice(0, close).replace(/,\s*$/, " ");
+
+  return head + text.slice(close);
 }

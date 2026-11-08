@@ -107,7 +107,7 @@ export function kitchenSql(ctx: BlockSqlContext, names: OrdersNames): string {
         roles: ["authenticated"],
         using: readable(ctx.col(table, "tenant")),
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   const guard = (tenant: string, permissions: readonly string[]): string =>
@@ -260,7 +260,7 @@ begin
           select t::text from ${scope.ids(prepare)} t
         )`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
   end if;
 end;

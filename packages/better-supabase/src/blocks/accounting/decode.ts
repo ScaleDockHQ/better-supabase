@@ -11,7 +11,7 @@ import type {
   AccountingPeriod,
   AccountingPeriodStatus,
   AccountNormalSide,
-  AccountingSettings,
+  AccountingSetup,
   AccountRole,
   AccountType,
   BalanceSheet,
@@ -136,7 +136,7 @@ const amountArg = (value: bigint | Money | undefined): string | undefined =>
     ? undefined
     : (typeof value === "bigint" ? value : value.amount).toString();
 
-export function settingsOf(value: unknown, fn: string): AccountingSettings {
+export function settingsOf(value: unknown, fn: string): AccountingSetup {
   const row = recordOf(value, fn);
 
   return {

@@ -1,99 +1,16 @@
 -- ==== schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:aaff5a09bffb350c78a9b2decdd9a399ea81afaa449f9803b07b89ce953189e1
+-- @bsb-hash sha256:427a210cf9c13f5f59537c3e7dc4c6cace572710b48cd2a55744743b942fc6d0
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.column_default(relation text, name text, target anyelement)
-returns anyelement
-language plpgsql
-volatile
-security invoker
-set search_path = ''
-as $$
-declare
-  result alias for $0;
-  v_default text;
-begin
-  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
-  from pg_catalog.pg_attribute a
-  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
-  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
-  if v_default is not null then
-    execute 'select ' || v_default into result;
-  end if;
-  return result;
-end;
-$$;
-revoke execute on function better_supabase.column_default(text, text, anyelement) from public, anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."tags" (
+create table "better_supabase"."tags" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null,
-  "name" text not null check (length("name") between 1 and 80),
+  "name" text not null constraint bsb_tags_name_check check (length("name") >= 1 and length("name") <= 80),
   "slug" text not null,
   "color" text,
   "description" text,
@@ -102,12 +19,11 @@ create table if not exists "better_supabase"."tags" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "kind", "slug")
 );
-alter table "better_supabase"."tags" add column if not exists "app_note" text;
 alter table "better_supabase"."tags" enable row level security;
 revoke all on "better_supabase"."tags" from public, anon, authenticated;
 grant select on "better_supabase"."tags" to authenticated;
 grant all on "better_supabase"."tags" to service_role;
-create table if not exists "better_supabase"."taggings" (
+create table "better_supabase"."taggings" (
   "tenant_id" uuid not null,
   "tag_id" uuid not null references "better_supabase"."tags" ("id") on delete cascade,
   "subject_type" text not null,
@@ -115,14 +31,14 @@ create table if not exists "better_supabase"."taggings" (
   "created_at" timestamptz not null default now(),
   primary key ("tag_id", "subject_type", "subject_id")
 );
-create index if not exists "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
+create index "taggings_subject_idx" on "better_supabase"."taggings" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."taggings" enable row level security;
 revoke all on "better_supabase"."taggings" from public, anon, authenticated;
 grant select on "better_supabase"."taggings" to authenticated;
 grant all on "better_supabase"."taggings" to service_role;
 
--- fields: the extra columns (blocks.tags.options.extraColumns) to set.
-drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text);
+-- fields: the extra columns (columns your schema files add) to set.
+
 create or replace function "better_supabase"."create_tag"(tenant uuid, kind text, name text, color text, description text, fields jsonb default null)
 returns jsonb
 language plpgsql
@@ -218,8 +134,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."tag"(uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."tag"(uuid, text, text, uuid) to authenticated, service_role;
-
-drop function if exists "better_supabase"."update_tag"(uuid, text);
 create or replace function "better_supabase"."update_tag"(tag_id uuid, name text, fields jsonb default null)
 returns boolean
 language plpgsql
@@ -408,67 +322,32 @@ grant execute on function "better_supabase"."subjects_tags"(uuid, text, text[]) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."tags";
 create policy bsb_tenant_scope_select on "better_supabase"."tags" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tags";
 create policy bsb_tenant_scope_insert on "better_supabase"."tags" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."tags";
 create policy bsb_tenant_scope_update on "better_supabase"."tags" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tags";
 create policy bsb_tenant_scope_delete on "better_supabase"."tags" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."taggings";
 create policy bsb_tenant_scope_select on "better_supabase"."taggings" as restrictive
   for select to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."taggings";
 create policy bsb_tenant_scope_insert on "better_supabase"."taggings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."taggings";
 create policy bsb_tenant_scope_update on "better_supabase"."taggings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."taggings";
 create policy bsb_tenant_scope_delete on "better_supabase"."taggings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_059_tags.sql
 -- better-supabase module: tags

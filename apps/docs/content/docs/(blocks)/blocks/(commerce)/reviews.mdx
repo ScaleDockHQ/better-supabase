@@ -64,7 +64,6 @@ export default defineConfig({
 | `maxBodyLength`   | `5000`  | The longest body and reply                                                |
 | `moderation`      | `pre`   | `pre` waits for `publish`; `post` publishes at once and moderators reject |
 | `requirePurchase` | `false` | Only customers with a paid, uncancelled order for the product can review  |
-| `extraColumns`    | none    | Your own columns on `reviews`, typed with the client's `fields` schema    |
 
 `requirePurchase` needs the `orders` block with its tables. Submitting again replaces the caller's review and, under pre-moderation, sends it back to `pending`.
 

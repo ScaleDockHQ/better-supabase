@@ -4,13 +4,12 @@
 import type { DbError } from "better-supabase";
 import type { RecordFormInput } from "better-supabase/records";
 
-import { workItemInputSchema } from "better-supabase/blocks/tasks";
+import { taskInputSchema } from "better-supabase/blocks/tasks";
 import { useRecordForm } from "better-supabase/react";
 import { recordForm } from "better-supabase/records";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useMemo, useState } from "react";
-import { toast } from "sonner";
 
 import type { FieldRow } from "@/features/custom-fields/custom-fields-types";
 
@@ -40,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { TeamOption } from "../work-types";
@@ -83,7 +83,7 @@ export function CreateWorkItemDialog({
 
   const definition = useMemo(
     () =>
-      recordForm(workItemInputSchema, {
+      recordForm(taskInputSchema, {
         fields: ["title", "priority"],
         customFields: customFields.map((field) => ({
           key: field.key,

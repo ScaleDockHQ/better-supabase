@@ -1,8 +1,8 @@
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 import { membershipsExtension } from "better-supabase/blocks/memberships";
 import * as v from "valibot";
 
-import { schema } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
 /** Claims of the customer portal token: the customer the contact may see. */
 export const PortalClaims = v.object({
@@ -42,7 +42,7 @@ function scopedBy(column: "customerId" | "organizationId") {
  * customer in the token, next to the RLS policy `customer_id in (select
  * customer_ids_with('quotes.view'))`.
  */
-export const portal = defineSupabase(scopedBy("customerId"))
+export const portal = createSupabase(scopedBy("customerId"))
   .claims(PortalClaims)
   .use(
     membershipsExtension<v.InferOutput<typeof PortalClaims>>({
@@ -54,7 +54,7 @@ export const portal = defineSupabase(scopedBy("customerId"))
  * An employee's reads, filtered on the organization in the token, next to
  * `organization_id in (select organization_ids_with('quotes.view'))`.
  */
-export const staff = defineSupabase(scopedBy("organizationId"))
+export const staff = createSupabase(scopedBy("organizationId"))
   .claims(StaffClaims)
   .use(
     membershipsExtension<v.InferOutput<typeof StaffClaims>>({

@@ -17,10 +17,9 @@ describe("CONFIG_DEFAULTS", () => {
     expect(resolved.codecs).toEqual(CONFIG_DEFAULTS.codecs);
     expect(resolved.sql).toMatchObject(CONFIG_DEFAULTS.sql);
     expect(resolved.seed).toMatchObject(CONFIG_DEFAULTS.seed);
-    expect(resolved.openapi).toEqual(CONFIG_DEFAULTS.openapi);
     expect(resolved.specs.failOn).toBe(CONFIG_DEFAULTS.specs.failOn);
     expect(resolved.doctor).toMatchObject(CONFIG_DEFAULTS.doctor);
-    expect(resolved.env.output).toBe(CONFIG_DEFAULTS.env.output);
+    expect(resolved.env.file).toBe(CONFIG_DEFAULTS.env.file);
   });
 
   it("resolves the watch interval", () => {

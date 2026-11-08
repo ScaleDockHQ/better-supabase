@@ -43,23 +43,24 @@ import { LITE_RULES } from "./lite.ts";
 import { LIVE_STATE_RULES } from "./live-state-rules.ts";
 import { LIVE_RULES } from "./live.ts";
 import { skippedForMetadata } from "./metadata.ts";
+import { MIGRATION_RULES } from "./migration-rules.ts";
 import { MIGRATION_SAFETY_RULES } from "./migration-safety.ts";
 import { moduleFiles } from "./module-files.ts";
 import { MODULE_RULES } from "./modules.ts";
-import { NAMING_RULES } from "./naming.ts";
 import { NEXT_CACHE_RULES } from "./next-cache.ts";
 import { NOT_VALID_RULES } from "./not-valid.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { PLAIN_SECRET_RULES } from "./plain-secrets.ts";
 import { POLICY_RULES } from "./policies.ts";
+import { PRACTICE_RULES } from "./practices.ts";
 import { REALTIME_RULES } from "./realtime.ts";
-import { REMOVED_API_RULES } from "./removed-apis.ts";
 import { appliesTo, RLS_RULES } from "./rls.ts";
 import { ROUND_TRIP_RULES } from "./round-trips.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
 import { SEED_RULES } from "./seeds.ts";
 import {
   catalogOf,
+  deniesAll,
   exposed,
   lineOf,
   policyObject,
@@ -103,7 +104,7 @@ export interface Finding {
   readonly location?: Location;
   readonly object?: SqlObject;
   readonly help: string;
-  /** SQL that `doctor --fix` runs against the database to resolve it. */
+  /** SQL that `doctor --yes` runs against the database to resolve it. */
   readonly fix?: string;
 }
 
@@ -150,6 +151,8 @@ export interface DoctorContext {
   readonly sqlFiles?: readonly TextFile[];
   /** The `.sql` files under `supabase/seeds` (BS356). */
   readonly seedFiles?: readonly TextFile[];
+  /** The `.sql` files under `supabase/better-supabase-data` (BS357, BS358). */
+  readonly dataFiles?: readonly TextFile[];
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
   /** Better-supabase's peers and the versions the project installs (BS601). */
@@ -542,9 +545,7 @@ const OWN_RULES: readonly Rule[] = [
 
         const denying = table.policies.filter(
           (policy) =>
-            !policy.permissive &&
-            forAuthenticated(policy) &&
-            /^\s*false\s*$/i.test(policy.using ?? ""),
+            !policy.permissive && forAuthenticated(policy) && deniesAll(policy),
         );
 
         const covered = new Set(
@@ -561,7 +562,7 @@ const OWN_RULES: readonly Rule[] = [
 
         return [
           {
-            message: `${qualified(table)} is tenant-scoped but has no ${missing.join(", ")} policy for authenticated, so ${missing.join(" and ")} silently match no rows. Add the policies, or state the intent with a restrictive \`using (false)\` policy.`,
+            message: `${qualified(table)} is tenant-scoped but has no ${missing.join(", ")} policy for authenticated, so ${missing.join(" and ")} silently match no rows. Add the policies, or state the intent with a restrictive \`using (false)\` policy (\`with check (false)\` for insert).`,
             target: qualified(table),
             object: tableObject(table),
           },
@@ -1144,8 +1145,7 @@ export const RULES: readonly Rule[] = [
   ...NEXT_CACHE_RULES,
   ...ROUND_TRIP_RULES,
   ...CLAIM_RULES,
-  ...REMOVED_API_RULES,
-  ...NAMING_RULES,
+  ...MIGRATION_RULES,
   ...AUTHORIZATION_RULES,
   ...LIVE_RULES,
   ...MODULE_RULES,
@@ -1160,6 +1160,7 @@ export const RULES: readonly Rule[] = [
   ...PLAIN_SECRET_RULES,
   ...MIGRATION_SAFETY_RULES,
   ...NOT_VALID_RULES,
+  ...PRACTICE_RULES,
   ...LIVE_STATE_RULES,
   ...APP_TABLE_SCOPE_RULES,
   ...ENV_RULES,

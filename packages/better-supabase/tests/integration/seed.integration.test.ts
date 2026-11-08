@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineSeed } from "../../src/testing/seed.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { stackDbUrl } from "./stack-env.ts";
@@ -37,7 +37,7 @@ describe.skipIf(!live)("seed against the local database", () => {
     const organization = crypto.randomUUID();
     const customer = crypto.randomUUID();
 
-    const seed = defineSeed(defineSupabase(schema), {
+    const seed = defineSeed(createSupabase(schema), {
       customers: {
         first: {
           id: customer,

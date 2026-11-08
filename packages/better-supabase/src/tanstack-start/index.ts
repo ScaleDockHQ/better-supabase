@@ -1,7 +1,7 @@
 export { toTanStackStart } from "../bridges/tanstack-start.ts";
 
 export type {
-  TanStackStartServerArgs,
+  TanStackStartServerOptions,
   ToTanStackStartOptions,
 } from "../bridges/tanstack-start.ts";
 
@@ -9,7 +9,7 @@ export { createTanStackStart } from "./create.ts";
 
 export type {
   BetterTanStackStart,
-  TanStackStartHandlerArgs,
+  TanStackStartHandlerOptions,
   TanStackStartOptions,
 } from "./create.ts";
 

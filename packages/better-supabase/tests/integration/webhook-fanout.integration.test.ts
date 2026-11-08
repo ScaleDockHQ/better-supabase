@@ -31,7 +31,7 @@ describe.skipIf(!live)("webhook fan-out read check", () => {
         await s.asRole(who);
 
         const [row] = await s.rows<{ id: string }>(
-          `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
+          `insert into better_supabase.webhook_endpoints (tenant_id, name, url, event_types)
            values ($1, $2, $3, '{invoice.*}') returning id`,
           [organization, name, `https://${name}.example.com/hook`],
         );
@@ -49,7 +49,7 @@ describe.skipIf(!live)("webhook fan-out read check", () => {
         permissions: string[] | null,
       ): Promise<string> => {
         const [row] = await s.rows<{ id: string }>(
-          `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types, permissions)
+          `insert into better_supabase.webhook_endpoints (tenant_id, name, url, event_types, permissions)
            values ($1, $2, $3, '{invoice.*}', $4) returning id`,
           [organization, name, `https://${name}.example.com/hook`, permissions],
         );
@@ -62,7 +62,7 @@ describe.skipIf(!live)("webhook fan-out read check", () => {
       await serviceEndpoint("search", ["projects.read"]);
 
       const owners = await s.rows<{ id: string; created_by: string | null }>(
-        "select id, created_by from better_supabase.webhook_endpoints where organization_id = $1",
+        "select id, created_by from better_supabase.webhook_endpoints where tenant_id = $1",
         [organization],
       );
 
@@ -82,7 +82,7 @@ describe.skipIf(!live)("webhook fan-out read check", () => {
       expect(queued).toBe(2);
 
       const deliveries = await s.rows<{ endpoint_id: string; subject: string }>(
-        "select endpoint_id, subject from better_supabase.webhook_deliveries where organization_id = $1",
+        "select endpoint_id, subject from better_supabase.webhook_deliveries where tenant_id = $1",
         [organization],
       );
 

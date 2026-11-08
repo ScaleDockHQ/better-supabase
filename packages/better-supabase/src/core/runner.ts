@@ -7,7 +7,7 @@ import type { ExecuteContext, ExecuteResult, Executor } from "./executor.ts";
 import type {
   AnyPlugin,
   CallOptions,
-  HookArgs,
+  HookParams,
   MutationEvent,
   MutationKind,
   RequestContext,
@@ -40,7 +40,7 @@ export interface Runtime {
   readonly tuning?: RequestTuning;
 }
 
-export type Args = Readonly<Record<string, unknown>>;
+export type CallParams = Readonly<Record<string, unknown>>;
 
 export type Row = Record<string, unknown>;
 
@@ -76,7 +76,7 @@ const KNOWN_KEYS = new Set([
 
 const NO_OPTIONS: CallOptions = Object.freeze({});
 
-export function optionsOf(args: Args | undefined): CallOptions {
+export function optionsOf(args: CallParams | undefined): CallOptions {
   if (!args) {
     return NO_OPTIONS;
   }
@@ -125,7 +125,9 @@ function isThenable<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
   );
 }
 
-export function signalOf(args: Args | undefined): AbortSignal | undefined {
+export function signalOf(
+  args: CallParams | undefined,
+): AbortSignal | undefined {
   const signal = args?.["signal"];
 
   return signal instanceof AbortSignal ? signal : undefined;
@@ -158,7 +160,7 @@ export class OperationRunner {
     table: TableMeta,
     options: CallOptions,
     signal?: AbortSignal,
-  ): HookArgs {
+  ): HookParams {
     return {
       table,
       schema: this.runtime.meta,
@@ -366,44 +368,56 @@ export class OperationRunner {
     }
 
     const kind = mutationKind(op);
-    const rows = cloneRows(data.rows);
-    const keys = keysOf(op, rows);
+    const intent = op.intent ?? kind;
+    const keys = keysOf(op, data.rows);
     const { tenant } = runtime.context;
 
-    const event: MutationEvent = {
-      table: op.table,
-      kind,
-      intent: op.intent ?? kind,
-      rows,
+    const rest = {
       ...(keys ? { keys } : {}),
       ...(tenant === undefined ? {} : { tenant }),
       context: runtime.context,
     };
 
-    for (const plugin of plugins) {
-      try {
-        const pending = plugin.afterMutation!(event);
+    // A listener that reads only the keys (the cache adapters) pays no clone:
+    // the copy is made on the first read of `rows` and shared after that.
+    let copy: Row[] | undefined;
 
-        if (isThenable(pending)) {
-          await pending;
+    if (plugins.length > 0) {
+      const event: MutationEvent = {
+        table: op.table,
+        kind,
+        intent,
+        get rows(): Row[] {
+          return (copy ??= cloneRows(data.rows));
+        },
+        ...rest,
+      };
+
+      for (const plugin of plugins) {
+        try {
+          const pending = plugin.afterMutation!(event);
+
+          if (isThenable(pending)) {
+            await pending;
+          }
+        } catch (cause) {
+          runtime.events.logger.error(
+            `plugin "${plugin.name}" afterMutation threw`,
+            { cause },
+          );
         }
-      } catch (cause) {
-        runtime.events.logger.error(
-          `plugin "${plugin.name}" afterMutation threw`,
-          { cause },
-        );
       }
     }
 
     if (listening) {
       runtime.events.emit("mutation", {
         table: op.table.key,
-        kind: event.kind,
-        ...(event.intent ? { intent: event.intent } : {}),
-        rows: event.rows,
-        ...(event.keys ? { keys: event.keys } : {}),
-        ...(event.tenant === undefined ? {} : { tenant: event.tenant }),
-        context: event.context,
+        kind,
+        intent,
+        get rows(): Row[] {
+          return (copy ??= cloneRows(data.rows));
+        },
+        ...rest,
       });
     }
   }

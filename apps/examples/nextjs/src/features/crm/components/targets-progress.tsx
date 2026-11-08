@@ -1,7 +1,6 @@
 import { formatMoney, money } from "better-supabase/commerce";
 import { TargetIcon } from "lucide-react";
 import { getExtracted, getFormatter, getLocale } from "next-intl/server";
-import { Temporal } from "temporal-polyfill";
 
 import { Badge } from "@/components/reui/badge";
 import {

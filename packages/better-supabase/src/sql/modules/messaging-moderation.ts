@@ -59,7 +59,7 @@ ${renderPolicy(
     or not ${moderation.fn("moderation_hidden")}(${sqlString(type)}, ${table}.${c("id")}::text)
     or ${moderation.scope.check(`${table}.${c("tenant")}`, read)}`,
   }),
-  { drop: true, target: table },
+  { target: table },
 )}
 
 -- Refuses messages from members banned in the organization.

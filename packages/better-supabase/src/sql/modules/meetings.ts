@@ -9,12 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import {
-  addExtraColumns,
-  lockTable,
-  schemaPreamble,
-  userGrant,
-} from "../shared.ts";
+import { lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { meetingFunctions } from "./meetings-functions.ts";
 import { meetingIntegrations } from "./meetings-integrations.ts";
 import { meetingReads } from "./meetings-read.ts";
@@ -52,7 +47,7 @@ const EVENTS: BlockSqlEvents<MeetingsEvents> = {
   "meeting_decision.decided": decision,
   "meeting_action_item.created": {
     subject: "meetings",
-    payload: ["organizationId", "meetingId", "workItemId", "title"],
+    payload: ["organizationId", "meetingId", "taskId", "title"],
   },
 };
 
@@ -88,7 +83,7 @@ const NAMES: BlockSqlNames = {
     "after_meeting_hold",
     "after_meeting_decision",
   ],
-  options: ["kinds", "calendar", "extraColumns"],
+  options: ["kinds", "calendar"],
   tables: {
     meetings: {
       name: "meetings",
@@ -209,7 +204,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const text = (column: string, max: number): string =>
@@ -240,7 +235,7 @@ create table if not exists ${meetings} (
   ${m("updatedAt")} timestamptz not null default now(),
   unique (${m("tenant")}, ${m("id")}),
   check (${m("endsAt")} is null or ${m("endsAt")} >= ${m("startsAt")})
-);${addExtraColumns(meetings, q.extras)}${appKey("meetings", "tenant_id", `${m("tenant")}, ${m("id")}`)}
+);${appKey("meetings", "tenant_id", `${m("tenant")}, ${m("id")}`)}
 create index if not exists ${name("meetings", "tenant_idx")} on ${meetings} (${m("tenant")}, ${m("status")}, ${m("startsAt")} desc);
 ${lockTable(meetings, { read: true })}
 

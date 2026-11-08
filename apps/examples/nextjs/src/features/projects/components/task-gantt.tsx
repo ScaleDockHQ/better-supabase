@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-import type { Temporal } from "temporal-polyfill";
 
 import { getExtracted } from "next-intl/server";
 
@@ -28,6 +27,7 @@ const BAR = {
   done: "bg-primary/25",
 } as const satisfies Record<TaskStatus, string>;
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * One row per task under its project, with a bar from `startsOn` to `dueOn`.
  * Tasks without dates stay in the list with an empty track, so the plan shows

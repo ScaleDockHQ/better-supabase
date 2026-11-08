@@ -206,7 +206,7 @@ function titledBlocks(text: string): CodeBlock[] {
 }
 
 /**
- * The Naming page's file layout: the definition from `defineSupabase` lives in
+ * The Naming page's file layout: the definition from `createSupabase` lives in
  * `lib/supabase/index.ts`, never in the `server.ts` or `client.ts` that create
  * `bsb`, and a Next.js `server.ts` starts with `import "server-only"`.
  */
@@ -223,7 +223,7 @@ function naming(): string[] {
 
       if (
         /lib\/supabase\/(?:server|client)\.ts$/u.test(block.title) &&
-        block.body.includes("defineSupabase(")
+        block.body.includes("createSupabase(")
       ) {
         problems.push(
           `${where} defines betterSupabase in ${block.title}; it belongs in src/lib/supabase/index.ts (concepts/naming.mdx)`,
@@ -304,6 +304,30 @@ const RETIRED: readonly (readonly [RegExp, string])[] = [
   [/\bsessionEnded(?:Reason)?\b/u, "`sessionEnded` (now `sessionVerified`)"],
 ];
 
+interface NamingRename {
+  readonly from: string;
+  readonly to: string;
+  readonly kind: string;
+}
+
+// SAFETY: naming.json is this repo's own file; only `renames` is read.
+const NAMING = JSON.parse(
+  readFileSync(join(root, "packages/better-supabase/api/naming.json"), "utf-8"),
+) as { readonly renames: readonly NamingRename[] };
+
+const escapeRegex = (text: string): string =>
+  text.replaceAll(/[.*+?^${}()|[\]\\/]/g, String.raw`\$&`);
+
+/** Every rename of `api/naming.json` joins the retired names. */
+const NAMING_RETIRED: readonly (readonly [RegExp, string])[] = NAMING.renames
+  .filter((rename) =>
+    ["env", "function", "subpath", "type"].includes(rename.kind),
+  )
+  .map((rename) => [
+    new RegExp(`(?<![\\w.$-])${escapeRegex(rename.from)}(?![\\w-])`, "u"),
+    `\`${rename.from}\` (now \`${rename.to}\`)`,
+  ]);
+
 /** The pages whose job is to name the retired forms. */
 const RENAMES = ["concepts/naming.mdx", "migration/", "cli/codemod.mdx"];
 
@@ -339,10 +363,12 @@ function retiredNames(): string[] {
     readFileSync(join(root, file), "utf-8")
       .split("\n")
       .flatMap((text, index) =>
-        RETIRED.filter(([pattern]) => pattern.test(text)).map(
-          ([, name]) =>
-            `${file}:${String(index + 1)} uses the retired ${name} (concepts/naming.mdx)`,
-        ),
+        [...RETIRED, ...NAMING_RETIRED]
+          .filter(([pattern]) => pattern.test(text))
+          .map(
+            ([, name]) =>
+              `${file}:${String(index + 1)} uses the retired ${name} (concepts/naming.mdx)`,
+          ),
       ),
   );
 }

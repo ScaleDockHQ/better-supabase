@@ -26,6 +26,10 @@ import {
   terms,
   totals,
 } from "./document-templates-parts.ts";
+import {
+  purchaseOrderFunction,
+  purchaseOrders,
+} from "./document-templates-purchase-order.ts";
 import { DOCUMENT_TYPES } from "./document-templates-values.ts";
 
 /** The module a document type reads, for the error that names it. */
@@ -35,6 +39,7 @@ const SOURCE: Readonly<Record<string, string>> = {
   quote: "quotes",
   order: "orders",
   delivery_note: "shipments",
+  purchase_order: "inventory",
   dunning_letter: "invoices",
   statement: "invoices",
 };
@@ -69,6 +74,7 @@ function visibleFunction(parts: Parts): string {
   add(["quote"], "quotes", "quotes");
   add(["order"], "orders", "orders");
   add(["delivery_note"], "shipments", "shipments");
+  add(["purchase_order"], "inventory", "purchaseOrders");
   add(["dunning_letter"], "invoices", "dunningRunItems");
 
   return `
@@ -948,6 +954,10 @@ function availableTypes(ctx: BlockSqlContext): readonly string[] {
         return source(ctx, "shipments") !== undefined;
       }
 
+      case "purchase_order": {
+        return purchaseOrders(ctx) !== undefined;
+      }
+
       case "dunning_letter": {
         return (
           inv !== undefined &&
@@ -977,6 +987,7 @@ export function documentVariableFunctions(ctx: BlockSqlContext): string {
   const quotes = source(ctx, "quotes");
   const orders = source(ctx, "orders");
   const shipments = source(ctx, "shipments");
+  const purchasing = purchaseOrders(ctx);
 
   const builders = [
     helpers(parts),
@@ -995,6 +1006,12 @@ export function documentVariableFunctions(ctx: BlockSqlContext): string {
       : qualified(
           deliveryNoteFunction(parts, shipments, orders),
           "document_variables_delivery_note",
+        ),
+    purchasing === undefined
+      ? ""
+      : qualified(
+          purchaseOrderFunction(parts, purchasing),
+          "document_variables_purchase_order",
         ),
     inv !== undefined && available.has("dunning_letter")
       ? qualified(
@@ -1034,6 +1051,7 @@ begin
     ${branch("quote", `${fn("document_variables_quote")}(tenant, document_id)`)}
     ${branch("order", `${fn("document_variables_order")}(tenant, document_id)`)}
     ${branch("delivery_note", `${fn("document_variables_delivery_note")}(tenant, document_id)`)}
+    ${branch("purchase_order", `${fn("document_variables_purchase_order")}(tenant, document_id)`)}
     ${branch("dunning_letter", `${fn("document_variables_dunning_letter")}(tenant, document_id)`)}
     ${branch("statement", `${fn("document_variables_statement")}(tenant, document_id)`)}
     ${appDocumentTypes(ctx)

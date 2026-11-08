@@ -294,7 +294,7 @@ describe.skipIf(!live)("scores module in Postgres", () => {
     await session.service();
 
     const events = await session.rows<{ data: Record<string, unknown> }>(
-      "select payload as data from better_supabase.outbox_events where organization_id = $1 and type = 'score.changed' order by position",
+      "select payload as data from better_supabase.outbox_events where tenant_id = $1 and type = 'score.changed' order by position",
       [tenant],
     );
 

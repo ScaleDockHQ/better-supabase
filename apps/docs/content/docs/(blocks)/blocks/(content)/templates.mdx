@@ -15,7 +15,7 @@ A template is always a row in `templates`. Its content is either a versioned bod
 
 `tasks.clone`, and the same shape on quotes and invoices, copies a row and its block-owned children into a live record. `templates.instantiate` does that for a published rows template and records the application. `pack` snapshots the rows into a version body, and `unpack` materializes that body again, which is how a fork of a starter becomes editable rows.
 
-Extra data about the template, not the record, goes in `settings` (checked against the type's JSON Schema when `jsonb-schemas` is installed), in `extraColumns` on `templates`, or in an extension table the type names.
+Extra data about the template, not the record, goes in `settings` (checked against the type's JSON Schema when `jsonb-schemas` is installed), in a column you add to `templates`, or in an extension table the type names.
 
 ```bash
 better-supabase add templates
@@ -264,7 +264,7 @@ Errors carry these hints: `TEMPLATE_INVALID`, `TEMPLATE_NOT_FOUND`, `TEMPLATE_FO
 
 ## Your own columns
 
-Add columns to the template table with `blocks.templates.options.extraColumns`
+Add columns to the template table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `upsert` validates and writes them, and `upsert`, `list`, `get` and `fork` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

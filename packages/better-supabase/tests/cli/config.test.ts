@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   applyEnvironment,
   databaseUrl,
+  defaultConfig,
   discoverConfig,
   loadConfig,
 } from "../../src/cli/config.ts";
@@ -13,6 +14,22 @@ import { run } from "../../src/cli/core/run.ts";
 import { configEnvironment } from "../../src/cli/env.ts";
 import { findRepoRoot } from "../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
+
+describe("defaultConfig", () => {
+  it("resolves the defaults at the directory and names the environment", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "better-supabase-default-"));
+
+    try {
+      expect(defaultConfig(dir)).toMatchObject({ root: dir });
+      expect(defaultConfig(dir, undefined, "production")).toMatchObject({
+        root: dir,
+        environment: "production",
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("config discovery", () => {
   let repo: string;
@@ -34,7 +51,7 @@ describe("config discovery", () => {
 
   it("loads the config at the repository root from a nested package", async () => {
     await write(repo, "better-supabase.config.json", {
-      gen: { output: "packages/runtime/src/generated.ts", casing: "camel" },
+      gen: { file: "packages/runtime/src/generated.ts", casing: "camel" },
     });
     const config = await loadConfig(join(pkg, "src"));
     expect(config.root).toBe(repo);
@@ -106,7 +123,7 @@ describe("config environments", () => {
           tooling: {
             doctor: {
               format: "sarif",
-              output: "doctor.sarif",
+              file: "doctor.sarif",
               ignore: ["BS304"],
             },
           },
@@ -133,7 +150,7 @@ describe("config environments", () => {
     expect(config.casing).toBe("camel");
     expect(config.doctor).toMatchObject({
       format: "sarif",
-      output: "doctor.sarif",
+      file: "doctor.sarif",
       ignore: ["BS304"],
       strict: false,
     });
@@ -158,7 +175,7 @@ describe("config environments", () => {
     ).toThrow("The test environment makes the config invalid");
   });
 
-  it("points sql.modules at the 0.9 codemod", async () => {
+  it("names the release to upgrade with for sql.modules", async () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
@@ -171,7 +188,7 @@ describe("config environments", () => {
     expect(error).toMatchObject({
       code: "config_invalid",
       message: expect.stringContaining(
-        "sql.modules: moved to the top-level `blocks` key in 0.9; run `better-supabase codemod 0.9`",
+        "sql.modules: moved to the top-level `blocks` key in 0.9; upgrade to 0.53 with that release first",
       ),
     });
     expect(error).toMatchObject({

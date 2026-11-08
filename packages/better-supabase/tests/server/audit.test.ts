@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { CloudEvent, EventSink } from "../../src/events/index.ts";
 import type { BetterPostgres } from "../../src/postgres/pool.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { SERVER_EVENT_SOURCE, serverAudit } from "../../src/server/audit.ts";
 import { createServer } from "../../src/server/server.ts";
@@ -34,7 +34,7 @@ function setup(sink: EventSink) {
     executorFor: () => postgresExecutor(fake.sql),
   } as unknown as BetterPostgres;
 
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const server = createServer(betterSupabase, {
     env,
@@ -92,7 +92,7 @@ describe("the server's audit sink", () => {
   });
 
   it("does nothing without a sink", () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     const on = vi.spyOn(betterSupabase.events, "on");
     serverAudit(betterSupabase, undefined).account("account.deleted", USER, {});
     expect(on).not.toHaveBeenCalled();

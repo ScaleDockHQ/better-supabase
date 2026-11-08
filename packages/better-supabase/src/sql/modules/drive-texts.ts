@@ -59,7 +59,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("texts").name}_tenant_idx
             : ""
         }
 ${lockTable(X, { read: true })}
-${renderPolicy(makePolicy({ table: X, name: ctx.naming.rename("drive_node_texts_read"), command: "select", roles: ["authenticated"], using: `${fn("drive_can")}(${x("node")}, ${sqlString(roles.read)})` }), { drop: true, target: X })}
+${renderPolicy(makePolicy({ table: X, name: ctx.naming.rename("drive_node_texts_read"), command: "select", roles: ["authenticated"], using: `${fn("drive_can")}(${x("node")}, ${sqlString(roles.read)})` }), { target: X })}
 `
       : "";
 

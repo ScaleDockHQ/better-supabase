@@ -21,7 +21,7 @@ import { createMedications } from "better-supabase/blocks/medications";
 
 The module requires `memberships`, `permissions` and `subjects`: an order
 belongs to any record type registered in
-[`config.subjects`](/docs/blocks/subjects). With
+[`config.recordTypes`](/docs/blocks/subjects). With
 [notifications](/docs/blocks/notifications) the members who manage
 medications hear about missed doses, with `outbox` the module records the
 events, and with `audit` every change is audited.
@@ -229,15 +229,12 @@ it.
 
 ## Options
 
-| Option                       | Default | Does                                                                               |
-| ---------------------------- | ------- | ---------------------------------------------------------------------------------- |
-| `missedAfterMinutes`         | `60`    | Minutes after its planned time a dose counts as missed, 1 to 1440                  |
-| `missedCaseKind`             | none    | The key of a case kind a missed dose opens, such as `incident`; none opens no case |
-| `timeZone`                   | `"UTC"` | The IANA zone schedule times, start dates and the chart are in                     |
-| `extraColumns`               | none    | Extra columns on the medication orders table                                       |
-| `medicationExtraColumns`     | none    | Extra columns on the medications table; `saveMedication` takes them as `fields`    |
-| `administrationExtraColumns` | none    | Extra columns on the doses table; `recordAdministration` takes them as `fields`    |
-| `guestRead`                  | `false` | A guest with a read grant on a record reads its orders, doses and medications      |
+| Option               | Default | Does                                                                               |
+| -------------------- | ------- | ---------------------------------------------------------------------------------- |
+| `missedAfterMinutes` | `60`    | Minutes after its planned time a dose counts as missed, 1 to 1440                  |
+| `missedCaseKind`     | none    | The key of a case kind a missed dose opens, such as `incident`; none opens no case |
+| `timeZone`           | `"UTC"` | The IANA zone schedule times, start dates and the chart are in                     |
+| `guestRead`          | `false` | A guest with a read grant on a record reads its orders, doses and medications      |
 
 ```ts title="better-supabase.config.ts"
 blocks: {

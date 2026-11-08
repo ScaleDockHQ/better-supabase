@@ -19,11 +19,11 @@ import { createRank, rankBetween } from "better-supabase/blocks/rank";
 
 ## Declare a ranked subject
 
-Give the subject a `rank` entry in `config.subjects`. `group` is optional: it
+Give the subject a `rank` entry in `config.recordTypes`. `group` is optional: it
 names the column a board groups by, such as a pipeline stage.
 
 ```ts title="better-supabase.config.ts"
-subjects: {
+recordTypes: {
   deal: {
     table: "public.deals",
     title: "name",

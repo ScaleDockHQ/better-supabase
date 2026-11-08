@@ -4,8 +4,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import { getExtracted } from "next-intl/server";
-import { refresh } from "next/cache";
-import { connection } from "next/server";
+import { io, refresh } from "next/cache";
 import * as v from "valibot";
 
 import {
@@ -133,15 +132,14 @@ export async function CaseBoardSection() {
  * and actions.
  */
 export async function CaseDetailSection({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, query, permissions] = await Promise.all([
+  const [t, permissions] = await Promise.all([
     getExtracted("cases"),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   const picked = v.safeParse(CaseParam, query["case"]);
@@ -188,7 +186,7 @@ export async function CaseDetailSection({
   );
 }
 
-export function CaseBoardSkeleton() {
+export function CaseBoardSectionSkeleton() {
   return (
     <Frame spacing="sm" aria-busy="true">
       <FrameHeader className="gap-1">
@@ -204,7 +202,7 @@ export function CaseBoardSkeleton() {
   );
 }
 
-export function CaseDetailSkeleton() {
+export function CaseDetailSectionSkeleton() {
   return (
     <Frame spacing="sm" aria-busy="true">
       <FrameHeader className="gap-1">

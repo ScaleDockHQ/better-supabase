@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -10,18 +10,16 @@ export type FundingSqlOptions = {
    */
   readonly formats?: readonly string[];
   /**
-   * The time-tracking entries' extra column whose value is a product code.
+   * The time-entries entries' extra column whose value is a product code.
    * `register_funding_deliveries_from_time` then picks the award with that
    * product. Default: the record's one active award.
    */
   readonly timeCategory?: string;
   /** Extra columns on the funding awards table. */
-  readonly extraColumns?: ExtraColumns;
 };
 
 export const fundingSqlOptions: BlockOptionsSchema<FundingSqlOptions> =
   blockOptions<FundingSqlOptions>({
     formats: option.strings({ default: [] }),
     timeCategory: option.string(),
-    extraColumns: option.extraColumns(),
   });

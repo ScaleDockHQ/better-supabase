@@ -26,11 +26,9 @@ describe("idempotency next to the leases block", () => {
       .join("\n");
 
     expect(schema).toContain(
-      `create table if not exists "better_supabase"."idempotency_leases"`,
+      `create table "better_supabase"."idempotency_leases"`,
     );
-    expect(schema).toContain(
-      `create table if not exists "better_supabase"."leases"`,
-    );
+    expect(schema).toContain(`create table "better_supabase"."leases"`);
   });
 
   it("names both config keys when two blocks would create one table", () => {

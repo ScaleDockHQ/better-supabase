@@ -16,7 +16,7 @@ select set_config(
 set local role authenticated;
 
 select set_config(
-  'bsb.run',
+  'better_supabase.run',
   (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'sales', '{}'::jsonb) ->> 'id'),
   true
 );
@@ -24,7 +24,7 @@ select set_config(
 reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
 
 create temporary table out (name text primary key, result jsonb) on commit drop;
 grant all on out to authenticated, service_role;
@@ -33,7 +33,7 @@ grant all on out to authenticated, service_role;
 -- tax on all of them, two payments on their real dates. 2 * 10000 + 1 * 10000 +
 -- 5000 = 35000 net, 7350 tax, 42350 gross.
 insert into out values ('invoice', better_supabase.import_upsert_batch(
-  current_setting('bsb.run')::uuid, 'invoice',
+  current_setting('better_supabase.run')::uuid, 'invoice',
   $json$[{"key":"inv-2019-0007","data":{
     "number":"INV-2019-0007","status":"paid","issuedOn":"2019-03-04","dueOn":"2019-04-03",
     "createdAt":"2019-03-01T09:00:00Z","currency":"EUR","title":"March 2019",
@@ -86,7 +86,7 @@ select is(
 
 -- Totals that differ from the lines are kept and reported.
 insert into out values ('mismatch', better_supabase.import_upsert_batch(
-  current_setting('bsb.run')::uuid, 'invoice',
+  current_setting('better_supabase.run')::uuid, 'invoice',
   $json$[{"key":"inv-2019-0008","data":{
     "number":"INV-2019-0008","status":"issued","issuedOn":"2019-05-01","currency":"EUR",
     "lines":[{"description":"Service","quantity":1,"unitAmount":10000,"taxRateBps":2100}],
@@ -117,7 +117,7 @@ grant all on before_counts to authenticated, service_role;
 
 select is(
   (select (better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'invoice',
+    current_setting('better_supabase.run')::uuid, 'invoice',
     $json$[{"key":"inv-2019-0007","data":{
     "number":"INV-2019-0007","status":"paid","issuedOn":"2019-03-04","dueOn":"2019-04-03",
     "createdAt":"2019-03-01T09:00:00Z","currency":"EUR","title":"March 2019",
@@ -146,7 +146,7 @@ update better_supabase.invoices set updated_at = now() + interval '1 hour', note
 where identifier = 'INV-2019-0007';
 select is(
   (select (better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'invoice',
+    current_setting('better_supabase.run')::uuid, 'invoice',
     $json$[{"key":"inv-2019-0007","data":{
     "number":"INV-2019-0007","status":"paid","issuedOn":"2019-03-04","currency":"EUR","title":"Changed in the source",
     "lines":[{"description":"Widget","quantity":2,"unitAmount":10000,"taxRateBps":2100}]
@@ -172,7 +172,7 @@ select is(
 
 -- A credit note with its own number against the imported invoice.
 insert into out values ('credit', better_supabase.import_upsert_batch(
-  current_setting('bsb.run')::uuid, 'credit_note',
+  current_setting('better_supabase.run')::uuid, 'credit_note',
   $json$[{"key":"cn-2019-0001","data":{
     "number":"CN-2019-0001","issuedOn":"2019-06-01","original":"INV-2019-0007","note":"Returned widget",
     "lines":[{"description":"Widget","quantity":1,"unitAmount":10000,"taxRateBps":2100}]
@@ -191,7 +191,7 @@ select is(
 -- A final status the document never reached is refused item by item.
 select is(
   (select better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'invoice',
+    current_setting('better_supabase.run')::uuid, 'invoice',
     '[{"key":"bad","data":{"number":"INV-BAD","status":"nonsense","issuedOn":"2019-01-01","lines":[{"description":"x","quantity":1,"unitAmount":1}]}}]'::jsonb
   ) -> 'errors' -> 0 ->> 'code'),
   'IMPORT_ITEM_INVALID',
@@ -200,7 +200,7 @@ select is(
 
 -- A quote in its final status with its own dates and stored totals.
 insert into out values ('quote', better_supabase.import_upsert_batch(
-  current_setting('bsb.run')::uuid, 'quote',
+  current_setting('better_supabase.run')::uuid, 'quote',
   $json$[{"key":"q-2018-0042","data":{
     "number":"Q-2018-0042","status":"accepted","title":"Website","currency":"EUR",
     "createdAt":"2018-11-01T10:00:00Z","sentAt":"2018-11-02T10:00:00Z","decidedAt":"2018-11-10T10:00:00Z","decidedBy":"Jane",
@@ -236,7 +236,7 @@ select is(
 
 -- An order with a free-text line and a payment with its real date.
 insert into out values ('order', better_supabase.import_upsert_batch(
-  current_setting('bsb.run')::uuid, 'order',
+  current_setting('better_supabase.run')::uuid, 'order',
   $json$[{"key":"ord-5001","data":{
     "number":"ORD-5001","status":"completed","currency":"EUR","email":"old@example.com",
     "placedAt":"2017-05-01T08:00:00Z","paidAt":"2017-05-01T08:05:00Z","completedAt":"2017-05-03T08:00:00Z",

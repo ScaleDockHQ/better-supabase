@@ -11,6 +11,9 @@ import {
 // A prefetch of this list stays static; the rows render on navigation.
 export const ensureStatic = "prefetch";
 
+// The projects frame paints before the project data streams in.
+export const instant = true;
+
 export default function ProjectsPage({
   searchParams,
 }: {
@@ -33,7 +36,9 @@ export default function ProjectsPage({
           </ConnectivityFallback>
         }
       >
-        <TaskViews searchParams={searchParams} />
+        {searchParams.then((query) => (
+          <TaskViews query={query} />
+        ))}
       </Suspense>
     </>
   );

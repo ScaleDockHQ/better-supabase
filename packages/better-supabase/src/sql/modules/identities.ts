@@ -153,8 +153,8 @@ alter table ${links} enable row level security;
 ${revokeTable(links)}
 grant select, delete on ${links} to authenticated;
 grant all on ${links} to service_role;
-${renderPolicy(makePolicy({ table: links, name: "identity_links_own_read", command: "select", roles: ["authenticated"], using: `${l("user")} = (select auth.uid())` }), { drop: true, target: links })}
-${renderPolicy(makePolicy({ table: links, name: "identity_links_own_delete", command: "delete", roles: ["authenticated"], using: `${l("user")} = (select auth.uid())` }), { drop: true, target: links })}
+${renderPolicy(makePolicy({ table: links, name: "identity_links_own_read", command: "select", roles: ["authenticated"], using: `${l("user")} = (select auth.uid())` }), { target: links })}
+${renderPolicy(makePolicy({ table: links, name: "identity_links_own_delete", command: "delete", roles: ["authenticated"], using: `${l("user")} = (select auth.uid())` }), { target: links })}
 
 -- One-time link codes, stored as SHA-256. No policy: only the functions below read them.
 create table if not exists ${codes} (

@@ -42,7 +42,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import type { DocumentRegisterView, DocumentRow } from "../drive-queries";
 
@@ -245,17 +244,4 @@ export function DocumentRegister({ state }: { state: DocumentRegisterView }) {
   );
 }
 
-export function DocumentRegisterSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-36" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-48" />
-      </FramePanel>
-    </Frame>
-  );
-}
 // #endregion recipe:document-register

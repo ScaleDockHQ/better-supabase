@@ -44,6 +44,21 @@ function aliased(
  * timestamps to `Temporal`).
  */
 export function dbDecoder<T>(meta: SchemaMeta, table: string): DbDecoder<T> {
+  const nested = new Map<string, DbDecoder<unknown>>();
+
+  // Embedded relations (`select=*,customer(*)` from `$client`) arrive as nested
+  // objects or lists, with database column names at every depth.
+  const decoderOf = (key: string): DbDecoder<unknown> => {
+    let found = nested.get(key);
+
+    if (!found) {
+      found = dbDecoder<unknown>(meta, key);
+      nested.set(key, found);
+    }
+
+    return found;
+  };
+
   const tableMeta = meta.tables[table];
 
   if (!tableMeta) {
@@ -61,7 +76,33 @@ export function dbDecoder<T>(meta: SchemaMeta, table: string): DbDecoder<T> {
     }
 
     try {
-      const [row] = decodeRows(selection, [aliased(selection, value)]);
+      const source = aliased(selection, value);
+
+      for (const [name, relation] of Object.entries(tableMeta.relations)) {
+        const embedded = value[name];
+
+        if (embedded === undefined || embedded === null) {
+          continue;
+        }
+
+        if (!isRecord(embedded) && !Array.isArray(embedded)) {
+          continue;
+        }
+
+        const decoder = decoderOf(relation.table);
+
+        const decoded = Array.isArray(embedded)
+          ? decoder.rows(embedded)
+          : decoder.row(embedded);
+
+        if (!decoded.ok) {
+          return decoded;
+        }
+
+        source[name] = decoded.data;
+      }
+
+      const [row] = decodeRows(selection, [source]);
 
       // SAFETY: the decoded row has the table's selection, which `T` types.
       return ok(row as T);

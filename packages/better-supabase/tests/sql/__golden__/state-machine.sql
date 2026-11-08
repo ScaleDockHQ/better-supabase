@@ -1,51 +1,19 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:72a1b611f1149690a3b6e2a73d26a23ec1de5ebf3147971dc07bdfa12efe1c5e
+-- @bsb-hash sha256:547513db426f38e52f838ca1f29cf674605b69295787d2c12a02528d1ab2707a
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."status_history" (
+create table "better_supabase"."status_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
   "from_status" text,
   "to_status" text not null,
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "actor_name" text,
   "actor_email" text,
   "ip_address" inet,
@@ -53,16 +21,15 @@ create table if not exists "better_supabase"."status_history" (
   "reason" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
+create index status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
 alter table "better_supabase"."status_history" enable row level security;
 revoke all on "better_supabase"."status_history" from public, anon, authenticated;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
-drop policy if exists status_history_read on "better_supabase"."status_history";
-create policy status_history_read on "better_supabase"."status_history"
+create policy bsb_status_history_read on "better_supabase"."status_history"
   for select to authenticated
   using (false);
-create table if not exists "better_supabase"."status_stages" (
+create table "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -73,16 +40,15 @@ create table if not exists "better_supabase"."status_stages" (
   "cleared_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
+create index status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
 alter table "better_supabase"."status_stages" enable row level security;
 revoke all on "better_supabase"."status_stages" from public, anon, authenticated;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
-drop policy if exists status_stages_read on "better_supabase"."status_stages";
-create policy status_stages_read on "better_supabase"."status_stages"
+create policy bsb_status_stages_read on "better_supabase"."status_stages"
   for select to authenticated
   using (false);
-create table if not exists "better_supabase"."subject_lifecycles" (
+create table "better_supabase"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -90,26 +56,21 @@ create table if not exists "better_supabase"."subject_lifecycles" (
   "version" integer not null default 1,
   "flags" text[] not null default '{}',
   "paused_at" timestamptz,
-  "paused_until" timestamptz,
+  "pause_expires_at" timestamptz,
   "pause_reason" text,
-  "paused_by_user_id" uuid,
+  "paused_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id")
 );
-create index if not exists subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
+create index subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
 alter table "better_supabase"."subject_lifecycles" enable row level security;
 revoke all on "better_supabase"."subject_lifecycles" from public, anon, authenticated;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
-drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
-create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
+create policy bsb_subject_lifecycles_read on "better_supabase"."subject_lifecycles"
   for select to authenticated
   using (false);
-
-
-
-drop function if exists "better_supabase"."transition"(text, text, text, text);
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor
@@ -305,94 +266,54 @@ grant execute on function "better_supabase"."list_status_stages"(text, text) to 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
 create policy bsb_tenant_scope_select on "better_supabase"."status_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."status_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_history";
 create policy bsb_tenant_scope_update on "better_supabase"."status_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."status_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_select on "better_supabase"."status_stages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_insert on "better_supabase"."status_stages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_update on "better_supabase"."status_stages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_delete on "better_supabase"."status_stages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_select on "better_supabase"."subject_lifecycles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_update on "better_supabase"."subject_lifecycles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
@@ -411,51 +332,19 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:72a1b611f1149690a3b6e2a73d26a23ec1de5ebf3147971dc07bdfa12efe1c5e
+-- @bsb-hash sha256:547513db426f38e52f838ca1f29cf674605b69295787d2c12a02528d1ab2707a
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."status_history" (
+create table "better_supabase"."status_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
   "from_status" text,
   "to_status" text not null,
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "actor_name" text,
   "actor_email" text,
   "ip_address" inet,
@@ -463,16 +352,15 @@ create table if not exists "better_supabase"."status_history" (
   "reason" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
+create index status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
 alter table "better_supabase"."status_history" enable row level security;
 revoke all on "better_supabase"."status_history" from public, anon, authenticated;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
-drop policy if exists status_history_read on "better_supabase"."status_history";
-create policy status_history_read on "better_supabase"."status_history"
+create policy bsb_status_history_read on "better_supabase"."status_history"
   for select to authenticated
   using (false);
-create table if not exists "better_supabase"."status_stages" (
+create table "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -483,16 +371,15 @@ create table if not exists "better_supabase"."status_stages" (
   "cleared_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
+create index status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
 alter table "better_supabase"."status_stages" enable row level security;
 revoke all on "better_supabase"."status_stages" from public, anon, authenticated;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
-drop policy if exists status_stages_read on "better_supabase"."status_stages";
-create policy status_stages_read on "better_supabase"."status_stages"
+create policy bsb_status_stages_read on "better_supabase"."status_stages"
   for select to authenticated
   using (false);
-create table if not exists "better_supabase"."subject_lifecycles" (
+create table "better_supabase"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -500,26 +387,21 @@ create table if not exists "better_supabase"."subject_lifecycles" (
   "version" integer not null default 1,
   "flags" text[] not null default '{}',
   "paused_at" timestamptz,
-  "paused_until" timestamptz,
+  "pause_expires_at" timestamptz,
   "pause_reason" text,
-  "paused_by_user_id" uuid,
+  "paused_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id")
 );
-create index if not exists subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
+create index subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
 alter table "better_supabase"."subject_lifecycles" enable row level security;
 revoke all on "better_supabase"."subject_lifecycles" from public, anon, authenticated;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
-drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
-create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
+create policy bsb_subject_lifecycles_read on "better_supabase"."subject_lifecycles"
   for select to authenticated
   using (false);
-
-
-
-drop function if exists "better_supabase"."transition"(text, text, text, text);
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor
@@ -715,94 +597,54 @@ grant execute on function "better_supabase"."list_status_stages"(text, text) to 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
 create policy bsb_tenant_scope_select on "better_supabase"."status_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."status_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_history";
 create policy bsb_tenant_scope_update on "better_supabase"."status_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."status_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_select on "better_supabase"."status_stages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_insert on "better_supabase"."status_stages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_update on "better_supabase"."status_stages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_delete on "better_supabase"."status_stages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_select on "better_supabase"."subject_lifecycles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_update on "better_supabase"."subject_lifecycles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
@@ -821,56 +663,24 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:ab89e5f51c363d46e133a17cda28d2cfa1030745400e9ff3be15a152da98f6ce
+-- @bsb-hash sha256:0b30884048ac42ee41992c859766285e985f0eb2a5a26247ddfe5e7af437fc2c
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."status_history";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."status_history";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."status_history";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."status_history";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."status_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."status_stages";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."status_stages";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."status_stages";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."status_stages";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."status_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."subject_lifecycles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."status_history" (
+create table "app_private"."status_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
   "from_status" text,
   "to_status" text not null,
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "actor_name" text,
   "actor_email" text,
   "ip_address" inet,
@@ -878,16 +688,15 @@ create table if not exists "app_private"."status_history" (
   "reason" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists status_history_subject_idx on "app_private"."status_history" ("subject_type", "subject_id", "created_at" desc);
+create index status_history_subject_idx on "app_private"."status_history" ("subject_type", "subject_id", "created_at" desc);
 alter table "app_private"."status_history" enable row level security;
 revoke all on "app_private"."status_history" from public, anon, authenticated;
 grant select on "app_private"."status_history" to authenticated;
 grant all on "app_private"."status_history" to service_role;
-drop policy if exists status_history_read on "app_private"."status_history";
-create policy status_history_read on "app_private"."status_history"
+create policy bsb_status_history_read on "app_private"."status_history"
   for select to authenticated
   using (false);
-create table if not exists "app_private"."status_stages" (
+create table "app_private"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -898,16 +707,15 @@ create table if not exists "app_private"."status_stages" (
   "cleared_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists status_stages_subject_idx on "app_private"."status_stages" ("subject_type", "subject_id");
+create index status_stages_subject_idx on "app_private"."status_stages" ("subject_type", "subject_id");
 alter table "app_private"."status_stages" enable row level security;
 revoke all on "app_private"."status_stages" from public, anon, authenticated;
 grant select on "app_private"."status_stages" to authenticated;
 grant all on "app_private"."status_stages" to service_role;
-drop policy if exists status_stages_read on "app_private"."status_stages";
-create policy status_stages_read on "app_private"."status_stages"
+create policy bsb_status_stages_read on "app_private"."status_stages"
   for select to authenticated
   using (false);
-create table if not exists "app_private"."subject_lifecycles" (
+create table "app_private"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -915,26 +723,21 @@ create table if not exists "app_private"."subject_lifecycles" (
   "version" integer not null default 1,
   "flags" text[] not null default '{}',
   "paused_at" timestamptz,
-  "paused_until" timestamptz,
+  "pause_expires_at" timestamptz,
   "pause_reason" text,
-  "paused_by_user_id" uuid,
+  "paused_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id")
 );
-create index if not exists subject_lifecycles_paused_idx on "app_private"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
+create index subject_lifecycles_paused_idx on "app_private"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
 alter table "app_private"."subject_lifecycles" enable row level security;
 revoke all on "app_private"."subject_lifecycles" from public, anon, authenticated;
 grant select on "app_private"."subject_lifecycles" to authenticated;
 grant all on "app_private"."subject_lifecycles" to service_role;
-drop policy if exists subject_lifecycles_read on "app_private"."subject_lifecycles";
-create policy subject_lifecycles_read on "app_private"."subject_lifecycles"
+create policy bsb_subject_lifecycles_read on "app_private"."subject_lifecycles"
   for select to authenticated
   using (false);
-
-
-
-drop function if exists "app_private"."transition"(text, text, text, text);
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor
@@ -1130,94 +933,54 @@ grant execute on function "app_private"."list_status_stages"(text, text) to auth
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."status_history";
-drop policy if exists bsb_tenant_scope_select on "app_private"."status_history";
 create policy bsb_tenant_scope_select on "app_private"."status_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."status_history";
 create policy bsb_tenant_scope_insert on "app_private"."status_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."status_history";
 create policy bsb_tenant_scope_update on "app_private"."status_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."status_history";
 create policy bsb_tenant_scope_delete on "app_private"."status_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."status_stages";
-drop policy if exists bsb_tenant_scope_select on "app_private"."status_stages";
 create policy bsb_tenant_scope_select on "app_private"."status_stages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."status_stages";
 create policy bsb_tenant_scope_insert on "app_private"."status_stages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."status_stages";
 create policy bsb_tenant_scope_update on "app_private"."status_stages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."status_stages";
 create policy bsb_tenant_scope_delete on "app_private"."status_stages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."subject_lifecycles";
-drop policy if exists bsb_tenant_scope_select on "app_private"."subject_lifecycles";
 create policy bsb_tenant_scope_select on "app_private"."subject_lifecycles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."subject_lifecycles";
 create policy bsb_tenant_scope_insert on "app_private"."subject_lifecycles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."subject_lifecycles";
 create policy bsb_tenant_scope_update on "app_private"."subject_lifecycles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."subject_lifecycles";
 create policy bsb_tenant_scope_delete on "app_private"."subject_lifecycles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
@@ -1236,51 +999,19 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:5cf5ef232751e5e499ff83a73b90357c0b2339b85cab71efe887b8d33233f930
+-- @bsb-hash sha256:50749a1c47eb6e195baa0660a34c0ed992656584be11f0d8e58ddd78b179bb96
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."status_history" (
+create table "better_supabase"."status_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
   "from_status" text,
   "to_status" text not null,
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "actor_name" text,
   "actor_email" text,
   "ip_address" inet,
@@ -1288,16 +1019,15 @@ create table if not exists "better_supabase"."status_history" (
   "reason" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
+create index status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
 alter table "better_supabase"."status_history" enable row level security;
 revoke all on "better_supabase"."status_history" from public, anon, authenticated;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
-drop policy if exists status_history_read on "better_supabase"."status_history";
-create policy status_history_read on "better_supabase"."status_history"
+create policy bsb_status_history_read on "better_supabase"."status_history"
   for select to authenticated
   using (false);
-create table if not exists "better_supabase"."status_stages" (
+create table "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1308,16 +1038,15 @@ create table if not exists "better_supabase"."status_stages" (
   "cleared_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
+create index status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
 alter table "better_supabase"."status_stages" enable row level security;
 revoke all on "better_supabase"."status_stages" from public, anon, authenticated;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
-drop policy if exists status_stages_read on "better_supabase"."status_stages";
-create policy status_stages_read on "better_supabase"."status_stages"
+create policy bsb_status_stages_read on "better_supabase"."status_stages"
   for select to authenticated
   using (false);
-create table if not exists "better_supabase"."subject_lifecycles" (
+create table "better_supabase"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1325,26 +1054,21 @@ create table if not exists "better_supabase"."subject_lifecycles" (
   "version" integer not null default 1,
   "flags" text[] not null default '{}',
   "paused_at" timestamptz,
-  "paused_until" timestamptz,
+  "pause_expires_at" timestamptz,
   "pause_reason" text,
-  "paused_by_user_id" uuid,
+  "paused_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id")
 );
-create index if not exists subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
+create index subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
 alter table "better_supabase"."subject_lifecycles" enable row level security;
 revoke all on "better_supabase"."subject_lifecycles" from public, anon, authenticated;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
-drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
-create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
+create policy bsb_subject_lifecycles_read on "better_supabase"."subject_lifecycles"
   for select to authenticated
   using (false);
-
-
-
-drop function if exists "better_supabase"."transition"(text, text, text, text);
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor
@@ -1540,78 +1264,51 @@ grant execute on function "better_supabase"."list_status_stages"(text, text) to 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
 create policy bsb_tenant_scope_select on "better_supabase"."status_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."status_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_history";
 create policy bsb_tenant_scope_update on "better_supabase"."status_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."status_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_select on "better_supabase"."status_stages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_insert on "better_supabase"."status_stages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_update on "better_supabase"."status_stages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_delete on "better_supabase"."status_stages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_select on "better_supabase"."subject_lifecycles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_update on "better_supabase"."subject_lifecycles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1619,8 +1316,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles" 
 -- blocks.state-machine.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."transition"(text, text, text, text);
 
 create or replace function "api"."transition"(subject_type text, subject_id text, to_status text, reason text default null, actor jsonb default null)
 returns boolean
@@ -1688,19 +1383,6 @@ as $$ select "better_supabase"."list_status_stages"($1, $2) $$;
 revoke execute on function "api"."list_status_stages"(text, text) from public, anon;
 grant execute on function "api"."list_status_stages"(text, text) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block-data state-machine
@@ -1718,43 +1400,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:f539d6b04c84edb7163eb634ea2db0cfbec2b6f9c3cbd703b860910a1c02bec0
+-- @bsb-hash sha256:e9d470111785959ce7c9e408cac2ca0db38273db7e3c7330d03ec5449c36a508
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.status_history is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."status_history" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."status_history" add column if not exists "tenant_id" uuid;
@@ -1762,7 +1412,7 @@ alter table "better_supabase"."status_history" add column if not exists "subject
 alter table "better_supabase"."status_history" add column if not exists "subject_id" text;
 alter table "better_supabase"."status_history" add column if not exists "from_status" text;
 alter table "better_supabase"."status_history" add column if not exists "to_status" text;
-alter table "better_supabase"."status_history" add column if not exists "actor_user_id" uuid;
+alter table "better_supabase"."status_history" add column if not exists "actor_id" uuid;
 alter table "better_supabase"."status_history" add column if not exists "actor_name" text;
 alter table "better_supabase"."status_history" add column if not exists "actor_email" text;
 alter table "better_supabase"."status_history" add column if not exists "ip_address" inet;
@@ -1773,7 +1423,6 @@ create index if not exists status_history_subject_idx on "better_supabase"."stat
 alter table "better_supabase"."status_history" enable row level security;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
-drop policy if exists bsb_status_history_select on "better_supabase"."status_history";
 create policy bsb_status_history_select on "better_supabase"."status_history"
   for select to authenticated
   using (false);
@@ -1791,7 +1440,6 @@ create index if not exists status_stages_subject_idx on "better_supabase"."statu
 alter table "better_supabase"."status_stages" enable row level security;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
-drop policy if exists bsb_status_stages_select on "better_supabase"."status_stages";
 create policy bsb_status_stages_select on "better_supabase"."status_stages"
   for select to authenticated
   using (false);
@@ -1803,23 +1451,18 @@ alter table "better_supabase"."subject_lifecycles" add column if not exists "sub
 alter table "better_supabase"."subject_lifecycles" add column if not exists "version" integer not null default 1;
 alter table "better_supabase"."subject_lifecycles" add column if not exists "flags" text[] not null default '{}';
 alter table "better_supabase"."subject_lifecycles" add column if not exists "paused_at" timestamptz;
-alter table "better_supabase"."subject_lifecycles" add column if not exists "paused_until" timestamptz;
+alter table "better_supabase"."subject_lifecycles" add column if not exists "pause_expires_at" timestamptz;
 alter table "better_supabase"."subject_lifecycles" add column if not exists "pause_reason" text;
-alter table "better_supabase"."subject_lifecycles" add column if not exists "paused_by_user_id" uuid;
+alter table "better_supabase"."subject_lifecycles" add column if not exists "paused_by" uuid;
 alter table "better_supabase"."subject_lifecycles" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."subject_lifecycles" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
 alter table "better_supabase"."subject_lifecycles" enable row level security;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
-drop policy if exists bsb_subject_lifecycles_select on "better_supabase"."subject_lifecycles";
 create policy bsb_subject_lifecycles_select on "better_supabase"."subject_lifecycles"
   for select to authenticated
   using (false);
-
-
-
-drop function if exists "better_supabase"."transition"(text, text, text, text);
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor
@@ -2015,94 +1658,54 @@ grant execute on function "better_supabase"."list_status_stages"(text, text) to 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
 create policy bsb_tenant_scope_select on "better_supabase"."status_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."status_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_history";
 create policy bsb_tenant_scope_update on "better_supabase"."status_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."status_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_select on "better_supabase"."status_stages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_insert on "better_supabase"."status_stages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_update on "better_supabase"."status_stages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_delete on "better_supabase"."status_stages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_select on "better_supabase"."subject_lifecycles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_update on "better_supabase"."subject_lifecycles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
@@ -2121,51 +1724,19 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:f23d5f3a6d271604f20846c7e842adc8d5374497c75fb146e2d8562fa1d86abc
+-- @bsb-hash sha256:1605769f9eaa1224492358e9bb12ed03a01bfaa3dc0fd85422865007df9d9b7c
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."status_history" (
+create table "better_supabase"."status_history" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
   "from_status" text,
   "to_status" text not null,
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "actor_name" text,
   "actor_email" text,
   "ip_address" inet,
@@ -2173,16 +1744,15 @@ create table if not exists "better_supabase"."status_history" (
   "reason" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
+create index status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
 alter table "better_supabase"."status_history" enable row level security;
 revoke all on "better_supabase"."status_history" from public, anon, authenticated;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
-drop policy if exists status_history_read on "better_supabase"."status_history";
-create policy status_history_read on "better_supabase"."status_history"
+create policy bsb_status_history_read on "better_supabase"."status_history"
   for select to authenticated
   using (false);
-create table if not exists "better_supabase"."status_stages" (
+create table "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -2193,16 +1763,15 @@ create table if not exists "better_supabase"."status_stages" (
   "cleared_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
+create index status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
 alter table "better_supabase"."status_stages" enable row level security;
 revoke all on "better_supabase"."status_stages" from public, anon, authenticated;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
-drop policy if exists status_stages_read on "better_supabase"."status_stages";
-create policy status_stages_read on "better_supabase"."status_stages"
+create policy bsb_status_stages_read on "better_supabase"."status_stages"
   for select to authenticated
   using (false);
-create table if not exists "better_supabase"."subject_lifecycles" (
+create table "better_supabase"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -2210,26 +1779,21 @@ create table if not exists "better_supabase"."subject_lifecycles" (
   "version" integer not null default 1,
   "flags" text[] not null default '{}',
   "paused_at" timestamptz,
-  "paused_until" timestamptz,
+  "pause_expires_at" timestamptz,
   "pause_reason" text,
-  "paused_by_user_id" uuid,
+  "paused_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id")
 );
-create index if not exists subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("org_id", "subject_type") where "paused_at" is not null;
+create index subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("org_id", "subject_type") where "paused_at" is not null;
 alter table "better_supabase"."subject_lifecycles" enable row level security;
 revoke all on "better_supabase"."subject_lifecycles" from public, anon, authenticated;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
-drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
-create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
+create policy bsb_subject_lifecycles_read on "better_supabase"."subject_lifecycles"
   for select to authenticated
   using (false);
-
-
-
-drop function if exists "better_supabase"."transition"(text, text, text, text);
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor
@@ -2425,94 +1989,54 @@ grant execute on function "better_supabase"."list_status_stages"(text, text) to 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
 create policy bsb_tenant_scope_select on "better_supabase"."status_history" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."status_history" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_history";
 create policy bsb_tenant_scope_update on "better_supabase"."status_history" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."status_history" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_select on "better_supabase"."status_stages" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_insert on "better_supabase"."status_stages" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_update on "better_supabase"."status_stages" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_delete on "better_supabase"."status_stages" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_select on "better_supabase"."subject_lifecycles" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or (false)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_update on "better_supabase"."subject_lifecycles" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine

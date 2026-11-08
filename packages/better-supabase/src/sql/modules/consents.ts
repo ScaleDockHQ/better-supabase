@@ -121,11 +121,11 @@ const NAMES: BlockSqlNames = {
         subjectId: "subject_id",
         givenBy: "given_by",
         givenByContact: "given_by_contact_id",
-        givenByUser: "given_by_user_id",
+        givenByUser: "grantor_id",
         status: "status",
         scope: "scope",
         grantedAt: "granted_at",
-        validUntil: "valid_until",
+        validUntil: "expires_at",
         withdrawnAt: "withdrawn_at",
         withdrawnReason: "withdrawn_reason",
         signature: "signature_id",
@@ -215,7 +215,7 @@ ${optional("purposes", "description", (x) => `${x} text check (${x} is null or l
 );
 create unique index if not exists ${name("purposes", "key_idx")} on ${purposes} (${p("tenant")}, ${p("key")}, ${p("version")}) nulls not distinct;
 ${lockTable(purposes, { read: true })}
-${renderPolicy(makePolicy({ table: purposes, name: name("purposes", "read"), command: "select", roles: ["authenticated"], using: `${p("tenant")} is null or ${p("tenant")} in (select ${ctx.scope.members()})` }), { drop: true, target: purposes })}
+${renderPolicy(makePolicy({ table: purposes, name: name("purposes", "read"), command: "select", roles: ["authenticated"], using: `${p("tenant")} is null or ${p("tenant")} in (select ${ctx.scope.members()})` }), { target: purposes })}
 create table if not exists ${consents} (
   ${c("id")} uuid primary key default gen_random_uuid(),
   ${c("tenant")} ${ctx.idType} not null,
@@ -241,7 +241,7 @@ create index if not exists ${name("consents", "subject_idx")} on ${consents} (${
 create index if not exists ${name("consents", "purpose_idx")} on ${consents} (${c("purpose")});
 create index if not exists ${name("consents", "expiry_idx")} on ${consents} (${c("validUntil")}) where ${c("status")} = 'granted' and ${c("validUntil")} is not null;
 ${lockTable(consents, { read: true })}
-${renderPolicy(makePolicy({ table: consents, name: name("consents", "read"), command: "select", roles: ["authenticated"], using: `(${ctx.scope.check(c("tenant"), q.read)} and ${canSubject}(${c("subjectType")}, ${c("subjectId")}, 'read')) or ${c("givenByUser")} = (select auth.uid())` }), { drop: true, target: consents })}
+${renderPolicy(makePolicy({ table: consents, name: name("consents", "read"), command: "select", roles: ["authenticated"], using: `(${ctx.scope.check(c("tenant"), q.read)} and ${canSubject}(${c("subjectType")}, ${c("subjectId")}, 'read')) or ${c("givenByUser")} = (select auth.uid())` }), { target: consents })}
 `;
 }
 

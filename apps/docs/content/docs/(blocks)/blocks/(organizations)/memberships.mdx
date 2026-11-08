@@ -11,7 +11,7 @@ schema; an app with its own tenancy turns it on by setting
 `auth.tenant.column` without the block.
 
 ```ts
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const db = betterSupabase.connect(supabase, { claims }); // or { tenant: organizationId }
 ```
 
@@ -53,7 +53,7 @@ extension yourself replaces the one the schema installed:
 ```ts
 import { membershipsExtension } from "better-supabase/blocks/memberships";
 
-const betterSupabase = defineSupabase(schema).use(
+const betterSupabase = createSupabase(schema).use(
   membershipsExtension({
     header: "X-Organization",
     resolve: (context) => checkedOrganization(context),

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 
@@ -77,14 +78,14 @@ describe("progress notes, rendered", () => {
   it("adds the note columns, the addendum index and the functions", () => {
     const sql = sqlOf();
 
-    expect(sql).toContain(
-      `add column if not exists "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'))`,
+    expect(unnamedChecks(sql)).toContain(
+      `add column "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'))`,
     );
     expect(sql).toContain(
-      `add column if not exists "amends_id" uuid references "better_supabase"."activities" ("id") on delete cascade`,
+      `add column "amends_id" uuid references "better_supabase"."activities" ("id") on delete cascade`,
     );
     expect(sql).toContain(
-      `create index if not exists "activities_amends_idx" on "better_supabase"."activities" ("amends_id")`,
+      `create index "activities_amends_idx" on "better_supabase"."activities" ("amends_id")`,
     );
     expect(sql).toContain('function "better_supabase"."amend_activity"');
     expect(sql).toContain('function "better_supabase"."mark_activity_error"');
@@ -92,7 +93,7 @@ describe("progress notes, rendered", () => {
     expect(sql).toContain("'{note,report}'::text[]");
     expect(sql).toContain("activities.read_restricted");
     expect(sql).toContain('"better_supabase"."has_subject_role"');
-    expect(sql).not.toContain("engagement_guest_readable");
+    expect(sql).not.toContain("activity_guest_readable");
   });
 
   it("takes the lock window, the locked types and the categories", () => {
@@ -120,10 +121,10 @@ describe("progress notes, rendered", () => {
     const sql = sqlOf({}, ["guests"]);
 
     expect(sql).toContain(
-      'function "better_supabase"."engagement_guest_readable"',
+      'function "better_supabase"."activity_guest_readable"',
     );
     expect(sql).toContain(
-      `"audience" = 'subject' and "better_supabase"."engagement_guest_readable"("id")`,
+      `"audience" = 'subject' and "better_supabase"."activity_guest_readable"("id")`,
     );
   });
 
@@ -142,7 +143,7 @@ describe("progress notes, rendered", () => {
   it("needs the audience for restricted roles and the flag for its details", () => {
     const over = (columns: Record<string, null>) => () =>
       renderBlocks(["activities"], {
-        modules: { activities: { columns: { engagements: columns } } },
+        modules: { activities: { columns: { activities: columns } } },
       });
 
     expect(over({ audience: null })).toThrow(/restrictedRoles needs audience/);
@@ -154,7 +155,7 @@ describe("progress notes, rendered", () => {
       modules: {
         activities: {
           columns: {
-            engagements: {
+            activities: {
               audience: null,
               restrictedRoles: null,
               category: null,

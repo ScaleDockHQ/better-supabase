@@ -62,7 +62,7 @@ begin
     raise exception 'the global rule was not applied';
   end if;
   if not (better_supabase.check_rate_limits(jsonb_build_array(
-      jsonb_build_object('scope', 'ai', 'key', 'batch', 'organization_id', org)
+      jsonb_build_object('scope', 'ai', 'key', 'batch', 'tenant_id', org)
     )) ->> 'allowed')::boolean then
     raise exception 'check_rate_limits ignored the organization rule';
   end if;
@@ -78,12 +78,12 @@ $$;`),
 });
 
 describe("rate-limit upgrade", () => {
-  it("adds organization_id and drops the primary key from version 1", () => {
+  it("adds tenant_id and drops the primary key from version 1", () => {
     const [plan] = upgradePlan([{ module: "rate-limit", version: 1 }]);
     const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
 
     expect(sql).toContain("add column if not exists");
-    expect(sql).toContain("organization_id");
+    expect(sql).toContain("tenant_id");
     expect(sql).toContain("drop constraint if exists");
     expect(sql).toContain("rate_limit_rules_pkey");
   });

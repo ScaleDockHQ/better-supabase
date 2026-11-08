@@ -1,107 +1,25 @@
 -- ==== schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:d0fe2fe1fdd96ad19e99f5af03cb25598b88267015ece7e7efb817473971cffd
+-- @bsb-hash sha256:07610b47abe4fbf599da5f51f7d64f7f49645372516378ef67cad62996b9423e
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_plans";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_plans";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_plans";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_plans";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_plans";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_plan_problems";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_plan_problems";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_plan_problems";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_plan_problems";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_plan_problems";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_plan_goals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_plan_goals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_plan_goals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_plan_goals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_plan_goals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_plan_actions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_plan_actions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_plan_actions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_plan_actions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_plan_actions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."care_plan_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_plan_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_plan_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_plan_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_plan_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Care plans per client: problems, goals and the actions that reach them,
 -- evaluated over time, published as one active plan per client, agreed
 -- through a signature, with restrictive measures started only on approval.
 
-create table if not exists "better_supabase"."care_plans" (
+create table "better_supabase"."care_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The client the plan is for: any registered subject type.
-  "subject_type" text not null check (length("subject_type") between 1 and 63),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
-  "title" text not null check (length("title") between 1 and 300),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived')),
+  "subject_type" text not null constraint bsb_care_plans_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 63),
+  "subject_id" text not null constraint bsb_care_plans_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "title" text not null constraint bsb_care_plans_title_check check (length("title") >= 1 and length("title") <= 300),
+  "status" text not null default 'draft' constraint bsb_care_plans_status_check check ("status" in ('draft', 'active', 'archived')),
   -- 1 for a subject's first plan, one more for each plan after it.
-  "version" integer not null default 1 check ("version" >= 1),
+  "version" integer not null default 1 constraint bsb_care_plans_version_check check ("version" >= 1),
   "starts_on" date,
   "review_on" date,
   "owner_id" uuid,
@@ -118,90 +36,86 @@ create table if not exists "better_supabase"."care_plans" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("status" = 'draft' or "published_at" is not null),
-  check ("status" <> 'archived' or "archived_at" is not null)
+  constraint bsb_care_plans_check check ("status" = 'draft' or "published_at" is not null),
+  constraint bsb_care_plans_check1 check ("status" <> 'archived' or "archived_at" is not null)
 );
-alter table "better_supabase"."care_plans" add column if not exists "app_note" text;
-create unique index if not exists "care_plans_active_key" on "better_supabase"."care_plans" ("subject_type", "subject_id") where "status" = 'active';
-create index if not exists "care_plans_subject_idx" on "better_supabase"."care_plans" ("tenant_id", "subject_type", "subject_id", "version" desc);
-create index if not exists "care_plans_review_idx" on "better_supabase"."care_plans" ("review_on") where "status" = 'active';
-create index if not exists "care_plans_signature_idx" on "better_supabase"."care_plans" ("signature_id") where "signature_id" is not null;
-create index if not exists "care_plans_version_idx" on "better_supabase"."care_plans" ("published_version_id") where "published_version_id" is not null;
+create unique index "care_plans_active_key" on "better_supabase"."care_plans" ("subject_type", "subject_id") where "status" = 'active';
+create index "care_plans_subject_idx" on "better_supabase"."care_plans" ("tenant_id", "subject_type", "subject_id", "version" desc);
+create index "care_plans_review_idx" on "better_supabase"."care_plans" ("review_on") where "status" = 'active';
+create index "care_plans_signature_idx" on "better_supabase"."care_plans" ("signature_id") where "signature_id" is not null;
+create index "care_plans_version_idx" on "better_supabase"."care_plans" ("published_version_id") where "published_version_id" is not null;
 alter table "better_supabase"."care_plans" enable row level security;
 revoke all on "better_supabase"."care_plans" from public, anon, authenticated;
 grant select on "better_supabase"."care_plans" to authenticated;
 grant all on "better_supabase"."care_plans" to service_role;
-drop policy if exists care_plans_read on "better_supabase"."care_plans";
-create policy care_plans_read on "better_supabase"."care_plans"
+create policy bsb_care_plans_read on "better_supabase"."care_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('care_plans.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."care_plans"."subject_type", "better_supabase"."care_plans"."subject_id"::text, 'read'), false));
 
-create table if not exists "better_supabase"."care_plan_problems" (
+create table "better_supabase"."care_plan_problems" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   -- One of options.codeSystems, such as icnp or snomed; the functions check it.
-  "code_system" text not null default 'custom' check (length("code_system") between 1 and 63),
-  "code" text check ("code" is null or length("code") <= 100),
-  "title" text not null check (length("title") between 1 and 300),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "status" text not null default 'active' check ("status" in ('active', 'resolved')),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "code_system" text not null default 'custom' constraint bsb_care_plan_problems_code_system_check check (length("code_system") >= 1 and length("code_system") <= 63),
+  "code" text constraint bsb_care_plan_problems_code_check check ("code" is null or length("code") <= 100),
+  "title" text not null constraint bsb_care_plan_problems_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_care_plan_problems_description_check check ("description" is null or length("description") <= 10000),
+  "status" text not null default 'active' constraint bsb_care_plan_problems_status_check check ("status" in ('active', 'resolved')),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_problems_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "plan_id", "id"),
   foreign key ("tenant_id", "plan_id") references "better_supabase"."care_plans" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "care_plan_problems_plan_idx" on "better_supabase"."care_plan_problems" ("tenant_id", "plan_id", "rank");
+create index "care_plan_problems_plan_idx" on "better_supabase"."care_plan_problems" ("tenant_id", "plan_id", "rank");
 alter table "better_supabase"."care_plan_problems" enable row level security;
 revoke all on "better_supabase"."care_plan_problems" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_problems" to authenticated;
 grant all on "better_supabase"."care_plan_problems" to service_role;
-drop policy if exists care_plan_problems_read on "better_supabase"."care_plan_problems";
-create policy care_plan_problems_read on "better_supabase"."care_plan_problems"
+create policy bsb_care_plan_problems_read on "better_supabase"."care_plan_problems"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_problems"."plan_id"));
 
-create table if not exists "better_supabase"."care_plan_goals" (
+create table "better_supabase"."care_plan_goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   "problem_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 300),
+  "title" text not null constraint bsb_care_plan_goals_title_check check (length("title") >= 1 and length("title") <= 300),
   "target_on" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
+  "status" text not null default 'planned' constraint bsb_care_plan_goals_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
   -- How progress is measured, such as { "kind": "score", "target": 3 }.
-  "measure" jsonb check ("measure" is null or jsonb_typeof("measure") = 'object'),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "measure" jsonb constraint bsb_care_plan_goals_measure_check check ("measure" is null or jsonb_typeof("measure") = 'object'),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_goals_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "plan_id", "id"),
   foreign key ("tenant_id", "plan_id", "problem_id") references "better_supabase"."care_plan_problems" ("tenant_id", "plan_id", "id") on delete cascade
 );
-create index if not exists "care_plan_goals_problem_idx" on "better_supabase"."care_plan_goals" ("tenant_id", "plan_id", "problem_id");
+create index "care_plan_goals_problem_idx" on "better_supabase"."care_plan_goals" ("tenant_id", "plan_id", "problem_id");
 alter table "better_supabase"."care_plan_goals" enable row level security;
 revoke all on "better_supabase"."care_plan_goals" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_goals" to authenticated;
 grant all on "better_supabase"."care_plan_goals" to service_role;
-drop policy if exists care_plan_goals_read on "better_supabase"."care_plan_goals";
-create policy care_plan_goals_read on "better_supabase"."care_plan_goals"
+create policy bsb_care_plan_goals_read on "better_supabase"."care_plan_goals"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_goals"."plan_id"));
 
-create table if not exists "better_supabase"."care_plan_actions" (
+create table "better_supabase"."care_plan_actions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   "goal_id" uuid not null,
-  "kind" text not null default 'intervention' check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
-  "title" text not null check (length("title") between 1 and 300),
-  "instructions" text check ("instructions" is null or length("instructions") <= 10000),
+  "kind" text not null default 'intervention' constraint bsb_care_plan_actions_kind_check check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
+  "title" text not null constraint bsb_care_plan_actions_title_check check (length("title") >= 1 and length("title") <= 300),
+  "instructions" text constraint bsb_care_plan_actions_instructions_check check ("instructions" is null or length("instructions") <= 10000),
   -- How often, such as { "every": "P1D", "times": ["08:00", "20:00"] }.
-  "frequency" jsonb check ("frequency" is null or jsonb_typeof("frequency") = 'object'),
+  "frequency" jsonb constraint bsb_care_plan_actions_frequency_check check ("frequency" is null or jsonb_typeof("frequency") = 'object'),
   -- The team role that carries the action out, such as nurse.
-  "team_role" text check ("team_role" is null or length("team_role") <= 63),
+  "team_role" text constraint bsb_care_plan_actions_team_role_check check ("team_role" is null or length("team_role") <= 63),
   -- For a measure: one of options.measureKinds when it lists any.
-  "measure_kind" text check ("measure_kind" is null or length("measure_kind") <= 63),
+  "measure_kind" text constraint bsb_care_plan_actions_measure_kind_check check ("measure_kind" is null or length("measure_kind") <= 63),
   -- The work item a task action created, with the tasks block.
   "task_id" uuid,
   -- The bookings series an appointment action placed.
@@ -209,57 +123,55 @@ create table if not exists "better_supabase"."care_plan_actions" (
   -- A measure always needs an approval before it starts.
   "requires_approval" boolean not null default false,
   "approval_id" uuid,
-  "review_every" interval check ("review_every" is null or "review_every" > interval '0'),
+  "review_every" interval constraint bsb_care_plan_actions_review_every_check check ("review_every" is null or "review_every" > interval '0'),
   "reviewed_at" timestamptz,
   -- The review moment due_care_plan_reviews last reported.
   "review_notified_at" timestamptz,
   "starts_on" date,
   "ends_on" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'active', 'ended')),
+  "status" text not null default 'planned' constraint bsb_care_plan_actions_status_check check ("status" in ('planned', 'active', 'ended')),
   "started_at" timestamptz,
   "ended_at" timestamptz,
-  "end_reason" text check ("end_reason" is null or length("end_reason") <= 2000),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "end_reason" text constraint bsb_care_plan_actions_end_reason_check check ("end_reason" is null or length("end_reason") <= 2000),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_actions_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("kind" <> 'measure' or "requires_approval"),
-  check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_care_plan_actions_check check ("kind" <> 'measure' or "requires_approval"),
+  constraint bsb_care_plan_actions_check1 check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
   foreign key ("tenant_id", "plan_id", "goal_id") references "better_supabase"."care_plan_goals" ("tenant_id", "plan_id", "id") on delete cascade
 );
-create index if not exists "care_plan_actions_goal_idx" on "better_supabase"."care_plan_actions" ("tenant_id", "plan_id", "goal_id");
-create index if not exists "care_plan_actions_measure_idx" on "better_supabase"."care_plan_actions" ("tenant_id", "status") where "kind" = 'measure';
-create index if not exists "care_plan_actions_approval_idx" on "better_supabase"."care_plan_actions" ("approval_id") where "approval_id" is not null;
-create index if not exists "care_plan_actions_review_idx" on "better_supabase"."care_plan_actions" ("status") where "review_every" is not null;
+create index "care_plan_actions_goal_idx" on "better_supabase"."care_plan_actions" ("tenant_id", "plan_id", "goal_id");
+create index "care_plan_actions_measure_idx" on "better_supabase"."care_plan_actions" ("tenant_id", "status") where "kind" = 'measure';
+create index "care_plan_actions_approval_idx" on "better_supabase"."care_plan_actions" ("approval_id") where "approval_id" is not null;
+create index "care_plan_actions_review_idx" on "better_supabase"."care_plan_actions" ("status") where "review_every" is not null;
 alter table "better_supabase"."care_plan_actions" enable row level security;
 revoke all on "better_supabase"."care_plan_actions" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_actions" to authenticated;
 grant all on "better_supabase"."care_plan_actions" to service_role;
-drop policy if exists care_plan_actions_read on "better_supabase"."care_plan_actions";
-create policy care_plan_actions_read on "better_supabase"."care_plan_actions"
+create policy bsb_care_plan_actions_read on "better_supabase"."care_plan_actions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_actions"."plan_id"));
 
-create table if not exists "better_supabase"."care_plan_evaluations" (
+create table "better_supabase"."care_plan_evaluations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   "goal_id" uuid not null,
   "evaluated_at" timestamptz not null default now(),
   -- The goal's status the evaluation found.
-  "status" text not null check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
-  "outcome" text check ("outcome" is null or length("outcome") <= 10000),
+  "status" text not null constraint bsb_care_plan_evaluations_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
+  "outcome" text constraint bsb_care_plan_evaluations_outcome_check check ("outcome" is null or length("outcome") <= 10000),
   -- The forms submission that recorded the evaluation, if one did.
   "submission_id" uuid,
   "author_id" uuid,
   foreign key ("tenant_id", "plan_id", "goal_id") references "better_supabase"."care_plan_goals" ("tenant_id", "plan_id", "id") on delete cascade
 );
-create index if not exists "care_plan_evaluations_goal_idx" on "better_supabase"."care_plan_evaluations" ("tenant_id", "plan_id", "goal_id", "evaluated_at" desc);
+create index "care_plan_evaluations_goal_idx" on "better_supabase"."care_plan_evaluations" ("tenant_id", "plan_id", "goal_id", "evaluated_at" desc);
 alter table "better_supabase"."care_plan_evaluations" enable row level security;
 revoke all on "better_supabase"."care_plan_evaluations" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_evaluations" to authenticated;
 grant all on "better_supabase"."care_plan_evaluations" to service_role;
-drop policy if exists care_plan_evaluations_read on "better_supabase"."care_plan_evaluations";
-create policy care_plan_evaluations_read on "better_supabase"."care_plan_evaluations"
+create policy bsb_care_plan_evaluations_read on "better_supabase"."care_plan_evaluations"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_evaluations"."plan_id"));
 
@@ -1492,136 +1404,86 @@ grant execute on function "better_supabase"."due_care_plan_reviews"() to service
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_plans";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_plans";
 create policy bsb_tenant_scope_select on "better_supabase"."care_plans" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('care_plans.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."care_plans"."subject_type", "better_supabase"."care_plans"."subject_id"::text, 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_plans";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_plans" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_plans";
 create policy bsb_tenant_scope_update on "better_supabase"."care_plans" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_plans";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_plans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_plan_problems";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_plan_problems";
 create policy bsb_tenant_scope_select on "better_supabase"."care_plan_problems" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_problems"."plan_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_plan_problems";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_plan_problems" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_plan_problems";
 create policy bsb_tenant_scope_update on "better_supabase"."care_plan_problems" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_plan_problems";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_plan_problems" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_plan_goals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_plan_goals";
 create policy bsb_tenant_scope_select on "better_supabase"."care_plan_goals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_goals"."plan_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_plan_goals";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_plan_goals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_plan_goals";
 create policy bsb_tenant_scope_update on "better_supabase"."care_plan_goals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_plan_goals";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_plan_goals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_plan_actions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_plan_actions";
 create policy bsb_tenant_scope_select on "better_supabase"."care_plan_actions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_actions"."plan_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_plan_actions";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_plan_actions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_plan_actions";
 create policy bsb_tenant_scope_update on "better_supabase"."care_plan_actions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_plan_actions";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_plan_actions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."care_plan_evaluations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."care_plan_evaluations";
 create policy bsb_tenant_scope_select on "better_supabase"."care_plan_evaluations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_evaluations"."plan_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."care_plan_evaluations";
 create policy bsb_tenant_scope_insert on "better_supabase"."care_plan_evaluations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."care_plan_evaluations";
 create policy bsb_tenant_scope_update on "better_supabase"."care_plan_evaluations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."care_plan_evaluations";
 create policy bsb_tenant_scope_delete on "better_supabase"."care_plan_evaluations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans

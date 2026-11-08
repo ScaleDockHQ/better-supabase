@@ -110,6 +110,14 @@ const apiVersion: ContractApiVersion = 1;
 | `better-supabase gen`                                                                                    | refuses a bucket or topic key that isn't `sqlComplete: true`                         |
 | [Doctor](/docs/cli/doctor) BS107, BS213, BS214, BS324, BS404, BS405, BS407 to BS409, BS411, BS419, BS420 | `requires`, `decidingColumns`, `permissions`, `memberships`, `tokenHook`, `versions` |
 
+A block checks `<block>.<action>` by default, such as `tags.read`. When
+`authorization.permissions` lists `<resource>.<action>` of the block's primary
+entity (`tag.read`) and not the block's own key, the block checks the resource
+key instead, so a provider that names permissions after resources needs no
+`blocks.<name>.permissions` entries. An entry in `blocks.<name>.permissions`
+always wins, and a block whose keys the provider lists under neither name still
+fails the check that names the key to remap.
+
 `auth.entitlements.memberships` and `blocks.permissions.model` both default to
 `"provider"` when `authorization` is set. Set another access model to keep
 the built-in roles; doctor BS414 then reports each policy and function that
@@ -142,7 +150,6 @@ interface AuthorizationProvider {
   decidingColumns?: string[];
   tokenHook?: AuthorizationTokenHook;
   versions?: { function: string };
-  approvals?: { distinctApprover?: boolean };
   operations?: Record<string, AuthorizationOperation>;
   problems?: string[];
 }
@@ -210,7 +217,6 @@ puts the result into a policy or a module function:
 | `canAssignFor`   | `{user}`, `{role}`, `{roles}`, `{tenant}`, `{scope}`                       | as `canAssign`, for another user                                                           |
 | `permissionsFor` | `{user}`, `{tenant}`, `{scope}`                                            | `text[]`: the permission keys `{user}` holds in `{tenant}`                                 |
 | `isApprover`     | `{kind}`, `{subject}`, `{tenant}`, `{requester}`, `{approvers}`, `{scope}` | `boolean`: the caller may approve request `{subject}` of kind `{kind}`                     |
-| `canApprove`     | `{tool}`, `{tenant}`, `{scope}`                                            | deprecated: `isApprover` with `{kind}` `'ai-tool'`                                         |
 | `holdersOf`      | `{permission}`, `{tenant}`, `{scope}`                                      | a set of user ids that hold `{permission}` on `{tenant}`                                   |
 | `actorMayWrite`  | none                                                                       | `boolean`: the caller's session may write                                                  |
 | `permitted`      | `{permission}`, `{id}`, `{tenant}`, `{resource}`, `{scope}`                | `boolean`: the caller holds `{permission}` on instance `{id}` of `{resource}`              |
@@ -303,6 +309,15 @@ BS419 warns when app code uses it while some keys aren't marked: those keys
 deny there unless its `load` option reads `my_permissions`. Check them with
 your library's own authorizer instead.
 
+`wildcards` says which wildcard grants the generated
+`better_supabase.permission_matches` honours: `all` (the default) lets `*`
+grant every key and `prefix.*` every key under the prefix, `prefix` drops the
+bare `*`, and `none` matches the exact key only. Set `none` when your grants
+never hold a wildcard, so a stray `*` row cannot widen access (ADR 0372). The
+`webhooks-out` fan-out reads the same setting, so an endpoint's declared
+permissions match an event's read permission only by the wildcards you allow
+(ADR 0400).
+
 ### Token hook
 
 `tokenHook` describes the custom access token hook the provider generates:
@@ -374,13 +389,9 @@ count, or the step's `escalateTo` once the step is escalated, for example
 let a cover approve only where the absent user is a named approver. AI tool
 calls and support sessions pass `null`. Under the `provider` model,
 `decide_ai_tool_approval` lets the service role and any caller `isApprover`
-allows decide the call. `approvals.distinctApprover: true` keeps the
-requester from deciding their own request, for four-eyes approval. Without
+allows decide the call. `isApprover` always refuses the requester, so
+a request needs a second approver. Without
 `isApprover`, the chat's owner decides a tool call.
-
-`canApprove` still works in 0.9 and is read when `isApprover` is unset;
-`better-supabase codemod 0.9` points at each use. Doctor BS415 warns while a
-provider sets it.
 
 `holdersOf` is the audience for `notifications.send({ permission })`: the
 user ids that hold that key on the tenant. A provider sets it from its
@@ -401,7 +412,6 @@ functions: {
   // ...
   isApprover: "authz.is_approver({kind}, {subject}, {tenant}::text, {requester})",
 },
-approvals: { distinctApprover: true },
 ```
 
 #### Out-of-office covers
@@ -840,6 +850,7 @@ over the provider's.
 | `memberships[].disabledAt`                        | the memberships `disabledAt` column                                                          | next minor |
 | `platformRoles`                                   | `blocks.invitations.options.platformRoles`                                                   | next minor |
 | `personas`                                        | one access matrix file per persona (`providerPersonaTests`)                                  | next minor |
+| `wildcards`                                       | the wildcard grants `permission_matches` honours (`all`, `prefix`, `none`)                   | next minor |
 | `AuthorizationProvider<Key>`                      | typed permission keys in `blocks.*.permissions`, `subjects.*.permissions` and the role lists | next minor |
 
 Doctor reports a config value equal to the provider's (BS426).

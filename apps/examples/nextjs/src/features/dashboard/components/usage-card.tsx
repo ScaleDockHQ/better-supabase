@@ -15,10 +15,10 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUsageMeter } from "@/hooks/use-usage";
 import { useAuth } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { usageConfig } from "@/lib/supabase/blocks/slices";
 
 /** The API schema `gen` wrote for the usage block. */
-const API_SCHEMA = blockConfig.usage.api;
+const API_SCHEMA = usageConfig.api;
 
 /** This period's usage per meter against the plan's quota. */
 export function UsageCard() {

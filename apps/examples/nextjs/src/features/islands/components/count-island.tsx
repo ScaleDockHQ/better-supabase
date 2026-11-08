@@ -22,7 +22,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
-import type { Islands, IslandScope, IslandTable } from "../islands-queries";
+import type { IslandScope } from "../islands-cache";
+import type { Islands, IslandTable } from "../islands-queries";
 
 import { getIslandsIn } from "../islands-queries";
 import { IslandError } from "./island-error";

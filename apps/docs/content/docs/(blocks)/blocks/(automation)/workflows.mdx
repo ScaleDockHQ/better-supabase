@@ -176,7 +176,7 @@ the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import {
     createWorkflowRunsController,
     createWorkflows,
@@ -184,7 +184,7 @@ the component.
   } from "better-supabase/blocks/workflows";
 
   let { organizationId }: { organizationId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const runs = useBlockController(createWorkflowRunsController, {
     client: createWorkflows({ transport: rpcTransport(supabase) }),
     tenant: organizationId,
@@ -317,7 +317,7 @@ idempotency key `admission:<id>`. Both are service-role functions.
 
 ## Run extra columns
 
-Pass `fields` (a Standard Schema) to `createWorkflows` and map extra columns with `blocks.workflows.options.runExtraColumns`. `runs.record` validates `fields`, and `runs.list`, `runs.get` and the other run methods return them parsed on `run.fields`, typed by the schema. A run also carries `idempotencyKey` and `dispatchUntil`. `runs.claimForDispatch` leases a queued run (an external id that starts with `pending:`) and `runs.setEngine` records the engine's run id on it.
+Pass `fields` (a Standard Schema) to `createWorkflows` and map extra columns with `alter table ... add column` in your own schema files. `runs.record` validates `fields`, and `runs.list`, `runs.get` and the other run methods return them parsed on `run.fields`, typed by the schema. A run also carries `idempotencyKey` and `dispatchUntil`. `runs.claimForDispatch` leases a queued run (an external id that starts with `pending:`) and `runs.setEngine` records the engine's run id on it.
 
 Map `schedules`, `semaphores` or `startRequests` to `null` in `tables` to install only the run registry.
 

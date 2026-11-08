@@ -645,6 +645,28 @@ describe("authContext", () => {
   });
 });
 
+describe("audience", () => {
+  it("requires authenticated by default and honors an explicit audience", async () => {
+    const options: ResolveAuthOptions = { env, jwks: keys() };
+    const user = await signer.sign({ sub: USER, aud: "authenticated" });
+    const other = await signer.sign({ sub: USER, aud: "another-service" });
+
+    expect((await resolveAuth(bearer(user), options)).auth.kind).toBe("user");
+    expect((await resolveAuth(bearer(other), options)).auth.kind).toBe(
+      "invalid",
+    );
+
+    expect(
+      (
+        await resolveAuth(bearer(other), {
+          ...options,
+          audience: "another-service",
+        })
+      ).auth.kind,
+    ).toBe("user");
+  });
+});
+
 describe("issuer", () => {
   it("rejects a token another project issued, and accepts one without iss", async () => {
     const options: ResolveAuthOptions = { env, jwks: keys() };

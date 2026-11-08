@@ -67,7 +67,7 @@ const NAMES: BlockSqlNames = {
         subjectId: "subject_id",
         fromStatus: "from_status",
         toStatus: "to_status",
-        actor: "actor_user_id",
+        actor: "actor_id",
         actorName: "actor_name",
         actorEmail: "actor_email",
         ip: "ip_address",
@@ -108,9 +108,9 @@ const NAMES: BlockSqlNames = {
         version: "version",
         flags: "flags",
         pausedAt: "paused_at",
-        pausedUntil: "paused_until",
+        pausedUntil: "pause_expires_at",
         pauseReason: "pause_reason",
-        pausedBy: "paused_by_user_id",
+        pausedBy: "paused_by",
         workflowVersion: "workflow_version_id",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -566,7 +566,7 @@ ${list.map((item) => `      when ${sqlString(item.name)} then exists (select 1 f
       roles: ["authenticated"],
       using: visible,
     }),
-    { drop: true, target: table },
+    { target: table },
   );
 }
 
@@ -1014,7 +1014,7 @@ function upgradeActorColumns(ctx: BlockSqlContext): string {
 }
 
 const CONTRIBUTES: BlockContributes = {
-  bulk: (own) => [
+  "bulk-actions": (own) => [
     {
       name: "stateMachine.transition",
       run: `perform ${own.fn("transition")}(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason', bulk_row.args -> 'actor');`,

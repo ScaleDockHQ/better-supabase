@@ -18,9 +18,7 @@ describe("agents module", () => {
       "agent_ratings",
       "agent_skills",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}" (`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}" (`);
     }
 
     expect(sql).toContain("'^[a-z0-9]+(-[a-z0-9]+)*$'");

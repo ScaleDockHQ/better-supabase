@@ -1,9 +1,17 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { configIssues } from "../../src/cli/config-schema.ts";
+import { configIssues, configSchemas } from "../../src/cli/config-schema.ts";
 import { loadConfig } from "../../src/cli/config.ts";
 import { stubProvider } from "../fixtures/authorization-provider.ts";
+
+describe("configSchemas", () => {
+  it("hands out the schemas the JSON Schema files are rendered from", () => {
+    expect(Object.keys(configSchemas())).toEqual(
+      expect.arrayContaining(["config", "environment", "design"]),
+    );
+  });
+});
 
 const repo = join(import.meta.dirname, "../../../..");
 
@@ -35,7 +43,7 @@ describe("configIssues", () => {
         gen: { tasks: ["types", "env"] },
         adapters: ["next"],
         $env: { staging: { tooling: { doctor: { strict: true } } } },
-        $production: { tooling: { env: { output: ".env.production.local" } } },
+        $production: { tooling: { env: { file: ".env.production.local" } } },
       }),
     ).toEqual([]);
     expect(
@@ -62,7 +70,7 @@ describe("configIssues", () => {
               {
                 format: "openapi",
                 version: "3.0",
-                output: "legacy.yaml",
+                file: "legacy.yaml",
                 serialize: "yaml",
               },
               { format: "openapi", ui: "redoc", overlays: ["docs.yaml"] },
@@ -248,9 +256,7 @@ describe("configIssues for authorization", () => {
         functions: {
           ...stubProvider.functions,
           permissionsFor: "authz.permissions_for({user}, {tenant})",
-          canApprove: "authz.can_approve({tool}, {tenant})",
         },
-        approvals: { distinctApprover: true },
       }),
     ).toEqual([]);
     expect(configIssues({ auth: { claims: { memberships: "orgs" } } })).toEqual(
@@ -351,9 +357,9 @@ describe("configIssues for a config written before 0.15", () => {
         $production: { doctor: {} },
       }),
     ).toEqual([
-      "casing: moved to `gen.casing` in 0.15; run `better-supabase codemod 0.15`",
-      "integrations: moved to `adapters` in 0.15; run `better-supabase codemod 0.15`",
-      "$production.doctor: moved to `tooling.doctor` in 0.15; run `better-supabase codemod 0.15`",
+      "casing: moved to `gen.casing` in 0.15; upgrade to 0.53 with that release first",
+      "$production.doctor: moved to `tooling.doctor` in 0.15; upgrade to 0.53 with that release first",
+      "integrations: renamed to `adapters` in 0.54; rename the key, or run `better-supabase codemod naming`",
     ]);
   });
 
@@ -363,13 +369,13 @@ describe("configIssues for a config written before 0.15", () => {
     expect(issues).toHaveLength(2);
     expect(issues[0]).toContain("migrate schema-first");
     expect(issues[1]).toBe(
-      "records: renamed to `subjects` in 0.28; rename the key. A table's subject now comes from `@bsb subject` in its comment",
+      "records: renamed to `recordTypes` (it was `subjects` before 0.54); rename the key. A table's subject now comes from `@bsb subject` in its comment",
     );
   });
 
-  it("names gen.recordTypes for generateFeatures", () => {
+  it("names gen.records for generateFeatures", () => {
     expect(configIssues({ gen: { generateFeatures: false } })).toContain(
-      "gen.generateFeatures: renamed to `gen.recordTypes` in 0.15; run `better-supabase codemod 0.15`",
+      "gen.generateFeatures: renamed to `gen.records`; rename the key (it was `gen.recordTypes` from 0.15 to 0.53)",
     );
   });
 });

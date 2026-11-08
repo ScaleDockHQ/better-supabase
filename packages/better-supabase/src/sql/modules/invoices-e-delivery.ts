@@ -55,11 +55,11 @@ export function eDeliveryNames(
 }
 
 /**
- * The `invoice_e_endpoints` table: the Peppol participant id (an EAS scheme and
+ * The `e_invoice_endpoints` table: the Peppol participant id (an EAS scheme and
  * an id) of an organization, a legal entity or a company.
  */
 export const E_ENDPOINTS_TABLE: BlockSqlTableSpec = {
-  name: "invoice_e_endpoints",
+  name: "e_invoice_endpoints",
   app: {},
   optionalTable: true,
   lifecycle: { tenant: "tenant", export: true },
@@ -130,7 +130,7 @@ export function eDeliveryTablesSql(
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, read),
       }),
-      { drop: true, target },
+      { target },
     );
 
   return `
@@ -145,10 +145,10 @@ create table if not exists ${endpoints} (
   ${p("createdAt")} timestamptz not null default now(),
   ${p("updatedAt")} timestamptz not null default now()
 );
-create unique index if not exists ${ctx.naming.rename("invoice_e_endpoints_party_key")} on ${endpoints} (${p("tenant")}, ${p("partyKind")}, ${p("partyId")});
-create index if not exists ${ctx.naming.rename("invoice_e_endpoints_lookup_idx")} on ${endpoints} (${p("tenant")}, ${p("scheme")}, ${p("endpoint")});
+create unique index if not exists ${ctx.naming.rename("e_invoice_endpoints_party_key")} on ${endpoints} (${p("tenant")}, ${p("partyKind")}, ${p("partyId")});
+create index if not exists ${ctx.naming.rename("e_invoice_endpoints_lookup_idx")} on ${endpoints} (${p("tenant")}, ${p("scheme")}, ${p("endpoint")});
 ${lockModuleTable(ctx, "eEndpoints", { read: true })}
-${readPolicy("invoice_e_endpoints_read", p("tenant"), endpoints)}
+${readPolicy("e_invoice_endpoints_read", p("tenant"), endpoints)}
 
 create table if not exists ${deliveries} (
   ${d("id")} uuid primary key default gen_random_uuid(),
@@ -174,7 +174,7 @@ ${readPolicy("e_invoice_deliveries_read", d("tenant"), deliveries)}
 
 /**
  * Peppol participant ids and the delivery log: `set_invoice_e_endpoint`,
- * `invoice_e_endpoints`, `find_e_endpoint_party`, `record_e_invoice_delivery`,
+ * `e_invoice_endpoints`, `find_e_endpoint_party`, `record_e_invoice_delivery`,
  * `set_e_invoice_delivery_state` and `list_e_invoice_deliveries`.
  */
 export function eDeliverySql(
@@ -259,7 +259,7 @@ ${userGrant(`${fn("set_invoice_e_endpoint")}(${ctx.idType}, text, text, text, te
 
 -- The Peppol participant ids of an invoice: the seller (its legal entity, else
 -- the organization) and the buyer (its company). Each is null when none is set.
-create or replace function ${fn("invoice_e_endpoints")}(invoice uuid)
+create or replace function ${fn("e_invoice_endpoints")}(invoice uuid)
 returns jsonb
 language plpgsql
 stable
@@ -271,7 +271,7 @@ declare
   v_seller jsonb;
   v_buyer jsonb;
 begin
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = invoice_e_endpoints.invoice and ${h.can("x", n.read)};
+  select * into v_row from ${t("invoices")} x where x.${i("id")} = e_invoice_endpoints.invoice and ${h.can("x", n.read)};
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can read", "P0002")}
   end if;
@@ -284,7 +284,7 @@ begin
   return jsonb_build_object('seller', v_seller, 'buyer', v_buyer);
 end;
 $$;
-${userGrant(`${fn("invoice_e_endpoints")}(uuid)`)}
+${userGrant(`${fn("e_invoice_endpoints")}(uuid)`)}
 
 -- The party that has a participant id: { partyKind, partyId }, or null. A
 -- received document's supplier is found by it.
@@ -476,7 +476,7 @@ export function eDeliveryContract(
       args: ["{id}", "text", "text", "text", "text"],
       returns: "jsonb",
     },
-    { name: "invoice_e_endpoints", args: ["uuid"], returns: "jsonb" },
+    { name: "e_invoice_endpoints", args: ["uuid"], returns: "jsonb" },
     {
       name: "find_e_endpoint_party",
       args: ["{id}", "text", "text"],

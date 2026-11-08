@@ -6,6 +6,7 @@ import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
 import { SQL_MODULES } from "../../../src/sql/registry.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const SUBJECTS: SubjectsConfig = {
   patient: {
@@ -68,9 +69,7 @@ describe("record access requests", () => {
     const sql = sqlOf({}, BLOCKS, "subjects");
 
     expect(sql).toContain(`"ends_at" timestamptz,`);
-    expect(sql).toContain(
-      `alter table "better_supabase"."subject_members" add column if not exists "ends_at" timestamptz;`,
-    );
+    expect(sql).toContain(`"ends_at" timestamptz`);
     expect(sql).toContain(`and (m."ends_at" is null or m."ends_at" > now())`);
     expect(sql).toContain(`'endsAt', m."ends_at"`);
     expect(sql).toContain(
@@ -103,7 +102,7 @@ describe("record access requests", () => {
     expect(alone).toContain(
       `'target', 'role', 'subjectType', null::text, 'subjectId', null::text, 'action', null::text`,
     );
-    expect(alone).toContain(`"role" text not null check`);
+    expect(unnamedChecks(alone)).toContain(`"role" text not null check`);
 
     const custom = sqlOf({ modules: { subjects: { mode: "custom" } } });
     expect(custom).not.toContain("request_record_access");

@@ -3,7 +3,7 @@ title: Tags
 description: Tag definitions per kind, applied to subjects through one table or a link table per subject.
 ---
 
-`tags` keeps definitions (`kind`, `name`, `slug`, `color`) and applies them to records. Applying or removing a tag needs `tags.apply` (or `tags.manage`) in the tenant, the subject's own read permission, and a tag kind the subject allows. When the record type declares a `tag` action in [`config.subjects`](/docs/blocks/sql#actions-granted-per-row) (such as `tag: "task.update"`), applying or removing a tag also needs that action on the record, so a key, a per-row grant or the record's owner decides who may tag it.
+`tags` keeps definitions (`kind`, `name`, `slug`, `color`) and applies them to records. Applying or removing a tag needs `tags.apply` (or `tags.manage`) in the tenant, the subject's own read permission, and a tag kind the subject allows. When the record type declares a `tag` action in [`config.recordTypes`](/docs/blocks/sql#actions-granted-per-row) (such as `tag: "task.update"`), applying or removing a tag also needs that action on the record, so a key, a per-row grant or the record's owner decides who may tag it.
 
 With the [drive](/docs/blocks/drive#labels-and-approvals) installed, `drive_node` subjects follow the node's grants: reading a node's tags needs read access, and tagging or untagging needs write access, which is how the drive's labels work.
 
@@ -126,12 +126,12 @@ const { state, actions } = useBlockController(createTagInputController, {
 
 ```svelte title="CustomerTags.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import { rpcTransport } from "better-supabase/blocks";
   import { createTagInputController, createTags } from "better-supabase/blocks/tags";
 
   let { organizationId, customerId }: { organizationId: string; customerId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const tags = useBlockController(createTagInputController, {
     client: createTags({
       transport: rpcTransport(supabase),
@@ -195,7 +195,7 @@ tags: {
 },
 ```
 
-`links` columns are `subject`, `tag` and optional `memberships` and `createdAt`. When [`config.subjects`](/docs/blocks/sql#actions-granted-per-row) registers the record type, its entry can leave out `table` and `idType`, which come from the registry.
+`links` columns are `subject`, `tag` and optional `memberships` and `createdAt`. When [`config.recordTypes`](/docs/blocks/sql#actions-granted-per-row) registers the record type, its entry can leave out `table` and `idType`, which come from the registry.
 
 Your `kind` and `subjectType` columns may be enums or domains, such as `kind public.organization_tag_kind`: the module casts the text it writes and compares to the column's type, so an unknown kind fails with the enum's `invalid input value` error.
 
@@ -207,7 +207,7 @@ Tags of a kind are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/
 
 ## Your own columns
 
-Add columns to the tag table with `blocks.tags.options.extraColumns`
+Add columns to the tag table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `create` and `update` (the last argument) validates and writes them, and `create` return them parsed under
 `fields`. A column whose type is `not null` without a `default` is written in

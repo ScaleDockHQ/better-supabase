@@ -306,7 +306,7 @@ export function exportOf(value: unknown): DataExport {
       EXPORT_SUBJECTS.find((candidate) => candidate === row["subject"]) ??
       "user",
     userId: optionalText(row["user_id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     subjectType: optionalText(row["subject_type"]),
     subjectId: optionalText(row["subject_id"]),
     format: EXPORT_FORMATS.find((candidate) => candidate === row["format"]),
@@ -325,10 +325,10 @@ export function deletionOf(value: unknown): OrganizationDeletion {
   const row = recordOf(value, "organization_deletions");
 
   return {
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     requestedBy: optionalText(row["requested_by"]),
     requestedAt: toInstant(textOf(row["requested_at"])),
-    purgeAfter: toInstant(textOf(row["purge_after"])),
+    purgeAfter: toInstant(textOf(row["purge_at"])),
     cancelledAt: optionalInstant(row["cancelled_at"]),
     purgedAt: optionalInstant(row["purged_at"]),
   };
@@ -353,7 +353,7 @@ function requestOf(value: unknown): DataSubjectRequest {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     kind: enumOf(row["kind"], REQUEST_KINDS, "request kind"),
     requester: textOf(row["requester"]),
     subjectType: optionalText(row["subject_type"]),

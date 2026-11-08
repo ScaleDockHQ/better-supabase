@@ -1,14 +1,10 @@
 audit
 memberships
 invitations
-rate-limit
 permissions
 impersonation
 organizations
-profiles
-outbox
 notifications
-webhooks-out
 webhooks-in
 api-keys
 settings
@@ -32,7 +28,6 @@ memory
 agents
 connectors
 ai-schedules
-ai-cache
 ai-keys
 teams
 tags
@@ -44,7 +39,7 @@ imports
 subjects
 saved-views
 relations
-bulk
+bulk-actions
 search
 calendar
 bookings
@@ -61,7 +56,7 @@ orders
 promotions
 forms
 signatures
-time-tracking
+time-entries
 service-accounts
 templates
 pipelines
@@ -76,10 +71,8 @@ goals
 hiring
 employees
 collections
-domains
 moderation
 leave
-automations
 ledger
 assets
 scores
@@ -142,7 +135,4 @@ referrals
 e-prescribing
 agent-checkout
 advisories
-prompts
-ai-evals
-ai-guardrails
 option-sets

@@ -1,3 +1,4 @@
+import type { FrameworkRegistry } from "../plugins/frameworks.ts";
 import type { ExpandedConfig } from "../preset/config.ts";
 import type { AuthorizationProvider } from "./authorization.ts";
 import type { AnyBlocksConfig, BlockConfig } from "./blocks.ts";
@@ -6,6 +7,7 @@ import type { Generator } from "./types/codegen.ts";
 import type {
   BetterSupabaseConfig,
   FlatConfig,
+  HooksFramework,
   ResolvedConfig,
   ResolvedExtensions,
 } from "./types/config.ts";
@@ -21,6 +23,7 @@ import type { AppTablesInput } from "./types/groups.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { tenantNames } from "../core/entity-naming.ts";
+import { frameworkRegistry } from "../plugins/frameworks.ts";
 import { expandFlatPreset, expandPreset } from "../preset/config.ts";
 import { appTablesOf, withAppTableSubjects } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";
@@ -92,6 +95,60 @@ function vectorSearchOf(
  * so `can`, `tenant_ids_with` and every module check answer from the provider's
  * templates instead of the built-in roles.
  */
+function isBlockNames(
+  blocks: NonNullable<BetterSupabaseConfig["blocks"]>,
+): blocks is readonly string[] {
+  return Array.isArray(blocks);
+}
+
+/** `blocks` with `name` added as an empty entry, unchanged when it is there. */
+function withBlock(
+  blocks: BetterSupabaseConfig["blocks"],
+  name: string,
+): BetterSupabaseConfig["blocks"] {
+  if (blocks === undefined) {
+    return [name];
+  }
+
+  if (isBlockNames(blocks)) {
+    return blocks.includes(name) ? blocks : [...blocks, name];
+  }
+
+  // SAFETY: an empty entry is a valid input for every block key.
+  return name in blocks ? blocks : { ...blocks, [name]: {} };
+}
+
+/**
+ * `vector-search` joins the blocks of an app with a `vectorSearch` table, so
+ * the search functions need no `blocks` entry of their own.
+ */
+function withVectorSearch(
+  blocks: BetterSupabaseConfig["blocks"],
+  vectorSearch: Readonly<Record<string, VectorSearchConfig>> | undefined,
+): BetterSupabaseConfig["blocks"] {
+  if (vectorSearch === undefined || Object.keys(vectorSearch).length === 0) {
+    return blocks;
+  }
+
+  return withBlock(blocks, "vector-search");
+}
+
+/**
+ * `notifications` joins the blocks of an app that names it where only the block
+ * can answer: a PowerSync stream or a browser client block. A topic template
+ * alone does not install it, since templates exist with or without the block.
+ */
+function withNotifications(
+  blocks: BetterSupabaseConfig["blocks"],
+  config: Pick<FlatConfig, "gen">,
+): BetterSupabaseConfig["blocks"] {
+  const named =
+    config.gen?.powersync?.instances.includes("notifications") === true ||
+    config.gen?.clientBlocks?.includes("notifications") === true;
+
+  return named ? withBlock(blocks, "notifications") : blocks;
+}
+
 function blocksOf(
   blocks: BetterSupabaseConfig["blocks"],
   sql: SqlConfig = {},
@@ -206,7 +263,7 @@ function optionOf(
  */
 function extensionsOf(
   { blocks, blockNames }: Pick<ResolvedConfig, "blocks" | "blockNames">,
-  organization: FlatConfig["organization"],
+  tenant: FlatConfig["tenant"],
   organizationColumn: string,
 ): ResolvedExtensions {
   const has = (name: string): boolean => blockNames.includes(name);
@@ -222,15 +279,13 @@ function extensionsOf(
       ? { column: optionOf(blocks, "trash", "deletedAt", "deleted_at") }
       : undefined,
     tenant:
-      has("memberships") || organization?.column !== undefined
+      has("memberships") || tenant?.column !== undefined
         ? {
-            column: organization?.column ?? organizationColumn,
-            ...(organization?.onMissing === undefined
+            column: tenant?.column ?? organizationColumn,
+            ...(tenant?.onMissing === undefined
               ? {}
-              : { onMissing: organization.onMissing }),
-            ...(organization?.header === undefined
-              ? {}
-              : { header: organization.header }),
+              : { onMissing: tenant.onMissing }),
+            ...(tenant?.header === undefined ? {} : { header: tenant.header }),
           }
         : undefined,
     actor: has("created-by")
@@ -248,16 +303,71 @@ function extensionsOf(
   };
 }
 
+/** The generator contract this release runs. */
+const GENERATOR_API = 2;
+
+/**
+ * What is wrong with a generator's declaration, or `undefined`. A v1 generator
+ * gets the change that broke it: version 2 hands `generate` plain data and
+ * wants `version`, so `gen` can cache the files.
+ */
+export function generatorProblem(generator: Generator): string | undefined {
+  const declared: unknown = generator;
+
+  if (typeof declared !== "object" || declared === null) {
+    return "a generator is an object: { apiVersion: 2, name, version, generate }";
+  }
+
+  const name =
+    "name" in declared && typeof declared.name === "string"
+      ? declared.name
+      : "(unnamed)";
+
+  const api = "apiVersion" in declared ? declared.apiVersion : undefined;
+
+  if (api !== GENERATOR_API) {
+    return `generator "${name}" targets generator API ${api === undefined ? "1" : String(api)}; this better-supabase runs ${GENERATOR_API}. API 2 passes \`generate\` plain data (\`config\` is a view, \`imports.runtime\` replaces \`runtimeImport\`, \`importPath\` is \`relativeImport\` in better-supabase/generators) and replaces the \`validators\` flag with \`provides: ["validators"]\`. Build it with defineGenerator, or use a release of the generator for API ${GENERATOR_API}.`;
+  }
+
+  if (!("version" in declared) || typeof declared.version !== "string") {
+    return `generator "${name}" needs a \`version\` string; it is part of the cache key`;
+  }
+
+  return undefined;
+}
+
+/**
+ * The `gen.hooks` framework: the name the config gives, or the binding the
+ * `integrations` select, or `false`. A name nothing registers is an error.
+ */
+function hooksOf(
+  config: FlatConfig,
+  frameworks: FrameworkRegistry,
+): HooksFramework | false {
+  const named =
+    typeof config.hooks === "object" ? config.hooks.framework : config.hooks;
+
+  if (named === undefined) {
+    return frameworks.forIntegrations(config.adapters ?? [])?.name ?? false;
+  }
+
+  if (named !== false && frameworks.get(named) === undefined) {
+    throw new TypeError(
+      `gen.hooks names framework "${named}", which nothing registers; the registered frameworks are ${frameworks.names.join(", ")}. Register one with \`frameworks: [defineFramework({ ... })]\`.`,
+    );
+  }
+
+  return named;
+}
+
 function generatorsOf(
   generators: readonly Generator[] | undefined,
 ): readonly Generator[] {
   for (const generator of generators ?? []) {
-    const version: unknown = generator.apiVersion;
+    const problem = generatorProblem(generator);
 
-    if (version !== undefined && version !== 1) {
-      throw new TypeError(
-        `generator "${generator.name}" targets generator API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the generator for API 1.`,
-      );
+    if (problem !== undefined) {
+      throw new TypeError(problem);
     }
   }
 
@@ -291,14 +401,16 @@ export function resolveConfig(
   root: string,
 ): ResolvedConfig {
   const config = expandFlatPreset(flattenConfig(input));
-  const output = config.output ?? CONFIG_DEFAULTS.output;
-  // oxlint-disable-next-line typescript/no-deprecated -- the deprecated key still resolves, and maps onto specs
-  const legacyOpenApi = config.openapi;
+  const frameworks = frameworkRegistry(config.frameworks);
+  const output = config.file ?? CONFIG_DEFAULTS.output;
   const tenantName = tenantNameOf(config.blocks);
   const appTables = appTablesOf(config.appTables, tenantName);
 
   const blocks = blocksOf(
-    config.blocks,
+    withNotifications(
+      withVectorSearch(config.blocks, config.vectorSearch),
+      config,
+    ),
     config.sql,
     config.authorization !== undefined,
   );
@@ -313,16 +425,9 @@ export function resolveConfig(
     databaseTypesOutput: output.replace(/[^/]+$/, "database.types.ts"),
     postgrestVersion:
       config.postgrestVersion ?? CONFIG_DEFAULTS.postgrestVersion,
-    recordTypes: config.recordTypes ?? true,
-    hooks:
-      (typeof config.hooks === "object"
-        ? config.hooks.framework
-        : config.hooks) ??
-      ((config.integrations ?? []).some((name) =>
-        ["next", "react", "expo"].includes(name),
-      )
-        ? "react"
-        : false),
+    records: config.records ?? true,
+    hooks: hooksOf(config, frameworks),
+    frameworks: frameworks.bindings,
     ...(typeof config.hooks === "object" && config.hooks.select !== undefined
       ? { hooksSelect: config.hooks.select }
       : {}),
@@ -353,7 +458,7 @@ export function resolveConfig(
     generators: generatorsOf(config.generators),
     extensions: extensionsOf(
       blocks,
-      config.organization,
+      config.tenant,
       tenantNames(tenantName).rename("organization_id"),
     ),
     claims: { ...DEFAULT_CLAIMS, ...config.claims },
@@ -378,7 +483,7 @@ export function resolveConfig(
     vectorSearch: vectorSearchOf(config.vectorSearch),
     subjects: withBlockSubjects(
       withAppTableSubjects(
-        config.subjects ?? {},
+        config.recordTypes ?? {},
         appTables,
         config.sql?.scope,
         tenantName,
@@ -405,24 +510,14 @@ export function resolveConfig(
     appTables,
     seed: {
       entry: config.seed?.entry ?? CONFIG_DEFAULTS.seed.entry,
-      output: config.seed?.output ?? CONFIG_DEFAULTS.seed.output,
+      file: config.seed?.file ?? CONFIG_DEFAULTS.seed.file,
       perTenant: config.seed?.perTenant ?? CONFIG_DEFAULTS.seed.perTenant,
       ...resolveSeedModes(config.seed),
     },
-    openapi: {
-      entry: legacyOpenApi?.entry ?? CONFIG_DEFAULTS.openapi.entry,
-      output: legacyOpenApi?.output ?? CONFIG_DEFAULTS.openapi.output,
-    },
     specs: {
-      entry:
-        config.specs?.entry ??
-        legacyOpenApi?.entry ??
-        CONFIG_DEFAULTS.openapi.entry,
+      entry: config.specs?.entry ?? CONFIG_DEFAULTS.specs.entry,
       outputs: config.specs?.outputs ?? [
-        {
-          format: "openapi",
-          output: legacyOpenApi?.output ?? CONFIG_DEFAULTS.openapi.output,
-        },
+        { format: "openapi", file: CONFIG_DEFAULTS.specs.file },
       ],
       failOn: config.specs?.failOn ?? CONFIG_DEFAULTS.specs.failOn,
       ...(config.specs?.manifest === undefined
@@ -439,9 +534,9 @@ export function resolveConfig(
         config.doctor?.policyHelperLimit ??
         CONFIG_DEFAULTS.doctor.policyHelperLimit,
       sealTriggers: config.doctor?.sealTriggers ?? [],
-      ...(config.doctor?.output === undefined
+      ...(config.doctor?.file === undefined
         ? {}
-        : { output: config.doctor.output }),
+        : { file: config.doctor.file }),
       ...(config.doctor?.claimsLimit === undefined
         ? {}
         : { claimsLimit: config.doctor.claimsLimit }),
@@ -458,12 +553,12 @@ export function resolveConfig(
         config.gen?.watchInterval ?? CONFIG_DEFAULTS.gen.watchInterval,
     },
     env: {
-      output: config.env?.output ?? CONFIG_DEFAULTS.env.output,
+      file: config.env?.file ?? CONFIG_DEFAULTS.env.file,
       ...(config.env?.prefix === undefined
         ? {}
         : { prefix: config.env.prefix }),
     },
-    integrations: config.integrations ?? [],
+    adapters: config.adapters ?? [],
     skills: config.skills ?? {},
     keys: config.keys ?? {},
   };
@@ -487,7 +582,7 @@ function resolveSeedModes(
       size: seed?.sample?.size ?? CONFIG_DEFAULTS.seed.sample.size,
       seed: seed?.sample?.seed ?? CONFIG_DEFAULTS.seed.sample.seed,
       locale: seed?.sample?.locale ?? locale,
-      output: seed?.sample?.output ?? CONFIG_DEFAULTS.seed.sample.output,
+      file: seed?.sample?.file ?? CONFIG_DEFAULTS.seed.sample.file,
     },
   };
 }

@@ -98,7 +98,7 @@
     "subjects",
     "tags",
     "teams",
-    "time-tracking",
+    "time-entries",
     "timeline",
     "updated-at"
   ],
@@ -257,7 +257,7 @@
     "subjects",
     "tax",
     "teams",
-    "time-tracking",
+    "time-entries",
     "updated-at"
   ],
   "manufacturing": [
@@ -310,7 +310,7 @@
     "subjects",
     "tax",
     "teams",
-    "time-tracking",
+    "time-entries",
     "updated-at"
   ],
   "pim": [
@@ -318,7 +318,7 @@
     "attachments",
     "audit",
     "billing",
-    "bulk",
+    "bulk-actions",
     "catalog",
     "custom-fields",
     "enrollments",
@@ -420,7 +420,7 @@
     "settings",
     "subjects",
     "teams",
-    "time-tracking",
+    "time-entries",
     "updated-at"
   ],
   "psa": [
@@ -464,7 +464,7 @@
     "tags",
     "tasks",
     "teams",
-    "time-tracking",
+    "time-entries",
     "timeline",
     "updated-at",
     "versions"
@@ -800,7 +800,7 @@
     "state-machine",
     "subjects",
     "teams",
-    "time-tracking",
+    "time-entries",
     "updated-at",
     "versions"
   ],
@@ -881,7 +881,7 @@
     "signatures",
     "subjects",
     "teams",
-    "time-tracking",
+    "time-entries",
     "updated-at",
     "versions"
   ],
@@ -1540,7 +1540,7 @@
     "approvals",
     "audit",
     "billing",
-    "bulk",
+    "bulk-actions",
     "enrollments",
     "entitlements",
     "flags",

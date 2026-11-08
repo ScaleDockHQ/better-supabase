@@ -120,7 +120,10 @@ export interface Deal<F extends object = Record<never, never>> {
     readonly userId: string;
     readonly role?: string;
   }[];
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: Readonly<Record<string, unknown>> & F;
   readonly archived: boolean;
   readonly createdAt: Temporal.Instant;
@@ -320,9 +323,9 @@ export interface DealsOptions<
   readonly transport: BlockTransport;
   readonly schema?: string;
   /**
-   * A Standard Schema for the deals' extra columns
-   * (`blocks.deals.options.extraColumns`), keyed by column name. It types and
-   * parses `fields` on reads and validates them on writes.
+   * A Standard Schema for the deals' extra columns (columns the app's schema
+   * files add to the table), keyed by column name. It types and parses `fields`
+   * on reads and validates them on writes.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Deals<FieldsOf<S>>>>;
@@ -367,7 +370,7 @@ const KNOWN = new Set([
   "company_id",
   "motion",
   "priority",
-  "owner_user_id",
+  "owner_id",
   "product",
   "seats",
   "amount",
@@ -438,7 +441,7 @@ function dealOf(value: unknown): Deal {
       companyType === undefined || companyId === undefined
         ? undefined
         : { type: companyType, id: companyId },
-    ownerId: optionalText(row["owner_user_id"]),
+    ownerId: optionalText(row["owner_id"]),
     motion: optionalText(row["motion"]),
     priority: optionalText(row["priority"]),
     product: optionalText(row["product"]),

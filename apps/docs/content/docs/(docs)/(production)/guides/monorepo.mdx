@@ -1,6 +1,6 @@
 ---
 title: Monorepos
-description: One runtime package owns defineSupabase and the request context; domain packages type their repositories from its db and never import the generated client.
+description: One runtime package owns createSupabase and the request context; domain packages type their repositories from its db and never import the generated client.
 ---
 
 In a monorepo, keep one package that owns the Supabase definition and the
@@ -10,7 +10,7 @@ file, and domain code works the same in a route handler, a job or a test.
 
 ```text
 packages/
-  runtime/   defineSupabase, the generated client, the server, the context types
+  runtime/   createSupabase, the generated client, the server, the context types
   crm/       customers repositories: import type { Db } from '@acme/runtime'
   commerce/  shipping repositories: import type { Db } from '@acme/runtime'
 apps/
@@ -20,7 +20,7 @@ apps/
 ## The runtime package
 
 ```ts title="packages/runtime/src/index.ts"
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 import { createEdge, type EdgeOptions } from "better-supabase/edge";
 import {
   type AuthSession,
@@ -28,9 +28,10 @@ import {
   toSession,
 } from "better-supabase/server";
 
-import { type Functions, type Models, schema } from "./generated.ts";
+import { type Functions, type Models } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
-export const betterSupabase = defineSupabase(schema);
+export const betterSupabase = createSupabase(schema);
 
 export type AppContext = ServerContext<Models, Functions, unknown>;
 export type Db = AppContext["db"];
@@ -69,10 +70,10 @@ With the config in the package, point the SQL modules and the seed at the root
 
 ```ts title="packages/runtime/better-supabase.config.ts"
 export default defineConfig({
-  gen: { output: "src/generated.ts" },
+  gen: { file: "src/generated.ts" },
   database: {
     sql: { dir: "../../supabase/schemas", testsDir: "../../supabase/tests" },
-    seed: { output: "../../supabase/seeds/000_better_supabase.sql" },
+    seed: { file: "../../supabase/seeds/000_better_supabase.sql" },
   },
 });
 ```

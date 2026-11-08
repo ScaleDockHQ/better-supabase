@@ -20,7 +20,7 @@ has to keep.
   in `output`; under `--json` it moves to stderr. Never write to
   `process.stdout` from a command.
 - Errors are `CliError`s with a code from `CLI_ERROR_CODES`. A new code needs a
-  heading on `cli/errors.mdx` and an entry in `cli-result-v1.json`; the schema
+  heading on `cli/errors.mdx` and an entry in `cli-result-v2.json`; the schema
   test checks both.
 - A command that writes files builds a `FilePlan` and calls `applyPlan`, which
   gives it `--dry-run`, `--check` and `--force` for free. Take the flags from
@@ -29,7 +29,7 @@ has to keep.
 ## Flags
 
 - One meaning per flag across commands: `--out <file>` (with `-` for
-  stdout), `--out-dir <dir>`, `--format` for the renderer only, `--only` and
+  stdout), `--out <dir>`, `--format` for the renderer only, `--only` and
   `--ignore` to narrow what runs, `--force` only to overwrite, `--fail-on`
   for a severity. The table on `cli/index.mdx` is the reference.
 - Global flags live in `GLOBAL_ARGS`. A command flag that shares a global name
@@ -56,7 +56,7 @@ has to keep.
 ## Generated record types
 
 `gen` writes `records/<type>.ts` next to the main module
-(`src/cli/gen/records.ts`) when `gen.recordTypes` is on and a block with a
+(`src/cli/gen/records.ts`) when `gen.records` is on and a block with a
 `record` binding is installed. The files are framework-neutral: the app
 passes the record type to `bsb.record`, `createRecordProvider` or
 `recordQueries`. They are ignored by oxlint and oxfmt

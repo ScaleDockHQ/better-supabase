@@ -1,6 +1,7 @@
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
+import { DataProviders } from "@/app/data-providers";
 import {
   Sidebar,
   SidebarContent,
@@ -11,10 +12,15 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { Announcements } from "@/features/announcements/components/announcements";
+import { AppBreadcrumbs } from "@/features/navigation/components/app-breadcrumbs";
 import { AppHeader } from "@/features/navigation/components/app-header";
 import { AppNav } from "@/features/navigation/components/app-nav";
 import { SideNavSkeleton } from "@/features/navigation/components/side-nav";
 import { OfflineBanner } from "@/features/offline/components/offline-banner";
+import {
+  ActiveOrganizationName,
+  ActiveOrganizationNameSkeleton,
+} from "@/features/organization/components/active-organization-name";
 import {
   OrganizationSwitcher,
   OrganizationSwitcherSkeleton,
@@ -40,38 +46,52 @@ export default function AppLayout({ children }: LayoutProps<"/[locale]">) {
   const toggle = t("Toggle sidebar");
 
   return (
-    <SidebarProvider>
-      <Sidebar collapsible="icon">
-        <SidebarHeader>
-          <Suspense fallback={<OrganizationSwitcherSkeleton />}>
-            <OrganizationSwitcher />
-          </Suspense>
-        </SidebarHeader>
-        <SidebarContent>
-          <Suspense fallback={<SideNavSkeleton />}>
-            <AppNav />
-          </Suspense>
-        </SidebarContent>
-        <SidebarFooter>
-          <Suspense fallback={<UserMenuSkeleton />}>
-            <UserMenu />
-          </Suspense>
-        </SidebarFooter>
-        <SidebarRail aria-label={toggle} title={toggle} />
-      </Sidebar>
-      <SidebarInset>
-        <AppHeader />
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-          <OfflineBanner />
-          <Suspense fallback={null}>
-            <ImpersonationBanner />
-          </Suspense>
-          <Suspense fallback={null}>
-            <Announcements />
-          </Suspense>
-          {children}
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+    <DataProviders>
+      <SidebarProvider>
+        <Sidebar collapsible="icon">
+          <SidebarHeader>
+            <Suspense fallback={<OrganizationSwitcherSkeleton />}>
+              <OrganizationSwitcher />
+            </Suspense>
+          </SidebarHeader>
+          <SidebarContent>
+            <Suspense fallback={<SideNavSkeleton />}>
+              <AppNav />
+            </Suspense>
+          </SidebarContent>
+          <SidebarFooter>
+            <Suspense fallback={<UserMenuSkeleton />}>
+              <UserMenu />
+            </Suspense>
+          </SidebarFooter>
+          <SidebarRail aria-label={toggle} title={toggle} />
+        </Sidebar>
+        <SidebarInset>
+          <AppHeader
+            breadcrumbs={
+              <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
+                <AppBreadcrumbs
+                  organization={
+                    <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
+                      <ActiveOrganizationName />
+                    </Suspense>
+                  }
+                />
+              </Suspense>
+            }
+          />
+          <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+            <OfflineBanner />
+            <Suspense fallback={null}>
+              <ImpersonationBanner />
+            </Suspense>
+            <Suspense fallback={null}>
+              <Announcements />
+            </Suspense>
+            {children}
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </DataProviders>
   );
 }

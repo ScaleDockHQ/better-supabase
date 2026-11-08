@@ -4,14 +4,27 @@
   "tags": ["published"],
   "tasks": {
     "test": {
-      "passThroughEnv": ["BS_TOML_SITE_URL", "DATABASE_URL"],
+      "passThroughEnv": [
+        "BS_TOML_SITE_URL",
+        "DATABASE_URL",
+        "UPDATE_PRACTICES",
+        "INIT_FIXTURE_UPDATE"
+      ],
       "dependsOn": ["$TURBO_EXTENDS$", "build"],
       "outputs": [".vitest/blob/**"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/registry/registry.json",
         "$TURBO_ROOT$/apps/marketing/public/r/**",
-        "$TURBO_ROOT$/apps/docs/content/docs/frameworks/**"
+        "$TURBO_ROOT$/apps/docs/content/docs/**",
+        "$TURBO_ROOT$/tests/init-fixture/**",
+        "$TURBO_ROOT$/supabase/schemas/**",
+        "$TURBO_ROOT$/supabase/snapshot.json",
+        "$TURBO_ROOT$/supabase/config.toml",
+        "$TURBO_ROOT$/scripts/recipes/**",
+        "$TURBO_ROOT$/scripts/gen-workflow-ddl.ts",
+        "$TURBO_ROOT$/AGENTS.md",
+        "$TURBO_ROOT$/.cursor-plugin/**"
       ]
     }
   }

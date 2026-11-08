@@ -7,6 +7,7 @@ import type { Entitlement } from "@/lib/claims";
 
 import { getSession } from "@/features/user/user-queries";
 
+// skeleton: none, CurrentPlan renders it and the page already shows that card's skeleton
 /**
  * The plan's features from the token's `features` claim. UX only:
  * `better_supabase.has_entitlement()` enforces them in RLS.
@@ -30,7 +31,7 @@ export async function PlanFeatures() {
   ] satisfies readonly (readonly [Entitlement, string])[];
 
   return (
-    <ul aria-label={t("Plan features")} className="space-y-2 text-sm">
+    <ul aria-label={t("Plan features")} className="flex flex-col gap-2 text-sm">
       {features.map(([key, label]) => {
         const included = hasEntitlement(session, organizationId, key);
 

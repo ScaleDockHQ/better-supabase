@@ -1,4 +1,4 @@
-import type { CliArgs, CliOptions } from "../core/command.ts";
+import type { CliValues, CliOptions } from "../core/command.ts";
 import type { CliIo } from "../core/io.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
@@ -22,7 +22,7 @@ export const STACK_ARG = {
   stack: {
     type: "string",
     description:
-      "Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack",
+      "Use the stack in supabase/stacks/<name>/config.toml (default $BETTER_SUPABASE_STACK) instead of the default local stack",
     valueHint: "name",
   },
 } as const;
@@ -59,7 +59,7 @@ export function sourceFlags(args: CliOptions<typeof SOURCE_ARGS>): string[] {
 }
 
 export async function sourceArgs(
-  args: CliArgs<typeof SOURCE_ARGS>,
+  args: CliValues<typeof SOURCE_ARGS>,
   io: CliIo,
 ): Promise<SnapshotSource> {
   const snapshotPath = args.snapshot;

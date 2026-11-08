@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const MEMBER = "33333333-3333-4333-8333-333333333333";
@@ -83,14 +83,14 @@ const SHARED: AnyBlocksConfig = {
   quotes: {
     options: {
       extraColumns: { vat_regime: "text not null default 'standard'" },
-      lineExtraColumns: { line_type: "text", unit: "text" },
+      lineExtraColumns: { line_type: "text", uom: "text" },
     },
   },
   invoices: {
     columns: { invoices: OPT_IN },
     options: {
       extraColumns: { vat_regime: "text not null default 'standard'" },
-      lineExtraColumns: { line_type: "text", unit: "text" },
+      lineExtraColumns: { line_type: "text", uom: "text" },
     },
   },
 };
@@ -98,7 +98,7 @@ const SHARED: AnyBlocksConfig = {
 const accepted = (
   attrs: string,
 ): string => `v_quote := (better_supabase.create_quote('${TENANT}', '${attrs}'::jsonb,
-    '[{"description": "Work", "quantity": 2, "unitAmount": "5000", "taxRateBps": 2100, "fields": {"line_type": "labor", "unit": "hour"}}]'::jsonb) ->> 'id')::uuid;
+    '[{"description": "Work", "quantity": 2, "unitAmount": "5000", "taxRateBps": 2100, "fields": {"line_type": "labor", "uom": "hour"}}]'::jsonb) ->> 'id')::uuid;
   perform better_supabase.send_quote(v_quote);
   perform better_supabase.decide_quote(v_quote, 'accepted', null, 'Ann');`;
 
@@ -116,7 +116,7 @@ begin
   v_invoice := better_supabase.invoice_from_quote(v_quote, null);
   if (v_invoice ->> 'discount_bps')::integer <> 1000 or v_invoice ->> 'vat_regime' <> 'reverse_charge'
     or jsonb_array_length(v_invoice -> 'lines') <> 1
-    or v_invoice -> 'lines' -> 0 -> 'fields' <> '{"line_type": "labor", "unit": "hour"}'::jsonb
+    or v_invoice -> 'lines' -> 0 -> 'fields' <> '{"line_type": "labor", "uom": "hour"}'::jsonb
     or (v_invoice ->> 'total')::bigint <> (select total from better_supabase.quotes where id = v_quote) then
     raise exception 'final %', v_invoice;
   end if;
@@ -232,8 +232,8 @@ declare
   v_final jsonb;
 begin
   ${SERVICE}
-  alter table better_supabase.invoices drop constraint invoices_kind_check;
-  alter table better_supabase.invoices add constraint invoices_kind_check check (kind in ('invoice', 'deposit', 'credit_note'));
+  alter table better_supabase.invoices drop constraint bsb_invoices_kind_check;
+  alter table better_supabase.invoices add constraint bsb_invoices_kind_check check (kind in ('invoice', 'deposit', 'credit_note'));
   ${accepted('{"title": "Work", "currency": "EUR"}')}
   v_share := better_supabase.invoice_from_quote(v_quote, 2000);
   v_fixed := better_supabase.invoice_from_quote(v_quote, null, 1210);

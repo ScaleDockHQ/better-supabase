@@ -144,7 +144,7 @@ function versionOf(value: unknown): PromptVersion {
 
   return {
     id: textOf(row["id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     name: textOf(row["name"]),
     version: Number(row["version"]),
     template: textOf(row["template"]),

@@ -17,15 +17,15 @@ import type {
   WhereOf,
 } from "../fixtures/generated-camel.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { isCheck, isConflict } from "../../src/core/errors.ts";
 import { guards } from "../../src/lint/index.ts";
 import { schema as camel } from "../fixtures/generated-camel.ts";
 import { schema as snake } from "../fixtures/generated.ts";
 
 declare const client: SupabaseClient;
-const db = defineSupabase(camel).connect(client);
-const snakeDb = defineSupabase(snake).connect(client);
+const db = createSupabase(camel).connect(client);
+const snakeDb = createSupabase(snake).connect(client);
 
 describe("payload inference", () => {
   it("returns an offset page for an offset and limit window", async () => {
@@ -360,7 +360,7 @@ describe("argument checking", () => {
   });
 
   it("types QuerySpec results like the repository", async () => {
-    const betterSupabase = defineSupabase(camel);
+    const betterSupabase = createSupabase(camel);
 
     const spec = betterSupabase.spec.customers.list({
       select: ["id", "status"],
@@ -428,7 +428,7 @@ describe("_count, $table and $withoutPlugins", () => {
   });
 
   it("accepts the rules sensitive opt-in", () => {
-    const ruled = defineSupabase(camel).use(guards()).connect(client);
+    const ruled = createSupabase(camel).use(guards()).connect(client);
     void ruled.contacts.list({ limit: 1, sensitive: true });
   });
 });

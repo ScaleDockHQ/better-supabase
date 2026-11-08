@@ -1,123 +1,63 @@
 -- ==== schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:4889b1e35829232b16b92d56d9a4d681ac24ad41c2ee3d7b1f643c47d83411a8
+-- @bsb-hash sha256:05a7f8f08d8a0a202f20a5d23e6721e407c8e501f3176b7a65844cbdebbcca85
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."option_sets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."option_sets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."option_sets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."option_sets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."option_sets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."option_set_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."option_set_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."option_set_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."option_set_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."option_set_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Option sets (ADR 0243): tenant-editable items for a field such as priority,
 -- each with a level that is written to the record's own column, and starter
 -- items per brand.
 
-create table if not exists "better_supabase"."option_sets" (
+create table "better_supabase"."option_sets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "field" text not null check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "field" text not null constraint bsb_option_sets_field_check check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "scope_id" text,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "key" text not null constraint bsb_option_sets_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_option_sets_name_check check (length("name") >= 1 and length("name") <= 200),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique nulls not distinct ("tenant_id", "subject_type", "field", "scope_id", "key")
 );
-create unique index if not exists option_sets_default_idx on "better_supabase"."option_sets" ("tenant_id", "subject_type", "field", coalesce("scope_id", ''))
+create unique index option_sets_default_idx on "better_supabase"."option_sets" ("tenant_id", "subject_type", "field", coalesce("scope_id", ''))
   where "is_default" and "archived_at" is null;
 alter table "better_supabase"."option_sets" enable row level security;
 revoke all on "better_supabase"."option_sets" from public, anon, authenticated;
 grant select on "better_supabase"."option_sets" to authenticated;
 grant all on "better_supabase"."option_sets" to service_role;
-drop policy if exists option_sets_read on "better_supabase"."option_sets";
-create policy option_sets_read on "better_supabase"."option_sets"
+create policy bsb_option_sets_read on "better_supabase"."option_sets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('option_sets.read')));
 
-create table if not exists "better_supabase"."option_set_items" (
+create table "better_supabase"."option_set_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "option_set_id" uuid not null references "better_supabase"."option_sets" ("id") on delete cascade,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_option_set_items_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "label" text not null check (length("label") between 1 and 200),
-  "color" text check ("color" is null or length("color") <= 50),
-  "icon" text check ("icon" is null or length("icon") <= 100),
+  "label" text not null constraint bsb_option_set_items_label_check check (length("label") >= 1 and length("label") <= 200),
+  "color" text constraint bsb_option_set_items_color_check check ("color" is null or length("color") <= 50),
+  "icon" text constraint bsb_option_set_items_icon_check check ("icon" is null or length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "level" integer not null,
-  "description" text check ("description" is null or length("description") <= 1000),
+  "description" text constraint bsb_option_set_items_description_check check ("description" is null or length("description") <= 1000),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("option_set_id", "key")
 );
-create unique index if not exists option_set_items_system_key_idx on "better_supabase"."option_set_items" ("option_set_id", "system_key") where "system_key" is not null;
-create index if not exists option_set_items_set_idx on "better_supabase"."option_set_items" ("option_set_id", "rank");
+create unique index option_set_items_system_key_idx on "better_supabase"."option_set_items" ("option_set_id", "system_key") where "system_key" is not null;
+create index option_set_items_set_idx on "better_supabase"."option_set_items" ("option_set_id", "rank");
 alter table "better_supabase"."option_set_items" enable row level security;
 revoke all on "better_supabase"."option_set_items" from public, anon, authenticated;
 grant select on "better_supabase"."option_set_items" to authenticated;
 grant all on "better_supabase"."option_set_items" to service_role;
-drop policy if exists option_set_items_read on "better_supabase"."option_set_items";
-create policy option_set_items_read on "better_supabase"."option_set_items"
+create policy bsb_option_set_items_read on "better_supabase"."option_set_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('option_sets.read')));
 
@@ -439,73 +379,38 @@ grant execute on function "better_supabase"."archive_option_set_item"(uuid, uuid
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
-    create function better_supabase.member_workspace_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."option_sets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."option_sets";
 create policy bsb_tenant_scope_select on "better_supabase"."option_sets" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('option_sets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."option_sets";
 create policy bsb_tenant_scope_insert on "better_supabase"."option_sets" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."option_sets";
 create policy bsb_tenant_scope_update on "better_supabase"."option_sets" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."option_sets";
 create policy bsb_tenant_scope_delete on "better_supabase"."option_sets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."option_set_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."option_set_items";
 create policy bsb_tenant_scope_select on "better_supabase"."option_set_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('option_sets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."option_set_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."option_set_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."option_set_items";
 create policy bsb_tenant_scope_update on "better_supabase"."option_set_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."option_set_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."option_set_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets

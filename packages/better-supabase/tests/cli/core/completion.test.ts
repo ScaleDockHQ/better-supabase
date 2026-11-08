@@ -43,23 +43,8 @@ describe("__complete", () => {
       "diff",
       "seed",
       "backfill",
-      "prune-workflows",
     ]);
-    expect(await values("codemod", "0.")).toEqual([
-      "0.4",
-      "0.5",
-      "0.6",
-      "0.9",
-      "0.11",
-      "0.15",
-      "0.29",
-      "0.32",
-      "0.35",
-      "0.37",
-      "0.46",
-      "0.47",
-      "0.53",
-    ]);
+    expect(await values("codemod", "n")).toEqual(["naming"]);
   });
 
   it("describes each candidate after a tab", async () => {
@@ -76,7 +61,7 @@ describe("__complete", () => {
     expect(options).toEqual(
       expect.arrayContaining([
         "--only",
-        "--out-dir",
+        "--out",
         "--check",
         "--json",
         "--agent",
@@ -147,7 +132,7 @@ describe("__complete", () => {
   });
 
   it("asks the shell for file names for free-form values", async () => {
-    const result = await run(["__complete", "--", "gen", "--out-dir", ""]);
+    const result = await run(["__complete", "--", "gen", "--out", ""]);
 
     expect(result.stdout).toBe(":files\n");
   });

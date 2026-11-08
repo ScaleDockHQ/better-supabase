@@ -365,6 +365,64 @@ end;
 $$;
 ${userGrant(`${fn("release_allocations")}(${ctx.idType}, text, text)`)}
 
+-- Releases one open allocation: what it holds goes back to available and its
+-- backorder closes. Returns the allocation.
+create or replace function ${fn("release_allocation")}(allocation uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row record;
+begin
+  ${load("release_allocation")}
+  if v_row.status <> 'open' then
+    ${fail("INVENTORY_ALLOCATION_CLOSED", "the allocation is no longer open", "55000")}
+  end if;
+  if v_row.allocated > 0 then
+    ${reserve("v_row.variant", "v_row.location", "-v_row.allocated")}
+  end if;
+  update ${allocations} x set ${a("allocated")} = 0, ${a("status")} = 'released', ${a("updatedAt")} = now() where x.${a("id")} = v_row.id;
+  ${event("allocation.released", "v_row")}
+  if v_row.allocated > 0 then
+    perform ${fn("fill_backorders")}(v_row.tenant, v_row.variant, v_row.location);
+  end if;
+  return (select ${allocationJson(ctx, "x")} from ${allocations} x where x.${a("id")} = v_row.id);
+end;
+$$;
+${userGrant(`${fn("release_allocation")}(uuid)`)}
+
+-- Moves an open allocation to another document (a quote that became an order),
+-- keeping what it holds. line_id names the line on the new document. Returns
+-- the allocation.
+create or replace function ${fn("transfer_allocation")}(allocation uuid, document_type text, document_id text, line_id text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row record;
+begin
+  ${load("transfer_allocation")}
+  if v_row.status <> 'open' then
+    ${fail("INVENTORY_ALLOCATION_CLOSED", "the allocation is no longer open", "55000")}
+  end if;
+  if transfer_allocation.document_type is null or transfer_allocation.document_id is null then
+    ${fail("INVENTORY_DOCUMENT_INVALID", "an allocation names its document type and id", "22023")}
+  end if;
+  update ${allocations} x set ${a("documentType")} = transfer_allocation.document_type, ${a("documentId")} = transfer_allocation.document_id,
+    ${a("line")} = transfer_allocation.line_id, ${a("updatedAt")} = now()
+  where x.${a("id")} = v_row.id;
+  ${event("allocation.transferred", "v_row", ", 'toDocumentType', transfer_allocation.document_type, 'toDocumentId', transfer_allocation.document_id")}
+  return (select ${allocationJson(ctx, "x")} from ${allocations} x where x.${a("id")} = v_row.id);
+end;
+$$;
+${userGrant(`${fn("transfer_allocation")}(uuid, text, text, text)`)}
+
 -- A document's allocations, oldest first.
 create or replace function ${fn("list_allocations")}(tenant ${ctx.idType}, document_type text, document_id text)
 returns jsonb

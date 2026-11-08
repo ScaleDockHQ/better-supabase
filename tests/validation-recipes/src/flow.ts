@@ -55,7 +55,7 @@ export async function watching(
 
     const rows = await s.rows<OutboxRow>(
       `select position::text, id::text, type, payload, source, subject,
-              organization_id::text as tenant, actor_id::text, created_at::text
+              tenant_id::text as tenant, actor_id::text, created_at::text
        from better_supabase.outbox_events
        where position > $1::bigint order by position`,
       [after],

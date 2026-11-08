@@ -112,6 +112,12 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           !(
             finding.code === "BS235" &&
             finding.message.includes("set_attachment_status")
+          ) &&
+          // CentraKit's policies file replaces the drive block's restrictive
+          // tenant scope on file_node on purpose, with the grant branch added.
+          !(
+            finding.code === "BS371" &&
+            finding.message.includes("file_node.bsb_tenant_scope_select")
           )
         ) {
           (warnings[`${finding.severity} ${finding.code}`] ??= []).push(

@@ -5,7 +5,7 @@ description: Query and write Supabase data with better-supabase's typed reposito
 
 # better-supabase
 
-The data layer is `betterSupabase = defineSupabase(schema)` in `src/lib/supabase/index.ts`.
+The data layer is `betterSupabase = createSupabase(schema)` in `src/lib/supabase/index.ts`.
 `schema` comes from the generated module (`config.output`, usually
 `src/lib/supabase/generated.ts`). Never edit generated files.
 
@@ -62,12 +62,12 @@ stay hidden.
 
 ## Workflow: after upgrading better-supabase
 
-1. Run `pnpm better-supabase codemod <version> --dry-run` for each version
-   that has one (`codemod` without a name lists them), then without
-   `--dry-run`, and fix the lines it lists for review. From 0.35, one
-   `codemod 0.37` covers 0.36 and 0.37; 0.38 to 0.43 have none, and
-   `codemod 0.46` renames permission keys, and `codemod 0.47` renames
-   entity keys and hint codes.
+1. This release upgrades from 0.53 only. An app on an older version
+   upgrades to 0.53 first with that release. Run
+   `pnpm better-supabase codemod <name> --dry-run` for each codemod the
+   release lists (`codemod` without a name lists them), then without
+   `--dry-run`, and fix the lines it lists for review. `codemod naming`
+   applies the renames in `api/naming.json`.
 2. Run `pnpm better-supabase upgrade`, so the SQL modules get the
    release's SQL and any forward steps land in a migration, then write a
    migration from the changed files (under the `migrations` workflow it
@@ -82,19 +82,9 @@ stay hidden.
    lockfile and the block SQL name different releases: run the install
    command it prints, then `upgrade --check`.
 6. Read the release's guide at https://bettersupabase.com/docs/migration.
-   From 0.35, read https://bettersupabase.com/docs/migration/0.35-to-0.37:
-   the proxy refreshes the session through `@supabase/ssr`, `bsb.cached()`
-   entries stay fresh for 300 seconds, `bsb.supabaseFor` is
-   `bsb.contextClient`, and stock counts fractional units. Every breaking
-   change is in
+   Every breaking change is in
    https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md.
-   For 0.6, kits are blocks imported from `better-supabase/blocks/<name>`. For 0.3: time values are
-   `Temporal` (see below), `--db-url` is gone, `doctor --format json` is
-   `doctor --json`, `BetterResultShape` is `BetterResultValue`, and an
-   exhaustive `switch` over the `invalid` auth reason needs an `'actor'` case.
-   For 0.15, follow the upgrade order at the end of
-   https://bettersupabase.com/docs/migration/0.14-to-0.15 and fix each
-   BS418 finding `doctor` reports.
+   Time values are `Temporal` (see below).
 
 Done when `gen --check`, `doctor` and the typecheck pass.
 
@@ -141,9 +131,9 @@ the `better-supabase-auth` skill.
 - Write a block's tables through its client, never with
   `.from("<block table>").insert()` or another supabase-js write: that skips
   the block's events, hooks and checks, and doctor warns BS351. Your own
-  columns on a block table go in the method's `fields` (the block's
-  `extraColumns` option lists them, `<table>ExtraColumns` for its other
-  tables); they are written in the same
+  columns on a block table go in the method's `fields` (add them with
+  `alter table ... add column` in your own schema file, or list the columns of
+  a table you create in its comment as `@bsb fields a, b`); they are written in the same
   insert or update, so a `not null` column or a check across columns holds.
 - A column of yours named like a secret (`access_token`, `client_secret`)
   next to `field-encryption` or `credentials` is BS352: set `encrypted: true`
@@ -161,7 +151,7 @@ the `better-supabase-auth` skill.
   column with a `not valid` not-null check: new rows need an owner, old rows
   stay reachable only by the service role. Fill them with
   `pnpm better-supabase db backfill <table>.<column> --from <table.column> via <column>`
-  (or `--value`), then run `pnpm better-supabase doctor --fix` to validate
+  (or `--value`), then run `pnpm better-supabase doctor --yes` to validate
   the check. Doctor reports the rows as BS238. See
   https://bettersupabase.com/docs/blocks/own-schemas.
 - A block's React hooks are registry items: `npx shadcn add
@@ -220,7 +210,7 @@ const customers = result.data;
 
 - With `codecs: { timestamptz: 'instant' }` in the config, `timestamptz` columns decode to `Temporal.Instant` and `timestamp` columns to `Temporal.PlainDateTime`, with microseconds. Without the codec they stay ISO strings.
 - `now` options, job and webhook timestamps and `bucket.sweep({ olderThan })` take `Temporal` values. Auth's `now` stays in epoch milliseconds.
-- On Node 24, Safari, Hermes and other runtimes without `Temporal`, add `temporal-polyfill` and pass its namespace: `defineSupabase(schema, { temporal: Temporal })` (block creators take the same `temporal` option). `import "temporal-polyfill/global"` once at startup also works. Without either, calls that need `Temporal` return an `unexpected` `DbError` that names both.
+- On Node 24, Safari, Hermes and other runtimes without `Temporal`, add `temporal-polyfill` and pass its namespace: `createSupabase(schema, { temporal: Temporal })` (block creators take the same `temporal` option). `import "temporal-polyfill/global"` once at startup also works. Without either, calls that need `Temporal` return an `unexpected` `DbError` that names both.
 - Use TypeScript 6 or 7; 5.9 has no Temporal lib.
 
 ## CLI in scripts and CI
@@ -228,8 +218,8 @@ const customers = result.data;
 - No command takes a connection string as an argument. Set `$DATABASE_URL`, `$SUPABASE_DB_URL` or `database.source.dbUrl`, or pipe it in with `--db-url-stdin`.
 - `--json` prints one envelope on stdout: `status`, the result under `data`, Problem Details with a `code` under `error`, and the commands to run under `next`. `--yes` and `CI` turn prompts off.
 - Exit codes: 0 success, 1 a failure or finding (`--check` drift, doctor errors), 2 a usage, config or environment problem, 3 when the user has to act. Each error code is listed at https://bettersupabase.com/docs/cli/errors.
-- When the CLI detects an agent it prints JSON and never prompts. Exit code 3 with `input_required` lists `missing` flags and their `choices`; run the `next` command with the value filled in. `consent_required` means the user must agree first (`--force` over their files, `db seed --apply` on a remote database): ask them, then run the `next` command with its `--confirm` token. Never pass `--confirm` without asking. See https://bettersupabase.com/docs/cli/agent-mode.
-- `better-supabase mcp` serves the same commands as MCP tools on stdio, read-only unless started with `--allow-writes`. A write tool first returns `consent_required` with a `token`; ask the user, then call it again with the same arguments and `confirm` set to the token. See https://bettersupabase.com/docs/cli/mcp.
+- When the CLI detects an agent it prints JSON and never prompts. Failures print one error document line on stderr (`reason`, `message`, `next`, `data`, `userActionRequired`, `retryable`). Exit code 2 with `input_required` lists `data.missing` flags and their `data.choices`; run the `next` command with the value filled in. `confirmation_required` means the user must agree first (`--force` over their files, `db seed --yes` on a remote database): ask them, then run the `next` command with `--yes --effects-digest <digest>`. Never pass `--effects-digest` without asking. See https://bettersupabase.com/docs/cli/agent-mode.
+- `better-supabase mcp` serves the same commands as MCP tools on stdio, read-only unless started with `--allow-writes`. A write tool first returns `confirmation_required` with a `data.digest`; ask the user, then call it again with the same arguments and `effectsDigest` set to the digest. See https://bettersupabase.com/docs/cli/mcp.
 
 ## Don't
 

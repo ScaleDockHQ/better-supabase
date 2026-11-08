@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 
@@ -879,7 +879,7 @@ $$;`,
             createdAt: null,
           },
         },
-        options: { uniqueNumber: "identifier", linePositionKey: false },
+        options: { linePositionKey: false },
       },
       numbering: {
         options: {
@@ -973,7 +973,7 @@ create table public.bill_lines (
     expect(stack.url).not.toBe("");
   });
 
-  it("keeps the unique number and line position indexes by default", () => {
+  it("keeps the unique identifier and line position indexes by default", () => {
     const render = (options?: Record<string, unknown>): string =>
       renderBlocks(["invoices"], {
         modules: {
@@ -990,29 +990,23 @@ create table public.bill_lines (
 
     const defaults = render();
     expect(defaults).toContain(
-      'create unique index if not exists "bills_org_id_direction_kind_seq_key" on "public"."bills" ("org_id", "direction", "kind", "seq");',
+      'create unique index if not exists "bills_org_id_direction_kind_code_key" on "public"."bills" ("org_id", "direction", "kind", "code");',
     );
     expect(defaults).toContain('"bsb_bill_lines_position_key"');
     expect(defaults).toContain('"position") do update');
 
-    const off = render({ uniqueNumber: false, linePositionKey: false });
-    expect(off).not.toContain("bills_org_id_direction_kind");
+    const off = render({ linePositionKey: false });
+    expect(off).toContain("bills_org_id_direction_kind_code_key");
     expect(off).not.toContain("bsb_bill_lines_position_key");
     expect(off).not.toContain('"position") do update');
-    expect(render({ uniqueNumber: "identifier" })).toContain(
-      '"bills_org_id_direction_kind_code_key" on "public"."bills" ("org_id", "direction", "kind", "code")',
-    );
 
-    const own = renderBlocks(["invoices"], {
-      modules: { invoices: { options: { uniqueNumber: "identifier" } } },
-    })
+    const own = renderBlocks(["invoices"])
       .map((file) => file.contents)
       .join("\n");
 
     expect(own).toContain(
       'unique ("tenant_id", "direction", "kind", "identifier")',
     );
-    expect(() => render({ uniqueNumber: "year" })).toThrow(/uniqueNumber/);
   });
 
   it("leaves the totals trigger out when the app owns the totals", () => {
@@ -1024,9 +1018,6 @@ create table public.bill_lines (
       .join("\n");
 
     expect(sql).not.toContain("create trigger bsb_invoice_lines_totals_insert");
-    expect(sql).toContain(
-      "drop trigger if exists bsb_invoice_lines_totals_insert",
-    );
     expect(sql).not.toContain(
       'create or replace function "better_supabase"."set_invoice_lines_recount"',
     );

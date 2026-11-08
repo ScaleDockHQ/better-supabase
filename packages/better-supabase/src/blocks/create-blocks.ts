@@ -525,6 +525,11 @@ function withOverrides(
   blocks: BlockMap,
   overrides: Readonly<Record<string, object | undefined>>,
 ): BlockMap {
+  // The same map keeps its wiring check.
+  if (!Object.values(overrides).some(Boolean)) {
+    return blocks;
+  }
+
   return Object.fromEntries(
     Object.entries(blocks).map(([key, block]) => {
       const own = overrides[key];
@@ -559,6 +564,9 @@ interface BlockBuilder {
     port: P,
   ) => BlockPorts[P] | undefined;
 }
+
+/** The config (or the set itself without one) each block set was wired with. */
+const checked = new WeakMap<BlockMap, object>();
 
 /** Builds the blocks of `blocks` on demand, each one once, wired on ports. */
 function blockBuilder(
@@ -636,19 +644,26 @@ function blockBuilder(
     );
   };
 
-  for (const [key, block] of Object.entries(blocks)) {
-    for (const port of UNIQUE_PORTS) {
-      const need = block.consumes[port];
+  // The wiring of a block set is checked once; later builders skip the loops.
+  if (bound || checked.get(blocks) !== (config ?? blocks)) {
+    for (const [key, block] of Object.entries(blocks)) {
+      for (const port of UNIQUE_PORTS) {
+        const need = block.consumes[port];
 
-      if (need === undefined) {
-        continue;
-      }
+        if (need === undefined) {
+          continue;
+        }
 
-      if (providerOf(key, port) === undefined && need === "required") {
-        throw new TypeError(
-          `createBlocks: "${key}" needs a block that provides the ${port} port`,
-        );
+        if (providerOf(key, port) === undefined && need === "required") {
+          throw new TypeError(
+            `createBlocks: "${key}" needs a block that provides the ${port} port`,
+          );
+        }
       }
+    }
+
+    if (!bound) {
+      checked.set(blocks, config ?? blocks);
     }
   }
 

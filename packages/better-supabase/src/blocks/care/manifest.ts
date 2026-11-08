@@ -27,7 +27,7 @@ import { remindersBlock } from "../reminders/manifest.ts";
 import { shiftsBlock } from "../shifts/manifest.ts";
 import { signaturesBlock } from "../signatures/manifest.ts";
 import { stateMachineBlock } from "../state-machine/manifest.ts";
-import { timeTrackingBlock } from "../time-tracking/manifest.ts";
+import { timeEntriesBlock } from "../time-entries/manifest.ts";
 import { versionsBlock } from "../versions/manifest.ts";
 import { createCare } from "./care.ts";
 
@@ -46,7 +46,7 @@ export const careParts: {
   readonly bookings: typeof bookingsBlock;
   readonly calendar: typeof calendarBlock;
   readonly reminders: typeof remindersBlock;
-  readonly "time-tracking": typeof timeTrackingBlock;
+  readonly "time-entries": typeof timeEntriesBlock;
   readonly funding: typeof fundingBlock;
   readonly shifts: typeof shiftsBlock;
   readonly qualifications: typeof qualificationsBlock;
@@ -74,7 +74,7 @@ export const careParts: {
   bookings: bookingsBlock,
   calendar: calendarBlock,
   reminders: remindersBlock,
-  "time-tracking": timeTrackingBlock,
+  "time-entries": timeEntriesBlock,
   funding: fundingBlock,
   shifts: shiftsBlock,
   qualifications: qualificationsBlock,

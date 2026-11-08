@@ -1,89 +1,31 @@
 -- ==== schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:12537d399e0d305009ef12be8fb1b458c78340b6732d54d85c352a648dabca07
+-- @bsb-hash sha256:5cabb7070002950c3020393c7dbabfab3cd331f1f86f9f9c8df4e6582fe22cca
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."observation_definitions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."observation_definitions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."observation_definitions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."observation_definitions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."observation_definitions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."observations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."observations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."observations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."observations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."observations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Observations: typed measurements of a record (vital signs, scores, lab
 -- values) against definitions with a unit, a code and ranges that flag
 -- them, with amendments and entered-in-error corrections kept as history.
 
-create table if not exists "better_supabase"."observation_definitions" (
+create table "better_supabase"."observation_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system definition every organization reads.
   "tenant_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
-  "value_type" text not null check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
+  "key" text not null constraint bsb_observation_definitions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text not null constraint bsb_observation_definitions_title_check check (length("title") >= 1 and length("title") <= 200),
+  "value_type" text not null constraint bsb_observation_definitions_value_type_check check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
   -- A UCUM unit, such as /min, mm[Hg] or Cel.
-  "unit" text check ("unit" is null or length("unit") <= 50),
+  "unit" text constraint bsb_observation_definitions_unit_check check ("unit" is null or length("unit") <= 50),
   -- The code that names the observation, such as a LOINC code.
-  "code_system" text check ("code_system" is null or length("code_system") <= 200),
-  "code" text check ("code" is null or length("code") <= 100),
+  "code_system" text constraint bsb_observation_definitions_code_system_check check ("code_system" is null or length("code_system") <= 200),
+  "code" text constraint bsb_observation_definitions_code_check check ("code" is null or length("code") <= 100),
   -- The parts of a components value, such as systolic and diastolic: an
   -- array of objects with a key, a title, a unit, a code and ranges.
-  "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array'),
-  "decimals" integer check ("decimals" is null or "decimals" between 0 and 6),
+  "components" jsonb constraint bsb_observation_definitions_components_check check ("components" is null or jsonb_typeof("components") = 'array'),
+  "decimals" integer constraint bsb_observation_definitions_decimals_check check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
   -- Values outside the valid range are rejected; outside the reference range
   -- they are flagged low or high, at or past a critical bound critical.
   "valid_low" numeric,
@@ -95,62 +37,59 @@ create table if not exists "better_supabase"."observation_definitions" (
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("valid_low" is null or "valid_high" is null or "valid_low" <= "valid_high"),
-  check ("reference_low" is null or "reference_high" is null or "reference_low" <= "reference_high"),
-  check ("critical_low" is null or "critical_high" is null or "critical_low" <= "critical_high"),
+  constraint bsb_observation_definitions_check check ("valid_low" is null or "valid_high" is null or "valid_low" <= "valid_high"),
+  constraint bsb_observation_definitions_check1 check ("reference_low" is null or "reference_high" is null or "reference_low" <= "reference_high"),
+  constraint bsb_observation_definitions_check2 check ("critical_low" is null or "critical_high" is null or "critical_low" <= "critical_high"),
   unique nulls not distinct ("tenant_id", "key")
 );
 alter table "better_supabase"."observation_definitions" enable row level security;
 revoke all on "better_supabase"."observation_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."observation_definitions" to authenticated;
 grant all on "better_supabase"."observation_definitions" to service_role;
-drop policy if exists observation_definitions_read on "better_supabase"."observation_definitions";
-create policy observation_definitions_read on "better_supabase"."observation_definitions"
+create policy bsb_observation_definitions_read on "better_supabase"."observation_definitions"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
-create table if not exists "better_supabase"."observations" (
+create table "better_supabase"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid not null references "better_supabase"."observation_definitions" ("id") on delete restrict,
-  "subject_type" text not null check (length("subject_type") between 1 and 100),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null constraint bsb_observations_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null constraint bsb_observations_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "observed_at" timestamptz not null default now(),
   -- One of these holds the value, by the definition's value type; a
   -- boolean is stored as true or false in the code column.
   "value_number" numeric,
-  "value_text" text check ("value_text" is null or length("value_text") <= 4000),
-  "value_code" text check ("value_code" is null or length("value_code") <= 200),
-  "components" jsonb check ("components" is null or jsonb_typeof("components") = 'object'),
-  "flag" text not null default 'normal' check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high')),
-  "status" text not null default 'final' check ("status" in ('final', 'amended', 'entered_in_error')),
+  "value_text" text constraint bsb_observations_value_text_check check ("value_text" is null or length("value_text") <= 4000),
+  "value_code" text constraint bsb_observations_value_code_check check ("value_code" is null or length("value_code") <= 200),
+  "components" jsonb constraint bsb_observations_components_check check ("components" is null or jsonb_typeof("components") = 'object'),
+  "flag" text not null default 'normal' constraint bsb_observations_flag_check check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high')),
+  "status" text not null default 'final' constraint bsb_observations_status_check check ("status" in ('final', 'amended', 'entered_in_error')),
   -- The observation this one corrects.
   "replaces_id" uuid references "better_supabase"."observations" ("id") on delete set null,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "method" text check ("method" is null or length("method") <= 200),
-  "device" text check ("device" is null or length("device") <= 200),
-  "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import')),
+  "reason" text constraint bsb_observations_reason_check check ("reason" is null or length("reason") <= 2000),
+  "method" text constraint bsb_observations_method_check check ("method" is null or length("method") <= 200),
+  "device" text constraint bsb_observations_device_check check ("device" is null or length("device") <= 200),
+  "source" text not null default 'manual' constraint bsb_observations_source_check check ("source" in ('manual', 'form', 'device', 'import')),
   -- The id a device or an import gives the reading, so ingesting it again
   -- changes nothing.
-  "external_id" text check ("external_id" is null or length("external_id") between 1 and 200),
+  "external_id" text constraint bsb_observations_external_id_check check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
   "submission_id" uuid,
   "performer_id" uuid,
-  "note" text check ("note" is null or length("note") <= 4000),
+  "note" text constraint bsb_observations_note_check check ("note" is null or length("note") <= 4000),
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."observations" add column if not exists "app_note" text;
-create index if not exists "observations_series_idx" on "better_supabase"."observations" ("subject_type", "subject_id", "definition_id", "observed_at" desc);
-create index if not exists "observations_definition_idx" on "better_supabase"."observations" ("definition_id");
-create index if not exists "observations_tenant_idx" on "better_supabase"."observations" ("tenant_id", "observed_at" desc);
-create index if not exists "observations_replaces_idx" on "better_supabase"."observations" ("replaces_id") where "replaces_id" is not null;
-create index if not exists "observations_submission_idx" on "better_supabase"."observations" ("submission_id") where "submission_id" is not null;
-create unique index if not exists "observations_external_key" on "better_supabase"."observations" ("tenant_id", "external_id") where "external_id" is not null;
+create index "observations_series_idx" on "better_supabase"."observations" ("subject_type", "subject_id", "definition_id", "observed_at" desc);
+create index "observations_definition_idx" on "better_supabase"."observations" ("definition_id");
+create index "observations_tenant_idx" on "better_supabase"."observations" ("tenant_id", "observed_at" desc);
+create index "observations_replaces_idx" on "better_supabase"."observations" ("replaces_id") where "replaces_id" is not null;
+create index "observations_submission_idx" on "better_supabase"."observations" ("submission_id") where "submission_id" is not null;
+create unique index "observations_external_key" on "better_supabase"."observations" ("tenant_id", "external_id") where "external_id" is not null;
 alter table "better_supabase"."observations" enable row level security;
 revoke all on "better_supabase"."observations" from public, anon, authenticated;
 grant select on "better_supabase"."observations" to authenticated;
 grant all on "better_supabase"."observations" to service_role;
-drop policy if exists observations_read on "better_supabase"."observations";
-create policy observations_read on "better_supabase"."observations"
+create policy bsb_observations_read on "better_supabase"."observations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
@@ -586,7 +525,7 @@ grant execute on function "better_supabase"."archive_observation_definition"(uui
 -- Records one observation of a record by its definition key. value is a
 -- number, true or false, a string, or an object of components; details
 -- takes method, device and note.
-drop function if exists "better_supabase"."record_observation"(uuid, text, text, text, jsonb, timestamptz, jsonb);
+
 create or replace function "better_supabase"."record_observation"(tenant uuid, subject_type text, subject_id text, definition_key text, value jsonb, observed_at timestamptz default null, details jsonb default null, fields jsonb default null)
 returns jsonb
 language plpgsql
@@ -1025,73 +964,38 @@ grant execute on function "better_supabase"."latest_observations"(text, text) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."observation_definitions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."observation_definitions";
 create policy bsb_tenant_scope_select on "better_supabase"."observation_definitions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."observation_definitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."observation_definitions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."observation_definitions";
 create policy bsb_tenant_scope_update on "better_supabase"."observation_definitions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."observation_definitions";
 create policy bsb_tenant_scope_delete on "better_supabase"."observation_definitions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."observations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."observations";
 create policy bsb_tenant_scope_select on "better_supabase"."observations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."observations";
 create policy bsb_tenant_scope_insert on "better_supabase"."observations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."observations";
 create policy bsb_tenant_scope_update on "better_supabase"."observations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."observations";
 create policy bsb_tenant_scope_delete on "better_supabase"."observations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_149_observations.sql
 -- better-supabase module: observations

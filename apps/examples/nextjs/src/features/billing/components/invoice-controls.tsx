@@ -4,7 +4,6 @@ import { useAction, useActionForm } from "better-supabase/react";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,9 +24,10 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { createDraftInvoice, issueInvoice } from "../invoice-actions";
+import { createDraftInvoice, issueInvoice } from "../billing-actions";
 
 /** Creates a draft invoice with one line. */
 export function CreateDraftInvoiceDialog({

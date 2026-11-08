@@ -14,7 +14,7 @@ begin
   from better_supabase.invitations i
   left join better_supabase.roles r on r.id::text = i.role
   left join better_supabase.profiles p on p.id = i.invited_by
-  where i.organization_id = organization
+  where i.tenant_id = organization
     and i.accepted_at is null and i.declined_at is null and i.revoked_at is null
     and i.expires_at >= now()
   order by i.created_at desc;

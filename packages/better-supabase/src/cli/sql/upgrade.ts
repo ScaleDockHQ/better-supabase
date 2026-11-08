@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
@@ -13,10 +13,14 @@ import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
 
 import {
+  buildModel,
+  conflicts,
+  duplicatePolicies,
   entityRenamePlan,
   moduleFileVersion,
   moduleTopics,
-  renderBlocks,
+  PRELUDE_FUNCTIONS,
+  PRELUDE_MODULE,
   sameBlockFile,
   SQL_MODULES,
   upgradePlan,
@@ -25,13 +29,9 @@ import { applyPlan, changeLines } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
+import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
-import {
-  legacyBlocksTableSql,
-  legacyPrefixNames,
-  legacyPrefixSql,
-} from "./legacy-prefix.ts";
-import { migrationStamp } from "./migrations.ts";
+import { migrationFile } from "./migration-names.ts";
 import {
   latestMigration,
   migrationInstances,
@@ -42,13 +42,17 @@ import {
   writesMigrations,
 } from "./module-migration.ts";
 import { layoutFor } from "./providers.ts";
-import {
-  formerPaths,
-  renamedBlocksIn,
-  renamedBlocksSql,
-  withCurrentBlockNames,
-} from "./renamed-blocks.ts";
+import { cacheOf, renderBlocksCached } from "./render-cache.ts";
 import { nextStep, write } from "./write.ts";
+
+/** The migration `upgrade` writes under pg-delta for steps a diff can't express. */
+const REVIEWED_SUFFIX = "_better_supabase_reviewed_upgrade.sql";
+
+const REVIEWED_HEADER = [
+  "-- better-supabase upgrade: steps pg-delta can't express (renames, backfills, expression changes).",
+  "-- Review them before you apply this migration; the module files hold everything else.",
+  "-- destructive: reviewed",
+].join("\n");
 
 /**
  * Rewrites the module files of modules behind the current version, and writes
@@ -70,18 +74,32 @@ export async function upgrade(
   }
 
   const sqlLayout = await layoutFor(config, args, config.blockNames);
-  const files = renderBlocks(config.blockNames, sqlLayout);
+
+  const files = await renderBlocksCached(
+    config,
+    config.blockNames,
+    sqlLayout,
+    cacheOf(args),
+  );
+
   const migrations = await writesMigrations(config);
 
-  const { installed, stale, diffs, text, former } = migrations
+  const {
+    installed,
+    stale,
+    diffs,
+    text,
+    files: installedFiles,
+  } = migrations
     ? await installedFromMigration(config, sqlLayout, files, paint)
     : await installedFromFiles(config, files, paint);
 
   const renames = entityRenamePlan(
     config.blockNames,
     installed.map((entry) => entry.module),
-    withCurrentBlockNames(text),
+    text,
     sqlLayout,
+    files,
   );
 
   if (renames.refused.length > 0) {
@@ -94,27 +112,21 @@ export async function upgrade(
 
   const plan = upgradePlan(installed, sqlLayout);
   const renamed = [...new Set(renames.steps.map((step) => step.module))];
-  const legacy = legacyPrefixNames(text);
-  const blockRenames = renamedBlocksIn(text);
-  const prefixed = legacy.length > 0;
-  const modulesTable = text.includes("better_supabase.modules");
+
+  const problems = moduleFileProblems(installedFiles);
 
   const data = {
     upgrades: plan.map(({ module, from, to }) => ({ module, from, to })),
     ...(renamed.length > 0 ? { renames: renamed } : {}),
-    ...(prefixed ? { prefix: "bsb" } : {}),
-    ...(modulesTable ? { table: "better_supabase.blocks" } : {}),
-    ...(blockRenames.length > 0 ? { blocks: blockRenames } : {}),
     stale,
+    ...(problems.length > 0 ? { problems } : {}),
   };
 
   const current =
     plan.length === 0 &&
     stale.length === 0 &&
     renamed.length === 0 &&
-    !prefixed &&
-    !modulesTable &&
-    blockRenames.length === 0;
+    problems.length === 0;
 
   const behind = plan.map(
     (entry) =>
@@ -140,19 +152,8 @@ export async function upgrade(
         ...renamed.map(
           (module) => `${module} has entity renames to apply to its tables`,
         ),
-        ...(prefixed
-          ? ["The installed objects still use the bs_ prefix of 0.14 and older"]
-          : []),
-        ...(modulesTable
-          ? [
-              "The installed versions are in better_supabase.modules, which 0.15 names better_supabase.blocks",
-            ]
-          : []),
-        ...blockRenames.map(
-          ({ from, to }) =>
-            `The ${from} block is installed; 0.15 names it ${to}`,
-        ),
         ...(stale.length > 0 ? [`Out of date: ${stale.join(", ")}.`] : []),
+        ...problems,
         "Run `better-supabase upgrade`.",
       ].join("\n"),
     };
@@ -175,29 +176,7 @@ export async function upgrade(
           `-- Entity renames (blocks.<name>.entities) of ${renamed.join(", ")}.\n${renames.steps.map((step) => step.sql).join("\n")}`,
         ];
 
-  const prefixSteps = prefixed
-    ? [
-        `-- Renames the bs_ triggers, policies, constraints, indexes and functions to bsb_ (0.15).\n${legacyPrefixSql(legacy)}`,
-      ]
-    : [];
-
-  const tableSteps = modulesTable
-    ? [
-        `-- Copies better_supabase.modules into better_supabase.blocks (0.15).\n${legacyBlocksTableSql}`,
-      ]
-    : [];
-
-  const blockSteps =
-    blockRenames.length === 0
-      ? []
-      : [
-          `-- Moves the installed blocks 0.15 renamed to their new names.\n${renamedBlocksSql(blockRenames)}`,
-        ];
-
   const steps = [
-    ...tableSteps,
-    ...blockSteps,
-    ...prefixSteps,
     ...renameSteps,
     ...plan.flatMap((entry) =>
       entry.steps
@@ -212,8 +191,23 @@ export async function upgrade(
   const dryRun = args["dry-run"] === true;
 
   if (steps.length > 0 && !migrations) {
-    const path = `${migrationsDir(config)}/${migrationStamp(now())}_better_supabase_block_upgrade.sql`;
-    const contents = `-- better-supabase upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
+    const dir = migrationsDir(config);
+
+    const reviewed =
+      sqlWorkflow(config, await readSupabaseToml(config.root)) === "pg-delta";
+
+    // Under pg-delta the module files own every statement the diff can
+    // express, so what is left (renames, backfills, expression changes) is a
+    // hand migration that a person reviews before it runs.
+    const contents = reviewed
+      ? `${REVIEWED_HEADER}\n\n${steps.join("\n\n")}\n`
+      : `-- better-supabase upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
+
+    const existing: string[] = await readdir(resolve(config.root, dir)).catch(
+      () => [],
+    );
+
+    const path = `${dir}/${migrationFile(existing, now(), reviewed ? REVIEWED_SUFFIX : "_better_supabase_block_upgrade.sql", contents).name}`;
 
     const applied = await applyPlan(
       sqlPlan(config, {
@@ -224,18 +218,6 @@ export async function upgrade(
     );
 
     lines.push(...changeLines(applied));
-  }
-
-  if (modulesTable) {
-    lines.push("Copied better_supabase.modules into better_supabase.blocks");
-  }
-
-  if (prefixed) {
-    lines.push(`Renamed ${String(legacy.length)} bs_ names to bsb_`);
-  }
-
-  for (const { from, to } of blockRenames) {
-    lines.push(`Renamed the ${from} block to ${to}`);
   }
 
   for (const module of renamed) {
@@ -257,7 +239,6 @@ export async function upgrade(
     now,
     undefined,
     migrations ? steps : [],
-    former,
   );
 
   lines.push(...written.lines);
@@ -280,8 +261,9 @@ interface Installed {
   readonly diffs: string[];
   /** The installed files or migration, for their `@bsb-names` lines. */
   readonly text: string;
+  /** The installed files with their paths; empty for a migration. */
+  readonly files: readonly { readonly path: string; readonly text: string }[];
   /** Files a block wrote under its 0.14 name, which `upgrade` removes. */
-  readonly former: readonly string[];
 }
 
 /** The installed versions from the module files in `sql.dir`. */
@@ -294,24 +276,12 @@ async function installedFromFiles(
   const stale: string[] = [];
   const diffs: string[] = [];
   const texts: string[] = [];
-  const former: string[] = [];
+  const paths: { path: string; text: string }[] = [];
 
   const read = (path: string): Promise<string | undefined> =>
     readFile(resolve(config.root, path), "utf-8").catch(() => undefined);
 
   for (const file of files) {
-    const earlier = formerPaths(file.path, file.module);
-    let formerText: string | undefined;
-
-    for (const formerPath of earlier) {
-      const text = await read(formerPath);
-
-      if (text !== undefined) {
-        former.push(formerPath);
-        formerText ??= text;
-      }
-    }
-
     if (file.kind === "data") {
       continue;
     }
@@ -320,15 +290,16 @@ async function installedFromFiles(
       continue;
     }
 
-    const found = (await read(file.path)) ?? formerText;
+    const found = await read(file.path);
 
     if (found === undefined) {
       continue;
     }
 
-    const current = withCurrentBlockNames(found);
+    const current = found;
 
     texts.push(found);
+    paths.push({ path: file.path, text: found });
     installed.push({
       module: file.instance ?? file.module,
       ...(file.instance === undefined ? {} : { block: file.module }),
@@ -342,7 +313,7 @@ async function installedFromFiles(
     }
   }
 
-  return { installed, stale, diffs, text: texts.join("\n"), former };
+  return { installed, stale, diffs, text: texts.join("\n"), files: paths };
 }
 
 /**
@@ -358,10 +329,10 @@ async function installedFromMigration(
   const latest = await latestMigration(config, MODULES_SUFFIX);
 
   if (latest === undefined) {
-    return { installed: [], stale: [], diffs: [], text: "", former: [] };
+    return { installed: [], stale: [], diffs: [], text: "", files: [] };
   }
 
-  const text = withCurrentBlockNames(latest.text);
+  const text = latest.text;
   const versions = migrationModules(text);
   const blocks = migrationInstances(text);
 
@@ -382,12 +353,74 @@ async function installedFromMigration(
   });
 
   return sameModuleMigration(latest.text, expected)
-    ? { installed, stale: [], diffs: [], text: latest.text, former: [] }
+    ? { installed, stale: [], diffs: [], text: latest.text, files: [] }
     : {
         installed,
         stale: [latest.path],
         diffs: [fileDiff(latest.path, latest.text, expected, paint)],
         text: latest.text,
-        former: [],
+        files: [],
       };
+}
+
+/**
+ * A line for each problem in the installed module files that a schema diff
+ * would trip over: a helper the prelude defines that a module file also creates
+ * (a file written before the prelude existed pastes the helpers it calls),
+ * another object two module files both declare, a file that asks for
+ * `transaction=false`, a top-level `insert`, and two policies that decide the
+ * same way. Doctor reports the same findings as BS369 to BS375.
+ */
+function moduleFileProblems(
+  files: readonly { readonly path: string; readonly text: string }[],
+): string[] {
+  const model = buildModel(files);
+
+  const conflicting = conflicts(model).flatMap(({ declarations }) => {
+    const first = declarations[0];
+
+    if (
+      first === undefined ||
+      first.kind === "extension" ||
+      first.kind === "schema"
+    ) {
+      return [];
+    }
+
+    const prelude =
+      first.kind === "function" &&
+      PRELUDE_FUNCTIONS.has(
+        first.name.slice(first.name.indexOf(".") + 1).replace(/\/\d+$/, ""),
+      );
+
+    return declarations
+      .filter(
+        (each) =>
+          each.owner.kind === "module" &&
+          each.file !== first.file &&
+          (!prelude || each.owner.name !== PRELUDE_MODULE),
+      )
+      .map((each) =>
+        prelude
+          ? `${each.file} declares ${first.name.replace(/\/\d+$/, "")}, which the prelude defines. Run \`better-supabase upgrade\`.`
+          : `${each.file} declares the ${each.kind} ${each.name.replace(/\/\d+$/, "")}, which ${first.file} also declares.`,
+      );
+  });
+
+  const perFile = [...model.files].flatMap(([path, parsed]) => [
+    ...(parsed.outsideTransaction
+      ? [`${path} asks for transaction=false. Remove the line.`]
+      : []),
+    ...parsed.inserts.map(
+      (line) =>
+        `${path}:${String(line)} inserts rows. Rows belong in the module's data file.`,
+    ),
+  ]);
+
+  const policies = duplicatePolicies(model).map(
+    (group) =>
+      `${group.table} has the policies ${group.names.join(" and ")}, which decide the same way.`,
+  );
+
+  return [...conflicting, ...perFile, ...policies];
 }

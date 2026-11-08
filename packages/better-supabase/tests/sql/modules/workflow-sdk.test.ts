@@ -39,9 +39,7 @@ describe("workflow-sdk module", () => {
   it("closes the run keys, purge and open hooks to the API roles", () => {
     const sql = schemaOf({});
 
-    expect(sql).toContain(
-      "create table if not exists workflow.workflow_run_keys",
-    );
+    expect(sql).toContain("create table workflow.workflow_run_keys");
 
     for (const fn of [
       "workflow_claim_run_key",

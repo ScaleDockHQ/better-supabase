@@ -96,7 +96,7 @@ A definition is a list of steps, and each step a list of fields. `publish(formId
 
 ## Your own fields
 
-`blocks.forms.options.extraColumns` adds columns to the `forms` table,
+Columns you add to `forms` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. `create` and `update` write them from `fields`, and `create`, `update`, `get` and `list` return them under `fields`. Pass a
 [Standard Schema](https://standardschema.dev) as `fields` to type them,
 parse them on reads and validate them on writes; a bad value is a

@@ -304,7 +304,7 @@ describe("projects time helpers", () => {
     );
 
     const projects = createProjects(
-      parts({ parts: { "time-tracking": { list } } }),
+      parts({ parts: { "time-entries": { list } } }),
     );
 
     const result = await projects.utilization({
@@ -334,7 +334,7 @@ describe("projects time helpers", () => {
     );
 
     const projects = createProjects(
-      parts({ parts: { "time-tracking": { list } } }),
+      parts({ parts: { "time-entries": { list } } }),
     );
 
     const result = await projects.financials({ projectId: "p" });
@@ -357,7 +357,7 @@ describe("projects time helpers", () => {
     );
 
     const projects = createProjects(
-      parts({ parts: { "time-tracking": { list } } }),
+      parts({ parts: { "time-entries": { list } } }),
     );
 
     const open = await projects.retainerDrawdown({

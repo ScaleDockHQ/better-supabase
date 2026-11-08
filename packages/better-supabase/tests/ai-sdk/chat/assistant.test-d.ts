@@ -4,7 +4,7 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type {
   Assistant,
-  AssistantRunArgs,
+  AssistantRunOptions,
   AssistantTurn,
 } from "../../../src/ai-sdk/chat/index.ts";
 
@@ -21,7 +21,7 @@ describe("createAssistant types", () => {
       defaultModel: "openai/gpt-5",
       toolApprovalSecret: "secret",
       run: (args) => {
-        expectTypeOf(args).toEqualTypeOf<AssistantRunArgs<Chat>>();
+        expectTypeOf(args).toEqualTypeOf<AssistantRunOptions<Chat>>();
         expectTypeOf(args.uiMessages).toEqualTypeOf<Chat[]>();
         expectTypeOf(args.toolApprovalSecret).toEqualTypeOf<
           string | Uint8Array | undefined

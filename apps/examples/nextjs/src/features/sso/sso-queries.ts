@@ -1,3 +1,4 @@
+import "server-only";
 import { tenantOf } from "better-supabase/next";
 
 import { bsb } from "@/lib/supabase/server";

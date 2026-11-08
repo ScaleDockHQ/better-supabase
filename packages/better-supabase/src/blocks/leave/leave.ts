@@ -37,9 +37,9 @@ export interface LeaveOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the request's extra columns
-   * (`blocks.leave.options.extraColumns`), keyed by database name. It types and
-   * parses them on reads, and validates them on `request`.
+   * A Standard Schema for the request's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `request`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

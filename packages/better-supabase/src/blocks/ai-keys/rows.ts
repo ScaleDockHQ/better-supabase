@@ -51,7 +51,7 @@ export function keyOf(value: unknown): AiProviderKey {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     provider: textOf(row["provider"]),
     name: textOf(row["name"]),
     credentialRef: refOf(row["credential_ref"]),
@@ -81,7 +81,7 @@ export function batchOf(value: unknown): AiBatch {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     userId: optionalText(row["user_id"]),
     provider: textOf(row["provider"]),
     reference: recordOrEmpty(row["reference"]),
@@ -107,7 +107,7 @@ export function itemOf(value: unknown): AiBatchItem {
   return {
     batchId: textOf(row["batch_id"]),
     requestId: textOf(row["request_id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     status: oneOf(row["status"], ITEM_STATUSES, "failed"),
     output: row["output"] ?? undefined,
     usage: row["usage"] ?? undefined,

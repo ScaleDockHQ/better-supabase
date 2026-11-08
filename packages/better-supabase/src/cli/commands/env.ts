@@ -25,9 +25,8 @@ import { prefixFromFlag, stackEnvValues } from "../stack-env.ts";
 import { parseStackStatus, readStackStatus } from "../stack-status.ts";
 
 const ARGS = {
-  write: {
+  out: {
     type: "string",
-    alias: "out",
     description:
       "Env file to write, or - to print the variables. Defaults to env.output, then .env.local",
     valueHint: "file",
@@ -189,7 +188,7 @@ export async function runEnv(
     };
   }
 
-  const write = args.write;
+  const write = args.out;
 
   if (write === "-") {
     return {
@@ -201,8 +200,8 @@ export async function runEnv(
     };
   }
 
-  const out = write ?? config.env.output;
-  const path = insideRoot(config.root, out, write ? "--write" : "env.output");
+  const out = write ?? config.env.file;
+  const path = insideRoot(config.root, out, write ? "--out" : "env.file");
   const current = (await readIfExists(path)) ?? "";
   const file = display(config.root, out);
 

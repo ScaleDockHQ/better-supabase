@@ -1,7 +1,5 @@
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { SCHEMA } from "../shared.ts";
-
 /**
  * Schemas whose tables Supabase or Postgres own; the event trigger leaves them
  * alone.
@@ -33,8 +31,7 @@ export const ENSURE_RLS: BlockSqlDefinition = {
     "An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.",
   requires: [],
   target: "schema",
-  build: () => `${SCHEMA}
-
+  build: () => `
 -- Runs after CREATE TABLE, CREATE TABLE AS and SELECT INTO, and after an
 -- ALTER TABLE that turned row level security off. A table without policies
 -- then denies every API role until you add one.

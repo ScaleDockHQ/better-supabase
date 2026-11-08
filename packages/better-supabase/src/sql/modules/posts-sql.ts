@@ -49,7 +49,7 @@ export interface PostsSql {
   /** "post" publishes a new post at once; "pre" holds it for a moderator. */
   readonly mode: "pre" | "post";
   readonly maxBody: number;
-  /** The posts table's extra columns (`options.extraColumns`). */
+  /** The posts table's extra columns (the columns your schema files add). */
   readonly extras: readonly ExtraColumn[];
   readonly read: string;
   readonly write: string;

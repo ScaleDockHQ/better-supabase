@@ -33,9 +33,9 @@ const rule: Rule = {
 };
 
 describe("renderRule", () => {
-  it("renders every kind with the bsb functions", () => {
+  it("renders every kind with the better_supabase functions", () => {
     expect(renderRule(rule)).toBe(
-      `(bsb.owns("owner_id")) or ((bsb.is_member("tenant_id")) and ("status" = 'it''s open') and ("deleted_at" is null)) or (not (bsb.can("tenant_id", 'x')))`,
+      `(better_supabase.owns("owner_id")) or ((better_supabase.is_member("tenant_id")) and ("status" = 'it''s open') and ("deleted_at" is null)) or (not (better_supabase.can("tenant_id", 'x')))`,
     );
   });
 
@@ -72,7 +72,7 @@ describe("rule policies", () => {
   });
 
   it("reads the rules back from the comment", () => {
-    const sql = `create table app.notes (id int);\n${renderRulePolicy(built, { drop: true })}\n`;
+    const sql = `create table app.notes (id int);\n${renderRulePolicy(built)}\n`;
     const [read] = readRulePolicies(sql);
 
     expect(read?.using).toEqual(rule);
@@ -81,7 +81,11 @@ describe("rule policies", () => {
   });
 
   it("flags a policy edited by hand", () => {
-    const sql = renderRulePolicy(built).replace("bsb.owns", "bsb.uid() =");
+    const sql = renderRulePolicy(built).replace(
+      "better_supabase.owns",
+      "better_supabase.uid() =",
+    );
+
     const [read] = readRulePolicies(sql);
 
     expect(read?.inSync).toBe(false);
@@ -96,7 +100,7 @@ describe("rule policies", () => {
 });
 
 describe("disallowedPolicyCalls", () => {
-  it("allows only the bsb functions", () => {
+  it("allows only the better_supabase functions", () => {
     expect(
       disallowedPolicyCalls(
         rulePolicy({ table: "t", name: "n", using: rule }).policy,
@@ -107,7 +111,7 @@ describe("disallowedPolicyCalls", () => {
       table: "t",
       name: "n",
       using:
-        "auth.uid() = owner_id and exists (select 1 from x where public.f(x.id)) and bsb.owns(a)",
+        "auth.uid() = owner_id and exists (select 1 from x where public.f(x.id)) and better_supabase.owns(a)",
       check: "lower(name) = 'a(b)'",
     });
 
@@ -128,7 +132,7 @@ describe("policyFunctionsSql", () => {
     });
 
     for (const name of ["uid", "owns", "is_member", "can"]) {
-      expect(sql).toContain(`function bsb.${name}(`);
+      expect(sql).toContain(`function better_supabase.${name}(`);
     }
 
     expect(sql).toContain("app.my_tenants()");

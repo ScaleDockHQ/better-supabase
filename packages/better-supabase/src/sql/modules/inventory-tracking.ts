@@ -464,6 +464,38 @@ end;
 $$;
 ${userGrant(`${fn("stock_detail")}(uuid, uuid)`)}
 
+create or replace function ${fn("pick_serials")}(variant uuid, location uuid, quantity integer, lot uuid default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+  v_serials jsonb;
+begin
+  select x.${l("tenant")} into v_tenant from ${loc.table} x where x.${l("id")} = pick_serials.location;
+  if v_tenant is null or not (auth.role() = 'service_role' or ${names.scope.can("v_tenant", names.read)}) then
+    ${fail("INVENTORY_LOCATION_NOT_FOUND", "location not found", "P0002")}
+  end if;
+  if pick_serials.quantity is null or pick_serials.quantity <= 0 then
+    ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must be greater than zero", "22023")}
+  end if;
+  select jsonb_agg(z.${s("serial")} order by z.${s("updatedAt")}, z.${s("serial")}) into v_serials from (
+    select y.${s("serial")}, y.${s("updatedAt")} from ${serials} y
+    where y.${s("variant")} = pick_serials.variant and y.${s("location")} = pick_serials.location
+      and y.${s("status")} = 'in_stock' and (pick_serials.lot is null or y.${s("lot")} = pick_serials.lot)
+    order by y.${s("updatedAt")}, y.${s("serial")} limit pick_serials.quantity
+  ) z;
+  if coalesce(jsonb_array_length(v_serials), 0) < pick_serials.quantity then
+    ${fail("INVENTORY_INSUFFICIENT", "not enough stock available", "23514")}
+  end if;
+  return v_serials;
+end;
+$$;
+${userGrant(`${fn("pick_serials")}(uuid, uuid, integer, uuid)`)}
+
 -- The lots with stock that expire on or before a date, soonest first.
 create or replace function ${fn("expiring_lots")}(tenant ${ctx.idType}, before date)
 returns jsonb

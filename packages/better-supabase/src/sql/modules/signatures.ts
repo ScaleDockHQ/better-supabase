@@ -10,7 +10,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -65,7 +64,7 @@ const NAMES: BlockSqlNames = {
     "before_signature_sign",
     "after_signature_sign",
   ],
-  options: ["extraColumns", "meanings"],
+  options: ["meanings"],
   tables: {
     requests: {
       name: "signature_requests",
@@ -320,12 +319,12 @@ function build(ctx: BlockSqlContext): string {
   ${r("completedAt")} timestamptz
 );
 -- What signing means (blocks.signatures.options.meanings), such as approved.
-alter table ${requests} add column if not exists ${r("meaning")} text;${addExtraColumns(requests, extras)}
+alter table ${requests} add column if not exists ${r("meaning")} text;
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_subject_idx`)} on ${requests} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")});
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_version_idx`)} on ${requests} (${r("version")});
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_signers_idx`)} on ${requests} using gin (${r("signers")});
 ${lockTable(requests, { read: true })}
-${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("signature_requests_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(r("tenant"), read)} or (select auth.uid()) = any (${r("signers")})` }), { drop: true, target: requests })}
+${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("signature_requests_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(r("tenant"), read)} or (select auth.uid()) = any (${r("signers")})` }), { target: requests })}
 
 create table if not exists ${signatures} (
   ${s("id")} uuid primary key default gen_random_uuid(),
@@ -344,7 +343,7 @@ create table if not exists ${signatures} (
   unique (${s("request")}, ${s("signer")})
 );
 ${lockTable(signatures, { read: true })}
-${renderPolicy(makePolicy({ table: signatures, name: ctx.naming.rename("signatures_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(s("tenant"), read)} or ${s("signer")} = (select auth.uid())` }), { drop: true, target: signatures })}
+${renderPolicy(makePolicy({ table: signatures, name: ctx.naming.rename("signatures_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(s("tenant"), read)} or ${s("signer")} = (select auth.uid())` }), { target: signatures })}
 `
     : "";
 
@@ -365,7 +364,7 @@ ${tables}
 -- retention and delete_version keep it; without one, the record's columns
 -- are snapshotted first. meaning says what signing means, one of
 -- blocks.signatures.options.meanings. fields: the extra columns
--- (blocks.signatures.options.extraColumns) to set.
+-- (columns your schema files add) to set.
 drop function if exists ${fn("create_signature_request")}(${ctx.idType}, ${PREVIOUS_REQUEST_ARGS});
 drop function if exists ${fn("create_signature_request")}(${ctx.idType}, ${PREVIOUS_REQUEST_ARGS}, jsonb);
 ${extra.drop(fn("create_signature_request"), `${ctx.idType}, ${PREVIOUS_REQUEST_ARGS}, text`)}

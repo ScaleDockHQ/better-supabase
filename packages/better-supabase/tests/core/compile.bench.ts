@@ -7,7 +7,7 @@ import type { Executor } from "../../src/core/executor.ts";
 import type { Operation, Selection } from "../../src/ir/types.ts";
 
 import { compilePostgrest } from "../../src/compile/postgrest.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
 import { decodeRows } from "../../src/ir/codec.ts";
 import { defineListQuery } from "../../src/list/list-query.ts";
@@ -41,7 +41,7 @@ const executor: Executor = {
   },
 };
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const db = betterSupabase.connect(executor);
 
 async function opOf(run: () => PromiseLike<unknown>): Promise<Operation> {

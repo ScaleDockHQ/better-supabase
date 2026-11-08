@@ -1,12 +1,9 @@
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:ea939caa00521c189e4963202f78722aedb225636092d89658594ebfb812c7f8
+-- @bsb-hash sha256:2f83c1069a796401306b2537d09c8a13727f91c86fde88086bc4512d01fe0f7d
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- The webhook inbox over an app's table: "centrakit"."inbound_webhook_events".
 -- The app owns its columns, a unique key per source, tenant and message id,
@@ -14,17 +11,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
-drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
-drop function if exists better_supabase.complete_webhook(bigint, text);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
-drop function if exists better_supabase.fail_webhook(bigint, text, text, interval, integer);
-drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer);
-drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer, jsonb);
-drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
-drop function if exists better_supabase.list_webhooks(text, text, text, integer);
+
 
 -- { id, duplicate }: duplicate = true when the source and tenant saw the
 -- message id before (the sender retried). max_attempts is the source's
@@ -97,7 +84,7 @@ as $$
     set "status" = 'processing', "attempts" = w."attempts" + 1, "locked_by" = worker, "locked_until" = now() + lease
     from next
     where w."id" = next."id"
-    returning w."id" as id, jsonb_build_object('id', w."id", 'source', w."source", 'message_id', w."external_id", 'event_type', w."event_kind", 'payload', w."payload", 'headers', '{}'::jsonb, 'status', w."status", 'attempts', w."attempts", 'max_attempts', 8, 'available_at', w."available_at", 'locked_by', w."locked_by", 'locked_until', w."locked_until", 'last_error', w."last_error", 'received_at', w."received_at", 'processed_at', w."processed_at", 'tenant', w."organization_id"::text, 'checkpoint', '{}'::jsonb) as message
+    returning w."id" as id, jsonb_build_object('id', w."id", 'source', w."source", 'message_id', w."external_id", 'event_type', w."event_kind", 'payload', w."payload", 'headers', '{}'::jsonb, 'status', w."status", 'attempts', w."attempts", 'max_attempts', 8, 'available_at', w."available_at", 'locked_by', w."locked_by", 'lock_expires_at', w."locked_until", 'last_error', w."last_error", 'received_at', w."received_at", 'processed_at', w."processed_at", 'tenant', w."organization_id"::text, 'checkpoint', '{}'::jsonb) as message
   )
   select coalesce(jsonb_agg(claimed.message order by claimed.id), '[]'::jsonb) from claimed
 $$;
@@ -195,7 +182,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.message order by x.n), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', w."id", 'source', w."source", 'message_id', w."external_id", 'event_type', w."event_kind", 'payload', w."payload", 'headers', '{}'::jsonb, 'status', w."status", 'attempts', w."attempts", 'max_attempts', 8, 'available_at', w."available_at", 'locked_by', w."locked_by", 'locked_until', w."locked_until", 'last_error', w."last_error", 'received_at', w."received_at", 'processed_at', w."processed_at", 'tenant', w."organization_id"::text, 'checkpoint', '{}'::jsonb) as message, row_number() over (order by w."received_at" desc, w."id" desc) as n
+    select jsonb_build_object('id', w."id", 'source', w."source", 'message_id', w."external_id", 'event_type', w."event_kind", 'payload', w."payload", 'headers', '{}'::jsonb, 'status', w."status", 'attempts', w."attempts", 'max_attempts', 8, 'available_at', w."available_at", 'locked_by', w."locked_by", 'lock_expires_at', w."locked_until", 'last_error', w."last_error", 'received_at', w."received_at", 'processed_at', w."processed_at", 'tenant', w."organization_id"::text, 'checkpoint', '{}'::jsonb) as message, row_number() over (order by w."received_at" desc, w."id" desc) as n
     from "centrakit"."inbound_webhook_events" w
     where w."organization_id"::text = for_tenant
       and (for_source is null or w."source" = for_source)
@@ -261,16 +248,3 @@ revoke execute on function better_supabase.list_webhooks(text, text, text, integ
 grant execute on function better_supabase.list_webhooks(text, text, text, integer) to service_role;
 revoke execute on function better_supabase.purge_webhooks(interval, boolean, integer, text) from public, anon, authenticated;
 grant execute on function better_supabase.purge_webhooks(interval, boolean, integer, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

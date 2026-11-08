@@ -36,7 +36,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import type {
   CarePlanActionRow,
@@ -377,17 +376,4 @@ export function CarePlanEditor({ state }: { state: Loaded<CarePlanState> }) {
   );
 }
 
-export function CarePlanEditorSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-40" />
-        <Skeleton className="h-4 w-72" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-56" />
-      </FramePanel>
-    </Frame>
-  );
-}
 // #endregion recipe:care-plan-editor

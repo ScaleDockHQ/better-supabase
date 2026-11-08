@@ -10,6 +10,7 @@ import type {
   PresetCatalog,
   PresetCatalogManifest,
 } from "../../preset/index.ts";
+import type { ViewFanOut } from "./block-names.ts";
 
 import { entityNames } from "../../blocks/index.ts";
 import {
@@ -24,6 +25,8 @@ import {
   appTableEventTypes,
   BLOCK_OPTION_SCHEMAS,
   instanceFunctions,
+  legacyOptionTarget,
+  moduleContext,
   resolveBlock,
   resolveBlocks,
   SQL_MODULES,
@@ -49,6 +52,40 @@ export function blockConfigModulePath(
   config: Pick<ResolvedConfig, "output">,
 ): string {
   return posix.join(posix.dirname(config.output), "blocks.config.ts");
+}
+
+/**
+ * `blocks/slices.ts`: every instance's config slice as its own export
+ * (`gen.blockModules`).
+ */
+export function blockSlicesPath(
+  config: Pick<ResolvedConfig, "output">,
+): string {
+  return posix.join(posix.dirname(config.output), "blocks", "slices.ts");
+}
+
+/** The export of an instance's slice: `commentsConfig`, `customFieldsConfig`. */
+export function blockSliceName(instance: string): string {
+  return `${camelOf(instance)}Config`;
+}
+
+/**
+ * Whether `gen` writes the block slice modules: on by default, off with
+ * `gen.blockModules: false` and in content mapper mode, which keeps one
+ * module.
+ */
+export function blockModulesOn(gen: {
+  readonly blockModules?: boolean;
+  readonly contentMapper?: boolean;
+}): boolean {
+  return gen.blockModules !== false && gen.contentMapper !== true;
+}
+
+/** `blocks/permissions.ts`: the permission keys (`gen.blockModules`). */
+export function blockPermissionsPath(
+  config: Pick<ResolvedConfig, "output">,
+): string {
+  return posix.join(posix.dirname(config.output), "blocks", "permissions.ts");
 }
 
 function hasSchema(
@@ -215,6 +252,7 @@ export function blockConfigEntries(
     "blocks" | "blockNames" | "instances" | "sql" | "subjects"
   >,
   catalog: PresetCatalog = PRESET_CATALOG,
+  appColumns?: AppColumns,
 ): Readonly<Record<string, GeneratedBlock>> {
   const installed = resolveBlocks(config.blockNames, {
     modules: config.blocks,
@@ -243,7 +281,10 @@ export function blockConfigEntries(
       main !== undefined &&
       (others.length === 0 || others.some((each) => each.name === main))
     ) {
-      entries.push([manifest.name, generatedEntry(config, modules)]);
+      entries.push([
+        manifest.name,
+        generatedEntry(config, modules, undefined, appColumns),
+      ]);
     }
 
     for (const instance of others) {
@@ -262,6 +303,7 @@ export function blockConfigEntries(
         { ...config, blocks: { ...config.blocks, [main]: instance.config } },
         modules,
         instanceFunctions(layout, installed, instance.name),
+        appColumns,
       );
 
       entries.push([
@@ -361,10 +403,67 @@ function employeeStatuses(
   return [...new Set(all)];
 }
 
+/** The columns the app's schema files add to a block's table, by file. */
+export type AppColumns = Readonly<
+  Record<string, readonly { readonly name: string; readonly type: string }[]>
+>;
+
+/**
+ * The app columns of the block's main table that its `fields` take: those no
+ * block column already uses.
+ */
+function appFields(
+  config: Pick<
+    ResolvedConfig,
+    "blocks" | "blockNames" | "instances" | "sql" | "subjects"
+  >,
+  module: string,
+  appColumns: AppColumns | undefined,
+): Readonly<Record<string, string>> {
+  if (appColumns === undefined) {
+    return {};
+  }
+
+  try {
+    const ctx = moduleContext(
+      module,
+      {
+        modules: config.blocks,
+        instances: config.instances,
+        subjects: config.subjects,
+        appColumns,
+      },
+      config.blockNames,
+    );
+
+    const target = legacyOptionTarget(
+      module,
+      "extraColumns",
+      config.blocks[module]?.tables,
+      (logical) => ctx.tableName(logical),
+    );
+
+    return target === undefined
+      ? {}
+      : Object.fromEntries(
+          ctx
+            .extraColumns(target.logical)
+            .map((column) => [column.name, column.type]),
+        );
+  } catch {
+    // The block can't render in this project.
+    return {};
+  }
+}
+
 function generatedEntry(
-  config: Pick<ResolvedConfig, "blocks" | "sql">,
+  config: Pick<
+    ResolvedConfig,
+    "blocks" | "blockNames" | "instances" | "sql" | "subjects"
+  >,
   modules: readonly string[],
   instanceFunctionNames?: Readonly<Record<string, string>>,
+  appColumns?: AppColumns,
 ): GeneratedBlock {
   const resolved = resolveBlock(config.blocks[modules[0] ?? ""]);
   const options: Record<string, unknown> = {};
@@ -376,16 +475,12 @@ function generatedEntry(
     }
 
     const configured = resolveBlock(config.blocks[module]).options;
-    const extra = configured["extraColumns"];
 
-    if (columns === undefined && typeof extra === "object" && extra !== null) {
-      const typed = Object.entries(extra).flatMap(([name, type]) =>
-        typeof type === "string" ? [[name, type] as const] : [],
-      );
+    const extra =
+      columns === undefined ? appFields(config, module, appColumns) : {};
 
-      if (typed.length > 0) {
-        columns = Object.fromEntries(typed);
-      }
+    if (Object.keys(extra).length > 0) {
+      columns = extra;
     }
 
     for (const [key, spec] of Object.entries(
@@ -913,17 +1008,22 @@ export function emitBlockConfig(
     | "sql"
     | "subjects"
   >,
-  options: { readonly runtimeImport?: string } = {},
+  options: {
+    readonly runtimeImport?: string;
+    readonly appColumns?: AppColumns;
+    /** The views over block tables, for the tables a read lists. */
+    readonly viewFanOut?: ViewFanOut;
+  } = {},
 ): GeneratedFile | undefined {
   if (config.blockNames.length === 0) {
     return undefined;
   }
 
-  const entries = blockConfigEntries(config);
+  const entries = blockConfigEntries(config, undefined, options.appColumns);
   const events = appTableEvents(config);
   const runtime = options.runtimeImport ?? "better-supabase";
   const renamed = renamedBlockLines(entries);
-  const constants = nameConstantLines(config, entries);
+  const constants = nameConstantLines(config, entries, options.viewFanOut);
   const synced = config.gen.powersync?.instances;
 
   const instances = instanceMapLines(
@@ -985,27 +1085,59 @@ const MAX_LINES = 995;
  */
 export function emitBlockConfigModule(
   config: Parameters<typeof emitBlockConfig>[0],
-  options: { readonly runtimeImport?: string } = {},
+  options: {
+    readonly runtimeImport?: string;
+    readonly appColumns?: AppColumns;
+  } = {},
 ): GeneratedFile | undefined {
   if (config.blockNames.length === 0) {
     return undefined;
   }
 
   const runtime = options.runtimeImport ?? "better-supabase";
+  const split = blockModulesOn(config.gen);
 
-  const body = [
-    "",
-    `import type { GeneratedBlocks } from ${q(runtimeSubpath(runtime, "blocks"))};`,
-    "",
-    "/**",
-    " * The installed blocks' settings from the `blocks` config, for",
-    " * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema",
-    " * and the options its SQL and TypeScript halves share.",
-    " */",
-    `export const blockConfig = ${literal(blockConfigEntries(config), "")} as const satisfies GeneratedBlocks;`,
-    ...permissionLines(config),
-    "",
-  ];
+  const entries = blockConfigEntries(config, undefined, options.appColumns);
+
+  const body = split
+    ? [
+        "",
+        `import type { GeneratedBlocks } from ${q(runtimeSubpath(runtime, "blocks"))};`,
+        "",
+        `import {\n${Object.keys(entries)
+          .map((instance) => `  ${blockSliceName(instance)},`)
+          .join("\n")}\n} from "./blocks/slices.ts";`,
+        ...(permissionLines(config).length === 0
+          ? []
+          : [
+              "",
+              'export { permissions, type PermissionKey } from "./blocks/permissions.ts";',
+            ]),
+        "",
+        "/**",
+        " * Every installed instance's config slice, for the server. Client code",
+        " * imports the slices it uses from `blocks/<instance>.ts`.",
+        " */",
+        "export const blockConfig = {",
+        ...Object.keys(entries).map(
+          (instance) => `  ${prop(instance)}: ${blockSliceName(instance)},`,
+        ),
+        "} as const satisfies GeneratedBlocks;",
+        "",
+      ]
+    : [
+        "",
+        `import type { GeneratedBlocks } from ${q(runtimeSubpath(runtime, "blocks"))};`,
+        "",
+        "/**",
+        " * The installed blocks' settings from the `blocks` config, for",
+        " * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema",
+        " * and the options its SQL and TypeScript halves share.",
+        " */",
+        `export const blockConfig = ${literal(entries, "")} as const satisfies GeneratedBlocks;`,
+        ...permissionLines(config),
+        "",
+      ];
 
   return {
     path: blockConfigModulePath(config),
@@ -1021,6 +1153,59 @@ export function emitBlockConfigModule(
   };
 }
 
+/**
+ * `blocks/slices.ts` and `blocks/permissions.ts` (`gen.blockModules`): each
+ * instance's config slice as plain data and its own export, so a page that
+ * imports one ships that instance's names and options and no other's. Empty
+ * without the option.
+ */
+export function emitBlockModules(
+  config: Parameters<typeof emitBlockConfig>[0],
+  options: {
+    readonly runtimeImport?: string;
+    readonly appColumns?: AppColumns;
+  } = {},
+): GeneratedFile[] {
+  if (!blockModulesOn(config.gen) || config.blockNames.length === 0) {
+    return [];
+  }
+
+  const runtime = options.runtimeImport ?? "better-supabase";
+  const entries = blockConfigEntries(config, undefined, options.appColumns);
+
+  // One module with one export per slice: a bundler drops the slices a page
+  // doesn't import, and the 100 modules a file per instance made would each
+  // add a wrapper to the chunk.
+  const slices: GeneratedFile = {
+    path: blockSlicesPath(config),
+    contents: [
+      GENERATED_HEADER,
+      "",
+      `import type { GeneratedBlock } from ${q(runtimeSubpath(runtime, "blocks"))};`,
+      ...Object.entries(entries).flatMap(([instance, entry]) => [
+        "",
+        `/** The \`${instance}\` instance's config slice. */`,
+        `export const ${blockSliceName(instance)} = ${literal(entry, "")} as const satisfies GeneratedBlock;`,
+      ]),
+      "",
+    ].join("\n"),
+  };
+
+  const keys = permissionLines(config);
+
+  return [
+    slices,
+    ...(keys.length === 0
+      ? []
+      : [
+          {
+            path: blockPermissionsPath(config),
+            contents: [GENERATED_HEADER, ...keys, ""].join("\n"),
+          },
+        ]),
+  ];
+}
+
 /** `blocks.client.ts`, next to `blocks.config.ts`. */
 function blockClientPath(config: Pick<ResolvedConfig, "output">): string {
   return posix.join(posix.dirname(config.output), "blocks.client.ts");
@@ -1034,7 +1219,10 @@ function blockClientPath(config: Pick<ResolvedConfig, "output">): string {
  */
 export function emitClientBlocks(
   config: Parameters<typeof emitBlockConfig>[0],
-  options: { readonly runtimeImport?: string } = {},
+  options: {
+    readonly runtimeImport?: string;
+    readonly appColumns?: AppColumns;
+  } = {},
 ): GeneratedFile | undefined {
   const listed = config.gen.clientBlocks ?? [];
 
@@ -1042,7 +1230,7 @@ export function emitClientBlocks(
     return undefined;
   }
 
-  const entries = blockConfigEntries(config);
+  const entries = blockConfigEntries(config, undefined, options.appColumns);
   const renamed = renamedBlockLines(entries).constants;
   const runtime = options.runtimeImport ?? "better-supabase";
 

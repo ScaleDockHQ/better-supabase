@@ -31,7 +31,9 @@ export default function FormPage({
       </Link>
       <Suspense fallback={<FormBuilderSkeleton />}>
         <PermissionGate permission="forms.manage">
-          <FormBuilder params={params} />
+          {params.then(({ id }) => (
+            <FormBuilder id={id} />
+          ))}
         </PermissionGate>
       </Suspense>
     </>

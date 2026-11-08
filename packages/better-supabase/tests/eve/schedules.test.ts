@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   EveAgentJob,
   EveQueueJob,
-  EveScheduleArgs,
+  EveScheduleOptions,
   EveSessionAuth,
   EveTargetHandle,
 } from "../../src/eve/index.ts";
@@ -46,7 +46,7 @@ function scheduleArgs() {
     },
   });
 
-  const args: EveScheduleArgs = {
+  const args: EveScheduleOptions = {
     to,
     appAuth,
     waitUntil: (task) => {

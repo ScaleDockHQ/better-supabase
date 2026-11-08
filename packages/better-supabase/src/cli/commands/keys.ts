@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { AnyCommand, CliValues } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 
 import { defineCliCommand } from "../core/command.ts";
@@ -30,7 +30,7 @@ const ARGS = {
   },
 } as const;
 
-export type KeysArgs = CliArgs<typeof ARGS>;
+export type KeysOptions = CliValues<typeof ARGS>;
 
 interface SigningKey {
   readonly kty: "EC";
@@ -70,10 +70,10 @@ async function createSigningKey(): Promise<SigningKey> {
 
 async function runKeys(
   config: ResolvedConfig,
-  args: KeysArgs,
+  args: KeysOptions,
 ): Promise<CommandResult> {
   const dir = supabaseDir(config.root);
-  const out = args.out ?? config.keys.output ?? `${dir}/signing_keys.json`;
+  const out = args.out ?? config.keys.file ?? `${dir}/signing_keys.json`;
   const path = resolve(config.root, out);
   const rotate = args.rotate === true;
   const exists = existsSync(path);
@@ -105,7 +105,7 @@ async function runKeys(
     {
       // The supabase folder can sit above the package in a monorepo.
       root:
-        args.out === undefined && config.keys.output === undefined
+        args.out === undefined && config.keys.file === undefined
           ? resolve(config.root, dir, "..")
           : config.root,
       base: config.root,

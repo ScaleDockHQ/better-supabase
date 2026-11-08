@@ -257,7 +257,7 @@ describe.skipIf(!live)("ai-files module", () => {
       expect(await files.files.purge().orThrow()).toBe(1);
       expect(
         await s.value<number>(
-          "(select count(*)::int from better_supabase.ai_files where organization_id = $1)",
+          "(select count(*)::int from better_supabase.ai_files where tenant_id = $1)",
           [tenant],
         ),
       ).toBe(0);

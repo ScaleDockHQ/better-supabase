@@ -87,15 +87,12 @@ export interface AppTable {
 }
 
 /**
- * What the canvas adds to a preset: app tables, extra columns on block tables
- * (by module) and the positions of moved tables (by table id). It has the shape
- * of `CreateDesign` from `better-supabase/preset`.
+ * What the canvas adds to a preset: app tables and the positions of moved
+ * tables (by table id). It has the shape of `CreateDesign` from
+ * `better-supabase/preset`.
  */
 export interface Design {
   readonly appTables?: Readonly<Record<string, AppTable>>;
-  readonly extraColumns?: Readonly<
-    Record<string, Readonly<Record<string, string>>>
-  >;
   readonly positions?: Readonly<Record<string, readonly [number, number]>>;
 }
 
@@ -121,7 +118,6 @@ export function isAppTable(table: Pick<SchemaTable, "module">): boolean {
 export function isEmptyDesign(design: Design): boolean {
   return (
     Object.keys(design.appTables ?? {}).length === 0 &&
-    Object.keys(design.extraColumns ?? {}).length === 0 &&
     Object.keys(design.positions ?? {}).length === 0
   );
 }
@@ -568,43 +564,6 @@ export function deleteColumn(
       });
 }
 
-/**
- * Sets an extra column on a block table
- * (`blocks.<module>.options.extraColumns`).
- */
-export function setExtraColumn(
-  design: Design,
-  module: string,
-  name: string,
-  type: string,
-): Design {
-  return {
-    ...design,
-    extraColumns: {
-      ...design.extraColumns,
-      [module]: { ...design.extraColumns?.[module], [name]: type },
-    },
-  };
-}
-
-export function deleteExtraColumn(
-  design: Design,
-  module: string,
-  name: string,
-): Design {
-  const columns = omitKey(design.extraColumns?.[module], name);
-  const { extraColumns: _drop, ...rest } = design;
-
-  const extraColumns =
-    Object.keys(columns).length === 0
-      ? omitKey(design.extraColumns, module)
-      : { ...design.extraColumns, [module]: columns };
-
-  return Object.keys(extraColumns).length === 0
-    ? rest
-    : { ...rest, extraColumns };
-}
-
 /** A design with the name of the table an edit created. */
 export interface NamedDesign {
   readonly design: Design;
@@ -1016,52 +975,19 @@ function appSchemaTable(
   return computed.length === 0 ? schemaTable : { ...schemaTable, computed };
 }
 
-/** The extra column names a block table got from the design. */
-function extraColumnsOf(
-  design: Design,
-  table: SchemaTable,
-  data: SchemaData,
-): Readonly<Record<string, string>> {
-  return data.extraColumns.includes(table.id)
-    ? (design.extraColumns?.[table.module] ?? {})
-    : {};
-}
-
-/**
- * The schema with the design applied: app tables added, extra columns appended
- * to the block tables that accept them.
- */
+/** The schema with the design applied: app tables added. */
 export function withDesign(
   data: SchemaData,
   design: Design,
   preset: Pick<Preset, "scope" | "tenantName" | "idType">,
 ): SchemaData {
-  const tables = data.tables.map((table) => {
-    const extra = extraColumnsOf(design, table, data);
-    const names = new Set(table.columns.map((column) => column.name));
-
-    const added = Object.entries(extra)
-      .filter(([name]) => !names.has(name))
-      .map(([name, type]) => ({
-        name,
-        type,
-        nullable: !/\bnot\s+null\b/iu.test(type),
-        default: null,
-        unique: false,
-      }));
-
-    return added.length === 0
-      ? table
-      : { ...table, columns: [...table.columns, ...added] };
-  });
-
   const appTables = Object.entries(design.appTables ?? {}).map(
     ([name, table]) => appSchemaTable(name, table, data, preset),
   );
 
   return {
     ...data,
-    tables: [...tables, ...appTables],
+    tables: [...data.tables, ...appTables],
     manifests: {
       ...data.manifests,
       ...Object.fromEntries(appTables.map((table) => [table.id, APP_MODULE])),

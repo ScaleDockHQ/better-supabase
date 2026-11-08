@@ -52,7 +52,7 @@ describe("membership suspension", () => {
   it("adds the column to the managed memberships table and reads it everywhere", () => {
     const sql = render({ memberships: {}, permissions: {}, organizations: {} });
     expect(sql("memberships")).toContain(
-      'alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;',
+      'alter table "better_supabase"."memberships" add column "disabled_at" timestamptz;',
     );
     expect(sql("memberships")).toMatch(
       /member_organization_ids[\s\S]*and m\."disabled_at" is null\n\$\$;/,
@@ -81,9 +81,6 @@ describe("membership suspension", () => {
     const sql = render(APP_OWNED);
     expect(sql("memberships")).not.toContain('"disabled_at"');
     expect(sql("permissions")).not.toContain('"disabled_at"');
-    expect(sql("organizations")).toContain(
-      'drop function if exists "better_supabase"."suspend_member"(uuid, uuid);',
-    );
     expect(sql("organizations")).not.toContain(
       'create or replace function "better_supabase"."suspend_member"',
     );

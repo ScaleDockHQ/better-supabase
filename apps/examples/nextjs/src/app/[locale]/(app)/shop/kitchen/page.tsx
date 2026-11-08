@@ -35,7 +35,9 @@ export default function KitchenPage({
         }
       />
       <Suspense fallback={<KitchenDisplaySkeleton />}>
-        <KitchenDisplay searchParams={searchParams} />
+        {searchParams.then((query) => (
+          <KitchenDisplay query={query} />
+        ))}
       </Suspense>
     </>
   );

@@ -8,7 +8,7 @@ import { membershipsExtension } from "better-supabase/blocks/memberships";
 import { trashExtension } from "better-supabase/blocks/trash";
 import type { EnrichDatabase, GeneratedColumns, MutableWhere, OrderByArg, OrderByInput, StoragePath, WritableColumns } from "better-supabase";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
-import meta from "./generated.meta.js";
+
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
@@ -967,9 +967,9 @@ export const buckets = {
   }
 } as const;
 
-/** The installed blocks' repository extensions; `defineSupabase` installs them. */
-type Extensions = readonly [ReturnType<typeof updatedAtExtension>, ReturnType<typeof membershipsExtension>, ReturnType<typeof trashExtension>];
-const extensions: Extensions = [updatedAtExtension(), membershipsExtension(), trashExtension()];
+/** The installed blocks' repository extensions; `createSupabase` installs them. */
+export type Extensions = readonly [ReturnType<typeof updatedAtExtension>, ReturnType<typeof membershipsExtension>, ReturnType<typeof trashExtension>];
+export const extensions: Extensions = [/*#__PURE__*/ updatedAtExtension(), /*#__PURE__*/ membershipsExtension(), /*#__PURE__*/ trashExtension()];
 
 /** The app's subject types, from `config.subjects`. */
 export const subjectTypes = ["message", "conversation", "channel", "company", "person", "deal", "course", "post", "activity", "quote", "work_item", "employee", "invoice", "ledger_account", "product", "product_variant", "rfq", "till", "order", "calendar_event", "booking", "asset", "asset_location", "lease", "expense_report", "expense_line", "donation_fund", "work_order", "shipment", "contract", "control", "compliance_policy", "qualification_type", "risk", "case", "inspection", "inspection_program", "inspection_finding", "form", "meeting", "meeting_decision", "maintenance_plan", "dam_usage_right", "lims_sample", "tax_code", "production_order", "work_center", "bank_account", "care_plan", "incident", "content_entry", "document", "customer", "drive_node", "application", "change_request", "project", "task"] as const;
@@ -977,4 +977,8 @@ export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */
 export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };
 
-export const schema: Schema<Models, Database, Functions, SubjectType, ExtensionsOf<Extensions>> = defineSchema(meta, extensions);
+/**
+ * The schema of a browser client without a table registry: it registers each
+ * table module a page uses through `bsb.table(...)`.
+ */
+export const clientSchema: Schema<Models, Database, Functions, SubjectType, ExtensionsOf<Extensions>> = /*#__PURE__*/ defineSchema({ version: 1, casing: "camel", lazyTables: true, tables: {}, enums: {}, functions: {} }, extensions);

@@ -23,6 +23,31 @@ Or declare it in `better-supabase.config.ts` under `buckets` and use the
 generated constant: `defineBucket(buckets.customerLogos)`. The path values
 stay typed either way.
 
+## Client-only buckets
+
+`defineBucket` from `better-supabase/storage` also writes SQL, `config.toml`
+and drift checks, which a browser never runs. Import `defineBucket` from
+`better-supabase/storage/client` in code that ships to the browser. It takes
+the same config, builds the same paths and limits, and connects the same
+client, but the bucket has no `sql()`, `toml()`, `drift()` or `apply()`, so
+none of that code, nor the policy builders, reaches the bundle.
+
+```ts title="lib/buckets.ts"
+import { defineBucket } from "better-supabase/storage/client";
+
+import { buckets } from "./supabase/generated.ts";
+
+export const logos = defineBucket({
+  ...buckets.customerLogos,
+  variants: { square: { width: 56, height: 56, resize: "cover" } },
+});
+```
+
+Keep the server and the CLI on `better-supabase/storage`: a `Bucket` there is
+a `ClientBucket`, so a registry (`defineBuckets`, `.buckets()`) accepts either.
+In the example app this moves about 11 KB raw (3.7 KB brotli) off the first
+load of every data route.
+
 ## Paths
 
 ```ts
@@ -335,10 +360,10 @@ keeps the tenant guard, and is created on first read and reused for that
 `Db`. The paths stay typed by each bucket's templates.
 
 ```ts
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 import { avatars, logos } from "./buckets";
 
-export const betterSupabase = defineSupabase(schema).buckets({
+export const betterSupabase = createSupabase(schema).buckets({
   logos,
   avatars,
 });

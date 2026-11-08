@@ -2,6 +2,10 @@ import { readdir, readFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import {
+  NAMING_RENAMES,
+  renameMigrationSql,
+} from "../../src/cli/codemod-naming.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { stackDbUrl } from "./stack-env.ts";
@@ -85,7 +89,11 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
         }
       }
 
-      for (const file of renderBlocks(MODULES)) {
+      // The renames since 0.4.0 that the upgrade steps don't write, as `codemod
+      // naming` writes them for an installed app.
+      await client.query(renameMigrationSql(NAMING_RENAMES) ?? "select 1");
+
+      for (const file of renderBlocks(MODULES, { rerunnable: true })) {
         if (file.kind !== "test") {
           await client.query(file.contents);
         }
@@ -97,18 +105,18 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
       );
 
       const { rows: events } = await client.query<{
-        organization_id: string;
+        tenant_id: string;
         occurred_at: Date;
         op: string;
       }>(
-        "select organization_id, occurred_at, op from better_supabase.audit_events where table_name = $1 order by id",
+        "select tenant_id, occurred_at, op from better_supabase.audit_events where table_name = $1 order by id",
         [table],
       );
 
       expect(events.map((event) => event.op)).toEqual(["insert", "insert"]);
-      expect(
-        events.every((event) => event.organization_id === organization),
-      ).toBe(true);
+      expect(events.every((event) => event.tenant_id === organization)).toBe(
+        true,
+      );
       expect(events[0]!.occurred_at).toBeInstanceOf(Date);
 
       const { rows: names } = await client.query<Record<string, unknown>>(
@@ -118,7 +126,7 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
            to_regclass('better_supabase.audit_events_record_idx') is not null as record_idx,
            to_regclass('better_supabase.audit_events_organization_idx') is not null as organization_idx,
            (select count(*)::int from better_supabase.memberships where organization_id = $1) as members,
-           (select count(*)::int from better_supabase.invitations where organization_id = $1) as invitations`,
+           (select count(*)::int from better_supabase.invitations where tenant_id = $1) as invitations`,
         [organization],
       );
 

@@ -37,9 +37,7 @@ import type {
   PresetGlueItem,
 } from "../packages/better-supabase/src/preset/catalog-types.ts";
 import type { PresetAccess } from "../packages/better-supabase/src/preset/fields.ts";
-import type { BlockSqlContext } from "../packages/better-supabase/src/sql/context.ts";
 import type { BlockSql } from "../packages/better-supabase/src/sql/index.ts";
-import type { BlockSqlLayout } from "../packages/better-supabase/src/sql/module-types.ts";
 
 import { ENTITY_SCHEMA_KINDS } from "../packages/better-supabase/src/blocks/entity-schema.ts";
 import { PORT_NAMES } from "../packages/better-supabase/src/blocks/ports.ts";
@@ -61,13 +59,11 @@ import {
   renderBlocks,
   SQL_MODULES,
 } from "../packages/better-supabase/src/sql/index.ts";
-import { moduleContext } from "../packages/better-supabase/src/sql/module-context.ts";
 import {
   isOperationModule,
   moduleOperations,
 } from "../packages/better-supabase/src/sql/modules/permissions-model.ts";
 import { formatNameRegistry } from "../packages/better-supabase/src/sql/name-sets.ts";
-import { resolveBlocks } from "../packages/better-supabase/src/sql/registry.ts";
 import {
   adoptableTablesCurrent,
   OWN_SCHEMAS_PAGE,
@@ -456,7 +452,7 @@ function exportedTypes(): ReadonlyMap<string, readonly string[]> {
 
 /**
  * The types a block's subpath exports whose names carry one of its own
- * entities, such as `WorkItem` and `Project`, and whether each takes the extra
+ * entities, such as `Task` and `Project`, and whether each takes the extra
  * fields as `F`. `gen` writes a renamed alias for each.
  */
 function entityTypesOf(
@@ -468,11 +464,7 @@ function entityTypesOf(
     Object.values(SQL_MODULES[name]?.names?.entities ?? {})
       .filter((entity) => entity.global !== true)
       .map((entity) => ({
-        // The TypeScript types keep the noun a 0.47 rename left behind.
-        from:
-          entity.formerly === undefined
-            ? entityNoun(entity.singular, entity.plural)
-            : entityNoun(entity.formerly),
+        from: entityNoun(entity.singular, entity.plural),
         to: entityNoun("bsb_sentinel"),
         cases: ["pascal" as const],
       })),
@@ -669,53 +661,6 @@ function presetManifest(
 const isPortName = (name: string): name is PortName =>
   PORT_NAMES.some((port) => port === name);
 
-/**
- * The logical table `blocks.<name>.options.extraColumns` adds columns to, read
- * by rendering the module with a copy of its context (plain closures, no
- * getters) that records the table it passes to `ctx.extraColumns`.
- */
-function extraColumnsTable(module: BlockSql): string | undefined {
-  if (module.names?.options?.includes("extraColumns") !== true) {
-    return undefined;
-  }
-
-  const layout: BlockSqlLayout = {
-    modules: {
-      [module.name]: { options: { extraColumns: { bsb_probe: "text" } } },
-    },
-  };
-
-  const ctx = moduleContext(
-    module.name,
-    layout,
-    resolveBlocks([module.name], layout).map((each) => each.name),
-  );
-
-  const tables = new Set<string>();
-
-  const probe: BlockSqlContext = {
-    ...ctx,
-    extraColumns: (table, reserved, name) => {
-      if (name === undefined || name === "extraColumns") {
-        tables.add(table);
-      }
-
-      return ctx.extraColumns(table, reserved, name);
-    },
-  };
-
-  module.build(probe, layout);
-  module.data?.(probe, layout);
-
-  if (tables.size !== 1) {
-    throw new Error(
-      `build-catalog: the "${module.name}" module declares options.extraColumns but adds them to ${String(tables.size)} tables (${[...tables].join(", ")}); the catalog expects one.`,
-    );
-  }
-
-  return [...tables][0];
-}
-
 function presetBlock(module: BlockSql): PresetCatalogBlock {
   const manifest = BLOCK_MANIFESTS.find((each) =>
     each.sql.includes(module.name),
@@ -782,12 +727,6 @@ function presetBlock(module: BlockSql): PresetCatalogBlock {
 
   if (clashes.length > 0) {
     block = { ...block, tenantNameClashes: clashes };
-  }
-
-  const extraColumns = extraColumnsTable(module);
-
-  if (extraColumns !== undefined) {
-    block = { ...block, extraColumns };
   }
 
   const entities = Object.entries(module.names?.entities ?? {});

@@ -1,38 +1,10 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:cae59bd1a42345762318624ef72ea03b5df9e82ecdbb0b483f0c878ef85d84b1
+-- @bsb-hash sha256:b08164ab63211cee714b76e82476d403d26ce00a75fc67b95f3658e08cbfb7cb
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
--- The user a service caller acts for, from the x-bsb-actor header. Null for
--- every other caller, so the header cannot be spoofed with a user's token.
--- Only service_role may call it; the security definer functions and triggers
--- that record an actor call it as their owner.
-create or replace function better_supabase.acting_member()
-returns uuid
-language plpgsql
-stable
-set search_path = ''
-as $$
-declare
-  header text;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    return null;
-  end if;
-  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
-  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
-exception when others then
-  return null;
-end;
-$$;
-revoke execute on function better_supabase.acting_member() from public, anon, authenticated;
-grant execute on function better_supabase.acting_member() to service_role;
 
 create or replace function better_supabase.set_actor()
 returns trigger
@@ -73,8 +45,6 @@ begin
 end;
 $$;
 
-drop function if exists better_supabase.track_actor(regclass, text, text);
-
 -- select better_supabase.track_actor('public.customers');
 -- impersonated_by => 'impersonated_by' also stamps the impersonating admin.
 create or replace function better_supabase.track_actor(
@@ -104,41 +74,6 @@ revoke execute on function better_supabase.track_actor(regclass, text, text, tex
 -- False for a support or impersonation act, and for an act that only carries
 -- session_id, unless act.read_only is false. A token without act may write.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-
 -- using (better_supabase.token_scope_allows('posts:write'))
 -- True for a token no OAuth client or agent acts with. A delegated token
 -- (a client_id, or an act that is not a support or impersonation level)
@@ -167,19 +102,6 @@ as $$
 $$;
 revoke execute on function better_supabase.token_scope_allows(text) from public;
 grant execute on function better_supabase.token_scope_allows(text) to anon, authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
@@ -198,38 +120,10 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:cae59bd1a42345762318624ef72ea03b5df9e82ecdbb0b483f0c878ef85d84b1
+-- @bsb-hash sha256:b08164ab63211cee714b76e82476d403d26ce00a75fc67b95f3658e08cbfb7cb
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
--- The user a service caller acts for, from the x-bsb-actor header. Null for
--- every other caller, so the header cannot be spoofed with a user's token.
--- Only service_role may call it; the security definer functions and triggers
--- that record an actor call it as their owner.
-create or replace function better_supabase.acting_member()
-returns uuid
-language plpgsql
-stable
-set search_path = ''
-as $$
-declare
-  header text;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    return null;
-  end if;
-  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
-  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
-exception when others then
-  return null;
-end;
-$$;
-revoke execute on function better_supabase.acting_member() from public, anon, authenticated;
-grant execute on function better_supabase.acting_member() to service_role;
 
 create or replace function better_supabase.set_actor()
 returns trigger
@@ -270,8 +164,6 @@ begin
 end;
 $$;
 
-drop function if exists better_supabase.track_actor(regclass, text, text);
-
 -- select better_supabase.track_actor('public.customers');
 -- impersonated_by => 'impersonated_by' also stamps the impersonating admin.
 create or replace function better_supabase.track_actor(
@@ -301,41 +193,6 @@ revoke execute on function better_supabase.track_actor(regclass, text, text, tex
 -- False for a support or impersonation act, and for an act that only carries
 -- session_id, unless act.read_only is false. A token without act may write.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-
 -- using (better_supabase.token_scope_allows('posts:write'))
 -- True for a token no OAuth client or agent acts with. A delegated token
 -- (a client_id, or an act that is not a support or impersonation level)
@@ -364,19 +221,6 @@ as $$
 $$;
 revoke execute on function better_supabase.token_scope_allows(text) from public;
 grant execute on function better_supabase.token_scope_allows(text) to anon, authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
@@ -395,38 +239,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:cae59bd1a42345762318624ef72ea03b5df9e82ecdbb0b483f0c878ef85d84b1
+-- @bsb-hash sha256:b08164ab63211cee714b76e82476d403d26ce00a75fc67b95f3658e08cbfb7cb
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
--- The user a service caller acts for, from the x-bsb-actor header. Null for
--- every other caller, so the header cannot be spoofed with a user's token.
--- Only service_role may call it; the security definer functions and triggers
--- that record an actor call it as their owner.
-create or replace function better_supabase.acting_member()
-returns uuid
-language plpgsql
-stable
-set search_path = ''
-as $$
-declare
-  header text;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    return null;
-  end if;
-  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
-  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
-exception when others then
-  return null;
-end;
-$$;
-revoke execute on function better_supabase.acting_member() from public, anon, authenticated;
-grant execute on function better_supabase.acting_member() to service_role;
 
 create or replace function better_supabase.set_actor()
 returns trigger
@@ -467,8 +283,6 @@ begin
 end;
 $$;
 
-drop function if exists better_supabase.track_actor(regclass, text, text);
-
 -- select better_supabase.track_actor('public.customers');
 -- impersonated_by => 'impersonated_by' also stamps the impersonating admin.
 create or replace function better_supabase.track_actor(
@@ -497,41 +311,6 @@ revoke execute on function better_supabase.track_actor(regclass, text, text, tex
 
 -- False for a support or impersonation act, and for an act that only carries
 -- session_id, unless act.read_only is false. A token without act may write.
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 
 -- using (better_supabase.token_scope_allows('posts:write'))
 -- True for a token no OAuth client or agent acts with. A delegated token
@@ -562,19 +341,6 @@ $$;
 revoke execute on function better_supabase.token_scope_allows(text) from public;
 grant execute on function better_supabase.token_scope_allows(text) to anon, authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block-data created-by
@@ -592,38 +358,10 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
--- @bsb-hash sha256:36e74b3b9d162f397cfb4165e57e01b37f34908f3c90d97885d771f028c7f4c2
+-- @bsb-hash sha256:d3fbda15e12492dfb4b4867360706d7fddd77d44bee0e441cf58c3ba000562f4
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
--- The user a service caller acts for, from the x-bsb-actor header. Null for
--- every other caller, so the header cannot be spoofed with a user's token.
--- Only service_role may call it; the security definer functions and triggers
--- that record an actor call it as their owner.
-create or replace function better_supabase.acting_member()
-returns uuid
-language plpgsql
-stable
-set search_path = ''
-as $$
-declare
-  header text;
-begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    return null;
-  end if;
-  header := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-bsb-actor';
-  return case when header ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then header::uuid end;
-exception when others then
-  return null;
-end;
-$$;
-revoke execute on function better_supabase.acting_member() from public, anon, authenticated;
-grant execute on function better_supabase.acting_member() to service_role;
 
 create or replace function better_supabase.set_actor()
 returns trigger
@@ -664,8 +402,6 @@ begin
 end;
 $$;
 
-drop function if exists better_supabase.track_actor(regclass, text, text);
-
 -- select better_supabase.track_actor('public.customers');
 -- impersonated_by => 'impersonated_by' also stamps the impersonating admin.
 create or replace function better_supabase.track_actor(
@@ -694,41 +430,6 @@ revoke execute on function better_supabase.track_actor(regclass, text, text, tex
 
 -- False for a support or impersonation act, and for an act that only carries
 -- session_id, unless act.read_only is false. A token without act may write.
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 
 -- using (better_supabase.token_scope_allows('posts:write'))
 -- True for a token no OAuth client or agent acts with. A delegated token
@@ -763,35 +464,6 @@ grant execute on function better_supabase.token_scope_allows(text) to anon, auth
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."acting_member"()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."acting_member"() $$;
-revoke execute on function "api"."acting_member"() from public, anon, authenticated;
-grant execute on function "api"."acting_member"() to service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
-
 create or replace function "api"."token_scope_allows"(p_scope text)
 returns boolean
 language sql
@@ -801,19 +473,6 @@ set search_path = ''
 as $$ select "better_supabase"."token_scope_allows"($1) $$;
 revoke execute on function "api"."token_scope_allows"(text) from public;
 grant execute on function "api"."token_scope_allows"(text) to anon, authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by

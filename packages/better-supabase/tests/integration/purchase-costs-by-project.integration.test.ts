@@ -30,7 +30,7 @@ const MODULES = [
   "attachments",
   "tasks",
   "accounting",
-  "time-tracking",
+  "time-entries",
   "invoices",
   "billable-time",
   "expenses",

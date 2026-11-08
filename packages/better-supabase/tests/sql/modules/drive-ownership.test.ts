@@ -36,9 +36,6 @@ describe("drive access requests", () => {
     );
     expect(sql).toContain(`"access_request" boolean not null default false,`);
     expect(sql).toContain(
-      `add column if not exists "access_request" boolean not null default false;`,
-    );
-    expect(sql).toContain(
       `create or replace function "better_supabase"."drive_access_approvers"(subject_id text)`,
     );
     expect(sql).toContain(`and dg."access_request";`);

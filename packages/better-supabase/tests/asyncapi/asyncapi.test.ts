@@ -12,7 +12,7 @@ import type {
 } from "../../src/spec/index.ts";
 import type { ApiModel } from "../../src/spec/model.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { defineTopic } from "../../src/realtime/topic.ts";
 import { defineSchema } from "../../src/schema/define.ts";
@@ -37,7 +37,7 @@ const meta = {
   },
 };
 
-const betterSupabase = defineSupabase(defineSchema(meta));
+const betterSupabase = createSupabase(defineSchema(meta));
 
 const info = { title: "CRM events", version: "1.0.0" };
 

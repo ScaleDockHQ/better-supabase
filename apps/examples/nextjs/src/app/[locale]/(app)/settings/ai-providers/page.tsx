@@ -1,11 +1,13 @@
 import { Suspense } from "react";
 
-import { AiProviderSection } from "@/features/ai-providers/components/ai-provider-section";
-import { AiProviderSettingsSkeleton } from "@/features/ai-providers/components/ai-provider-settings";
+import {
+  AiProviderSectionSkeleton,
+  AiProviderSection,
+} from "@/features/ai-providers/components/ai-provider-section";
 
 export default function AiProvidersSettingsPage() {
   return (
-    <Suspense fallback={<AiProviderSettingsSkeleton />}>
+    <Suspense fallback={<AiProviderSectionSkeleton />}>
       <AiProviderSection />
     </Suspense>
   );

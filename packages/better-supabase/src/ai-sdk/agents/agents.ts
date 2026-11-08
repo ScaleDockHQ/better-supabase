@@ -293,7 +293,7 @@ export interface AgentRuntimeOptions {
    */
   readonly toolApprovalSecret?: string | Uint8Array;
   /** Other `ToolLoopAgent` settings, such as `toolCallConcurrency` or `output`. */
-  readonly settings?: AgentPassthroughSettings;
+  readonly settings?: AgentPassthroughOptions;
   /**
    * Your `prepareCall`. It runs first; the library then merges its context and
    * the gateway attribution into what it returns.
@@ -321,7 +321,7 @@ export type AgentCompactOptions = Omit<
  * ones that carry its checks (`tools`, `toolApproval`, `runtimeContext`,
  * `instructions`, `stopWhen`, `id` and `model`).
  */
-export type AgentPassthroughSettings = Omit<
+export type AgentPassthroughOptions = Omit<
   RuntimeSettings,
   | "id"
   | "model"

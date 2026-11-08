@@ -6,7 +6,7 @@ import { raise, schemaPreamble, serviceGrant, lockTable } from "../shared.ts";
 
 const ENTRIES = {
   key: "key",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   kind: "kind",
   model: "model",
   value: "value",

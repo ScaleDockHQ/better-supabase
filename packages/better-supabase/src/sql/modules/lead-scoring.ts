@@ -122,7 +122,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("checks").name}_due_idx`)
   }
 
 ${lockTable(checks, { read: true })}
-${renderPolicy(makePolicy({ table: checks, name: policy, command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), n.compute) }), { drop: true, target: checks })}
+${renderPolicy(makePolicy({ table: checks, name: policy, command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), n.compute) }), { target: checks })}
 `;
 }
 

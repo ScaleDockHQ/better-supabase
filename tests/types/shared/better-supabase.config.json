@@ -19,7 +19,9 @@
   },
   "gen": {
     "casing": "camel",
-    "output": "generated.ts",
+    "file": "generated.ts",
+    "tableModules": false,
+    "blockModules": false,
     "json": {
       "customers.metadata": {
         "type": "{ source?: string; tier?: 'free' | 'pro' }"

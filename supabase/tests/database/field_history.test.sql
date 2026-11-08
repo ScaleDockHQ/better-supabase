@@ -28,7 +28,7 @@ select set_config(
 update better_supabase.deals set amount = 1500 where id = (select id from ids where name = 'deal');
 update better_supabase.deals set name = 'Renamed deal' where id = (select id from ids where name = 'deal');
 update better_supabase.deals set amount = 1500 where id = (select id from ids where name = 'deal');
-update better_supabase.deals set expected_close_on = '2026-03-01', owner_user_id = '00000000-0000-4000-8000-0000000000a2'
+update better_supabase.deals set expected_close_on = '2026-03-01', owner_id = '00000000-0000-4000-8000-0000000000a2'
 where id = (select id from ids where name = 'deal');
 update better_supabase.companies set lifecycle = 'customer' where id = (select id from ids where name = 'company');
 

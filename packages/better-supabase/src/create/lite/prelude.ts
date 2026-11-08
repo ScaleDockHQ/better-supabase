@@ -24,6 +24,7 @@ end $$;
 create schema if not exists auth;
 create schema if not exists extensions;
 create schema if not exists storage;
+create schema if not exists realtime;
 
 create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
@@ -67,4 +68,16 @@ create table if not exists storage.objects (
   name text,
   owner uuid
 );
+
+create table if not exists realtime.messages (
+  id bigint generated always as identity primary key,
+  topic text not null default '',
+  extension text not null default 'broadcast',
+  payload jsonb,
+  private boolean default false,
+  inserted_at timestamp not null default now()
+);
+
+create or replace function realtime.topic() returns text language sql stable as
+  $$ select nullif(current_setting('realtime.topic', true), '') $$;
 `;

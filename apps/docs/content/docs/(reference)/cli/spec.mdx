@@ -77,16 +77,16 @@ export default defineConfig({
         {
           format: "openapi",
           version: "3.1",
-          output: "openapi.json",
+          file: "openapi.json",
           ui: "scalar",
         },
         {
           format: "openapi",
           version: "3.2",
-          output: "public/openapi.yaml",
+          file: "public/openapi.yaml",
           overlays: ["specs/public.overlay.yaml"],
         },
-        { format: "asyncapi", output: "asyncapi.json" },
+        { format: "asyncapi", file: "asyncapi.json" },
         { format: "arazzo" },
       ],
       failOn: "warning",
@@ -95,11 +95,11 @@ export default defineConfig({
 });
 ```
 
-| Key       | Default                                           | What it sets                                                                                        |
-| --------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `entry`   | `api.openapi.entry`, else `src/lib/openapi.ts`    | The entry module                                                                                    |
-| `outputs` | `[{ format: "openapi", output: "openapi.json" }]` | The documents to write                                                                              |
-| `failOn`  | `"error"`                                         | The lowest severity that fails `emit`, `emit --check` and `validate`: `error`, `warning` or `never` |
+| Key       | Default                                         | What it sets                                                                                        |
+| --------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `entry`   | `api.openapi.entry`, else `src/lib/openapi.ts`  | The entry module                                                                                    |
+| `outputs` | `[{ format: "openapi", file: "openapi.json" }]` | The documents to write                                                                              |
+| `failOn`  | `"error"`                                       | The lowest severity that fails `emit`, `emit --check` and `validate`: `error`, `warning` or `never` |
 
 Each output takes:
 
@@ -107,9 +107,9 @@ Each output takes:
 | ----------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `format`    | required                                                                | `openapi`, `asyncapi`, `arazzo`, or the id of a format the entry adds                           |
 | `version`   | The format's default (`3.1` for OpenAPI)                                | The version to render                                                                           |
-| `output`    | The format's file name (`openapi.json`, `asyncapi.json`, `arazzo.json`) | The file to write, relative to the project root                                                 |
+| `file`      | The format's file name (`openapi.json`, `asyncapi.json`, `arazzo.json`) | The file to write, relative to the project root                                                 |
 | `overlays`  | `[]`                                                                    | [Overlay](/docs/specs/overlay) files (JSON or YAML), applied in order                           |
-| `serialize` | `yaml` when `output` ends in `.yaml` or `.yml`, else `json`             | The file format                                                                                 |
+| `serialize` | `yaml` when `file` ends in `.yaml` or `.yml`, else `json`               | The file format                                                                                 |
 | `ui`        | none                                                                    | Also write a reference page next to an OpenAPI output (see [Reference pages](#reference-pages)) |
 
 Two outputs that write the same file are a usage error. Overlay files that
@@ -120,13 +120,9 @@ JSON keeps the generated key order and ends in a newline. YAML is YAML 1.2
 in the same order, with no anchors and no line folding, so the same document
 always gives the same bytes.
 
-### The `openapi` key
-
-`openapi: { entry, output }` is a deprecated alias of `specs`. When `specs`
-is unset, `api.openapi.entry` becomes `api.specs.entry` and `api.openapi.output` becomes
-the output of the one OpenAPI document. A module that exports a
-`createOpenApi` document instead of a `defineApi` definition works too, so
-`spec emit openapi` replaces the old `openapi emit` command.
+A module that exports a `createOpenApi` document instead of a `defineApi`
+definition works too, so `spec emit openapi` replaces the old `openapi emit`
+command. `api.specs` is the only config key.
 
 ## Options
 

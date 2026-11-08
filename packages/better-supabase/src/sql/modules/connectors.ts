@@ -11,7 +11,6 @@ import { sqlIdent } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   raise,
   revokeTable,
   schemaPreamble,
@@ -27,7 +26,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const SERVERS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   name: "name",
   url: "url",
   transport: "transport",
@@ -45,7 +44,7 @@ const GRANTS = {
   id: "id",
   user: "user_id",
   server: "server_id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   credentialRef: "credential_ref",
   scopes: "scopes",
   expiresAt: "expires_at",
@@ -109,7 +108,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["allowHttp", "trustFirstUse", "sessionTtl", "extraColumns"],
+  options: ["allowHttp", "trustFirstUse", "sessionTtl"],
   tables: {
     servers: {
       name: "connector_servers",
@@ -389,7 +388,7 @@ create table if not exists ${servers} (
   ${v.authType} text not null default 'oauth' check (${v.authType} in ('none', 'oauth', 'header')),
   ${v.credentialRef} jsonb check (${v.credentialRef} is null or (jsonb_typeof(${v.credentialRef}) = 'object' and ${v.credentialRef} ? 'provider')),${line(server("scopes"), `${v.scopes} text[] not null default '{}'`)}${line(server("clientMetadata"), `${v.clientMetadata} jsonb not null default '{}' check (jsonb_typeof(${v.clientMetadata}) = 'object')`)}${line(server("enabled"), `${v.enabled} boolean not null default true`)}${line(server("createdBy"), `${v.createdBy} uuid references auth.users (id) on delete set null`)}${line(server("createdAt"), `${v.createdAt} timestamptz not null default now()`)}${line(server("updatedAt"), `${v.updatedAt} timestamptz not null default now()`)}
   check ((${v.authType} = 'header') = (${v.credentialRef} is not null))
-);${addExtraColumns(servers, extras)}
+);
 create index if not exists ${ctx.naming.rename("connector_servers_tenant_idx")} on ${servers} (${v.tenant});
 ${
   server("createdBy")
@@ -400,7 +399,7 @@ ${
 ${revokeTable(servers)}
 grant select on ${servers} to authenticated;
 grant all on ${servers} to service_role;
-${renderPolicy(makePolicy({ table: servers, name: ctx.naming.rename("connector_servers_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(v.tenant, read) }), { drop: true, target: servers })}
+${renderPolicy(makePolicy({ table: servers, name: ctx.naming.rename("connector_servers_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(v.tenant, read) }), { target: servers })}
 
 -- A user's connection to a server. credential_ref names where the provider
 -- keeps the token (Vault, Vercel Connect); the row holds none.
@@ -419,7 +418,7 @@ alter table ${grants} enable row level security;
 ${revokeTable(grants)}
 grant select on ${grants} to authenticated;
 grant all on ${grants} to service_role;
-${renderPolicy(makePolicy({ table: grants, name: "connector_grants_read", command: "select", roles: ["authenticated"], using: `${g.user} = (select auth.uid())` }), { drop: true, target: grants })}
+${renderPolicy(makePolicy({ table: grants, name: "connector_grants_read", command: "select", roles: ["authenticated"], using: `${g.user} = (select auth.uid())` }), { target: grants })}
 
 -- The MCP session a user holds with a server per chat, so a later request
 -- reuses it instead of initializing again.
@@ -437,7 +436,7 @@ alter table ${sessions} enable row level security;
 ${revokeTable(sessions)}
 grant select on ${sessions} to authenticated;
 grant all on ${sessions} to service_role;
-${renderPolicy(makePolicy({ table: sessions, name: "connector_sessions_read", command: "select", roles: ["authenticated"], using: `${n.user} = (select auth.uid())` }), { drop: true, target: sessions })}
+${renderPolicy(makePolicy({ table: sessions, name: "connector_sessions_read", command: "select", roles: ["authenticated"], using: `${n.user} = (select auth.uid())` }), { target: sessions })}
 
 -- Fingerprints of a server's tool list. A list that changed waits for an
 -- admin before an assistant may call it.
@@ -456,7 +455,7 @@ ${
 ${revokeTable(fingerprints)}
 grant select on ${fingerprints} to authenticated;
 grant all on ${fingerprints} to service_role;
-${renderPolicy(makePolicy({ table: fingerprints, name: "connector_tool_fingerprints_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${servers} x where x.${v.id} = ${f.server})` }), { drop: true, target: fingerprints })}
+${renderPolicy(makePolicy({ table: fingerprints, name: "connector_tool_fingerprints_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${servers} x where x.${v.id} = ${f.server})` }), { target: fingerprints })}
 
 -- Adds a server (id null) or changes one (${manage}).
 create or replace function ${fn("save_connector_server")}(tenant ${id}, id uuid default null, fields jsonb default '{}')

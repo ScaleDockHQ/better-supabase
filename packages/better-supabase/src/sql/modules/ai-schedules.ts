@@ -4,7 +4,6 @@ import type { Columns } from "./module-columns.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   withExtraFields,
   writeExtraColumns,
   raise,
@@ -21,7 +20,7 @@ const RUN_STATES = "'queued', 'running', 'completed', 'failed'";
 
 const TASKS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   user: "user_id",
   chat: "chat_id",
   agent: "agent_id",
@@ -39,10 +38,10 @@ const TASKS = {
 const RUNS = {
   id: "id",
   task: "task_id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   user: "user_id",
   status: "status",
-  scheduledFor: "scheduled_for",
+  scheduledFor: "scheduled_at",
   chat: "chat_id",
   error: "error",
   startedAt: "started_at",
@@ -58,7 +57,7 @@ const NAMES: BlockSqlNames = {
       primary: true,
     },
   },
-  options: ["queue", "staleAfter", "maxPrompt", "extraColumns"],
+  options: ["queue", "staleAfter", "maxPrompt"],
   tables: {
     tasks: {
       name: "ai_scheduled_tasks",
@@ -210,12 +209,12 @@ create table if not exists ${tasks} (
   ${t.createdAt} timestamptz not null default now()${task("updatedAt") ? `,\n  ${t.updatedAt} timestamptz not null default now()` : ""}
 );
 create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_due_idx")} on ${tasks} (${t.nextRunAt}) where ${t.enabled};
-create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_user_idx")} on ${tasks} (${t.user}, ${t.tenant});${task("agent") ? `\ncreate index if not exists ${ctx.naming.rename("ai_scheduled_tasks_agent_idx")} on ${tasks} (${t.agent});` : ""}${addExtraColumns(tasks, extras)}
+create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_user_idx")} on ${tasks} (${t.user}, ${t.tenant});${task("agent") ? `\ncreate index if not exists ${ctx.naming.rename("ai_scheduled_tasks_agent_idx")} on ${tasks} (${t.agent});` : ""}
 alter table ${tasks} enable row level security;
 ${revokeTable(tasks)}
 grant select on ${tasks} to authenticated;
 grant all on ${tasks} to service_role;
-${renderPolicy(makePolicy({ table: tasks, name: ctx.naming.rename("ai_scheduled_tasks_read"), command: "select", roles: ["authenticated"], using: `${t.user} = (select auth.uid()) or ${ctx.scope.check(t.tenant, manage)}` }), { drop: true, target: tasks })}
+${renderPolicy(makePolicy({ table: tasks, name: ctx.naming.rename("ai_scheduled_tasks_read"), command: "select", roles: ["authenticated"], using: `${t.user} = (select auth.uid()) or ${ctx.scope.check(t.tenant, manage)}` }), { target: tasks })}
 
 create table if not exists ${runs} (
   ${r.id} uuid primary key default gen_random_uuid(),
@@ -234,7 +233,7 @@ alter table ${runs} enable row level security;
 ${revokeTable(runs)}
 grant select on ${runs} to authenticated;
 grant all on ${runs} to service_role;
-${renderPolicy(makePolicy({ table: runs, name: "ai_task_runs_read", command: "select", roles: ["authenticated"], using: `${r.user} = (select auth.uid()) or ${ctx.scope.check(r.tenant, manage)}` }), { drop: true, target: runs })}
+${renderPolicy(makePolicy({ table: runs, name: "ai_task_runs_read", command: "select", roles: ["authenticated"], using: `${r.user} = (select auth.uid()) or ${ctx.scope.check(r.tenant, manage)}` }), { target: runs })}
 
 -- Creates (id null) or changes a task. Only the service role sets
 -- next_run_at; for anyone else a new task, or a changed cron or timezone,

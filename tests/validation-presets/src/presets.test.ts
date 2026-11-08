@@ -6,6 +6,7 @@ import {
   presetBlocksSource,
   resolvePreset,
 } from "better-supabase/preset";
+import { PRELUDE_MODULE, UNSCOPED_MODULE } from "better-supabase/sql";
 import { readFile, writeFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
@@ -42,18 +43,29 @@ describe("named presets", () => {
     },
   );
 
-  it.each(PRESET_NAMES)("%s renders every block it lists", (name) => {
-    const rendered = new Set(
-      presetFiles(name, { tests: true }).map((file) => file.module),
-    );
+  it.each(PRESET_NAMES)(
+    "%s renders every block it lists",
+    (name) => {
+      const rendered = new Set(
+        presetFiles(name, { tests: true })
+          .map((file) => file.module)
+          .filter(
+            (module) => module !== PRELUDE_MODULE && module !== UNSCOPED_MODULE,
+          ),
+      );
 
-    const { instances } = resolveConfig({ preset: name }, "/");
-    expect([...rendered].toSorted()).toEqual(
-      [
-        ...new Set(Object.values(instances).map((instance) => instance.block)),
-      ].toSorted(),
-    );
-  });
+      const { instances } = resolveConfig({ preset: name }, "/");
+      expect([...rendered].toSorted()).toEqual(
+        [
+          ...new Set(
+            Object.values(instances).map((instance) => instance.block),
+          ),
+        ].toSorted(),
+      );
+      // The "everything" preset renders every block; a CI runner passes the 5 second default.
+    },
+    60_000,
+  );
 
   // The generated `lib/blocks.ts` of each preset and the
   // `blocks.generated.ts` that `gen` writes for it are committed and
@@ -65,7 +77,11 @@ describe("named presets", () => {
       `./${name}.blocks.generated.ts`,
     );
 
-    const resolved = resolveConfig({ preset: name }, "/");
+    // The wiring files hold `blockConfig` as one object, with no slice modules.
+    const resolved = resolveConfig(
+      { preset: name, gen: { blockModules: false } },
+      "/",
+    );
 
     const blockConfig = (emitBlockConfig(resolved)?.contents ?? "").replaceAll(
       "./blocks.config.ts",

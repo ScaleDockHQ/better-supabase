@@ -1,0 +1,9 @@
+project_id = "validation-single-tenant"
+
+[api]
+enabled = true
+auto_expose_new_tables = false
+
+[experimental.pgdelta]
+enabled = true
+declarative_schema_path = "./schemas"

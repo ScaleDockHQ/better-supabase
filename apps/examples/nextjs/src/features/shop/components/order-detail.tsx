@@ -57,12 +57,8 @@ async function retry() {
  * Render inside `<Suspense>`: a placed order, or the caller's draft (an open
  * cart) with the same id, with its lines, totals and next steps.
  */
-export async function OrderDetail({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, permissions] = await Promise.all([params, getPermissions()]);
+export async function OrderDetail({ id }: { id: string }) {
+  const permissions = await getPermissions();
 
   if (!can(permissions, "orders.read")) {
     forbidden();

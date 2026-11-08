@@ -172,9 +172,9 @@ describe("generator model blocks", () => {
       table: "tasks",
       url: "/tasks/{id}",
       schemas: {
-        input: expect.objectContaining({ title: "WorkItemInput" }),
-        change: expect.objectContaining({ title: "WorkItemChange" }),
-        listFilter: expect.objectContaining({ title: "WorkItemListOptions" }),
+        input: expect.objectContaining({ title: "TaskInput" }),
+        change: expect.objectContaining({ title: "TaskChange" }),
+        listFilter: expect.objectContaining({ title: "TaskListOptions" }),
       },
     });
     expect(

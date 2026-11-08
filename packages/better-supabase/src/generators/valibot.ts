@@ -4,23 +4,28 @@ import type {
   GeneratorInput,
 } from "../config/index.ts";
 import type { FieldSpec } from "../core/table-json-schema.ts";
-import type { ExtraSchemas, ResultSchema } from "./extras.ts";
-import type { FieldDocs, FieldPlan, ScalarKind } from "./shared.ts";
+import type {
+  ExtraSchemas,
+  FieldDocs,
+  FieldPlan,
+  ResultSchema,
+  ScalarKind,
+} from "./kit.ts";
 
+import { VERSION } from "../core/version.ts";
 import {
   extraKinds,
   extraSchemas,
-  fieldMetaLines,
-  objectType,
-  resultType,
-} from "./extras.ts";
-import {
   fieldDocs,
+  fieldMetaLines,
   fieldsFor,
   HEADER,
+  objectType,
   optionalLine,
   parseImport,
   propertyKey,
+  relativeImport,
+  resultType,
   rowType,
   schemaName,
   siblingPath,
@@ -29,7 +34,7 @@ import {
   temporalGuardImport,
   variantsFor,
   variantTitle,
-} from "./shared.ts";
+} from "./kit.ts";
 
 export interface ValibotGeneratorOptions {
   /**
@@ -37,6 +42,12 @@ export interface ValibotGeneratorOptions {
    * `<output>.valibot.ts`.
    */
   readonly output?: string;
+  /**
+   * Install these schemas as the schema's `validation`, so writes are checked.
+   * Only one configured generator may; set `false` on the others. Defaults to
+   * `true`.
+   */
+  readonly validators?: boolean;
   /**
    * Schemas for typed jsonb columns: `{ 'customers.metadata':
    * './schemas.ts#metadata' }`.
@@ -259,7 +270,16 @@ function extraLines(input: GeneratorInput, extras: ExtraSchemas): string[] {
 /** Valibot schemas for every table's Row, Insert and Update shape. */
 export function valibot(options: ValibotGeneratorOptions = {}): Generator {
   return {
-    apiVersion: 1,
+    apiVersion: 2,
+    version: VERSION,
+    options,
+    pure: true,
+    provides: options.validators === false ? [] : ["validators"],
+    workerSafe: true,
+    module: {
+      specifier: "better-supabase/generators/valibot",
+      export: "valibot",
+    },
     name: "valibot",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =
@@ -277,7 +297,7 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
         const { from, name } = parseImport(spec);
 
         const specifier = from.startsWith(".")
-          ? input.importPath(path, from)
+          ? relativeImport(path, from)
           : from;
 
         imports.set(specifier, [...(imports.get(specifier) ?? []), name]);
@@ -294,7 +314,7 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
         'import * as v from "valibot";',
         ...optionalLine(temporalGuardImport(input, extraKinds(extras))),
         "",
-        `import type { InsertOf, Json, RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
+        `import type { InsertOf, Json, RowOf, UpdateOf } from ${JSON.stringify(relativeImport(path, input.config.output))};`,
       ];
 
       for (const [from, names] of imports) {
@@ -370,7 +390,7 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
         "",
       );
 
-      return [{ path, contents: lines.join("\n"), validators: true }];
+      return [{ path, contents: lines.join("\n") }];
     },
   };
 }

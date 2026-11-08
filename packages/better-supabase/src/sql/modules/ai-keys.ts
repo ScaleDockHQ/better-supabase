@@ -24,7 +24,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const KEYS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   provider: "provider",
   name: "name",
   credentialRef: "credential_ref",
@@ -37,7 +37,7 @@ const KEYS = {
 
 const BATCHES = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   user: "user_id",
   provider: "provider",
   reference: "reference",
@@ -59,7 +59,7 @@ const BATCHES = {
 const ITEMS = {
   batch: "batch_id",
   request: "request_id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   status: "status",
   output: "output",
   usage: "usage",
@@ -353,7 +353,7 @@ alter table ${keys} enable row level security;
 ${revokeTable(keys)}
 grant select on ${keys} to authenticated;
 grant all on ${keys} to service_role;
-${renderPolicy(makePolicy({ table: keys, name: "ai_provider_keys_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(k.tenant, manage) }), { drop: true, target: keys })}
+${renderPolicy(makePolicy({ table: keys, name: "ai_provider_keys_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(k.tenant, manage) }), { target: keys })}
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
 -- reference is the SDK's batch reference ({ version, id, provider }).
@@ -375,7 +375,7 @@ alter table ${batches} enable row level security;
 ${revokeTable(batches)}
 grant select on ${batches} to authenticated;
 grant all on ${batches} to service_role;
-${renderPolicy(makePolicy({ table: batches, name: "ai_batches_read", command: "select", roles: ["authenticated"], using: `${b.user} = (select auth.uid()) or ${ctx.scope.check(b.tenant, manage)}` }), { drop: true, target: batches })}
+${renderPolicy(makePolicy({ table: batches, name: "ai_batches_read", command: "select", roles: ["authenticated"], using: `${b.user} = (select auth.uid()) or ${ctx.scope.check(b.tenant, manage)}` }), { target: batches })}
 
 create table if not exists ${items} (
   ${i.batch} uuid not null references ${batches} (${b.id}) on delete cascade,
@@ -390,7 +390,7 @@ alter table ${items} enable row level security;
 ${revokeTable(items)}
 grant select on ${items} to authenticated;
 grant all on ${items} to service_role;
-${renderPolicy(makePolicy({ table: items, name: "ai_batch_items_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${batches} y where y.${b.id} = ${i.batch})` }), { drop: true, target: items })}
+${renderPolicy(makePolicy({ table: items, name: "ai_batch_items_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${batches} y where y.${b.id} = ${i.batch})` }), { target: items })}
 
 create or replace function ${fn("list_ai_provider_keys")}(tenant ${id})
 returns jsonb

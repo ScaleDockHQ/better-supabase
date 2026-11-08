@@ -23,9 +23,6 @@ describe("activity module", () => {
   it("keeps the tenant check alone without the subjects module", () => {
     const sql = render(["timeline"]);
     expect(sql).not.toContain('"activity_subject_readable"("subject_type"');
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."activity_subject_readable"(text, text);`,
-    );
     expect(sql).toContain(`'source', 'event'`);
     expect(sql).not.toContain("audit_events");
   });
@@ -75,9 +72,6 @@ describe("activity module", () => {
       `(list_activity.sources is null or 'event' = any (list_activity.sources))`,
     );
     expect(sql).not.toContain("workflow_runs");
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);`,
-    );
   });
 
   it("unions a registered subject's workflow runs, read as the caller", () => {

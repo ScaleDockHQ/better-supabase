@@ -50,11 +50,20 @@ comments. Put these in a hand-written migration instead:
 - Event triggers under `-s <schemas>`: they belong to no schema, so a
   filtered sync drops them. The module data files repeat them, and doctor
   BS323 reports one the database or the migrations lack.
+  `upgrade` writes them, and the triggers on `auth` tables, to
+  `900_better_supabase_999_unscoped.sql` (module `unscoped`), not into the
+  module files.
 - Objects in `auth`, `storage` or other Supabase-managed schemas, except
   policies and triggers whose function lives in your own schema.
 - Object kinds pg-delta doesn't track (casts, operators, text search
   configurations). Their SQL also goes in `supabase/schemas/_custom/` so
   dependent objects still resolve; `--strict-coverage` fails until it does.
+
+A generated schema file never holds a `do` block a diff could replace. A repair
+for an older install is written only when `ctx.rerunnable` is set, and a
+statement that changes rows goes to the module's `data`.
+`tests/sql/static-ddl.test.ts` counts what is left (ADR 0400); the count only
+falls, and `UPDATE_PRACTICES=1` rewrites the baseline after a drop.
 
 pg-delta also loads `supabase/schemas/_custom/` into its shadow database and
 then rejects any managed table that has rows, so `_custom/` can't hold data

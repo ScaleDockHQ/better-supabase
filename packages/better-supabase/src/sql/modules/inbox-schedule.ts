@@ -68,7 +68,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     )}`
     : "";
 
-  // A job at scheduled_for publishes the message; an earlier job left by a
+  // A job at scheduled_at publishes the message; an earlier job left by a
   // reschedule finds nothing due and does nothing.
   const publishJob = (row: string): string =>
     ctx.enqueue(
@@ -83,7 +83,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
   const future = (
     value: string,
   ): string => `if ${value} is null or ${value} <= now() then
-    ${fail("INBOX_SCHEDULE_TIME", "scheduled_for must be in the future", "22023")}
+    ${fail("INBOX_SCHEDULE_TIME", "scheduled_at must be in the future", "22023")}
   end if;`;
 
   // The author's own scheduled message, locked; anyone else gets not found.
@@ -117,7 +117,7 @@ begin
     update ${T("conversations")} set ${cv("status")} = 'open', ${cv("snoozedUntil")} = null
     where ${cv("id")} = v_conv.${cv("id")}
     returning * into v_conv;
-    ${log("unsnoozed", "null", "jsonb_build_object('snoozed_until', v_until)")}
+    ${log("unsnoozed", "null", "jsonb_build_object('snooze_expires_at', v_until)")}
     ${woken}${wakeNotice}
     v_count := v_count + 1;
   end loop;
@@ -126,10 +126,10 @@ end;
 $$;
 ${serviceGrant(`${fn("wake_snoozed_conversations")}()`)}
 
--- Schedules a staff reply on the conversation for scheduled_for. Only
+-- Schedules a staff reply on the conversation for scheduled_at. Only
 -- messages: notes post right away. The input is the one send_inbox_message
 -- takes, without the service's fields.
-create or replace function ${fn("schedule_inbox_message")}(conversation uuid, input jsonb, scheduled_for timestamptz)
+create or replace function ${fn("schedule_inbox_message")}(conversation uuid, input jsonb, scheduled_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -156,9 +156,9 @@ begin
   if length(coalesce(v_input ->> 'body', '')) > ${String(q.maxBody)} then
     ${fail("INBOX_MESSAGE_TOO_LONG", `a message is at most ${String(q.maxBody)} characters`, "22023")}
   end if;
-  ${future("schedule_inbox_message.scheduled_for")}
+  ${future("schedule_inbox_message.scheduled_at")}
   insert into ${T("scheduled")} (${sm("tenant")}, ${sm("conversation")}, ${sm("author")}, ${sm("input")}, ${sm("scheduledFor")})
-  values (v_conv.${cv("tenant")}, v_conv.${cv("id")}, (select auth.uid()), v_input, schedule_inbox_message.scheduled_for)
+  values (v_conv.${cv("tenant")}, v_conv.${cv("id")}, (select auth.uid()), v_input, schedule_inbox_message.scheduled_at)
   returning * into v_row;
   ${publishJob("v_row")}
   return ${q.json("scheduled", "v_row")};
@@ -182,7 +182,7 @@ $$;
 ${authed(`${fn("list_scheduled_inbox_messages")}(uuid)`)}
 
 -- Moves the caller's scheduled message to another time in the future.
-create or replace function ${fn("reschedule_inbox_message")}(scheduled uuid, scheduled_for timestamptz)
+create or replace function ${fn("reschedule_inbox_message")}(scheduled uuid, scheduled_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -192,8 +192,8 @@ declare
   v_row ${T("scheduled")}%rowtype;
 begin
   ${loadOwn("reschedule_inbox_message.scheduled")}
-  ${future("reschedule_inbox_message.scheduled_for")}
-  update ${T("scheduled")} set ${sm("scheduledFor")} = reschedule_inbox_message.scheduled_for
+  ${future("reschedule_inbox_message.scheduled_at")}
+  update ${T("scheduled")} set ${sm("scheduledFor")} = reschedule_inbox_message.scheduled_at
   where ${sm("id")} = v_row.${sm("id")}
   returning * into v_row;
   ${publishJob("v_row")}

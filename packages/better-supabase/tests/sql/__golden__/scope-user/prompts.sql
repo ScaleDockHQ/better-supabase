@@ -1,13 +1,11 @@
 -- ==== schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:f04920e103f2eb828b3301c207c9c5852f34930ff31084d9b08150039254b20e
+-- @bsb-hash sha256:75703ffdbb8bff19ae5025e074d7b30b43a438843766d7a279ab7aff70350674
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Prompt templates the application versions by name, per tenant or for the
 -- whole system (tenant is null). A version never changes once saved; a label
 -- such as production points at one version. Templates can hold instructions
@@ -17,7 +15,7 @@ create table if not exists "better_supabase"."prompt_versions" (
   "organization_id" uuid,
   "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "version" integer not null check ("version" >= 1),
-  "template" text not null check (length("template") between 1 and 102400),
+  "template" text not null check (length("template") >= 1 and length("template") <= 102400),
   "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );
@@ -164,19 +162,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts

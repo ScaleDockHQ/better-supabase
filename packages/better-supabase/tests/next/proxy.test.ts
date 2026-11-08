@@ -5,7 +5,7 @@ import type { AuthState } from "../../src/auth/resolve.ts";
 
 import { markSessionEnded } from "../../src/auth/ended.ts";
 import { writeSession } from "../../src/auth/session.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createNext } from "../../src/next/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -52,7 +52,7 @@ const env = {
 const signer = await createTestSigner();
 const auth = vi.fn<typeof fetch>();
 
-const bsb = createNext(defineSupabase(schema), {
+const bsb = createNext(createSupabase(schema), {
   env,
   auth: { jwks: signer.jwks, fetch: auth },
   prefetchJwks: false,

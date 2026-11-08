@@ -4,7 +4,7 @@ description: A search index kept up by triggers from config.subjects, search(q) 
 ---
 
 `search` keeps one `search_documents` row per searchable subject. Triggers
-generated from each `search` entry in `config.subjects` write the row when the
+generated from each `search` entry in `config.recordTypes` write the row when the
 source row changes, and `search(q)` reads the index as the caller: full-text
 matches, prefixes while the user types and trigram matches for typos, filtered
 to what the caller can read. With `vector-search` and embeddings, the results
@@ -32,7 +32,7 @@ Give each subject a `search` entry. `title` defaults to the subject's
 `url` and `deletedAt` come from the same registry entry.
 
 ```ts title="better-supabase.config.ts"
-subjects: {
+recordTypes: {
   note: {
     table: "public.notes",
     title: "title",
@@ -285,7 +285,7 @@ is disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import {
     createCommandSearchController,
     createSearch,
@@ -293,7 +293,7 @@ is disposed with the component.
   } from "better-supabase/blocks/search";
 
   let { organizationId }: { organizationId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const search = useBlockController(createCommandSearchController, {
     client: createSearch({ transport: rpcTransport(supabase) }),
     organizationId,
@@ -417,7 +417,7 @@ each document write with the subject type and id. `createSearch` takes
 
 ## Example
 
-The Next.js example declares `customer` in `config.subjects` (`deletedAt:
+The Next.js example declares `customer` in `config.recordTypes` (`deletedAt:
 "archived_at"`, so archived customers leave the index) and installs `search`
 with `api: "api"`. The header has a Search button that also opens on Cmd+K:
 `useCommandSearch({ schema: "api" })` drives a dialog that lists favorites and

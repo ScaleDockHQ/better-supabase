@@ -22,7 +22,7 @@ export {
 } from "./steps.ts";
 
 export {
-  type DurableTurnAgentArgs,
+  type DurableTurnAgentOptions,
   type DurableTurnAgentResult,
   type DurableApprovalRequest,
   type DurableApprovalsInput,

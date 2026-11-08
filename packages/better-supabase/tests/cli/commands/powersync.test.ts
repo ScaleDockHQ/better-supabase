@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { configuredTasks } from "../../../src/cli/commands/gen-pipeline.ts";
 import { runPowerSync } from "../../../src/cli/commands/powersync.ts";
+import { hasMigrationSuffix } from "../../../src/cli/sql/migration-names.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 
 const BLOCKS = {
@@ -49,7 +50,7 @@ describe("powersync streams", () => {
 
   const migrations = async () =>
     (await readdir(join(root, "supabase/migrations"))).filter((name) =>
-      name.endsWith("_powersync_publication.sql"),
+      hasMigrationSuffix(name, "_powersync_publication.sql"),
     );
 
   it("asks for the instances when gen.powersync is unset", async () => {
@@ -98,6 +99,21 @@ describe("powersync streams", () => {
     });
   });
 
+  it("declares the publication in the schema files when the repo has them", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+
+    const result = await runPowerSync(config(["notifications"]), {}, now);
+    expect(result.code).toBe(0);
+
+    const declared = await readFile(
+      join(root, "supabase/schemas/powersync_publication.sql"),
+      "utf-8",
+    );
+
+    expect(declared).toContain("create publication powersync for table");
+    expect(declared).toContain("notification");
+  });
+
   it("adds a new migration when the synced tables change", async () => {
     await runPowerSync(config(["notifications"]), {}, now);
 
@@ -113,6 +129,65 @@ describe("powersync streams", () => {
 
     await runPowerSync(config(["notifications", "attachments"]), {}, later);
     expect(await migrations()).toHaveLength(2);
+  });
+
+  const jobsFile = `create table public.jobs (id uuid primary key, organization_id uuid not null, deleted_at timestamptz);
+comment on table public.jobs is '@bsb subject type=job deleted-at=deleted_at';
+create view public.job_attachments as
+  select id, tenant_id as organization_id, subject_id as job_id from better_supabase.attachments where subject_type = 'job';
+`;
+
+  it("scopes a projected attachments stream to the app's subject rows", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(join(root, "supabase/schemas/010_app.sql"), jobsFile);
+
+    const result = await runPowerSync(
+      config(["memberships", "attachments"]),
+      {},
+      now,
+    );
+
+    expect(result.code).toBe(0);
+
+    expect(
+      await readFile(join(root, "powersync/sync-streams.yaml"), "utf-8"),
+    ).toContain(
+      "subject_id IN (SELECT id::text FROM public.jobs WHERE organization_id IN active_orgs AND deleted_at IS NULL)",
+    );
+  });
+
+  it("reads a child table's columns from the snapshot and refuses without one", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(join(root, "supabase/schemas/010_app.sql"), jobsFile);
+
+    const result = await runPowerSync(
+      resolveConfig(
+        {
+          blocks: BLOCKS,
+          gen: {
+            powersync: {
+              instances: ["memberships"],
+              children: [
+                {
+                  table: "public.job_parties",
+                  parent: "job",
+                  column: "job_id",
+                },
+              ],
+            },
+          },
+        },
+        root,
+      ),
+      {},
+      now,
+    );
+
+    expect(result).toMatchObject({
+      code: 1,
+      errorCode: "config_invalid",
+      error: expect.stringContaining("has no job_id column"),
+    });
   });
 
   it("takes --instance and --out over the config", async () => {

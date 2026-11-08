@@ -29,7 +29,7 @@ const MODULES = [
 const hint = (result: Result<unknown>): string =>
   result.ok ? "ok" : (result.error.hint ?? result.error.message);
 
-describe.skipIf(!live)("engagements", () => {
+describe.skipIf(!live)("activities", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
 
   afterAll(() => pool.end());
@@ -46,7 +46,7 @@ describe.skipIf(!live)("engagements", () => {
       const other = await s.organization(stranger);
       const transport = sqlTransport(s.sql);
       const parties = createContacts({ transport });
-      const engagements = createActivities({ transport });
+      const activities = createActivities({ transport });
 
       await s.as(rep);
 
@@ -61,7 +61,7 @@ describe.skipIf(!live)("engagements", () => {
       const company = { type: "company", id: acme.id };
       const person = { type: "person", id: ada.id };
 
-      const call = await engagements
+      const call = await activities
         .log({
           organizationId: org,
           input: {
@@ -80,7 +80,7 @@ describe.skipIf(!live)("engagements", () => {
 
       const later = Temporal.Now.instant().add({ hours: 48 });
       const soon = Temporal.Now.instant().add({ hours: 2 });
-      await engagements
+      await activities
         .log({
           organizationId: org,
           input: { type: "task", title: "Send proposal", dueAt: later },
@@ -88,7 +88,7 @@ describe.skipIf(!live)("engagements", () => {
         })
         .orThrow();
 
-      const followUp = await engagements
+      const followUp = await activities
         .log({
           organizationId: org,
           input: {
@@ -101,10 +101,10 @@ describe.skipIf(!live)("engagements", () => {
         })
         .orThrow();
 
-      expect((await engagements.next(company).orThrow())?.id).toBe(followUp.id);
-      expect(await engagements.next(person).orThrow()).toBeUndefined();
+      expect((await activities.next(company).orThrow())?.id).toBe(followUp.id);
+      expect(await activities.next(person).orThrow()).toBeUndefined();
 
-      const timeline = await engagements.of({ subject: company }).orThrow();
+      const timeline = await activities.of({ subject: company }).orThrow();
       expect(timeline.map((item) => item.title)).toEqual([
         "Send proposal",
         "Demo",
@@ -112,13 +112,13 @@ describe.skipIf(!live)("engagements", () => {
       ]);
       expect(
         (
-          await engagements.of({ subject: company, types: ["call"] }).orThrow()
+          await activities.of({ subject: company, types: ["call"] }).orThrow()
         ).map((item) => item.type),
       ).toEqual(["call"]);
 
       expect(
         hint(
-          await engagements.log({
+          await activities.log({
             organizationId: org,
             input: { type: "fax", title: "x" },
             subjects: [company],
@@ -128,7 +128,7 @@ describe.skipIf(!live)("engagements", () => {
       const foreign = await s.value<string>("(select gen_random_uuid()::text)");
       expect(
         hint(
-          await engagements.log({
+          await activities.log({
             organizationId: org,
             input: { type: "note", title: "x" },
             subjects: [{ type: "company", id: foreign }],
@@ -138,23 +138,23 @@ describe.skipIf(!live)("engagements", () => {
 
       await s.as(owner);
 
-      const done = await engagements
+      const done = await activities
         .complete({ id: followUp.id, outcome: "held" })
         .orThrow();
 
       expect(done.doneAt).toBeDefined();
       expect(
-        await engagements.open({ organizationId: org }).orThrow(),
+        await activities.open({ organizationId: org }).orThrow(),
       ).toHaveLength(0);
       await s.as(rep);
       expect(
-        (await engagements.open({ organizationId: org }).orThrow()).map(
+        (await activities.open({ organizationId: org }).orThrow()).map(
           (item) => item.title,
         ),
       ).toEqual(["Send proposal"]);
 
       const assigned = await s.value<number>(
-        "(select count(*)::int from better_supabase.notification_recipients r join better_supabase.notification_events e on e.id = r.event_id where e.type = 'engagement.assigned' and r.user_id = $1)",
+        "(select count(*)::int from better_supabase.notification_recipients r join better_supabase.notification_events e on e.id = r.event_id where e.type = 'activity.assigned' and r.user_id = $1)",
         [owner.id],
       );
 
@@ -163,7 +163,7 @@ describe.skipIf(!live)("engagements", () => {
       await s.as(stranger);
       expect(
         hint(
-          await engagements.log({
+          await activities.log({
             organizationId: other,
             input: { type: "note", title: "x" },
             subjects: [company],
@@ -179,7 +179,7 @@ describe.skipIf(!live)("engagements", () => {
       await s.as(stranger);
       expect(
         hint(
-          await engagements.update({ id: call.id, input: { title: "mine" } }),
+          await activities.update({ id: call.id, input: { title: "mine" } }),
         ),
       ).toBe("ACTIVITY_NOT_FOUND");
     } finally {
@@ -187,7 +187,7 @@ describe.skipIf(!live)("engagements", () => {
     }
   });
 
-  it("keeps files on an engagement task", async () => {
+  it("keeps files on an activity task", async () => {
     const s = await BlockSession.open(pool);
 
     try {
@@ -201,7 +201,7 @@ describe.skipIf(!live)("engagements", () => {
       await s.organization(stranger);
       const transport = sqlTransport(s.sql);
       const parties = createContacts({ transport });
-      const engagements = createActivities({ transport });
+      const activities = createActivities({ transport });
 
       const files = (tenant: string) =>
         createAttachments({
@@ -235,7 +235,7 @@ describe.skipIf(!live)("engagements", () => {
         .saveCompany({ organizationId: org, input: { name: "Acme" } })
         .orThrow();
 
-      const task = await engagements
+      const task = await activities
         .log({
           organizationId: org,
           input: { type: "task", title: "Send the signed contract" },

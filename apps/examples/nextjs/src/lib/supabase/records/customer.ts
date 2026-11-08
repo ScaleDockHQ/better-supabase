@@ -24,12 +24,38 @@ import { shipmentsBlock } from "better-supabase/blocks/shipments";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { tagsBlock } from "better-supabase/blocks/tags";
-import { tasksBlock } from "better-supabase/blocks/tasks";
 import { versionsBlock } from "better-supabase/blocks/versions";
 import { defineRecordType } from "better-supabase/records";
 
-import { blockConfig } from "../blocks.config.ts";
-import { permissions } from "../blocks.generated.ts";
+import {
+  assetsConfig,
+  attachmentsConfig,
+  billableTimeConfig,
+  commentsConfig,
+  contractsConfig,
+  customFieldsConfig,
+  dispatchConfig,
+  donationsConfig,
+  driveConfig,
+  enrollmentsConfig,
+  guestsConfig,
+  leasesConfig,
+  ledgerConfig,
+  moderationConfig,
+  passesConfig,
+  reactionsConfig,
+  relationsConfig,
+  scoresConfig,
+  shareLinksConfig,
+  shipmentsConfig,
+  signaturesConfig,
+  slaConfig,
+  tagsConfig,
+  tasksConfig,
+  versionsConfig,
+} from "../blocks/slices.ts";
+import { permissions } from "../blocks/permissions.ts";
+import { workItemsBlock } from "../blocks.generated.ts";
 
 /**
  * The customer record type: each installed block that binds to it. Pass it to
@@ -62,9 +88,35 @@ export const customerRecord = defineRecordType({
     sla: slaBlock,
     tags: tagsBlock,
     versions: versionsBlock,
-    tasks: tasksBlock,
+    tasks: workItemsBlock,
   },
-  config: blockConfig,
+  config: {
+    attachments: attachmentsConfig,
+    comments: commentsConfig,
+    "custom-fields": customFieldsConfig,
+    ledger: ledgerConfig,
+    assets: assetsConfig,
+    scores: scoresConfig,
+    moderation: moderationConfig,
+    enrollments: enrollmentsConfig,
+    guests: guestsConfig,
+    passes: passesConfig,
+    "billable-time": billableTimeConfig,
+    leases: leasesConfig,
+    donations: donationsConfig,
+    dispatch: dispatchConfig,
+    shipments: shipmentsConfig,
+    contracts: contractsConfig,
+    drive: driveConfig,
+    signatures: signaturesConfig,
+    reactions: reactionsConfig,
+    relations: relationsConfig,
+    "share-links": shareLinksConfig,
+    sla: slaConfig,
+    tags: tagsConfig,
+    versions: versionsConfig,
+    tasks: tasksConfig,
+  },
   permissions,
   access: permissionsBlock,
 });

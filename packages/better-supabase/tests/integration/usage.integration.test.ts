@@ -105,7 +105,7 @@ describe.skipIf(!live)("usage", () => {
       // A tenant quota overrides the plan quota.
       await s.service();
       await s.rows(
-        `insert into better_supabase.usage_quotas (organization_id, meter, "limit", period)
+        `insert into better_supabase.usage_quotas (tenant_id, meter, "limit", period)
          values ('${organization}', 'api_calls', 10, 'day')`,
       );
       await s.asRole(owner);
@@ -119,7 +119,7 @@ describe.skipIf(!live)("usage", () => {
       await s.rows(
         `insert into better_supabase.usage_quotas (plan, meter, "limit", period)
          values ('*', 'seats', 2, 'month');
-         insert into better_supabase.usage_quotas (organization_id, meter, "limit", period)
+         insert into better_supabase.usage_quotas (tenant_id, meter, "limit", period)
          values ('${organization}', 'seats', null, 'year')`,
       );
       await s.asRole(owner);
@@ -291,7 +291,7 @@ describe.skipIf(!live)("usage", () => {
       const unbilled = await s.organization(owner);
       await s.service();
       await s.rows(
-        `insert into better_supabase.usage_counters (organization_id, meter, day, value)
+        `insert into better_supabase.usage_counters (tenant_id, meter, day, value)
          values ($1, 'internal', current_date - 3, 5),
                 ($2, 'api_calls', current_date - 2, 4),
                 ($1, 'api_calls', current_date - 1, 2)`,
@@ -327,7 +327,7 @@ describe.skipIf(!live)("usage", () => {
       expect(await report()).toEqual({ reported: 0, skipped: 2 });
       expect(
         await s.rows(
-          "select meter, reported_value::text as reported from better_supabase.usage_counters where organization_id = any($1) order by day",
+          "select meter, reported_value::text as reported from better_supabase.usage_counters where tenant_id = any($1) order by day",
           [[billed, unbilled]],
         ),
       ).toEqual([
@@ -602,7 +602,7 @@ describe.skipIf(!live)("usage", () => {
       ).toMatchObject({ used: 2.45, limit: 2.5, remaining: 0.05 });
       await s.service();
       await s.rows(
-        `insert into better_supabase.usage_counters (organization_id, meter, day, value)
+        `insert into better_supabase.usage_counters (tenant_id, meter, day, value)
          values ($1, 'gb_hours', (now() at time zone 'utc')::date - 1, 0.5)
          on conflict do nothing`,
         [organization],
@@ -647,7 +647,7 @@ describe.skipIf(!live)("usage", () => {
          values ('*', 'seats.hours', 1000, 'billing')`,
       );
       await s.rows(
-        `insert into better_supabase.usage_counters (organization_id, meter, day, value)
+        `insert into better_supabase.usage_counters (tenant_id, meter, day, value)
          values ($1, 'seats.hours', (now() at time zone 'utc')::date - 40, 900),
                 ($1, 'seats.hours', (now() at time zone 'utc')::date - 10, 700),
                 ($1, 'seats.hours', (now() at time zone 'utc')::date - 3, 400),
@@ -720,7 +720,7 @@ describe.skipIf(!live)("usage", () => {
          values ('*', 'ai.tokens', 1000, 'billing')`,
       );
       await s.rows(
-        `insert into better_supabase.usage_counters (organization_id, meter, day, value)
+        `insert into better_supabase.usage_counters (tenant_id, meter, day, value)
          values ($1, 'ai.tokens', (now() at time zone 'utc')::date - 2, 300),
                 ($1, 'ai.tokens', (now() at time zone 'utc')::date - 5, 500)`,
         [organization],
@@ -789,7 +789,7 @@ describe.skipIf(!live)("consume_quota under concurrency", () => {
   afterAll(async () => {
     for (const table of ["usage_quotas", "usage_counters", "usage_events"]) {
       await pool.query(
-        `delete from better_supabase.${table} where organization_id = $1`,
+        `delete from better_supabase.${table} where tenant_id = $1`,
         [tenant],
       );
     }
@@ -799,7 +799,7 @@ describe.skipIf(!live)("consume_quota under concurrency", () => {
 
   it("lets only one of two calls that together exceed the limit record", async () => {
     await pool.query(
-      `insert into better_supabase.usage_quotas (organization_id, meter, "limit", period)
+      `insert into better_supabase.usage_quotas (tenant_id, meter, "limit", period)
        values ($1, 'race', 5, 'month')`,
       [tenant],
     );
@@ -839,7 +839,7 @@ describe.skipIf(!live)("consume_quota under concurrency", () => {
       expect(rejected[0]).toMatchObject({ reason: { hint: "QUOTA_EXCEEDED" } });
 
       const { rows } = await pool.query<{ used: string }>(
-        "select coalesce(sum(value), 0)::text as used from better_supabase.usage_counters where organization_id = $1 and meter = 'race'",
+        "select coalesce(sum(value), 0)::text as used from better_supabase.usage_counters where tenant_id = $1 and meter = 'race'",
         [tenant],
       );
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { ReactRouterArgs } from "../../src/react-router/index.ts";
+import type { ReactRouterParams } from "../../src/react-router/index.ts";
 
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
@@ -18,7 +18,7 @@ import {
 } from "../fixtures/test-server.ts";
 
 /** A minimal `RouterContextProvider`: a map keyed by context objects. */
-function contextProvider(): ReactRouterArgs["context"] {
+function contextProvider(): ReactRouterParams["context"] {
   const values = new Map<unknown, unknown>();
 
   return {
@@ -46,7 +46,7 @@ const bsb = createReactRouter(betterSupabase, {
 /** Runs the middleware, then `fn` inside it. */
 async function serve(
   request: Request,
-  fn: (args: ReactRouterArgs) => Promise<unknown>,
+  fn: (args: ReactRouterParams) => Promise<unknown>,
 ) {
   const args = { request, context: contextProvider() };
   let out: unknown;

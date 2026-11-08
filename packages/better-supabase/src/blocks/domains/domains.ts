@@ -135,7 +135,7 @@ function hostnameOf(value: unknown): Hostname {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     hostname: textOf(row["hostname"]),
     kind: row["kind"] === "subdomain" ? "subdomain" : "custom",
     verifiedAt: optionalInstant(row["verified_at"]),

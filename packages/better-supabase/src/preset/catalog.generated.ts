@@ -73,8 +73,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "organizations",
       "scopes": [
         "tenant"
-      ],
-      "extraColumns": "invitations"
+      ]
     },
     {
       "name": "reserved-slugs",
@@ -125,8 +124,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "webhook-inbox",
       "contributes": [
         "housekeeping"
-      ],
-      "extraColumns": "messages"
+      ]
     },
     {
       "name": "realtime-tables",
@@ -322,8 +320,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "invitations"
           ]
         }
-      ],
-      "extraColumns": "organizations"
+      ]
     },
     {
       "name": "profiles",
@@ -331,13 +328,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "tenancy",
       "requires": [],
       "integrates": [
-        "memberships"
+        "memberships",
+        "teams"
       ],
       "manifest": "profiles",
       "tenantNameClashes": [
         "team"
-      ],
-      "extraColumns": "profiles"
+      ]
     },
     {
       "name": "outbox",
@@ -424,8 +421,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "notification_events"
           ]
         }
-      ],
-      "extraColumns": "events"
+      ]
     },
     {
       "name": "webhooks-out",
@@ -458,7 +454,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "webhook_endpoints",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "name": "name",
               "url": "url",
               "enabled": "enabled",
@@ -468,7 +464,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "signing": "signing",
               "format": "format",
               "credentialRef": "credential_ref",
-              "failingSince": "failing_since",
+              "failingSince": "first_failed_at",
               "disabledAt": "disabled_at",
               "disabledReason": "disabled_reason",
               "createdBy": "created_by",
@@ -543,7 +539,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "keys",
       "entities": {
         "specs": {
           "api_key": {
@@ -557,7 +552,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "api_keys",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "user": "user_id",
               "name": "name",
               "prefix": "prefix",
@@ -566,7 +561,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "scopes": "scopes",
               "kind": "kind",
               "rateLimit": "rate_limit",
-              "windowStart": "window_start",
+              "windowStart": "window_started_at",
               "windowHits": "window_hits",
               "expiresAt": "expires_at",
               "lastUsedAt": "last_used_at",
@@ -689,7 +684,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "flags",
       "entities": {
         "specs": {
           "flag": {
@@ -858,7 +852,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "seeds": {
         "variants": []
       },
-      "extraColumns": "attachments",
       "entities": {
         "specs": {
           "attachment": {
@@ -872,7 +865,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "attachments",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "subjectType": "subject_type",
               "subjectId": "subject_id",
               "bucket": "bucket",
@@ -978,7 +971,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "entries",
       "entities": {
         "specs": {
           "waitlist_entry": {
@@ -1026,7 +1018,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "announcements",
       "entities": {
         "specs": {
           "announcement": {
@@ -1125,7 +1116,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "definitions",
       "entities": {
         "specs": {
           "workflow_definition": {
@@ -1277,13 +1267,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "streams"
       ],
       "integrates": [
+        "share-links",
         "entitlements",
         "ai-keys",
         "approvals",
         "data-lifecycle",
         "teams",
-        "usage",
-        "share-links"
+        "usage"
       ],
       "manifest": "ai-chat",
       "scopes": [
@@ -1296,7 +1286,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "chats",
       "entities": {
         "specs": {
           "ai_chat": {
@@ -1314,7 +1303,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "ai_chats",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "owner": "owner_id",
               "project": "project_id",
               "agent": "agent_id",
@@ -1339,7 +1328,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "ai_projects",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "owner": "owner_id",
               "name": "name",
               "instructions": "instructions",
@@ -1376,7 +1365,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "files",
       "entities": {
         "specs": {
           "ai_document": {
@@ -1390,7 +1378,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "ai_documents",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "owner": "owner_id",
               "chat": "chat_id",
               "kind": "kind",
@@ -1443,7 +1431,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "knowledge_documents",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "owner": "owner_id",
               "scope": "scope",
               "scopeId": "scope_id",
@@ -1500,7 +1488,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "memories",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "owner": "owner_id",
               "scope": "scope",
               "agent": "agent_id",
@@ -1519,7 +1507,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "category": "category",
               "confidence": "confidence",
               "expiresAt": "expires_at",
-              "deletedAt": "deleted_at",
+              "deletedAt": "archived_at",
               "useCount": "use_count",
               "lastUsedAt": "last_used_at",
               "tsv": "tsv",
@@ -1547,7 +1535,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "agents",
       "entities": {
         "specs": {
           "agent": {
@@ -1561,7 +1548,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "agents",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "owner": "owner_id",
               "slug": "slug",
               "name": "name",
@@ -1603,7 +1590,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "servers",
       "entities": {
         "specs": {
           "connector_server": {
@@ -1617,7 +1603,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "connector_servers",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "name": "name",
               "url": "url",
               "transport": "transport",
@@ -1656,7 +1642,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "tasks",
       "entities": {
         "specs": {
           "ai_scheduled_task": {
@@ -1670,7 +1655,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "ai_scheduled_tasks",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "user": "user_id",
               "chat": "chat_id",
               "agent": "agent_id",
@@ -1700,8 +1685,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "notifications"
       ],
-      "manifest": "push",
-      "extraColumns": "devices"
+      "manifest": "push"
     },
     {
       "name": "ai-cache",
@@ -1767,7 +1751,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "teams",
       "entities": {
         "specs": {
           "team": {
@@ -1810,7 +1793,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "drive",
         "subjects",
-        "bulk"
+        "bulk-actions"
       ],
       "manifest": "tags",
       "scopes": [
@@ -1819,7 +1802,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "none"
       ],
       "contributes": [
-        "bulk"
+        "bulk-actions"
       ],
       "reads": [
         {
@@ -1876,7 +1859,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           ]
         }
       ],
-      "extraColumns": "tags",
       "entities": {
         "specs": {
           "tag": {
@@ -1922,14 +1904,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "approvals",
         "workflow-editor",
-        "bulk"
+        "bulk-actions"
       ],
       "manifest": "state-machine",
       "scopes": [
         "tenant"
       ],
       "contributes": [
-        "bulk"
+        "bulk-actions"
       ]
     },
     {
@@ -1960,7 +1942,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "field_definition": {
             "table": "definitions",
             "singular": "field_definition",
-            "formerly": "field",
+            "keyed": true,
             "primary": true
           }
         },
@@ -2009,7 +1991,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "links",
       "entities": {
         "specs": {
           "share_link": {
@@ -2070,7 +2051,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "subjects"
       ],
-      "extraColumns": "reminders",
       "entities": {
         "specs": {
           "reminder": {
@@ -2210,7 +2190,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "views",
       "entities": {
         "specs": {
           "saved_view": {
@@ -2255,16 +2234,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "bulk"
+        "bulk-actions"
       ],
       "manifest": "relations",
       "scopes": [
         "tenant"
       ],
       "contributes": [
-        "bulk"
+        "bulk-actions"
       ],
-      "extraColumns": "relations",
       "entities": {
         "specs": {
           "relation": {
@@ -2297,8 +2275,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "bulk",
-      "title": "Bulk actions",
+      "name": "bulk-actions",
+      "title": "BulkActions actions",
       "category": "work",
       "requires": [
         "memberships",
@@ -2308,7 +2286,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "queue",
         "outbox"
       ],
-      "manifest": "bulk",
+      "manifest": "bulk-actions",
       "scopes": [
         "tenant"
       ]
@@ -2374,7 +2352,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "seeds": {
         "variants": []
       },
-      "extraColumns": "events",
       "entities": {
         "specs": {
           "calendar_event": {
@@ -2420,7 +2397,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "rrule": "rrule",
               "exdates": "exdates",
               "recurrence": "recurrence_id",
-              "originalStart": "original_start",
+              "originalStart": "original_starts_at",
               "subjectType": "subject_type",
               "subjectId": "subject_id",
               "color": "color",
@@ -2483,7 +2460,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "share-links"
       ],
-      "extraColumns": "bookings",
       "entities": {
         "specs": {
           "booking": {
@@ -2514,7 +2490,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "holdExpiresAt": "hold_expires_at",
               "customerName": "customer_name",
               "customerEmail": "customer_email",
-              "customerUser": "customer_user_id",
+              "customerUser": "customer_id",
               "notes": "notes",
               "accessHash": "access_hash",
               "calendarEvent": "calendar_event_id",
@@ -2552,7 +2528,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "versions",
       "entities": {
         "specs": {
           "version": {
@@ -2605,7 +2580,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "data-lifecycle",
         "housekeeping",
-        "bulk"
+        "bulk-actions"
       ],
       "manifest": "trash",
       "scopes": [
@@ -2613,9 +2588,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "contributes": [
         "housekeeping",
-        "bulk"
-      ],
-      "extraColumns": "items"
+        "bulk-actions"
+      ]
     },
     {
       "name": "reactions",
@@ -2695,7 +2669,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         "housekeeping",
         "subjects"
       ],
-      "extraColumns": "requests",
       "entities": {
         "specs": {
           "approval": {
@@ -2758,7 +2731,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "approvals"
       ],
-      "extraColumns": "requests",
       "entities": {
         "specs": {
           "access_request": {
@@ -2903,7 +2875,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "imports"
       ],
-      "extraColumns": "products",
       "entities": {
         "specs": {
           "product": {
@@ -3073,7 +3044,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           ]
         }
       ],
-      "extraColumns": "locations",
       "entities": {
         "specs": {
           "inventory_location": {
@@ -3206,7 +3176,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "nodes",
       "entities": {
         "specs": {
           "drive_node": {
@@ -3228,13 +3197,13 @@ export const PRESET_CATALOG: PresetCatalog = {
               "attachment": "attachment_id",
               "path": "path",
               "rank": "rank",
-              "deletedAt": "deleted_at",
+              "deletedAt": "archived_at",
               "source": "source",
               "externalId": "external_id",
               "externalMetadata": "external_metadata",
-              "legalHoldUntil": "legal_hold_until",
+              "legalHoldUntil": "legal_hold_expires_at",
               "lockedBy": "locked_by",
-              "lockedUntil": "locked_until",
+              "lockedUntil": "lock_expires_at",
               "lockNote": "lock_note",
               "downloadBlocked": "download_blocked",
               "previewPages": "preview_pages",
@@ -3243,7 +3212,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "documentStatus": "document_status",
               "documentOwner": "document_owner_id",
               "effectiveVersion": "effective_version_id",
-              "effectiveFrom": "effective_from",
+              "effectiveFrom": "effective_at",
               "reviewIntervalMonths": "review_interval_months",
               "nextReviewOn": "next_review_on",
               "reviewNotifiedFor": "review_notified_for",
@@ -3390,7 +3359,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           ]
         }
       ],
-      "extraColumns": "orders",
       "entities": {
         "specs": {
           "order": {
@@ -3502,7 +3470,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "promotions",
       "entities": {
         "specs": {
           "promotion": {
@@ -3569,7 +3536,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "share-links"
       ],
-      "extraColumns": "forms",
       "entities": {
         "specs": {
           "form": {
@@ -3629,7 +3595,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "requests",
       "entities": {
         "specs": {
           "signature_request": {
@@ -3668,7 +3633,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "time-tracking",
+      "name": "time-entries",
       "title": "Time tracking",
       "category": "people",
       "requires": [
@@ -3682,7 +3647,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "employees",
         "approvals"
       ],
-      "manifest": "time-tracking",
+      "manifest": "time-entries",
       "scopes": [
         "tenant"
       ],
@@ -3700,7 +3665,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       ],
-      "extraColumns": "entries",
       "entities": {
         "specs": {
           "time_entry": {
@@ -3757,10 +3721,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "time_tracking.read",
-          "track": "time_tracking.track",
-          "approve": "time_tracking.approve",
-          "manage": "time_tracking.manage"
+          "read": "time_entries.read",
+          "track": "time_entries.track",
+          "approve": "time_entries.approve",
+          "manage": "time_entries.manage"
         }
       }
     },
@@ -3788,8 +3752,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "service-accounts",
       "scopes": [
         "tenant"
-      ],
-      "extraColumns": "principals"
+      ]
     },
     {
       "name": "templates",
@@ -3811,7 +3774,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "templates",
       "entities": {
         "specs": {
           "template": {
@@ -3874,7 +3836,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "recruiting"
         ]
       },
-      "extraColumns": "pipelines",
       "entities": {
         "specs": {
           "pipeline": {
@@ -3933,7 +3894,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         "relations",
         "imports"
       ],
-      "extraColumns": "companies",
       "entities": {
         "specs": {
           "company": {
@@ -3984,8 +3944,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "domain": "domain",
               "website": "website",
               "vatId": "vat_id",
+              "legalName": "legal_name",
+              "registrationId": "registration_id",
+              "phone": "phone",
               "lifecycle": "lifecycle",
-              "owner": "owner_user_id",
+              "owner": "owner_id",
               "address": "address",
               "roles": "roles",
               "customerTermsId": "customer_terms_id",
@@ -4011,8 +3974,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "email": "email",
               "phone": "phone",
               "title": "title",
+              "mode": "mode",
               "lifecycle": "lifecycle",
-              "owner": "owner_user_id",
+              "owner": "owner_id",
               "user": "user_id",
               "avatarUrl": "avatar_url",
               "metadata": "metadata",
@@ -4042,7 +4006,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     },
     {
       "name": "activities",
-      "title": "Engagements",
+      "title": "Activities",
       "category": "crm",
       "requires": [
         "memberships",
@@ -4062,13 +4026,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "engagements",
       "entities": {
         "specs": {
           "activity": {
-            "table": "engagements",
+            "table": "activities",
             "singular": "activity",
-            "formerly": "engagement",
+            "keyed": true,
             "primary": true,
             "subject": {
               "title": "title",
@@ -4087,7 +4050,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "tables": {
-          "engagements": {
+          "activities": {
             "name": "activities",
             "columns": {
               "id": "id",
@@ -4096,7 +4059,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "title": "title",
               "body": "body",
               "outcome": "outcome",
-              "owner": "owner_user_id",
+              "owner": "owner_id",
               "dueAt": "due_at",
               "doneAt": "done_at",
               "durationSeconds": "duration_seconds",
@@ -4230,7 +4193,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           ]
         }
       ],
-      "extraColumns": "deals",
       "entities": {
         "specs": {
           "deal": {
@@ -4271,7 +4233,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "companyId": "company_id",
               "motion": "motion",
               "priority": "priority",
-              "owner": "owner_user_id",
+              "owner": "owner_id",
               "product": "product",
               "seats": "seats",
               "amount": "amount",
@@ -4354,13 +4316,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "items",
       "entities": {
         "specs": {
           "task": {
             "table": "items",
             "singular": "task",
-            "formerly": "work_item",
+            "keyed": true,
             "primary": true,
             "subject": {
               "title": "title",
@@ -4445,7 +4406,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "tenant": "tenant_id",
               "key": "key",
               "name": "name",
-              "owner": "owner_user_id",
+              "owner": "owner_id",
               "status": "status",
               "startOn": "start_on",
               "targetOn": "target_on",
@@ -4536,7 +4497,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "via": "quote_from_deal"
         }
       ],
-      "extraColumns": "quotes",
       "entities": {
         "specs": {
           "quote": {
@@ -4567,7 +4527,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "companyId": "company_id",
               "contactType": "contact_type",
               "contactId": "contact_id",
-              "owner": "owner_user_id",
+              "owner": "owner_id",
               "currency": "currency",
               "status": "status",
               "validUntil": "valid_until",
@@ -4581,7 +4541,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "decidedAt": "decided_at",
               "decidedBy": "decided_by",
               "decisionNote": "decision_note",
-              "decidedUser": "decided_user_id",
+              "decidedUser": "decider_id",
               "decidedIp": "decided_ip",
               "decidedUserAgent": "decided_user_agent",
               "pricesIncludeTax": "prices_include_tax",
@@ -4675,7 +4635,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       ],
-      "extraColumns": "invoices",
       "entities": {
         "specs": {
           "invoice": {
@@ -4788,7 +4747,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "subjects"
       ],
-      "extraColumns": "policies",
       "entities": {
         "specs": {
           "sla_policy": {
@@ -4845,13 +4803,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "targets",
       "entities": {
         "specs": {
           "goal": {
             "table": "targets",
             "singular": "goal",
-            "formerly": "target",
+            "keyed": true,
             "primary": true
           }
         },
@@ -4863,7 +4820,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "tenant": "tenant_id",
               "name": "name",
               "metric": "metric",
-              "owner": "owner_user_id",
+              "owner": "owner_id",
               "team": "team_id",
               "periodStart": "period_start",
               "periodEnd": "period_end",
@@ -4908,7 +4865,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "jobs",
       "entities": {
         "specs": {
           "job_opening": {
@@ -4936,7 +4892,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "location": "location",
               "employmentType": "employment_type",
               "description": "description",
-              "hiringManager": "hiring_manager_user_id",
+              "hiringManager": "hiring_manager_id",
               "status": "status",
               "openedAt": "opened_at",
               "closedAt": "closed_at",
@@ -4953,7 +4909,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "candidateType": "candidate_type",
               "candidateId": "candidate_id",
               "source": "source",
-              "owner": "owner_user_id",
+              "owner": "owner_id",
               "pipeline": "pipeline_id",
               "stage": "stage_id",
               "stageEnteredAt": "stage_entered_at",
@@ -5000,7 +4956,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "relations",
         "hiring",
-        "time-tracking",
+        "time-entries",
         "approvals"
       ],
       "manifest": "employees",
@@ -5022,7 +4978,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "employees",
       "entities": {
         "specs": {
           "employee": {
@@ -5092,19 +5047,18 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "teams",
-        "bulk"
+        "bulk-actions"
       ],
       "manifest": "collections",
       "scopes": [
         "tenant"
       ],
       "contributes": [
-        "bulk"
+        "bulk-actions"
       ],
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "collections",
       "entities": {
         "specs": {
           "subject_collection": {
@@ -5262,7 +5216,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "reviews",
       "entities": {
         "specs": {
           "review": {
@@ -5332,7 +5285,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "seeds": {
         "variants": []
       },
-      "extraColumns": "requests",
       "entities": {
         "specs": {
           "leave_request": {
@@ -5419,7 +5371,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "automation": {
             "table": "rules",
             "singular": "automation",
-            "formerly": "rule",
+            "keyed": true,
             "primary": true
           }
         },
@@ -5428,7 +5380,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "automations",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "subjectType": "subject_type",
               "trigger": "trigger",
               "name": "name",
@@ -5926,7 +5878,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "id": "id",
               "tenant": "tenant_id",
               "kind": "kind",
-              "holderUser": "holder_user_id",
+              "holderUser": "holder_id",
               "holderName": "holder_name",
               "holderEmail": "holder_email",
               "subjectType": "subject_type",
@@ -5935,8 +5887,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "resource": "resource_id",
               "usesAllowed": "uses_allowed",
               "uses": "uses",
-              "validFrom": "valid_from",
-              "validUntil": "valid_until",
+              "validFrom": "starts_at",
+              "validUntil": "expires_at",
               "status": "status",
               "nonce": "nonce",
               "issuedBy": "issued_by",
@@ -5977,7 +5929,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "memberships",
         "permissions",
         "subjects",
-        "time-tracking",
+        "time-entries",
         "invoices"
       ],
       "integrates": [
@@ -6047,7 +5999,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "accounting"
       ],
-      "extraColumns": "leases",
       "entities": {
         "specs": {
           "lease": {
@@ -6135,7 +6086,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       ],
-      "extraColumns": "reports",
       "entities": {
         "specs": {
           "expense_report": {
@@ -6257,7 +6207,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         "accounting",
         "numbering"
       ],
-      "extraColumns": "donations",
       "entities": {
         "specs": {
           "donation": {
@@ -6396,7 +6345,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "workOrders",
       "entities": {
         "specs": {
           "work_order": {
@@ -6505,7 +6453,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "shipments",
       "entities": {
         "specs": {
           "shipment": {
@@ -6543,6 +6490,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "fromAddress": "from_address",
               "toAddress": "to_address",
+              "direction": "direction",
               "fromLocation": "from_location_id",
               "subjectType": "subject_type",
               "subjectId": "subject_id",
@@ -6642,7 +6590,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "contracts",
       "entities": {
         "specs": {
           "contract": {
@@ -6660,7 +6607,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "contract_obligation": {
             "table": "obligations",
             "singular": "contract_obligation",
-            "formerly": "obligation"
+            "keyed": true
           }
         },
         "tables": {
@@ -6741,7 +6688,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "acknowledgements"
       ],
-      "extraColumns": "controls",
       "entities": {
         "specs": {
           "control": {
@@ -6767,7 +6713,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "compliance_policy": {
             "table": "policies",
             "singular": "compliance_policy",
-            "formerly": "policy",
+            "keyed": true,
             "subject": {
               "title": "title",
               "permissions": {
@@ -6870,7 +6816,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "incidents",
       "entities": {
         "specs": {
           "incident": {
@@ -6892,7 +6837,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "incident_postmortem": {
             "table": "postmortems",
             "singular": "incident_postmortem",
-            "formerly": "postmortem"
+            "keyed": true
           },
           "status_page": {
             "table": "pages",
@@ -6989,7 +6934,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "courses",
       "entities": {
         "specs": {
           "course": {
@@ -7116,7 +7060,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "messages",
       "entities": {
         "specs": {
           "message": {
@@ -7175,10 +7118,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "pinnedBy": "pinned_by",
               "resolvedAt": "resolved_at",
               "resolvedBy": "resolved_by",
-              "scheduledFor": "scheduled_for",
+              "scheduledFor": "scheduled_at",
               "sentAt": "sent_at",
               "editedAt": "edited_at",
-              "deletedAt": "deleted_at",
+              "deletedAt": "archived_at",
               "createdAt": "created_at"
             }
           },
@@ -7301,7 +7244,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "timeline_entry": {
             "table": "activity",
             "singular": "timeline_entry",
-            "formerly": "activity_entry",
+            "keyed": true,
             "primary": true
           }
         },
@@ -7310,7 +7253,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "timeline_entries",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "event": "event_id",
               "type": "type",
               "actor": "actor_id",
@@ -7375,7 +7318,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "snippet": "snippet",
               "lastMessageAt": "last_message_at",
               "messageCount": "message_count",
-              "engagement": "activity_id",
+              "activity": "activity_id",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
@@ -7749,7 +7692,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "posts",
       "entities": {
         "specs": {
           "post_board": {
@@ -7929,7 +7871,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "qualifications",
       "entities": {
         "specs": {
           "qualification": {
@@ -8042,7 +7983,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "seeds": {
         "variants": []
       },
-      "extraColumns": "risks",
       "entities": {
         "specs": {
           "risk": {
@@ -8172,7 +8112,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "employees",
         "leave",
         "qualifications",
-        "time-tracking",
+        "time-entries",
         "assets",
         "approvals",
         "notifications",
@@ -8186,7 +8126,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "shifts",
       "entities": {
         "specs": {
           "shift": {
@@ -8275,8 +8214,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "id": "id",
               "tenant": "tenant_id",
               "assignment": "assignment_id",
-              "fromUser": "from_user_id",
-              "toUser": "to_user_id",
+              "fromUser": "from_id",
+              "toUser": "to_id",
               "status": "status",
               "approval": "approval_id",
               "note": "note",
@@ -8341,7 +8280,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "nl-rgs"
         ]
       },
-      "extraColumns": "entries",
       "entities": {
         "specs": {
           "accounting_account": {
@@ -8599,11 +8537,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "subjectId": "subject_id",
               "givenBy": "given_by",
               "givenByContact": "given_by_contact_id",
-              "givenByUser": "given_by_user_id",
+              "givenByUser": "grantor_id",
               "status": "status",
               "scope": "scope",
               "grantedAt": "granted_at",
-              "validUntil": "valid_until",
+              "validUntil": "expires_at",
               "withdrawnAt": "withdrawn_at",
               "withdrawnReason": "withdrawn_reason",
               "signature": "signature_id",
@@ -8657,7 +8595,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "observations",
       "entities": {
         "specs": {
           "observation": {
@@ -8751,7 +8688,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "orders",
       "entities": {
         "specs": {
           "medication": {
@@ -8867,7 +8803,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "approvals"
       ],
-      "extraColumns": "plans",
       "entities": {
         "specs": {
           "care_plan": {
@@ -9062,7 +8997,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "seeds": {
         "variants": []
       },
-      "extraColumns": "cases",
       "entities": {
         "specs": {
           "case": {
@@ -9210,7 +9144,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         "numbering",
         "relations"
       ],
-      "extraColumns": "inspections",
       "entities": {
         "specs": {
           "inspection": {
@@ -9373,7 +9306,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         "numbering",
         "accounting"
       ],
-      "extraColumns": "orders",
       "entities": {
         "specs": {
           "production_order": {
@@ -9663,7 +9595,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           ]
         }
       ],
-      "extraColumns": "accounts",
       "entities": {
         "specs": {
           "bank_transaction": {
@@ -9814,7 +9745,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "meetings",
       "entities": {
         "specs": {
           "meeting": {
@@ -10029,7 +9959,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "contacts"
       ],
       "integrates": [
-        "time-tracking",
+        "time-entries",
         "bookings",
         "invoices",
         "numbering",
@@ -10041,7 +9971,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "awards",
       "entities": {
         "specs": {
           "funding_product": {
@@ -10177,7 +10106,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "permissions"
       ],
       "integrates": [
-        "time-tracking",
+        "time-entries",
         "leave",
         "shifts",
         "employees",
@@ -10582,6 +10511,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "invoices",
+        "inventory",
+        "catalog",
         "quotes",
         "orders",
         "shipments",
@@ -10598,6 +10529,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "imports"
       ],
+      "seeds": {
+        "variants": []
+      },
       "entities": {
         "specs": {
           "document_template": {
@@ -10845,7 +10779,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "id": "id",
               "tenant": "tenant_id",
               "cycle": "cycle_id",
-              "subjectUser": "subject_user_id",
+              "subjectUser": "appraisee_id",
               "manager": "manager_id",
               "status": "status",
               "rating": "rating",
@@ -11761,7 +11695,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "tenant": "tenant_id",
               "code": "code_id",
               "referrer": "referrer_id",
-              "referredUser": "referred_user_id",
+              "referredUser": "referred_id",
               "referredOrganization": "referred_organization_id",
               "referredEmail": "referred_email",
               "status": "status",
@@ -12427,7 +12361,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "composes": [
         "tasks",
-        "time-tracking",
+        "time-entries",
         "billable-time",
         "approvals",
         "invoices",
@@ -12592,7 +12526,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "bookings",
         "calendar",
         "reminders",
-        "time-tracking",
+        "time-entries",
         "funding",
         "shifts",
         "qualifications",
@@ -14257,19 +14191,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "bulk",
+      "name": "bulk-actions",
       "sql": [
-        "bulk"
+        "bulk-actions"
       ],
       "category": "work",
       "client": {
-        "export": "bulkBlock",
-        "subpath": "better-supabase/blocks/bulk"
+        "export": "bulkActionsBlock",
+        "subpath": "better-supabase/blocks/bulk-actions"
       },
       "consumes": {},
       "provides": [],
       "events": {
-        "type": "BulkEvents",
+        "type": "BulkActionsEvents",
         "types": [
           "bulk_run.completed"
         ]
@@ -15821,40 +15755,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entityTypes": [
         {
-          "name": "CustomFields"
-        },
-        {
-          "name": "CustomFieldsEvents"
-        },
-        {
-          "name": "CustomFieldsOptions"
-        },
-        {
-          "name": "CustomFieldType"
-        },
-        {
           "name": "FieldDefinition"
         },
         {
           "name": "FieldDefinitionDetail"
-        },
-        {
-          "name": "FieldEntityScope"
-        },
-        {
-          "name": "FieldPack"
-        },
-        {
-          "name": "FieldPackField"
-        },
-        {
-          "name": "FieldPackInstall"
-        },
-        {
-          "name": "FieldValue"
-        },
-        {
-          "name": "SetFieldInput"
         }
       ],
       "record": [
@@ -18659,6 +18563,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ShipmentCreatedEventData"
         },
         {
+          "name": "ShipmentDirection"
+        },
+        {
           "name": "ShipmentInput",
           "fields": true
         },
@@ -18716,9 +18623,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ShipmentsOptions"
-        },
-        {
-          "name": "ShipmentsSqlOptions"
         },
         {
           "name": "ShipmentStatus"
@@ -18975,18 +18879,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ContractStatusChangedEventData"
-        },
-        {
-          "name": "ObligationEventData"
-        },
-        {
-          "name": "ObligationInput"
-        },
-        {
-          "name": "ObligationListOptions"
-        },
-        {
-          "name": "ObligationStatus"
         }
       ],
       "entitySchemas": {
@@ -19393,18 +19285,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "EvidenceTaskMissedEventData"
-        },
-        {
-          "name": "Policy"
-        },
-        {
-          "name": "PolicyInput"
-        },
-        {
-          "name": "PolicyListOptions"
-        },
-        {
-          "name": "PolicyPublishedEventData"
         }
       ],
       "entitySchemas": {
@@ -19887,24 +19767,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "IncidentUpdateInput"
-        },
-        {
-          "name": "Postmortem"
-        },
-        {
-          "name": "PostmortemAction"
-        },
-        {
-          "name": "PostmortemActionInput"
-        },
-        {
-          "name": "PostmortemInput"
-        },
-        {
-          "name": "PostmortemPublishedEventData"
-        },
-        {
-          "name": "PostmortemStatus"
         },
         {
           "name": "PublicIncident"
@@ -20401,9 +20263,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "CoursesOptions"
-        },
-        {
-          "name": "CoursesSqlOptions"
         },
         {
           "name": "CourseStatus"
@@ -25617,7 +25476,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "vulnerability.created",
           "vulnerability.enriched",
           "vulnerability.exploited",
-          "vex_statement.saved",
+          "vex_statement.updated",
           "advisory.created",
           "advisory.updated",
           "advisory.published"
@@ -28761,39 +28620,49 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entityTypes": [
         {
-          "name": "Engagement",
+          "name": "Activities",
           "fields": true
         },
         {
-          "name": "EngagementActionItem"
+          "name": "ActivitiesEvents"
         },
         {
-          "name": "EngagementAudience"
+          "name": "ActivitiesOptions"
         },
         {
-          "name": "EngagementInput",
+          "name": "Activity",
           "fields": true
         },
         {
-          "name": "EngagementNotes"
+          "name": "ActivityActionItem"
         },
         {
-          "name": "EngagementNotesInput"
+          "name": "ActivityAudience"
         },
         {
-          "name": "EngagementRecording"
+          "name": "ActivityInput",
+          "fields": true
         },
         {
-          "name": "EngagementRecordingStatus"
+          "name": "ActivityNotes"
         },
         {
-          "name": "EngagementSubject"
+          "name": "ActivityNotesInput"
+        },
+        {
+          "name": "ActivityRecording"
+        },
+        {
+          "name": "ActivityRecordingStatus"
+        },
+        {
+          "name": "ActivitySubject"
         }
       ],
       "entitySchemas": {
         "activity": {
           "input": {
-            "title": "EngagementInput",
+            "title": "ActivityInput",
             "fields": {
               "type": {
                 "kind": "string",
@@ -28875,7 +28744,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             },
             "jsonSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "EngagementInput",
+              "title": "ActivityInput",
               "type": "object",
               "properties": {
                 "type": {
@@ -28978,7 +28847,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           },
           "change": {
-            "title": "EngagementChange",
+            "title": "ActivityChange",
             "fields": {
               "type": {
                 "kind": "string",
@@ -29062,7 +28931,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             },
             "jsonSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "EngagementChange",
+              "title": "ActivityChange",
               "type": "object",
               "properties": {
                 "type": {
@@ -29770,6 +29639,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "allocation.created",
           "allocation.filled",
           "allocation.released",
+          "allocation.transferred",
           "transfer.shipped",
           "transfer.received",
           "transfer.cancelled",
@@ -30626,11 +30496,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "composedBy": [
         "collaboration"
-      ],
-      "entityTypes": [
-        {
-          "name": "ActivityEntry"
-        }
       ]
     },
     {
@@ -31564,6 +31429,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "PersonInput"
+        },
+        {
+          "name": "PersonMode"
         }
       ],
       "entitySchemas": {
@@ -31593,6 +31461,21 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "nullable": true
               },
               "vatId": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "legalName": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "registrationId": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "phone": {
                 "kind": "string",
                 "optional": true,
                 "nullable": true
@@ -31675,6 +31558,24 @@ export const PRESET_CATALOG: PresetCatalog = {
                   ]
                 },
                 "vatId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "legalName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "registrationId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "phone": {
                   "type": [
                     "string",
                     "null"
@@ -31861,6 +31762,14 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true
               },
+              "mode": {
+                "kind": "enum",
+                "values": [
+                  "external",
+                  "tenant"
+                ],
+                "optional": true
+              },
               "lifecycle": {
                 "kind": "string",
                 "optional": true
@@ -31942,6 +31851,13 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": [
                     "string",
                     "null"
+                  ]
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "external",
+                    "tenant"
                   ]
                 },
                 "lifecycle": {
@@ -32547,7 +32463,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "ReactionsEvents",
         "types": [
           "reaction.added",
-          "reaction.removed"
+          "reaction.deleted"
         ]
       }
     },
@@ -32725,100 +32641,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
-          "name": "Rule"
+          "name": "Automations"
         },
         {
-          "name": "RuleAction"
+          "name": "AutomationsAdmin"
         },
         {
-          "name": "RuleActionOutcome"
+          "name": "AutomationsEvents"
         },
         {
-          "name": "RuleApprovals"
+          "name": "AutomationsOptions"
         },
         {
-          "name": "RuleBuilderActions"
-        },
-        {
-          "name": "RuleBuilderController"
-        },
-        {
-          "name": "RuleBuilderControllerOptions"
-        },
-        {
-          "name": "RuleBuilderSnapshot"
-        },
-        {
-          "name": "RuleDispatcher"
-        },
-        {
-          "name": "RuleDispatcherOptions"
-        },
-        {
-          "name": "RuleEvaluationEntry"
-        },
-        {
-          "name": "RuleEventData"
-        },
-        {
-          "name": "RuleField"
-        },
-        {
-          "name": "RuleFieldCatalog"
-        },
-        {
-          "name": "RuleFieldDefinition"
-        },
-        {
-          "name": "RuleFieldSetter"
-        },
-        {
-          "name": "RuleFieldWrite"
-        },
-        {
-          "name": "RuleInput"
-        },
-        {
-          "name": "RuleListOptions"
-        },
-        {
-          "name": "RuleMatch"
-        },
-        {
-          "name": "RuleMatchedEventData"
-        },
-        {
-          "name": "RuleNotifier"
-        },
-        {
-          "name": "RuleRun"
-        },
-        {
-          "name": "RulesAdminOptions"
-        },
-        {
-          "name": "RuleSinkEvent"
-        },
-        {
-          "name": "RuleSinkOptions"
-        },
-        {
-          "name": "RuleSinkTarget"
-        },
-        {
-          "name": "RuleSubject"
-        },
-        {
-          "name": "RuleSubjectContext"
-        },
-        {
-          "name": "RuleVersion"
-        },
-        {
-          "name": "RuleWebhooks"
-        },
-        {
-          "name": "RuleWorkflows"
+          "name": "DefaultAutomation"
         }
       ],
       "events": {
@@ -33391,19 +33226,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entityTypes": [
         {
-          "name": "Target",
+          "name": "Goals",
           "fields": true
         },
         {
-          "name": "TargetInput",
-          "fields": true
-        },
-        {
-          "name": "TargetMetric"
-        },
-        {
-          "name": "TargetProgress",
-          "fields": true
+          "name": "GoalsOptions"
         }
       ]
     },
@@ -33456,7 +33283,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "team.restored",
           "team.deleted",
           "team_member.added",
-          "team_member.removed"
+          "team_member.deleted"
         ]
       }
     },
@@ -33599,14 +33426,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extension": "membershipsExtension"
     },
     {
-      "name": "time-tracking",
+      "name": "time-entries",
       "sql": [
-        "time-tracking"
+        "time-entries"
       ],
       "category": "people",
       "client": {
-        "export": "timeTrackingBlock",
-        "subpath": "better-supabase/blocks/time-tracking"
+        "export": "timeEntriesBlock",
+        "subpath": "better-supabase/blocks/time-entries"
       },
       "consumes": {},
       "provides": [],
@@ -33615,6 +33442,22 @@ export const PRESET_CATALOG: PresetCatalog = {
         "care"
       ],
       "entityTypes": [
+        {
+          "name": "TimeEntries",
+          "fields": true
+        },
+        {
+          "name": "TimeEntriesEvents"
+        },
+        {
+          "name": "TimeEntriesMetrics"
+        },
+        {
+          "name": "TimeEntriesMetricsOptions"
+        },
+        {
+          "name": "TimeEntriesOptions"
+        },
         {
           "name": "TimeEntry",
           "fields": true
@@ -33651,7 +33494,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         }
       ],
       "events": {
-        "type": "TimeTrackingEvents",
+        "type": "TimeEntriesEvents",
         "types": [
           "time_entry.started",
           "time_entry.recorded",
@@ -33918,61 +33761,77 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "Project"
         },
         {
-          "name": "WorkItem",
+          "name": "Task",
           "fields": true
         },
         {
-          "name": "WorkItemChange",
+          "name": "TaskChange",
           "fields": true
         },
         {
-          "name": "WorkItemChangeResult"
+          "name": "TaskChangeResult"
         },
         {
-          "name": "WorkItemChecklistOptimisticAction"
+          "name": "TaskChecklistOptimisticAction"
         },
         {
-          "name": "WorkItemField"
+          "name": "TaskField"
         },
         {
-          "name": "WorkItemInput",
+          "name": "TaskFromConversationClients"
+        },
+        {
+          "name": "TaskFromConversationOptions"
+        },
+        {
+          "name": "TaskInput",
           "fields": true
         },
         {
-          "name": "WorkItemListOptions"
+          "name": "TaskListOptions"
         },
         {
-          "name": "WorkItemNode"
+          "name": "TaskNode"
         },
         {
-          "name": "WorkItemRecurrence"
+          "name": "TaskRecurrence"
         },
         {
-          "name": "WorkItemRecurrenceSinkOptions"
+          "name": "TaskRecurrenceSinkOptions"
         },
         {
-          "name": "WorkItemSetResult"
+          "name": "Tasks",
+          "fields": true
         },
         {
-          "name": "WorkItemState"
+          "name": "TaskSetResult"
         },
         {
-          "name": "WorkItemUpdateOptions"
+          "name": "TasksEvents"
         },
         {
-          "name": "WorkItemWatcher"
+          "name": "TasksOptions"
         },
         {
-          "name": "WorkItemWatchLevel"
+          "name": "TaskState"
         },
         {
-          "name": "WorkItemWindow"
+          "name": "TaskUpdateOptions"
+        },
+        {
+          "name": "TaskWatcher"
+        },
+        {
+          "name": "TaskWatchLevel"
+        },
+        {
+          "name": "TaskWindow"
         }
       ],
       "entitySchemas": {
         "task": {
           "input": {
-            "title": "WorkItemInput",
+            "title": "TaskInput",
             "fields": {
               "title": {
                 "kind": "string",
@@ -34049,7 +33908,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             },
             "jsonSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "WorkItemInput",
+              "title": "TaskInput",
               "type": "object",
               "properties": {
                 "title": {
@@ -34128,9 +33987,9 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           },
           "change": {
-            "title": "WorkItemChange",
+            "title": "TaskChange",
             "fields": {
-              "workItemId": {
+              "taskId": {
                 "kind": "uuid"
               },
               "field": {
@@ -34144,10 +34003,10 @@ export const PRESET_CATALOG: PresetCatalog = {
             },
             "jsonSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "WorkItemChange",
+              "title": "TaskChange",
               "type": "object",
               "properties": {
-                "workItemId": {
+                "taskId": {
                   "type": "string",
                   "format": "uuid"
                 },
@@ -34160,7 +34019,7 @@ export const PRESET_CATALOG: PresetCatalog = {
                 }
               },
               "required": [
-                "workItemId",
+                "taskId",
                 "field",
                 "value"
               ],
@@ -34168,7 +34027,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           },
           "listFilter": {
-            "title": "WorkItemListOptions",
+            "title": "TaskListOptions",
             "fields": {
               "teamId": {
                 "kind": "uuid",
@@ -34223,7 +34082,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             },
             "jsonSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "WorkItemListOptions",
+              "title": "TaskListOptions",
               "type": "object",
               "properties": {
                 "teamId": {

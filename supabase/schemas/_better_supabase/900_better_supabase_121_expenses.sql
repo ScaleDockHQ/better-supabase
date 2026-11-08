@@ -1,130 +1,46 @@
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:0204201ce3b7241ac74cb1375e6601135f4c41f5584ab0d709a6012a54fb6b6e
+-- @bsb-hash sha256:e871c04a9abf0965f4228fb0fb9f509eb1c4c8594793ac8d3122fef218d047f6
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."expense_categories";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."expense_categories";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."expense_categories";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."expense_categories";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."expense_categories";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."expense_reports";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."expense_reports";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."expense_reports";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."expense_reports";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."expense_reports";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."expense_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."expense_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."expense_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."expense_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."expense_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Expenses: reports of lines in categories, spend policies checked on
 -- submit, approval through the approvals block, and the approved total and
 -- its reimbursement posted on the ledger.
 
 -- A category with its spend policy: limit_amount caps a report's total in
 -- the category, receipt_over needs a receipt on any line above it.
-create table if not exists "better_supabase"."expense_categories" (
+create table "better_supabase"."expense_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
-  "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0),
-  "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0),
+  "key" text not null constraint bsb_expense_categories_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_expense_categories_name_check check (length("name") >= 1 and length("name") <= 200),
+  "currency" char(3) constraint bsb_expense_categories_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "limit_amount" bigint constraint bsb_expense_categories_limit_amount_check check ("limit_amount" is null or "limit_amount" > 0),
+  "receipt_over" bigint constraint bsb_expense_categories_receipt_over_check check ("receipt_over" is null or "receipt_over" >= 0),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id"),
-  check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
+  constraint bsb_expense_categories_check check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
 );
 alter table "better_supabase"."expense_categories" enable row level security;
 revoke all on "better_supabase"."expense_categories" from public, anon, authenticated;
 grant select on "better_supabase"."expense_categories" to authenticated;
 grant all on "better_supabase"."expense_categories" to service_role;
-drop policy if exists "expense_categories_read" on "better_supabase"."expense_categories";
-create policy expense_categories_read on "better_supabase"."expense_categories"
+create policy bsb_expense_categories_read on "better_supabase"."expense_categories"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
-create table if not exists "better_supabase"."expense_reports" (
+create table "better_supabase"."expense_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "title" text not null check (length("title") between 1 and 200),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "title" text not null constraint bsb_expense_reports_title_check check (length("title") >= 1 and length("title") <= 200),
+  "currency" char(3) not null constraint bsb_expense_reports_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "note" text constraint bsb_expense_reports_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "submitted_at" timestamptz,
   "approved_at" timestamptz,
@@ -135,51 +51,48 @@ create table if not exists "better_supabase"."expense_reports" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "expense_reports_tenant_idx" on "better_supabase"."expense_reports" ("tenant_id", "created_at" desc);
-create index if not exists "expense_reports_user_idx" on "better_supabase"."expense_reports" ("user_id", "tenant_id");
-create index if not exists "expense_reports_approval_idx" on "better_supabase"."expense_reports" ("approval_id") where "approval_id" is not null;
-create index if not exists "expense_reports_approval_tx_idx" on "better_supabase"."expense_reports" ("approval_transaction_id") where "approval_transaction_id" is not null;
-create index if not exists "expense_reports_reimbursement_idx" on "better_supabase"."expense_reports" ("reimbursement_transaction_id") where "reimbursement_transaction_id" is not null;
+create index "expense_reports_tenant_idx" on "better_supabase"."expense_reports" ("tenant_id", "created_at" desc);
+create index "expense_reports_user_idx" on "better_supabase"."expense_reports" ("user_id", "tenant_id");
+create index "expense_reports_approval_idx" on "better_supabase"."expense_reports" ("approval_id") where "approval_id" is not null;
+create index "expense_reports_approval_tx_idx" on "better_supabase"."expense_reports" ("approval_transaction_id") where "approval_transaction_id" is not null;
+create index "expense_reports_reimbursement_idx" on "better_supabase"."expense_reports" ("reimbursement_transaction_id") where "reimbursement_transaction_id" is not null;
 alter table "better_supabase"."expense_reports" enable row level security;
 revoke all on "better_supabase"."expense_reports" from public, anon, authenticated;
 grant select on "better_supabase"."expense_reports" to authenticated;
 grant all on "better_supabase"."expense_reports" to service_role;
-drop policy if exists "expense_reports_read" on "better_supabase"."expense_reports";
-create policy expense_reports_read on "better_supabase"."expense_reports"
+create policy bsb_expense_reports_read on "better_supabase"."expense_reports"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
-create table if not exists "better_supabase"."expense_lines" (
+create table "better_supabase"."expense_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "report_id" uuid not null references "better_supabase"."expense_reports" ("id") on delete cascade,
   "category_id" uuid not null,
   "spent_on" date not null,
-  "description" text not null check (length("description") between 1 and 500),
-  "merchant" text check ("merchant" is null or length("merchant") <= 200),
+  "description" text not null constraint bsb_expense_lines_description_check check (length("description") >= 1 and length("description") <= 500),
+  "merchant" text constraint bsb_expense_lines_merchant_check check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
-  "amount" bigint not null check ("amount" > 0),
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "amount" bigint not null constraint bsb_expense_lines_amount_check check ("amount" > 0),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_expense_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "category_id") references "better_supabase"."expense_categories" ("tenant_id", "id") on delete restrict
 );
-alter table "better_supabase"."expense_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
-create index if not exists "expense_lines_report_idx" on "better_supabase"."expense_lines" ("report_id", "spent_on");
-create index if not exists "expense_lines_category_idx" on "better_supabase"."expense_lines" ("tenant_id", "category_id");
+create index "expense_lines_report_idx" on "better_supabase"."expense_lines" ("report_id", "spent_on");
+create index "expense_lines_category_idx" on "better_supabase"."expense_lines" ("tenant_id", "category_id");
 alter table "better_supabase"."expense_lines" enable row level security;
 revoke all on "better_supabase"."expense_lines" from public, anon, authenticated;
 grant select on "better_supabase"."expense_lines" to authenticated;
 grant all on "better_supabase"."expense_lines" to service_role;
-drop policy if exists "expense_lines_read" on "better_supabase"."expense_lines";
-create policy expense_lines_read on "better_supabase"."expense_lines"
+create policy bsb_expense_lines_read on "better_supabase"."expense_lines"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."expense_reports" p where p."id" = "report_id" and p."user_id" = (select auth.uid()))
     or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
 -- Creates or updates the category with this key and its spend policy. fields:
--- the extra columns (options.categoryExtraColumns) to set.
-drop function if exists "better_supabase"."save_expense_category"(uuid, text, text, text, bigint, bigint, jsonb);
+-- the extra columns (columns your schema files add) to set.
+
 create or replace function "better_supabase"."save_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
 returns jsonb
 language plpgsql
@@ -305,7 +218,7 @@ $$;
 revoke execute on function "better_supabase"."expense_report_violations"(uuid) from public, anon, authenticated;
 
 -- Opens a draft report in one currency. fields: the extra columns to set.
-drop function if exists "better_supabase"."create_expense_report"(uuid, text, text, text, jsonb);
+
 create or replace function "better_supabase"."create_expense_report"(tenant uuid, title text, currency text, note text default null)
 returns jsonb
 language plpgsql
@@ -888,62 +801,38 @@ revoke execute on function "better_supabase"."accounting_expense_reimbursement_l
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."expense_categories";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."expense_categories";
 create policy bsb_tenant_scope_select on "better_supabase"."expense_categories" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."expense_categories";
 create policy bsb_tenant_scope_insert on "better_supabase"."expense_categories" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."expense_categories";
 create policy bsb_tenant_scope_update on "better_supabase"."expense_categories" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."expense_categories";
 create policy bsb_tenant_scope_delete on "better_supabase"."expense_categories" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."expense_reports";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."expense_reports";
 create policy bsb_tenant_scope_select on "better_supabase"."expense_reports" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."expense_reports";
 create policy bsb_tenant_scope_insert on "better_supabase"."expense_reports" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."expense_reports";
 create policy bsb_tenant_scope_update on "better_supabase"."expense_reports" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."expense_reports";
 create policy bsb_tenant_scope_delete on "better_supabase"."expense_reports" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."expense_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."expense_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."expense_lines" as restrictive
   for select to public
   using (
@@ -951,64 +840,25 @@ create policy bsb_tenant_scope_select on "better_supabase"."expense_lines" as re
     or (exists (select 1 from "better_supabase"."expense_reports" p where p."id" = "report_id" and p."user_id" = (select auth.uid()))
     or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."expense_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."expense_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."expense_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."expense_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."expense_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."expense_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.expense_reports', target_type => 'expense_report', event_prefix => 'expense_report', deferred => true);
-  perform better_supabase.audit('better_supabase.expense_lines', target_type => 'expense_line', event_prefix => 'expense_line', deferred => true);
-  perform better_supabase.audit('better_supabase.expense_categories', target_type => 'expense_category', event_prefix => 'expense_category', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.expense_reports deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"expense_report","event_prefix":"expense_report"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.expense_lines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"expense_line","event_prefix":"expense_line"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.expense_categories deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"expense_category","event_prefix":"expense_category"}');
 
 -- blocks.expenses.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."save_expense_category"(uuid, text, text, text, bigint, bigint, jsonb);
-drop function if exists "api"."create_expense_report"(uuid, text, text, text, jsonb);
-
-create or replace function "api"."import_run"()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."import_run"() $$;
-revoke execute on function "api"."import_run"() from public;
-grant execute on function "api"."import_run"() to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."save_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
 returns jsonb
@@ -1130,16 +980,3 @@ set search_path = ''
 as $$ select "better_supabase"."list_expense_reports"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."list_expense_reports"(uuid, uuid, text, boolean, integer) from public, anon;
 grant execute on function "api"."list_expense_reports"(uuid, uuid, text, boolean, integer) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

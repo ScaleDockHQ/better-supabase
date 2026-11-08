@@ -48,6 +48,48 @@ function deliveryQueueOf(ctx: BlockSqlContext): string {
   return queue;
 }
 
+/** The tables the World's DDL and this module create in the `workflow` schema. */
+function workflowTables(): string[] {
+  const names = new Set<string>(["workflow_run_keys"]);
+
+  for (const match of WORLD_POSTGRES_DDL.matchAll(
+    /create table (?:if not exists )?workflow\.(\w+)/gu,
+  )) {
+    names.add(match[1]!);
+  }
+
+  return [...names].toSorted();
+}
+
+/**
+ * The sequences behind the `serial` columns of the World's tables, as
+ * `<table>_<column>_seq`, so the service role's grants name each one.
+ */
+function workflowSequences(): string[] {
+  return [
+    ...WORLD_POSTGRES_DDL.matchAll(
+      /create table (?:if not exists )?workflow\.(\w+) \(([\s\S]*?)\n\);/gu,
+    ),
+  ]
+    .flatMap(([, table = "", body = ""]) =>
+      [...body.matchAll(/"(\w+)" (?:big|small)?serial\b/gu)].map(
+        ([, column = ""]) => `${table}_${column}_seq`,
+      ),
+    )
+    .toSorted();
+}
+
+/** Row level security and the service role's grants, one set per table. */
+function workflowTableAccess(): string {
+  return workflowTables()
+    .map(
+      (table) => `alter table workflow.${table} enable row level security;
+revoke all on workflow.${table} from public, anon, authenticated;
+grant all on workflow.${table} to service_role;`,
+    )
+    .join("\n");
+}
+
 const PRINCIPAL_KINDS = "'user', 'service_principal', 'system', 'external'";
 
 /** The functions only the service role calls, with their argument types. */
@@ -81,19 +123,6 @@ function build(ctx: BlockSqlContext): string {
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 ${WORLD_POSTGRES_DDL}
--- world-postgres 5.1 stores timestamptz; 5.0 tables hold UTC timestamps.
-do $$
-declare
-  c record;
-begin
-  for c in select table_name, column_name from information_schema.columns
-    where table_schema = 'workflow' and data_type = 'timestamp without time zone'
-  loop
-    execute format('alter table workflow.%I alter column %I type timestamptz using %I at time zone ''UTC''', c.table_name, c.column_name, c.column_name);
-  end loop;
-end
-$$;
-
 -- One row per start idempotency key: startFor claims the key before it starts
 -- a run, so two concurrent starts with one key start one run. run_id is null
 -- while the start that claimed it is still running.
@@ -105,21 +134,13 @@ create table if not exists workflow.workflow_run_keys (
 create index if not exists workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
-do $$
-declare
-  t record;
-begin
-  for t in select c.relname from pg_catalog.pg_class c
-    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'workflow' and c.relkind = 'r'
-  loop
-    execute format('alter table workflow.%I enable row level security', t.relname);
-    execute format('revoke all on workflow.%I from public, anon, authenticated', t.relname);
-    execute format('grant all on workflow.%I to service_role', t.relname);
-  end loop;
-end;
-$$;
-grant usage, select on all sequences in schema workflow to service_role;
+${workflowTableAccess()}
+${workflowSequences()
+  .map(
+    (name) =>
+      `grant usage, select on sequence workflow.${name} to service_role;`,
+  )
+  .join("\n")}
 create index if not exists workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
 
 -- Copies each World run into workflow_runs: its tenant and actor come from
@@ -419,7 +440,21 @@ function data(ctx: BlockSqlContext): string {
     return "";
   }
 
-  const parts: string[] = [];
+  // world-postgres 5.1 stores timestamptz; 5.0 tables hold UTC timestamps. A
+  // schema diff can't convert the rows, so the data file does.
+  const parts: string[] = [
+    `do $$
+declare
+  c record;
+begin
+  for c in select table_name, column_name from information_schema.columns
+    where table_schema = 'workflow' and data_type = 'timestamp without time zone'
+  loop
+    execute format('alter table workflow.%I alter column %I type timestamptz using %I at time zone ''UTC''', c.table_name, c.column_name, c.column_name);
+  end loop;
+end
+$$;`,
+  ];
 
   if (deliveryModeOf(ctx) === "pg_net") {
     const schedule = ctx.text("schedule", "1 seconds");
@@ -447,7 +482,7 @@ ${cronJob(
   "better-supabase-workflow-purge",
   "17 * * * *",
   `select ${purge}(interval ${sqlString(retention)})`,
-  `pg_cron is not installed: run better-supabase db prune-workflows on a schedule to delete old workflow runs`,
+  `pg_cron is not installed: run better-supabase workflows prune on a schedule to delete old workflow runs`,
 )}`,
     );
   }

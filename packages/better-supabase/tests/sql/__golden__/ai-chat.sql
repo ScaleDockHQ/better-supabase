@@ -1,128 +1,45 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:d136a1ff8a286ff4fc2b316a12ea9e71ef8e705333b2e14d2226d66c566767a5
+-- @bsb-hash sha256:31563b1743768cd546dddfb973f51d5880ad1c721a394105d5d5a94b47a2e1da
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_tool_policies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_moderation_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Projects group chats and carry instructions and a default model.
-create table if not exists "better_supabase"."ai_projects" (
+create table "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
-  "instructions" text not null default '' check (length("instructions") <= 20000),
-  "default_model" text check (length("default_model") <= 200),
+  "name" text not null constraint bsb_ai_projects_name_check check (length("name") >= 1 and length("name") <= 200),
+  "instructions" text not null default '' constraint bsb_ai_projects_instructions_check check (length("instructions") <= 20000),
+  "default_model" text constraint bsb_ai_projects_default_model_check check (length("default_model") <= 200),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "organization_id");
+create index ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "tenant_id");
 alter table "better_supabase"."ai_projects" enable row level security;
 revoke all on "better_supabase"."ai_projects" from public, anon, authenticated;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
-drop policy if exists ai_projects_owner_read on "better_supabase"."ai_projects";
-create policy ai_projects_owner_read on "better_supabase"."ai_projects"
+create policy bsb_ai_projects_owner_read on "better_supabase"."ai_projects"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
 -- active_stream_id is the reply being written, claimed compare-and-set.
-create table if not exists "better_supabase"."ai_chats" (
+create table "better_supabase"."ai_chats" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "project_id" uuid references "better_supabase"."ai_projects" ("id") on delete set null,
-  "agent_id" text check (length("agent_id") <= 200),
-  "title" text not null default '' check (length("title") <= 300),
-  "model" text check (length("model") <= 200),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'shared')),
-  "mode" text check (length("mode") <= 100),
+  "agent_id" text constraint bsb_ai_chats_agent_id_check check (length("agent_id") <= 200),
+  "title" text not null default '' constraint bsb_ai_chats_title_check check (length("title") <= 300),
+  "model" text constraint bsb_ai_chats_model_check check (length("model") <= 200),
+  "visibility" text not null default 'private' constraint bsb_ai_chats_visibility_check check ("visibility" in ('private', 'organization', 'shared')),
+  "mode" text constraint bsb_ai_chats_mode_check check (length("mode") <= 100),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "is_temporary" boolean not null default false,
@@ -134,13 +51,13 @@ create table if not exists "better_supabase"."ai_chats" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "title")) stored,
-  check (not "is_temporary" or "expires_at" is not null)
+  constraint bsb_ai_chats_check check (not "is_temporary" or "expires_at" is not null)
 );
-create index if not exists ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
-create index if not exists ai_chats_tenant_idx on "better_supabase"."ai_chats" ("organization_id");
-create index if not exists ai_chats_project_idx on "better_supabase"."ai_chats" ("project_id");
-create index if not exists ai_chats_expires_idx on "better_supabase"."ai_chats" ("expires_at") where "is_temporary";
-create index if not exists ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
+create index ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
+create index ai_chats_tenant_idx on "better_supabase"."ai_chats" ("tenant_id");
+create index ai_chats_project_idx on "better_supabase"."ai_chats" ("project_id");
+create index ai_chats_expires_idx on "better_supabase"."ai_chats" ("expires_at") where "is_temporary";
+create index ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
 alter table "better_supabase"."ai_chats" enable row level security;
 revoke all on "better_supabase"."ai_chats" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chats" to service_role;
@@ -150,190 +67,183 @@ grant select on "better_supabase"."ai_chats" to authenticated;
 -- to it (editor): a user, every member of a team, a customer with guest
 -- access, or an external email that reads only through the live link. Each
 -- user sees only their own rows.
-create table if not exists "better_supabase"."ai_chat_participants" (
+create table "better_supabase"."ai_chat_participants" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'user' check ("kind" in ('user', 'team', 'customer', 'external')),
+  "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external')),
   "team_id" uuid,
-  "customer_user_id" uuid references auth.users (id) on delete cascade,
-  "email" text check (length("email") <= 320),
-  "role" text not null default 'viewer' check ("role" in ('viewer', 'editor')),
+  "customer_id" uuid references auth.users (id) on delete cascade,
+  "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320),
+  "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor')),
   "added_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
-  check (
+  constraint bsb_ai_chat_participants_check check (
     ("kind" = 'user' and "user_id" is not null)
     or ("kind" = 'team' and "team_id" is not null)
-    or ("kind" = 'customer' and "customer_user_id" is not null)
+    or ("kind" = 'customer' and "customer_id" is not null)
     or ("kind" = 'external' and "email" is not null)
   )
 );
-create unique index if not exists ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
-create unique index if not exists ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
-create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
-create unique index if not exists ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
-create index if not exists ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
-create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
-create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
-create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
+create unique index ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
+create unique index ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
+create unique index ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_id") where "kind" = 'customer';
+create unique index ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
+create index ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_id");
+create index ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
 grant select on "better_supabase"."ai_chat_participants" to authenticated;
-drop policy if exists ai_chat_participants_own_read on "better_supabase"."ai_chat_participants";
-create policy ai_chat_participants_own_read on "better_supabase"."ai_chat_participants"
+create policy bsb_ai_chat_participants_own_read on "better_supabase"."ai_chat_participants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists ai_chats_read on "better_supabase"."ai_chats";
-create policy ai_chats_read on "better_supabase"."ai_chats"
+create policy bsb_ai_chats_read on "better_supabase"."ai_chats"
   for select to authenticated
   using ("owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
+    or ("visibility" = 'organization' and "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
     or ("better_supabase"."ai_chats"."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())))))));
 
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
 -- parts holds the canonical AI message parts; native the SDK's own shape.
-create table if not exists "better_supabase"."ai_messages" (
+create table "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") between 1 and 200),
+  "id" text not null constraint bsb_ai_messages_id_check check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
-  "role" text not null check ("role" in ('system', 'user', 'assistant', 'tool')),
-  "parts" jsonb not null default '[]' check (
+  "role" text not null constraint bsb_ai_messages_role_check check ("role" in ('system', 'user', 'assistant', 'tool')),
+  "parts" jsonb not null default '[]' constraint bsb_ai_messages_parts_check check (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") between 1 and 50),
+  "format" text not null default 'canonical' constraint bsb_ai_messages_format_check check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_messages_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "model" text,
-  "status" text not null default 'complete' check ("status" in ('complete', 'aborted', 'error')),
+  "status" text not null default 'complete' constraint bsb_ai_messages_status_check check ("status" in ('complete', 'aborted', 'error')),
   "seq" bigint generated always as identity,
   "created_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, jsonb_path_query_array("parts", '$[*] ? (@.type == "text").text'))) stored,
   primary key ("chat_id", "id"),
   foreign key ("chat_id", "parent_id") references "better_supabase"."ai_messages" ("chat_id", "id") on delete cascade
 );
-create index if not exists ai_messages_parent_idx on "better_supabase"."ai_messages" ("chat_id", "parent_id");
-create index if not exists ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
-create index if not exists ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
-alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
-create index if not exists ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
+create index ai_messages_parent_idx on "better_supabase"."ai_messages" ("chat_id", "parent_id");
+create index ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
+create index ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
+create index ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
 alter table "better_supabase"."ai_messages" enable row level security;
 revoke all on "better_supabase"."ai_messages" from public, anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
-drop policy if exists ai_messages_read on "better_supabase"."ai_messages";
-create policy ai_messages_read on "better_supabase"."ai_messages"
+create policy bsb_ai_messages_read on "better_supabase"."ai_messages"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- One generation: the stream it wrote, its usage and cost.
-create table if not exists "better_supabase"."ai_runs" (
+create table "better_supabase"."ai_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50),
-  "external_run_id" text check (length("external_run_id") <= 200),
+  "engine" text not null default 'ai-sdk' constraint bsb_ai_runs_engine_check check (length("engine") >= 1 and length("engine") <= 50),
+  "external_run_id" text constraint bsb_ai_runs_external_run_id_check check (length("external_run_id") <= 200),
   "model" text,
-  "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
+  "status" text not null default 'running' constraint bsb_ai_runs_status_check check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
   "provider_generation_id" text,
-  "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object'),
-  "cost_micro_usd" bigint check ("cost_micro_usd" >= 0),
+  "usage" jsonb not null default '{}' constraint bsb_ai_runs_usage_check check (jsonb_typeof("usage") = 'object'),
+  "cost_micro_usd" bigint constraint bsb_ai_runs_cost_micro_usd_check check ("cost_micro_usd" >= 0),
   "error" text,
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz
 );
-create index if not exists ai_runs_chat_idx on "better_supabase"."ai_runs" ("chat_id", "started_at" desc);
-create index if not exists ai_runs_owner_idx on "better_supabase"."ai_runs" ("owner_id");
-create index if not exists ai_runs_generation_idx on "better_supabase"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
-create index if not exists ai_runs_external_idx on "better_supabase"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
+create index ai_runs_chat_idx on "better_supabase"."ai_runs" ("chat_id", "started_at" desc);
+create index ai_runs_owner_idx on "better_supabase"."ai_runs" ("owner_id");
+create index ai_runs_generation_idx on "better_supabase"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
+create index ai_runs_external_idx on "better_supabase"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
 alter table "better_supabase"."ai_runs" enable row level security;
 revoke all on "better_supabase"."ai_runs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
-drop policy if exists ai_runs_owner_read on "better_supabase"."ai_runs";
-create policy ai_runs_owner_read on "better_supabase"."ai_runs"
+create policy bsb_ai_runs_owner_read on "better_supabase"."ai_runs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
-create table if not exists "better_supabase"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") between 1 and 200),
+create table "better_supabase"."ai_tool_approvals" (
+  "approval_id" text primary key constraint bsb_ai_tool_approvals_approval_id_check check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null constraint bsb_ai_tool_approvals_tool_check check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
-  "decision" text check ("decision" in ('approved', 'denied')),
-  "reason" text check (length("reason") <= 2000),
+  "decision" text constraint bsb_ai_tool_approvals_decision_check check ("decision" in ('approved', 'denied')),
+  "reason" text constraint bsb_ai_tool_approvals_reason_check check (length("reason") <= 2000),
   "signature" text,
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_tool_approvals_chat_idx on "better_supabase"."ai_tool_approvals" ("chat_id");
-create index if not exists ai_tool_approvals_run_idx on "better_supabase"."ai_tool_approvals" ("run_id");
-create index if not exists ai_tool_approvals_owner_idx on "better_supabase"."ai_tool_approvals" ("owner_id");
+create index ai_tool_approvals_chat_idx on "better_supabase"."ai_tool_approvals" ("chat_id");
+create index ai_tool_approvals_run_idx on "better_supabase"."ai_tool_approvals" ("run_id");
+create index ai_tool_approvals_owner_idx on "better_supabase"."ai_tool_approvals" ("owner_id");
 alter table "better_supabase"."ai_tool_approvals" enable row level security;
 revoke all on "better_supabase"."ai_tool_approvals" from public, anon, authenticated;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
-drop policy if exists ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals";
-create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
+create policy bsb_ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
 -- runs (deny).
-create table if not exists "better_supabase"."ai_tool_policies" (
-  "organization_id" uuid not null,
-  "tool" text not null check (length("tool") between 1 and 200),
-  "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
+create table "better_supabase"."ai_tool_policies" (
+  "tenant_id" uuid not null,
+  "tool" text not null constraint bsb_ai_tool_policies_tool_check check (length("tool") >= 1 and length("tool") <= 200),
+  "policy" text not null constraint bsb_ai_tool_policies_policy_check check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
-  primary key ("organization_id", "tool")
+  primary key ("tenant_id", "tool")
 );
 alter table "better_supabase"."ai_tool_policies" enable row level security;
 revoke all on "better_supabase"."ai_tool_policies" from public, anon, authenticated;
 grant all on "better_supabase"."ai_tool_policies" to service_role;
 
 -- A question the model asked the user mid-run (a form or a choice).
-create table if not exists "better_supabase"."ai_pending_inputs" (
+create table "better_supabase"."ai_pending_inputs" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") between 1 and 2000),
+  "question" text not null constraint bsb_ai_pending_inputs_question_check check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_pending_inputs_chat_idx on "better_supabase"."ai_pending_inputs" ("chat_id");
-create index if not exists ai_pending_inputs_run_idx on "better_supabase"."ai_pending_inputs" ("run_id");
-create index if not exists ai_pending_inputs_owner_idx on "better_supabase"."ai_pending_inputs" ("owner_id");
+create index ai_pending_inputs_chat_idx on "better_supabase"."ai_pending_inputs" ("chat_id");
+create index ai_pending_inputs_run_idx on "better_supabase"."ai_pending_inputs" ("run_id");
+create index ai_pending_inputs_owner_idx on "better_supabase"."ai_pending_inputs" ("owner_id");
 alter table "better_supabase"."ai_pending_inputs" enable row level security;
 revoke all on "better_supabase"."ai_pending_inputs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
-drop policy if exists ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs";
-create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
+create policy bsb_ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- The sources a reply cited, copied out of its parts when it is saved.
-create table if not exists "better_supabase"."ai_message_sources" (
+create table "better_supabase"."ai_message_sources" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "source_id" text not null,
-  "source_type" text not null default 'url' check ("source_type" in ('url', 'document')),
+  "source_type" text not null default 'url' constraint bsb_ai_message_sources_source_type_check check ("source_type" in ('url', 'document')),
   "url" text,
   "title" text,
   "provider_metadata" jsonb,
@@ -344,47 +254,45 @@ alter table "better_supabase"."ai_message_sources" enable row level security;
 revoke all on "better_supabase"."ai_message_sources" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
-drop policy if exists ai_message_sources_read on "better_supabase"."ai_message_sources";
-create policy ai_message_sources_read on "better_supabase"."ai_message_sources"
+create policy bsb_ai_message_sources_read on "better_supabase"."ai_message_sources"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
-create table if not exists "better_supabase"."ai_message_feedback" (
+create table "better_supabase"."ai_message_feedback" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" in (-1, 1)),
-  "reason" text check (length("reason") <= 200),
-  "comment" text check (length("comment") <= 4000),
+  "rating" smallint not null constraint bsb_ai_message_feedback_rating_check check ("rating" in (-1, 1)),
+  "reason" text constraint bsb_ai_message_feedback_reason_check check (length("reason") <= 200),
+  "comment" text constraint bsb_ai_message_feedback_comment_check check (length("comment") <= 4000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id", "user_id"),
   foreign key ("chat_id", "message_id") references "better_supabase"."ai_messages" ("chat_id", "id") on delete cascade
 );
-create index if not exists ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
+create index ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
 alter table "better_supabase"."ai_message_feedback" enable row level security;
 revoke all on "better_supabase"."ai_message_feedback" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
-drop policy if exists ai_message_feedback_own_read on "better_supabase"."ai_message_feedback";
-create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
+create policy bsb_ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
 -- stored; the token is returned once.
-create table if not exists "better_supabase"."ai_chat_shares" (
+create table "better_supabase"."ai_chat_shares" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "token_hash" text not null unique check ("token_hash" ~ '^[0-9a-f]{64}$'),
+  "token_hash" text not null unique constraint bsb_ai_chat_shares_token_hash_check check ("token_hash" ~ '^[0-9a-f]{64}$'),
   "leaf_id" text not null,
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create index if not exists ai_chat_shares_chat_idx on "better_supabase"."ai_chat_shares" ("chat_id");
-create index if not exists ai_chat_shares_created_by_idx on "better_supabase"."ai_chat_shares" ("created_by");
+create index ai_chat_shares_chat_idx on "better_supabase"."ai_chat_shares" ("chat_id");
+create index ai_chat_shares_created_by_idx on "better_supabase"."ai_chat_shares" ("created_by");
 alter table "better_supabase"."ai_chat_shares" enable row level security;
 revoke all on "better_supabase"."ai_chat_shares" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_shares" to service_role;
@@ -392,21 +300,21 @@ grant all on "better_supabase"."ai_chat_shares" to service_role;
 -- The live link of a chat: one row, whose salt makes the token
 -- <chat>.<sha256(salt || chat)>. Rotating the salt invalidates every old token.
 -- Only the SQL functions read the salt.
-create table if not exists "better_supabase"."ai_chat_links" (
+create table "better_supabase"."ai_chat_links" (
   "chat_id" uuid primary key references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "salt" text not null check (length("salt") >= 16),
+  "salt" text not null constraint bsb_ai_chat_links_salt_check check (length("salt") >= 16),
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "rotated_at" timestamptz not null default now()
 );
-create index if not exists ai_chat_links_created_by_idx on "better_supabase"."ai_chat_links" ("created_by");
+create index ai_chat_links_created_by_idx on "better_supabase"."ai_chat_links" ("created_by");
 alter table "better_supabase"."ai_chat_links" enable row level security;
 revoke all on "better_supabase"."ai_chat_links" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_links" to service_role;
 
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
-create table if not exists "better_supabase"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") between 1 and 200),
+create table "better_supabase"."ai_model_catalog" (
+  "model_id" text primary key constraint bsb_ai_model_catalog_model_id_check check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -420,75 +328,74 @@ revoke all on "better_supabase"."ai_model_catalog" from public, anon, authentica
 grant all on "better_supabase"."ai_model_catalog" to service_role;
 
 -- What moderation decided about an input, an output or a tool call.
-create table if not exists "better_supabase"."ai_moderation_events" (
+create table "better_supabase"."ai_moderation_events" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete set null,
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
-  "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") between 1 and 100),
+  "stage" text not null constraint bsb_ai_moderation_events_stage_check check ("stage" in ('input', 'output', 'tool')),
+  "category" text not null constraint bsb_ai_moderation_events_category_check check (length("category") >= 1 and length("category") <= 100),
   "score" real,
-  "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
+  "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("organization_id", "created_at" desc);
-create index if not exists ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
-create index if not exists ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
+create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("tenant_id", "created_at" desc);
+create index ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
+create index ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
 alter table "better_supabase"."ai_moderation_events" enable row level security;
 revoke all on "better_supabase"."ai_moderation_events" from public, anon, authenticated;
 grant all on "better_supabase"."ai_moderation_events" to service_role;
 
 -- The progress of a long run, one row per step key, so a reload shows it.
-create table if not exists "better_supabase"."ai_run_steps" (
+create table "better_supabase"."ai_run_steps" (
   "id" uuid primary key default gen_random_uuid(),
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") between 1 and 200),
-  "label" text not null check (length("label") between 1 and 300),
-  "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
-  "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
+  "step_key" text not null constraint bsb_ai_run_steps_step_key_check check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null constraint bsb_ai_run_steps_label_check check (length("label") >= 1 and length("label") <= 300),
+  "status" text not null default 'running' constraint bsb_ai_run_steps_status_check check ("status" in ('running', 'done', 'error', 'skipped')),
+  "detail" jsonb not null default '{}' constraint bsb_ai_run_steps_detail_check check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz,
   unique ("run_id", "step_key")
 );
-create index if not exists ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
-create index if not exists ai_run_steps_owner_idx on "better_supabase"."ai_run_steps" ("owner_id");
+create index ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
+create index ai_run_steps_owner_idx on "better_supabase"."ai_run_steps" ("owner_id");
 alter table "better_supabase"."ai_run_steps" enable row level security;
 revoke all on "better_supabase"."ai_run_steps" from public, anon, authenticated;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
-drop policy if exists ai_run_steps_owner_read on "better_supabase"."ai_run_steps";
-create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
+create policy bsb_ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
--- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until
+-- continue state; its sandbox is a row in ai_sandboxes. lock_holder and lock_expires_at
 -- keep two turns from driving one sandbox. Experimental.
-create table if not exists "better_supabase"."ai_harness_sessions" (
+create table "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") between 1 and 200),
+  "harness_id" text not null constraint bsb_ai_harness_sessions_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
-  "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error')),
-  "lock_holder" text check (length("lock_holder") <= 200),
-  "locked_until" timestamptz,
+  "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error')),
+  "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200),
+  "lock_expires_at" timestamptz,
   "last_active_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "harness_id")
 );
-create index if not exists ai_harness_sessions_owner_idx on "better_supabase"."ai_harness_sessions" ("owner_id");
-create index if not exists ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
+create index ai_harness_sessions_owner_idx on "better_supabase"."ai_harness_sessions" ("owner_id");
+create index ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
 alter table "better_supabase"."ai_harness_sessions" enable row level security;
 revoke all on "better_supabase"."ai_harness_sessions" from public, anon, authenticated;
 grant all on "better_supabase"."ai_harness_sessions" to service_role;
 -- Resume state can carry harness credentials and sandbox ids, so only the
 -- service role reads it, through load_ai_harness_session.
-drop policy if exists ai_harness_sessions_owner_read on "better_supabase"."ai_harness_sessions";
+
 
 -- Whether the caller may read a chat: its owner, the service role, a member
 -- with 'ai_chat.read' when the chat is visible to the organization, or someone
@@ -507,8 +414,8 @@ as $$
       and (
         coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
         or x."owner_id" = (select auth.uid())
-        or (x."visibility" = 'organization' and coalesce(better_supabase.can('tenant', x."organization_id", 'ai_chat.read'), false))
-        or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."organization_id" is null or x."organization_id" in (select better_supabase.member_organization_ids()))))))
+        or (x."visibility" = 'organization' and coalesce(better_supabase.can('tenant', x."tenant_id", 'ai_chat.read'), false))
+        or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))))))
       )
   );
 $$;
@@ -582,12 +489,12 @@ begin
     if v_row."owner_id" <> v_owner then
       raise exception 'Chat % exists', v_id using errcode = '23505', hint = 'AI_CHAT_EXISTS';
     end if;
-    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
   end if;
-  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_owner and pr."organization_id" is not distinct from create_ai_chat.tenant) then
+  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_owner and pr."tenant_id" is not distinct from create_ai_chat.tenant) then
     raise exception 'No project %', v_project using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  insert into "better_supabase"."ai_chats" ("id", "organization_id", "owner_id", "project_id", "agent_id", "title", "model", "visibility", "mode", "is_temporary", "expires_at")
+  insert into "better_supabase"."ai_chats" ("id", "tenant_id", "owner_id", "project_id", "agent_id", "title", "model", "visibility", "mode", "is_temporary", "expires_at")
   values (
     v_id, create_ai_chat.tenant, v_owner, v_project, v_fields ->> 'agent_id',
     coalesce(v_fields ->> 'title', ''), v_fields ->> 'model', v_visibility, v_fields ->> 'mode', v_temporary,
@@ -597,7 +504,7 @@ begin
   if not v_temporary then
     perform "better_supabase"."ai_chat_notify"(v_id, v_owner, 'chat.created', '{}'::jsonb, true);
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_ai_chat"(uuid, jsonb) from public, anon;
@@ -625,14 +532,14 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false)) then
     raise exception 'No chat %', update_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
-  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_row."owner_id" and pr."organization_id" is not distinct from v_row."organization_id") then
+  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_row."owner_id" and pr."tenant_id" is not distinct from v_row."tenant_id") then
     raise exception 'No project %', v_project using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  if v_fields ->> 'visibility' = 'organization' and v_row."organization_id" is null then
+  if v_fields ->> 'visibility' = 'organization' and v_row."tenant_id" is null then
     raise exception 'A chat outside a tenant stays private' using errcode = '22023', hint = 'AI_CHAT_NO_TENANT';
   end if;
   if v_fields ->> 'visibility' = 'organization' and v_row."visibility" <> 'organization'
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.share'), false)) then
+    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_chat.share'), false)) then
     raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_chats" x set
@@ -653,7 +560,7 @@ begin
   where x."id" = update_ai_chat.chat
   returning * into v_row;
   perform "better_supabase"."ai_chat_notify"(v_row."id", v_row."owner_id", 'chat.updated', '{}'::jsonb, not v_row."is_temporary");
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."update_ai_chat"(uuid, jsonb) from public, anon;
@@ -676,7 +583,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_chat.manage'), false)) then
     raise exception 'No chat %', delete_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "better_supabase"."ai_chats" x where x."id" = delete_ai_chat.chat;
@@ -701,7 +608,7 @@ begin
     raise exception 'No chat %', get_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   select * into v_row from "better_supabase"."ai_chats" x where x."id" = get_ai_chat.chat;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_ai_chat"(uuid) from public, anon;
@@ -737,13 +644,13 @@ begin
     v_at := split_part(list_ai_chats.after, '|', 1)::timestamptz;
     v_id := split_part(list_ai_chats.after, '|', 2)::uuid;
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."organization_id", 'owner_id', page."owner_id", 'project_id', page."project_id", 'agent_id', page."agent_id", 'title', page."title", 'model', page."model", 'visibility', page."visibility", 'mode', page."mode", 'pinned', page."pinned", 'archived_at', page."archived_at", 'is_temporary', page."is_temporary", 'expires_at', page."expires_at", 'current_leaf_id', page."current_leaf_id", 'active_stream_id', page."active_stream_id", 'active_run_id', page."active_run_id", 'last_message_at', page."last_message_at", 'created_at', page."created_at", 'updated_at', page."updated_at") order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."tenant_id", 'owner_id', page."owner_id", 'project_id', page."project_id", 'agent_id', page."agent_id", 'title', page."title", 'model', page."model", 'visibility', page."visibility", 'mode', page."mode", 'pinned', page."pinned", 'archived_at', page."archived_at", 'is_temporary', page."is_temporary", 'expires_at', page."expires_at", 'current_leaf_id', page."current_leaf_id", 'active_stream_id', page."active_stream_id", 'active_run_id', page."active_run_id", 'last_message_at', page."last_message_at", 'created_at', page."created_at", 'updated_at', page."updated_at") order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
   into v_items
   from (
     select x.* from "better_supabase"."ai_chats" x
-    where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."organization_id" is null or x."organization_id" in (select better_supabase.member_organization_ids())))))))
+    where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids())))))))
       and not x."is_temporary"
-      and (list_ai_chats.tenant is null or x."organization_id" = list_ai_chats.tenant)
+      and (list_ai_chats.tenant is null or x."tenant_id" = list_ai_chats.tenant)
       and (list_ai_chats.project is null or x."project_id" = list_ai_chats.project)
       and (list_ai_chats.pinned is null or x."pinned" = list_ai_chats.pinned)
       and (list_ai_chats.archived is null or (x."archived_at" is not null) = list_ai_chats.archived)
@@ -786,13 +693,13 @@ begin
     if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_ai_project.tenant, 'ai_chat.create'), false) then
       raise exception 'You may not create projects here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
     end if;
-    insert into "better_supabase"."ai_projects" ("organization_id", "owner_id", "name", "instructions", "default_model", "pinned")
+    insert into "better_supabase"."ai_projects" ("tenant_id", "owner_id", "name", "instructions", "default_model", "pinned")
     values (
       save_ai_project.tenant, auth.uid(), v_fields ->> 'name', coalesce(v_fields ->> 'instructions', ''),
       v_fields ->> 'default_model', coalesce((v_fields ->> 'pinned')::boolean, false)
     )
     returning * into v_row;
-    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
   end if;
   update "better_supabase"."ai_projects" x set
     "name" = coalesce(v_fields ->> 'name', x."name"),
@@ -809,7 +716,7 @@ begin
   if not found then
     raise exception 'No project %', save_ai_project.id using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_ai_project"(uuid, uuid, jsonb) from public, anon;
@@ -843,9 +750,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."pinned" desc, x."updated_at" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."pinned" desc, x."updated_at" desc), '[]'::jsonb)
   from "better_supabase"."ai_projects" x
-  where x."owner_id" = (select auth.uid()) and x."organization_id" is not distinct from list_ai_projects.tenant;
+  where x."owner_id" = (select auth.uid()) and x."tenant_id" is not distinct from list_ai_projects.tenant;
 $$;
 revoke execute on function "better_supabase"."list_ai_projects"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_projects"(uuid) to authenticated, service_role;
@@ -867,7 +774,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = add_ai_chat_participant.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', add_ai_chat_participant.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -891,7 +798,7 @@ begin
   update "better_supabase"."ai_chats" c set "visibility" = 'shared', "updated_at" = now()
   where c."id" = v_chat.id and c."visibility" = 'private';
   perform "better_supabase"."ai_chat_notify"(v_chat.id, add_ai_chat_participant.participant, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.participant, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."add_ai_chat_participant"(uuid, uuid, text, jsonb) from public, anon;
@@ -947,9 +854,9 @@ begin
     raise exception 'No chat %', list_ai_chat_participants.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   return (
-    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_user_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
+    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
       || coalesce((
-        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_user_id', x."customer_user_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
+        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_id', x."customer_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
         from "better_supabase"."ai_chat_participants" x
         where x."chat_id" = list_ai_chat_participants.chat
       ), '[]'::jsonb)
@@ -981,7 +888,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = add_ai_chat_party.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', add_ai_chat_party.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -1013,9 +920,9 @@ begin
     on conflict ("chat_id", "team_id") where "kind" = 'team' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'customer' then
-    insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "customer_user_id", "role", "added_by")
+    insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "customer_id", "role", "added_by")
     values (v_chat.id, 'customer', add_ai_chat_party.party::uuid, v_role, auth.uid())
-    on conflict ("chat_id", "customer_user_id") where "kind" = 'customer' do update set "role" = excluded."role"
+    on conflict ("chat_id", "customer_id") where "kind" = 'customer' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'external' then
     insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "email", "role", "added_by")
@@ -1026,7 +933,7 @@ begin
   update "better_supabase"."ai_chats" c set "visibility" = 'shared', "updated_at" = now()
   where c."id" = v_chat.id and c."visibility" = 'private';
   perform "better_supabase"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.added', jsonb_build_object('kind', add_ai_chat_party.party_kind, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."add_ai_chat_party"(uuid, text, text, text) from public, anon;
@@ -1048,14 +955,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = remove_ai_chat_party.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', remove_ai_chat_party.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "better_supabase"."ai_chat_participants" x
   where x."chat_id" = v_chat.id and x."kind"::text = remove_ai_chat_party.party_kind
-    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_user_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
+    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
   get diagnostics v_count = row_count;
   if v_count > 0 then
     perform "better_supabase"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.removed', jsonb_build_object('kind', remove_ai_chat_party.party_kind), true);
@@ -1114,7 +1021,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = create_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', create_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -1150,7 +1057,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = rotate_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', rotate_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -1183,7 +1090,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = revoke_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', revoke_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -1332,7 +1239,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = switch_ai_branch.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))))))) then
     raise exception 'No chat %', switch_ai_branch.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if not exists (select 1 from "better_supabase"."ai_messages" x where x."chat_id" = switch_ai_branch.chat and x."id" = switch_ai_branch.message_id) then
@@ -1383,7 +1290,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = append_ai_user_message.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))))))) then
     raise exception 'No chat %', append_ai_user_message.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if coalesce(append_ai_user_message.trigger, 'submit-message') = 'regenerate-message' then
@@ -1511,7 +1418,7 @@ grant execute on function "better_supabase"."save_ai_assistant_message"(uuid, js
 -- run_id }: the active stream when another reply holds the chat.
 -- external_run_id is the durable engine's own run id, such as a Workflow
 -- SDK run, so stop and resume can reach that run.
-drop function if exists "better_supabase"."claim_ai_chat_stream"(uuid, text, text, text, text);
+
 create or replace function "better_supabase"."claim_ai_chat_stream"(chat uuid, stream text, model text default null, message_id text default null, engine text default 'ai-sdk', external_run_id text default null)
 returns jsonb
 language plpgsql
@@ -1615,7 +1522,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = request_ai_chat_stop.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))))))) then
     raise exception 'No chat %', request_ai_chat_stop.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if v_chat."active_stream_id" is null then
@@ -1815,13 +1722,13 @@ begin
     raise exception 'You may not change tool policies here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   if set_ai_tool_policy.policy is null then
-    delete from "better_supabase"."ai_tool_policies" x where x."organization_id" = set_ai_tool_policy.tenant and x."tool" = set_ai_tool_policy.tool;
+    delete from "better_supabase"."ai_tool_policies" x where x."tenant_id" = set_ai_tool_policy.tenant and x."tool" = set_ai_tool_policy.tool;
     null;
     return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', null);
   end if;
-  insert into "better_supabase"."ai_tool_policies" ("organization_id", "tool", "policy")
+  insert into "better_supabase"."ai_tool_policies" ("tenant_id", "tool", "policy")
   values (set_ai_tool_policy.tenant, set_ai_tool_policy.tool, set_ai_tool_policy.policy)
-  on conflict ("organization_id", "tool") do update set "policy" = excluded."policy", "updated_at" = now();
+  on conflict ("tenant_id", "tool") do update set "policy" = excluded."policy", "updated_at" = now();
   null;
   return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy);
 end;
@@ -1843,7 +1750,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_object_agg(x."tool", x."policy"), '{}'::jsonb)
-    from "better_supabase"."ai_tool_policies" x where x."organization_id" = ai_tool_policies_for.tenant
+    from "better_supabase"."ai_tool_policies" x where x."tenant_id" = ai_tool_policies_for.tenant
   );
 end;
 $$;
@@ -1970,7 +1877,7 @@ begin
   if not found or v_chat."owner_id" is distinct from auth.uid() then
     raise exception 'No chat %', share_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
-  if not coalesce(better_supabase.can('tenant', v_chat."organization_id", 'ai_chat.share'), false) then
+  if not coalesce(better_supabase.can('tenant', v_chat."tenant_id", 'ai_chat.share'), false) then
     raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   v_leaf := coalesce(share_ai_chat.leaf, v_chat."current_leaf_id");
@@ -2161,7 +2068,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  insert into "better_supabase"."ai_moderation_events" ("organization_id", "chat_id", "message_id", "user_id", "stage", "category", "score", "action")
+  insert into "better_supabase"."ai_moderation_events" ("tenant_id", "chat_id", "message_id", "user_id", "stage", "category", "score", "action")
   values (
     (record_ai_moderation_event.event ->> 'organization_id')::uuid,
     (record_ai_moderation_event.event ->> 'chat_id')::uuid,
@@ -2173,7 +2080,7 @@ begin
     record_ai_moderation_event.event ->> 'action'
   )
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'chat_id', v_row."chat_id", 'message_id', v_row."message_id", 'user_id', v_row."user_id", 'stage', v_row."stage", 'category', v_row."category", 'score', v_row."score", 'action', v_row."action", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'chat_id', v_row."chat_id", 'message_id', v_row."message_id", 'user_id', v_row."user_id", 'stage', v_row."stage", 'category', v_row."category", 'score', v_row."score", 'action', v_row."action", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."record_ai_moderation_event"(jsonb) from public, anon, authenticated;
@@ -2192,10 +2099,10 @@ begin
     raise exception 'You may not review moderation here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."organization_id", 'chat_id', page."chat_id", 'message_id', page."message_id", 'user_id', page."user_id", 'stage', page."stage", 'category', page."category", 'score', page."score", 'action', page."action", 'created_at', page."created_at") order by page."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."tenant_id", 'chat_id', page."chat_id", 'message_id', page."message_id", 'user_id', page."user_id", 'stage', page."stage", 'category', page."category", 'score', page."score", 'action', page."action", 'created_at', page."created_at") order by page."created_at" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."ai_moderation_events" x
-      where x."organization_id" = list_ai_moderation_events.tenant
+      where x."tenant_id" = list_ai_moderation_events.tenant
       order by x."created_at" desc
       limit least(greatest(coalesce(list_ai_moderation_events.size, 100), 1), 1000)
     ) page
@@ -2235,19 +2142,19 @@ grant execute on function "better_supabase"."purge_ai_chats"(integer) to service
 -- Sandboxes and provider containers a chat started, harness sessions'
 -- included, so one idle-stop claim stops the ones nobody used for
 -- idle_seconds or past expires_at.
-create table if not exists "better_supabase"."ai_sandboxes" (
+create table "better_supabase"."ai_sandboxes" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") between 1 and 200),
-  "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") between 1 and 200),
-  "container_id" text check (length("container_id") <= 200),
-  "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "idle_seconds" integer not null default 600 check ("idle_seconds" > 0),
-  "error" text check (length("error") <= 4000),
+  "harness_id" text constraint bsb_ai_sandboxes_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "provider" text not null constraint bsb_ai_sandboxes_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
+  "sandbox_id" text not null constraint bsb_ai_sandboxes_sandbox_id_check check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
+  "container_id" text constraint bsb_ai_sandboxes_container_id_check check (length("container_id") <= 200),
+  "status" text not null default 'running' constraint bsb_ai_sandboxes_status_check check ("status" in ('running', 'stopping', 'stopped')),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_sandboxes_metadata_check check (jsonb_typeof("metadata") = 'object'),
+  "idle_seconds" integer not null default 600 constraint bsb_ai_sandboxes_idle_seconds_check check ("idle_seconds" > 0),
+  "error" text constraint bsb_ai_sandboxes_error_check check (length("error") <= 4000),
   "last_used_at" timestamptz not null default now(),
   "expires_at" timestamptz,
   "stopped_at" timestamptz,
@@ -2255,19 +2162,18 @@ create table if not exists "better_supabase"."ai_sandboxes" (
   "updated_at" timestamptz not null default now(),
   unique ("provider", "sandbox_id")
 );
-create index if not exists ai_sandboxes_open_idx on "better_supabase"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
-create index if not exists ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
-create index if not exists ai_sandboxes_harness_idx on "better_supabase"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
-create index if not exists ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("organization_id");
-create index if not exists ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
+create index ai_sandboxes_open_idx on "better_supabase"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
+create index ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
+create index ai_sandboxes_harness_idx on "better_supabase"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
+create index ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("tenant_id");
+create index ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
 alter table "better_supabase"."ai_sandboxes" enable row level security;
 revoke all on "better_supabase"."ai_sandboxes" from public, anon, authenticated;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
-drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
-create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes"
+create policy bsb_ai_sandboxes_read on "better_supabase"."ai_sandboxes"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
 
 -- Records a sandbox or container the app started, or marks a known one used
 -- (service role). fields: user_id, chat_id, harness_id, container_id,
@@ -2283,7 +2189,7 @@ declare
   v_row "better_supabase"."ai_sandboxes"%rowtype;
   v_fields jsonb := coalesce(register_ai_sandbox.fields, '{}');
 begin
-  insert into "better_supabase"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id", "container_id", "metadata", "idle_seconds", "expires_at")
+  insert into "better_supabase"."ai_sandboxes" as cur ("tenant_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id", "container_id", "metadata", "idle_seconds", "expires_at")
   values (
     register_ai_sandbox.tenant,
     (v_fields ->> 'user_id')::uuid,
@@ -2308,12 +2214,12 @@ begin
     "stopped_at" = null,
     "last_used_at" = now(),
     "updated_at" = now()
-  where cur."organization_id" is not distinct from excluded."organization_id"
+  where cur."tenant_id" is not distinct from excluded."tenant_id"
   returning * into v_row;
   if not found then
     raise exception 'sandbox % belongs to another tenant', register_ai_sandbox.sandbox_id using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'provider', v_row."provider", 'sandbox_id', v_row."sandbox_id", 'container_id', v_row."container_id", 'status', v_row."status", 'metadata', v_row."metadata", 'idle_seconds', v_row."idle_seconds", 'error', v_row."error", 'last_used_at', v_row."last_used_at", 'expires_at', v_row."expires_at", 'stopped_at', v_row."stopped_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'provider', v_row."provider", 'sandbox_id', v_row."sandbox_id", 'container_id', v_row."container_id", 'status', v_row."status", 'metadata', v_row."metadata", 'idle_seconds', v_row."idle_seconds", 'error', v_row."error", 'last_used_at', v_row."last_used_at", 'expires_at', v_row."expires_at", 'stopped_at', v_row."stopped_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."register_ai_sandbox"(uuid, text, text, jsonb) from public, anon, authenticated;
@@ -2343,7 +2249,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_sandboxes" x
+  select jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_sandboxes" x
   where x."chat_id" = ai_sandbox_for.chat_id and x."provider" = ai_sandbox_for.provider and x."status" = 'running'
     and (x."expires_at" is null or x."expires_at" > now())
   order by x."last_used_at" desc
@@ -2371,7 +2277,7 @@ begin
        or (y."status" = 'stopping' and y."updated_at" <= now() - make_interval(secs => greatest(idle_ai_sandboxes.lease_seconds, 1))))
       and not exists (
         select 1 from "better_supabase"."ai_harness_sessions" z
-        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."locked_until" > now()
+        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."lock_expires_at" > now()
       )
     order by y."last_used_at"
     limit least(greatest(idle_ai_sandboxes.batch, 1), 500)
@@ -2381,7 +2287,7 @@ begin
     from due where x."id" = due."id"
     returning x.*
   )
-  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."organization_id", 'user_id', claimed."user_id", 'chat_id', claimed."chat_id", 'harness_id', claimed."harness_id", 'provider', claimed."provider", 'sandbox_id', claimed."sandbox_id", 'container_id', claimed."container_id", 'status', claimed."status", 'metadata', claimed."metadata", 'idle_seconds', claimed."idle_seconds", 'error', claimed."error", 'last_used_at', claimed."last_used_at", 'expires_at', claimed."expires_at", 'stopped_at', claimed."stopped_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
+  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."tenant_id", 'user_id', claimed."user_id", 'chat_id', claimed."chat_id", 'harness_id', claimed."harness_id", 'provider', claimed."provider", 'sandbox_id', claimed."sandbox_id", 'container_id', claimed."container_id", 'status', claimed."status", 'metadata', claimed."metadata", 'idle_seconds', claimed."idle_seconds", 'error', claimed."error", 'last_used_at', claimed."last_used_at", 'expires_at', claimed."expires_at", 'stopped_at', claimed."stopped_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
   return v_rows;
 end;
 $$;
@@ -2433,9 +2339,9 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
   from "better_supabase"."ai_sandboxes" x
-  where x."organization_id" is not distinct from list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x."chat_id" = list_ai_sandboxes.chat_id)
+  where x."tenant_id" is not distinct from list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x."chat_id" = list_ai_sandboxes.chat_id)
 $$;
 revoke execute on function "better_supabase"."list_ai_sandboxes"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_sandboxes"(uuid, uuid) to authenticated, service_role;
@@ -2630,7 +2536,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."load_ai_harness_session"(uuid, text) from public, anon, authenticated;
@@ -2673,7 +2579,7 @@ begin
   select * into v_row from "better_supabase"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = save_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
     raise exception 'Harness session % is locked', save_ai_harness_session.harness using errcode = '55P03', hint = 'AI_HARNESS_LOCKED';
   end if;
   update "better_supabase"."ai_harness_sessions" x set
@@ -2691,8 +2597,8 @@ begin
       update "better_supabase"."ai_sandboxes" y set "status" = 'stopped', "stopped_at" = now(), "updated_at" = now()
       where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped';
     else
-      insert into "better_supabase"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id")
-      values (v_chat."organization_id", v_chat."owner_id", v_chat."id", v_row."harness_id", coalesce(nullif(save_ai_harness_session.fields ->> 'sandbox_provider', ''), 'harness'), save_ai_harness_session.fields ->> 'sandbox_id')
+      insert into "better_supabase"."ai_sandboxes" as cur ("tenant_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id")
+      values (v_chat."tenant_id", v_chat."owner_id", v_chat."id", v_row."harness_id", coalesce(nullif(save_ai_harness_session.fields ->> 'sandbox_provider', ''), 'harness'), save_ai_harness_session.fields ->> 'sandbox_id')
       on conflict ("provider", "sandbox_id") do update set
         "chat_id" = excluded."chat_id",
         "harness_id" = excluded."harness_id",
@@ -2701,7 +2607,7 @@ begin
         "stopped_at" = null,
         "last_used_at" = now(),
         "updated_at" = now()
-      where cur."organization_id" is not distinct from excluded."organization_id";
+      where cur."tenant_id" is not distinct from excluded."tenant_id";
       if not found then
         raise exception 'sandbox % belongs to another tenant', save_ai_harness_session.fields ->> 'sandbox_id' using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
       end if;
@@ -2710,7 +2616,7 @@ begin
     update "better_supabase"."ai_sandboxes" y set "last_used_at" = now(), "updated_at" = now()
     where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" = 'running';
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_ai_harness_session"(uuid, text, jsonb, text) from public, anon, authenticated;
@@ -2749,12 +2655,12 @@ begin
   select * into v_row from "better_supabase"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = lock_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
     return false;
   end if;
   update "better_supabase"."ai_harness_sessions" x set
     "lock_holder" = lock_ai_harness_session.holder,
-    "locked_until" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
+    "lock_expires_at" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
     "updated_at" = now()
   where x."chat_id" = v_row."chat_id" and x."harness_id" = v_row."harness_id";
   return true;
@@ -2776,7 +2682,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "locked_until" = null, "updated_at" = now()
+  update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "lock_expires_at" = null, "updated_at" = now()
   where x."chat_id" = unlock_ai_harness_session.chat
     and x."harness_id" = unlock_ai_harness_session.harness
     and x."lock_holder" = unlock_ai_harness_session.holder;
@@ -2789,118 +2695,70 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_ai_chat_receive on realtime.messages;
 create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        drop policy if exists bsb_ai_chats_receive on realtime.messages;
 create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_projects" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_projects" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_projects" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_projects" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."ai_chats" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
+    or ("visibility" = 'organization' and "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
     or ("better_supabase"."ai_chats"."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())))))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_chats" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_chats" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_chats" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."ai_sandboxes" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_sandboxes" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
@@ -2919,128 +2777,45 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:7db35b5c28060dd430c5f44251a1b403373cb877af38c806ed178d8c4e1c8825
+-- @bsb-hash sha256:95eec3cf84f096bbfe7e01cba4d70849efa481e4fdb8070a30a31767ed2b07d4
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_tool_policies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_moderation_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Projects group chats and carry instructions and a default model.
-create table if not exists "better_supabase"."ai_projects" (
+create table "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
-  "instructions" text not null default '' check (length("instructions") <= 20000),
-  "default_model" text check (length("default_model") <= 200),
+  "name" text not null constraint bsb_ai_projects_name_check check (length("name") >= 1 and length("name") <= 200),
+  "instructions" text not null default '' constraint bsb_ai_projects_instructions_check check (length("instructions") <= 20000),
+  "default_model" text constraint bsb_ai_projects_default_model_check check (length("default_model") <= 200),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "organization_id");
+create index ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "tenant_id");
 alter table "better_supabase"."ai_projects" enable row level security;
 revoke all on "better_supabase"."ai_projects" from public, anon, authenticated;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
-drop policy if exists ai_projects_owner_read on "better_supabase"."ai_projects";
-create policy ai_projects_owner_read on "better_supabase"."ai_projects"
+create policy bsb_ai_projects_owner_read on "better_supabase"."ai_projects"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
 -- active_stream_id is the reply being written, claimed compare-and-set.
-create table if not exists "better_supabase"."ai_chats" (
+create table "better_supabase"."ai_chats" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "project_id" uuid references "better_supabase"."ai_projects" ("id") on delete set null,
-  "agent_id" text check (length("agent_id") <= 200),
-  "title" text not null default '' check (length("title") <= 300),
-  "model" text check (length("model") <= 200),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'shared')),
-  "mode" text check (length("mode") <= 100),
+  "agent_id" text constraint bsb_ai_chats_agent_id_check check (length("agent_id") <= 200),
+  "title" text not null default '' constraint bsb_ai_chats_title_check check (length("title") <= 300),
+  "model" text constraint bsb_ai_chats_model_check check (length("model") <= 200),
+  "visibility" text not null default 'private' constraint bsb_ai_chats_visibility_check check ("visibility" in ('private', 'organization', 'shared')),
+  "mode" text constraint bsb_ai_chats_mode_check check (length("mode") <= 100),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "is_temporary" boolean not null default false,
@@ -3052,13 +2827,13 @@ create table if not exists "better_supabase"."ai_chats" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "title")) stored,
-  check (not "is_temporary" or "expires_at" is not null)
+  constraint bsb_ai_chats_check check (not "is_temporary" or "expires_at" is not null)
 );
-create index if not exists ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
-create index if not exists ai_chats_tenant_idx on "better_supabase"."ai_chats" ("organization_id");
-create index if not exists ai_chats_project_idx on "better_supabase"."ai_chats" ("project_id");
-create index if not exists ai_chats_expires_idx on "better_supabase"."ai_chats" ("expires_at") where "is_temporary";
-create index if not exists ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
+create index ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
+create index ai_chats_tenant_idx on "better_supabase"."ai_chats" ("tenant_id");
+create index ai_chats_project_idx on "better_supabase"."ai_chats" ("project_id");
+create index ai_chats_expires_idx on "better_supabase"."ai_chats" ("expires_at") where "is_temporary";
+create index ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
 alter table "better_supabase"."ai_chats" enable row level security;
 revoke all on "better_supabase"."ai_chats" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chats" to service_role;
@@ -3068,190 +2843,183 @@ grant select on "better_supabase"."ai_chats" to authenticated;
 -- to it (editor): a user, every member of a team, a customer with guest
 -- access, or an external email that reads only through the live link. Each
 -- user sees only their own rows.
-create table if not exists "better_supabase"."ai_chat_participants" (
+create table "better_supabase"."ai_chat_participants" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'user' check ("kind" in ('user', 'team', 'customer', 'external')),
+  "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external')),
   "team_id" uuid,
-  "customer_user_id" uuid references auth.users (id) on delete cascade,
-  "email" text check (length("email") <= 320),
-  "role" text not null default 'viewer' check ("role" in ('viewer', 'editor')),
+  "customer_id" uuid references auth.users (id) on delete cascade,
+  "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320),
+  "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor')),
   "added_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
-  check (
+  constraint bsb_ai_chat_participants_check check (
     ("kind" = 'user' and "user_id" is not null)
     or ("kind" = 'team' and "team_id" is not null)
-    or ("kind" = 'customer' and "customer_user_id" is not null)
+    or ("kind" = 'customer' and "customer_id" is not null)
     or ("kind" = 'external' and "email" is not null)
   )
 );
-create unique index if not exists ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
-create unique index if not exists ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
-create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
-create unique index if not exists ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
-create index if not exists ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
-create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
-create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
-create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
+create unique index ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
+create unique index ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
+create unique index ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_id") where "kind" = 'customer';
+create unique index ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
+create index ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_id");
+create index ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
 grant select on "better_supabase"."ai_chat_participants" to authenticated;
-drop policy if exists ai_chat_participants_own_read on "better_supabase"."ai_chat_participants";
-create policy ai_chat_participants_own_read on "better_supabase"."ai_chat_participants"
+create policy bsb_ai_chat_participants_own_read on "better_supabase"."ai_chat_participants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists ai_chats_read on "better_supabase"."ai_chats";
-create policy ai_chats_read on "better_supabase"."ai_chats"
+create policy bsb_ai_chats_read on "better_supabase"."ai_chats"
   for select to authenticated
   using ("owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
-    or ("better_supabase"."ai_chats"."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) or (pa."kind"::text = 'customer' and pa."customer_user_id" = (select auth.uid()) and (("better_supabase"."ai_chats"."organization_id")::text, ('ai-chat')::text, ("better_supabase"."ai_chats"."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))));
+    or ("visibility" = 'organization' and "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
+    or ("better_supabase"."ai_chats"."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and (("better_supabase"."ai_chats"."tenant_id")::text, ('ai-chat')::text, ("better_supabase"."ai_chats"."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))));
 
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
 -- parts holds the canonical AI message parts; native the SDK's own shape.
-create table if not exists "better_supabase"."ai_messages" (
+create table "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") between 1 and 200),
+  "id" text not null constraint bsb_ai_messages_id_check check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
-  "role" text not null check ("role" in ('system', 'user', 'assistant', 'tool')),
-  "parts" jsonb not null default '[]' check (
+  "role" text not null constraint bsb_ai_messages_role_check check ("role" in ('system', 'user', 'assistant', 'tool')),
+  "parts" jsonb not null default '[]' constraint bsb_ai_messages_parts_check check (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") between 1 and 50),
+  "format" text not null default 'canonical' constraint bsb_ai_messages_format_check check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_messages_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "model" text,
-  "status" text not null default 'complete' check ("status" in ('complete', 'aborted', 'error')),
+  "status" text not null default 'complete' constraint bsb_ai_messages_status_check check ("status" in ('complete', 'aborted', 'error')),
   "seq" bigint generated always as identity,
   "created_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, jsonb_path_query_array("parts", '$[*] ? (@.type == "text").text'))) stored,
   primary key ("chat_id", "id"),
   foreign key ("chat_id", "parent_id") references "better_supabase"."ai_messages" ("chat_id", "id") on delete cascade
 );
-create index if not exists ai_messages_parent_idx on "better_supabase"."ai_messages" ("chat_id", "parent_id");
-create index if not exists ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
-create index if not exists ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
-alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
-create index if not exists ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
+create index ai_messages_parent_idx on "better_supabase"."ai_messages" ("chat_id", "parent_id");
+create index ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
+create index ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
+create index ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
 alter table "better_supabase"."ai_messages" enable row level security;
 revoke all on "better_supabase"."ai_messages" from public, anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
-drop policy if exists ai_messages_read on "better_supabase"."ai_messages";
-create policy ai_messages_read on "better_supabase"."ai_messages"
+create policy bsb_ai_messages_read on "better_supabase"."ai_messages"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- One generation: the stream it wrote, its usage and cost.
-create table if not exists "better_supabase"."ai_runs" (
+create table "better_supabase"."ai_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50),
-  "external_run_id" text check (length("external_run_id") <= 200),
+  "engine" text not null default 'ai-sdk' constraint bsb_ai_runs_engine_check check (length("engine") >= 1 and length("engine") <= 50),
+  "external_run_id" text constraint bsb_ai_runs_external_run_id_check check (length("external_run_id") <= 200),
   "model" text,
-  "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
+  "status" text not null default 'running' constraint bsb_ai_runs_status_check check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
   "provider_generation_id" text,
-  "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object'),
-  "cost_micro_usd" bigint check ("cost_micro_usd" >= 0),
+  "usage" jsonb not null default '{}' constraint bsb_ai_runs_usage_check check (jsonb_typeof("usage") = 'object'),
+  "cost_micro_usd" bigint constraint bsb_ai_runs_cost_micro_usd_check check ("cost_micro_usd" >= 0),
   "error" text,
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz
 );
-create index if not exists ai_runs_chat_idx on "better_supabase"."ai_runs" ("chat_id", "started_at" desc);
-create index if not exists ai_runs_owner_idx on "better_supabase"."ai_runs" ("owner_id");
-create index if not exists ai_runs_generation_idx on "better_supabase"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
-create index if not exists ai_runs_external_idx on "better_supabase"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
+create index ai_runs_chat_idx on "better_supabase"."ai_runs" ("chat_id", "started_at" desc);
+create index ai_runs_owner_idx on "better_supabase"."ai_runs" ("owner_id");
+create index ai_runs_generation_idx on "better_supabase"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
+create index ai_runs_external_idx on "better_supabase"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
 alter table "better_supabase"."ai_runs" enable row level security;
 revoke all on "better_supabase"."ai_runs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
-drop policy if exists ai_runs_owner_read on "better_supabase"."ai_runs";
-create policy ai_runs_owner_read on "better_supabase"."ai_runs"
+create policy bsb_ai_runs_owner_read on "better_supabase"."ai_runs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
-create table if not exists "better_supabase"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") between 1 and 200),
+create table "better_supabase"."ai_tool_approvals" (
+  "approval_id" text primary key constraint bsb_ai_tool_approvals_approval_id_check check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null constraint bsb_ai_tool_approvals_tool_check check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
-  "decision" text check ("decision" in ('approved', 'denied')),
-  "reason" text check (length("reason") <= 2000),
+  "decision" text constraint bsb_ai_tool_approvals_decision_check check ("decision" in ('approved', 'denied')),
+  "reason" text constraint bsb_ai_tool_approvals_reason_check check (length("reason") <= 2000),
   "signature" text,
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_tool_approvals_chat_idx on "better_supabase"."ai_tool_approvals" ("chat_id");
-create index if not exists ai_tool_approvals_run_idx on "better_supabase"."ai_tool_approvals" ("run_id");
-create index if not exists ai_tool_approvals_owner_idx on "better_supabase"."ai_tool_approvals" ("owner_id");
+create index ai_tool_approvals_chat_idx on "better_supabase"."ai_tool_approvals" ("chat_id");
+create index ai_tool_approvals_run_idx on "better_supabase"."ai_tool_approvals" ("run_id");
+create index ai_tool_approvals_owner_idx on "better_supabase"."ai_tool_approvals" ("owner_id");
 alter table "better_supabase"."ai_tool_approvals" enable row level security;
 revoke all on "better_supabase"."ai_tool_approvals" from public, anon, authenticated;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
-drop policy if exists ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals";
-create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
+create policy bsb_ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
 -- runs (deny).
-create table if not exists "better_supabase"."ai_tool_policies" (
-  "organization_id" uuid not null,
-  "tool" text not null check (length("tool") between 1 and 200),
-  "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
+create table "better_supabase"."ai_tool_policies" (
+  "tenant_id" uuid not null,
+  "tool" text not null constraint bsb_ai_tool_policies_tool_check check (length("tool") >= 1 and length("tool") <= 200),
+  "policy" text not null constraint bsb_ai_tool_policies_policy_check check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
-  primary key ("organization_id", "tool")
+  primary key ("tenant_id", "tool")
 );
 alter table "better_supabase"."ai_tool_policies" enable row level security;
 revoke all on "better_supabase"."ai_tool_policies" from public, anon, authenticated;
 grant all on "better_supabase"."ai_tool_policies" to service_role;
 
 -- A question the model asked the user mid-run (a form or a choice).
-create table if not exists "better_supabase"."ai_pending_inputs" (
+create table "better_supabase"."ai_pending_inputs" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") between 1 and 2000),
+  "question" text not null constraint bsb_ai_pending_inputs_question_check check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_pending_inputs_chat_idx on "better_supabase"."ai_pending_inputs" ("chat_id");
-create index if not exists ai_pending_inputs_run_idx on "better_supabase"."ai_pending_inputs" ("run_id");
-create index if not exists ai_pending_inputs_owner_idx on "better_supabase"."ai_pending_inputs" ("owner_id");
+create index ai_pending_inputs_chat_idx on "better_supabase"."ai_pending_inputs" ("chat_id");
+create index ai_pending_inputs_run_idx on "better_supabase"."ai_pending_inputs" ("run_id");
+create index ai_pending_inputs_owner_idx on "better_supabase"."ai_pending_inputs" ("owner_id");
 alter table "better_supabase"."ai_pending_inputs" enable row level security;
 revoke all on "better_supabase"."ai_pending_inputs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
-drop policy if exists ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs";
-create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
+create policy bsb_ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- The sources a reply cited, copied out of its parts when it is saved.
-create table if not exists "better_supabase"."ai_message_sources" (
+create table "better_supabase"."ai_message_sources" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "source_id" text not null,
-  "source_type" text not null default 'url' check ("source_type" in ('url', 'document')),
+  "source_type" text not null default 'url' constraint bsb_ai_message_sources_source_type_check check ("source_type" in ('url', 'document')),
   "url" text,
   "title" text,
   "provider_metadata" jsonb,
@@ -3262,47 +3030,45 @@ alter table "better_supabase"."ai_message_sources" enable row level security;
 revoke all on "better_supabase"."ai_message_sources" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
-drop policy if exists ai_message_sources_read on "better_supabase"."ai_message_sources";
-create policy ai_message_sources_read on "better_supabase"."ai_message_sources"
+create policy bsb_ai_message_sources_read on "better_supabase"."ai_message_sources"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
-create table if not exists "better_supabase"."ai_message_feedback" (
+create table "better_supabase"."ai_message_feedback" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" in (-1, 1)),
-  "reason" text check (length("reason") <= 200),
-  "comment" text check (length("comment") <= 4000),
+  "rating" smallint not null constraint bsb_ai_message_feedback_rating_check check ("rating" in (-1, 1)),
+  "reason" text constraint bsb_ai_message_feedback_reason_check check (length("reason") <= 200),
+  "comment" text constraint bsb_ai_message_feedback_comment_check check (length("comment") <= 4000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id", "user_id"),
   foreign key ("chat_id", "message_id") references "better_supabase"."ai_messages" ("chat_id", "id") on delete cascade
 );
-create index if not exists ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
+create index ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
 alter table "better_supabase"."ai_message_feedback" enable row level security;
 revoke all on "better_supabase"."ai_message_feedback" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
-drop policy if exists ai_message_feedback_own_read on "better_supabase"."ai_message_feedback";
-create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
+create policy bsb_ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
 -- stored; the token is returned once.
-create table if not exists "better_supabase"."ai_chat_shares" (
+create table "better_supabase"."ai_chat_shares" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "token_hash" text not null unique check ("token_hash" ~ '^[0-9a-f]{64}$'),
+  "token_hash" text not null unique constraint bsb_ai_chat_shares_token_hash_check check ("token_hash" ~ '^[0-9a-f]{64}$'),
   "leaf_id" text not null,
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create index if not exists ai_chat_shares_chat_idx on "better_supabase"."ai_chat_shares" ("chat_id");
-create index if not exists ai_chat_shares_created_by_idx on "better_supabase"."ai_chat_shares" ("created_by");
+create index ai_chat_shares_chat_idx on "better_supabase"."ai_chat_shares" ("chat_id");
+create index ai_chat_shares_created_by_idx on "better_supabase"."ai_chat_shares" ("created_by");
 alter table "better_supabase"."ai_chat_shares" enable row level security;
 revoke all on "better_supabase"."ai_chat_shares" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_shares" to service_role;
@@ -3310,21 +3076,21 @@ grant all on "better_supabase"."ai_chat_shares" to service_role;
 -- The live link of a chat: one row, whose salt makes the token
 -- <chat>.<sha256(salt || chat)>. Rotating the salt invalidates every old token.
 -- Only the SQL functions read the salt.
-create table if not exists "better_supabase"."ai_chat_links" (
+create table "better_supabase"."ai_chat_links" (
   "chat_id" uuid primary key references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "salt" text not null check (length("salt") >= 16),
+  "salt" text not null constraint bsb_ai_chat_links_salt_check check (length("salt") >= 16),
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "rotated_at" timestamptz not null default now()
 );
-create index if not exists ai_chat_links_created_by_idx on "better_supabase"."ai_chat_links" ("created_by");
+create index ai_chat_links_created_by_idx on "better_supabase"."ai_chat_links" ("created_by");
 alter table "better_supabase"."ai_chat_links" enable row level security;
 revoke all on "better_supabase"."ai_chat_links" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_links" to service_role;
 
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
-create table if not exists "better_supabase"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") between 1 and 200),
+create table "better_supabase"."ai_model_catalog" (
+  "model_id" text primary key constraint bsb_ai_model_catalog_model_id_check check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -3338,75 +3104,74 @@ revoke all on "better_supabase"."ai_model_catalog" from public, anon, authentica
 grant all on "better_supabase"."ai_model_catalog" to service_role;
 
 -- What moderation decided about an input, an output or a tool call.
-create table if not exists "better_supabase"."ai_moderation_events" (
+create table "better_supabase"."ai_moderation_events" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete set null,
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
-  "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") between 1 and 100),
+  "stage" text not null constraint bsb_ai_moderation_events_stage_check check ("stage" in ('input', 'output', 'tool')),
+  "category" text not null constraint bsb_ai_moderation_events_category_check check (length("category") >= 1 and length("category") <= 100),
   "score" real,
-  "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
+  "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("organization_id", "created_at" desc);
-create index if not exists ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
-create index if not exists ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
+create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("tenant_id", "created_at" desc);
+create index ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
+create index ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
 alter table "better_supabase"."ai_moderation_events" enable row level security;
 revoke all on "better_supabase"."ai_moderation_events" from public, anon, authenticated;
 grant all on "better_supabase"."ai_moderation_events" to service_role;
 
 -- The progress of a long run, one row per step key, so a reload shows it.
-create table if not exists "better_supabase"."ai_run_steps" (
+create table "better_supabase"."ai_run_steps" (
   "id" uuid primary key default gen_random_uuid(),
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") between 1 and 200),
-  "label" text not null check (length("label") between 1 and 300),
-  "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
-  "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
+  "step_key" text not null constraint bsb_ai_run_steps_step_key_check check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null constraint bsb_ai_run_steps_label_check check (length("label") >= 1 and length("label") <= 300),
+  "status" text not null default 'running' constraint bsb_ai_run_steps_status_check check ("status" in ('running', 'done', 'error', 'skipped')),
+  "detail" jsonb not null default '{}' constraint bsb_ai_run_steps_detail_check check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz,
   unique ("run_id", "step_key")
 );
-create index if not exists ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
-create index if not exists ai_run_steps_owner_idx on "better_supabase"."ai_run_steps" ("owner_id");
+create index ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
+create index ai_run_steps_owner_idx on "better_supabase"."ai_run_steps" ("owner_id");
 alter table "better_supabase"."ai_run_steps" enable row level security;
 revoke all on "better_supabase"."ai_run_steps" from public, anon, authenticated;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
-drop policy if exists ai_run_steps_owner_read on "better_supabase"."ai_run_steps";
-create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
+create policy bsb_ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
--- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until
+-- continue state; its sandbox is a row in ai_sandboxes. lock_holder and lock_expires_at
 -- keep two turns from driving one sandbox. Experimental.
-create table if not exists "better_supabase"."ai_harness_sessions" (
+create table "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") between 1 and 200),
+  "harness_id" text not null constraint bsb_ai_harness_sessions_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
-  "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error')),
-  "lock_holder" text check (length("lock_holder") <= 200),
-  "locked_until" timestamptz,
+  "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error')),
+  "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200),
+  "lock_expires_at" timestamptz,
   "last_active_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "harness_id")
 );
-create index if not exists ai_harness_sessions_owner_idx on "better_supabase"."ai_harness_sessions" ("owner_id");
-create index if not exists ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
+create index ai_harness_sessions_owner_idx on "better_supabase"."ai_harness_sessions" ("owner_id");
+create index ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
 alter table "better_supabase"."ai_harness_sessions" enable row level security;
 revoke all on "better_supabase"."ai_harness_sessions" from public, anon, authenticated;
 grant all on "better_supabase"."ai_harness_sessions" to service_role;
 -- Resume state can carry harness credentials and sandbox ids, so only the
 -- service role reads it, through load_ai_harness_session.
-drop policy if exists ai_harness_sessions_owner_read on "better_supabase"."ai_harness_sessions";
+
 
 -- Whether the caller may read a chat: its owner, the service role, a member
 -- with 'ai_chat.read' when the chat is visible to the organization, or someone
@@ -3425,8 +3190,8 @@ as $$
       and (
         coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
         or x."owner_id" = (select auth.uid())
-        or (x."visibility" = 'organization' and coalesce(better_supabase.can('tenant', x."organization_id", 'ai_chat.read'), false))
-        or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."organization_id" is null or x."organization_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_user_id" = (select auth.uid()) and ((x."organization_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))))
+        or (x."visibility" = 'organization' and coalesce(better_supabase.can('tenant', x."tenant_id", 'ai_chat.read'), false))
+        or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))))
       )
   );
 $$;
@@ -3500,12 +3265,12 @@ begin
     if v_row."owner_id" <> v_owner then
       raise exception 'Chat % exists', v_id using errcode = '23505', hint = 'AI_CHAT_EXISTS';
     end if;
-    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
   end if;
-  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_owner and pr."organization_id" is not distinct from create_ai_chat.tenant) then
+  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_owner and pr."tenant_id" is not distinct from create_ai_chat.tenant) then
     raise exception 'No project %', v_project using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  insert into "better_supabase"."ai_chats" ("id", "organization_id", "owner_id", "project_id", "agent_id", "title", "model", "visibility", "mode", "is_temporary", "expires_at")
+  insert into "better_supabase"."ai_chats" ("id", "tenant_id", "owner_id", "project_id", "agent_id", "title", "model", "visibility", "mode", "is_temporary", "expires_at")
   values (
     v_id, create_ai_chat.tenant, v_owner, v_project, v_fields ->> 'agent_id',
     coalesce(v_fields ->> 'title', ''), v_fields ->> 'model', v_visibility, v_fields ->> 'mode', v_temporary,
@@ -3515,7 +3280,7 @@ begin
   if not v_temporary then
     perform "better_supabase"."ai_chat_notify"(v_id, v_owner, 'chat.created', '{}'::jsonb, true);
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_ai_chat"(uuid, jsonb) from public, anon;
@@ -3543,14 +3308,14 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false)) then
     raise exception 'No chat %', update_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
-  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_row."owner_id" and pr."organization_id" is not distinct from v_row."organization_id") then
+  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_row."owner_id" and pr."tenant_id" is not distinct from v_row."tenant_id") then
     raise exception 'No project %', v_project using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  if v_fields ->> 'visibility' = 'organization' and v_row."organization_id" is null then
+  if v_fields ->> 'visibility' = 'organization' and v_row."tenant_id" is null then
     raise exception 'A chat outside a tenant stays private' using errcode = '22023', hint = 'AI_CHAT_NO_TENANT';
   end if;
   if v_fields ->> 'visibility' = 'organization' and v_row."visibility" <> 'organization'
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.share'), false)) then
+    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_chat.share'), false)) then
     raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_chats" x set
@@ -3571,7 +3336,7 @@ begin
   where x."id" = update_ai_chat.chat
   returning * into v_row;
   perform "better_supabase"."ai_chat_notify"(v_row."id", v_row."owner_id", 'chat.updated', '{}'::jsonb, not v_row."is_temporary");
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."update_ai_chat"(uuid, jsonb) from public, anon;
@@ -3594,7 +3359,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_chat.manage'), false)) then
     raise exception 'No chat %', delete_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "better_supabase"."ai_chats" x where x."id" = delete_ai_chat.chat;
@@ -3619,7 +3384,7 @@ begin
     raise exception 'No chat %', get_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   select * into v_row from "better_supabase"."ai_chats" x where x."id" = get_ai_chat.chat;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_ai_chat"(uuid) from public, anon;
@@ -3655,13 +3420,13 @@ begin
     v_at := split_part(list_ai_chats.after, '|', 1)::timestamptz;
     v_id := split_part(list_ai_chats.after, '|', 2)::uuid;
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."organization_id", 'owner_id', page."owner_id", 'project_id', page."project_id", 'agent_id', page."agent_id", 'title', page."title", 'model', page."model", 'visibility', page."visibility", 'mode', page."mode", 'pinned', page."pinned", 'archived_at', page."archived_at", 'is_temporary', page."is_temporary", 'expires_at', page."expires_at", 'current_leaf_id', page."current_leaf_id", 'active_stream_id', page."active_stream_id", 'active_run_id', page."active_run_id", 'last_message_at', page."last_message_at", 'created_at', page."created_at", 'updated_at', page."updated_at") order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."tenant_id", 'owner_id', page."owner_id", 'project_id', page."project_id", 'agent_id', page."agent_id", 'title', page."title", 'model', page."model", 'visibility', page."visibility", 'mode', page."mode", 'pinned', page."pinned", 'archived_at', page."archived_at", 'is_temporary', page."is_temporary", 'expires_at', page."expires_at", 'current_leaf_id', page."current_leaf_id", 'active_stream_id', page."active_stream_id", 'active_run_id', page."active_run_id", 'last_message_at', page."last_message_at", 'created_at', page."created_at", 'updated_at', page."updated_at") order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
   into v_items
   from (
     select x.* from "better_supabase"."ai_chats" x
-    where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."organization_id" is null or x."organization_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_user_id" = (select auth.uid()) and ((x."organization_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+    where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
       and not x."is_temporary"
-      and (list_ai_chats.tenant is null or x."organization_id" = list_ai_chats.tenant)
+      and (list_ai_chats.tenant is null or x."tenant_id" = list_ai_chats.tenant)
       and (list_ai_chats.project is null or x."project_id" = list_ai_chats.project)
       and (list_ai_chats.pinned is null or x."pinned" = list_ai_chats.pinned)
       and (list_ai_chats.archived is null or (x."archived_at" is not null) = list_ai_chats.archived)
@@ -3704,13 +3469,13 @@ begin
     if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_ai_project.tenant, 'ai_chat.create'), false) then
       raise exception 'You may not create projects here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
     end if;
-    insert into "better_supabase"."ai_projects" ("organization_id", "owner_id", "name", "instructions", "default_model", "pinned")
+    insert into "better_supabase"."ai_projects" ("tenant_id", "owner_id", "name", "instructions", "default_model", "pinned")
     values (
       save_ai_project.tenant, auth.uid(), v_fields ->> 'name', coalesce(v_fields ->> 'instructions', ''),
       v_fields ->> 'default_model', coalesce((v_fields ->> 'pinned')::boolean, false)
     )
     returning * into v_row;
-    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
   end if;
   update "better_supabase"."ai_projects" x set
     "name" = coalesce(v_fields ->> 'name', x."name"),
@@ -3727,7 +3492,7 @@ begin
   if not found then
     raise exception 'No project %', save_ai_project.id using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_ai_project"(uuid, uuid, jsonb) from public, anon;
@@ -3761,9 +3526,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."pinned" desc, x."updated_at" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."pinned" desc, x."updated_at" desc), '[]'::jsonb)
   from "better_supabase"."ai_projects" x
-  where x."owner_id" = (select auth.uid()) and x."organization_id" is not distinct from list_ai_projects.tenant;
+  where x."owner_id" = (select auth.uid()) and x."tenant_id" is not distinct from list_ai_projects.tenant;
 $$;
 revoke execute on function "better_supabase"."list_ai_projects"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_projects"(uuid) to authenticated, service_role;
@@ -3785,7 +3550,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = add_ai_chat_participant.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', add_ai_chat_participant.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -3809,7 +3574,7 @@ begin
   update "better_supabase"."ai_chats" c set "visibility" = 'shared', "updated_at" = now()
   where c."id" = v_chat.id and c."visibility" = 'private';
   perform "better_supabase"."ai_chat_notify"(v_chat.id, add_ai_chat_participant.participant, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.participant, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."add_ai_chat_participant"(uuid, uuid, text, jsonb) from public, anon;
@@ -3865,9 +3630,9 @@ begin
     raise exception 'No chat %', list_ai_chat_participants.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   return (
-    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_user_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
+    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
       || coalesce((
-        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_user_id', x."customer_user_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
+        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_id', x."customer_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
         from "better_supabase"."ai_chat_participants" x
         where x."chat_id" = list_ai_chat_participants.chat
       ), '[]'::jsonb)
@@ -3899,7 +3664,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = add_ai_chat_party.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', add_ai_chat_party.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -3934,9 +3699,9 @@ begin
     on conflict ("chat_id", "team_id") where "kind" = 'team' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'customer' then
-    insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "customer_user_id", "role", "added_by")
+    insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "customer_id", "role", "added_by")
     values (v_chat.id, 'customer', add_ai_chat_party.party::uuid, v_role, auth.uid())
-    on conflict ("chat_id", "customer_user_id") where "kind" = 'customer' do update set "role" = excluded."role"
+    on conflict ("chat_id", "customer_id") where "kind" = 'customer' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'external' then
     insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "email", "role", "added_by")
@@ -3947,7 +3712,7 @@ begin
   update "better_supabase"."ai_chats" c set "visibility" = 'shared', "updated_at" = now()
   where c."id" = v_chat.id and c."visibility" = 'private';
   perform "better_supabase"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.added', jsonb_build_object('kind', add_ai_chat_party.party_kind, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."add_ai_chat_party"(uuid, text, text, text) from public, anon;
@@ -3969,14 +3734,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = remove_ai_chat_party.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', remove_ai_chat_party.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "better_supabase"."ai_chat_participants" x
   where x."chat_id" = v_chat.id and x."kind"::text = remove_ai_chat_party.party_kind
-    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_user_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
+    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
   get diagnostics v_count = row_count;
   if v_count > 0 then
     perform "better_supabase"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.removed', jsonb_build_object('kind', remove_ai_chat_party.party_kind), true);
@@ -4035,7 +3800,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = create_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', create_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -4071,7 +3836,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = rotate_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', rotate_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -4104,7 +3869,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = revoke_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', revoke_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -4253,7 +4018,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = switch_ai_branch.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_user_id" = (select auth.uid()) and ((v_chat."organization_id")::text, ('ai-chat')::text, (v_chat."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((v_chat."tenant_id")::text, ('ai-chat')::text, (v_chat."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))))) then
     raise exception 'No chat %', switch_ai_branch.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if not exists (select 1 from "better_supabase"."ai_messages" x where x."chat_id" = switch_ai_branch.chat and x."id" = switch_ai_branch.message_id) then
@@ -4304,7 +4069,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = append_ai_user_message.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_user_id" = (select auth.uid()) and ((v_chat."organization_id")::text, ('ai-chat')::text, (v_chat."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((v_chat."tenant_id")::text, ('ai-chat')::text, (v_chat."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))))) then
     raise exception 'No chat %', append_ai_user_message.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if coalesce(append_ai_user_message.trigger, 'submit-message') = 'regenerate-message' then
@@ -4417,7 +4182,7 @@ begin
     update "better_supabase"."ai_runs" x set "assistant_message_id" = v_id where x."id" = save_ai_assistant_message.run and x."chat_id" = v_chat."id";
   end if;
   if v_status = 'complete' then
-    perform "better_supabase".emit_event('ai_chat_message.completed', jsonb_build_object('chatId', v_chat."id", 'messageId', v_id, 'organizationId', v_chat."organization_id"::text, 'ownerId', v_chat."owner_id", 'model', coalesce(save_ai_assistant_message.model, v_chat."model"), 'status', v_status), 'ai-chats/' || v_chat."id"::text, (v_chat."organization_id")::text, 'ai_chat_message.completed:' || v_chat."id"::text || ':' || v_id, 'better-supabase/ai-chat');
+    perform "better_supabase".emit_event('ai_chat_message.completed', jsonb_build_object('chatId', v_chat."id", 'messageId', v_id, 'organizationId', v_chat."tenant_id"::text, 'ownerId', v_chat."owner_id", 'model', coalesce(save_ai_assistant_message.model, v_chat."model"), 'status', v_status), 'ai-chats/' || v_chat."id"::text, (v_chat."tenant_id")::text, 'ai_chat_message.completed:' || v_chat."id"::text || ':' || v_id, 'better-supabase/ai-chat');
   end if;
   perform "better_supabase"."ai_chat_notify"(v_chat."id", v_chat."owner_id", 'message.saved', jsonb_build_object('messageId', v_id), not v_chat."is_temporary");
   return jsonb_build_object('message_id', v_id, 'parent_id', save_ai_assistant_message.parent_id, 'created', v_created);
@@ -4432,7 +4197,7 @@ grant execute on function "better_supabase"."save_ai_assistant_message"(uuid, js
 -- run_id }: the active stream when another reply holds the chat.
 -- external_run_id is the durable engine's own run id, such as a Workflow
 -- SDK run, so stop and resume can reach that run.
-drop function if exists "better_supabase"."claim_ai_chat_stream"(uuid, text, text, text, text);
+
 create or replace function "better_supabase"."claim_ai_chat_stream"(chat uuid, stream text, model text default null, message_id text default null, engine text default 'ai-sdk', external_run_id text default null)
 returns jsonb
 language plpgsql
@@ -4514,7 +4279,7 @@ begin
   where x."chat_id" = release_ai_chat_stream.chat and x."stream_id" = release_ai_chat_stream.stream
   returning x."id", x."usage", x."owner_id" into v_run, v_usage, v_owner;
   if v_run is not null and jsonb_typeof(v_usage) = 'object' then
-    select x."organization_id" into v_tenant from "better_supabase"."ai_chats" x where x."id" = release_ai_chat_stream.chat;
+    select x."tenant_id" into v_tenant from "better_supabase"."ai_chats" x where x."id" = release_ai_chat_stream.chat;
     if v_tenant is not null then
     if jsonb_typeof(v_usage -> 'inputTokens') = 'number' and (v_usage -> 'inputTokens')::numeric > 0 then
       perform "better_supabase"."record_usage"(v_tenant, 'ai.input_tokens', (v_usage -> 'inputTokens')::numeric, 'ai_run:' || v_run || ':' || 'inputTokens', 'ai-chat', jsonb_build_object('chatId', release_ai_chat_stream.chat, 'runId', v_run), v_owner);
@@ -4552,7 +4317,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = request_ai_chat_stop.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_user_id" = (select auth.uid()) and ((v_chat."organization_id")::text, ('ai-chat')::text, (v_chat."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((v_chat."tenant_id")::text, ('ai-chat')::text, (v_chat."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))))) then
     raise exception 'No chat %', request_ai_chat_stop.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if v_chat."active_stream_id" is null then
@@ -4631,7 +4396,7 @@ begin
     where r."subject_type" = 'ai_tool_approval' and r."subject_id" = v_row."approval_id"
   ) then
     perform "better_supabase"."open_approval"(
-      v_chat."organization_id", 'ai_tool_approval', v_row."approval_id", 'run', jsonb_build_object('steps', '[{"approvers": {}, "required": 1}]'::jsonb, 'selfApproval', false, 'expiresIn', null, 'run', null), null,
+      v_chat."tenant_id", 'ai_tool_approval', v_row."approval_id", 'run', jsonb_build_object('steps', '[{"approvers": {}, "required": 1}]'::jsonb, 'selfApproval', false, 'expiresIn', null, 'run', null), null,
       jsonb_build_object('chatId', v_chat."id", 'tool', v_row."tool", 'toolCallId', v_row."tool_call_id", 'input', v_row."input")
     );
   end if;
@@ -4675,15 +4440,15 @@ begin
   where x."approval_id" = v_row."approval_id"
   returning * into v_row;
   perform "better_supabase"."ai_chat_notify"(v_row."chat_id", null, 'approval.decided', jsonb_build_object('approvalId', v_row."approval_id", 'decision', v_decision), false);
-  perform "better_supabase".emit_event('ai_tool_approval.decided', jsonb_build_object('organizationId', (select c."organization_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id")::text, 'chatId', v_row."chat_id", 'approvalId', v_row."approval_id", 'tool', v_row."tool", 'decision', v_decision), 'ai-chats/' || v_row."chat_id"::text, ((select c."organization_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id"))::text, 'ai_tool_approval.decided:' || v_row."approval_id", 'better-supabase/ai-chat');
+  perform "better_supabase".emit_event('ai_tool_approval.decided', jsonb_build_object('organizationId', (select c."tenant_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id")::text, 'chatId', v_row."chat_id", 'approvalId', v_row."approval_id", 'tool', v_row."tool", 'decision', v_decision), 'ai-chats/' || v_row."chat_id"::text, ((select c."tenant_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id"))::text, 'ai_tool_approval.decided:' || v_row."approval_id", 'better-supabase/ai-chat');
   perform better_supabase.audit_event(
     event_type => 'ai_tool_approval.decided',
     category => 'ai',
     target_type => 'ai_tool_approval',
     record_id => v_row."approval_id",
     target_label => v_row."tool",
-    tenant => ((select c."organization_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id"))::uuid,
-    metadata => jsonb_build_object('organizationId', (select c."organization_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id")::text, 'chatId', v_row."chat_id", 'approvalId', v_row."approval_id", 'tool', v_row."tool", 'decision', v_decision),
+    tenant => ((select c."tenant_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id"))::uuid,
+    metadata => jsonb_build_object('organizationId', (select c."tenant_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id")::text, 'chatId', v_row."chat_id", 'approvalId', v_row."approval_id", 'tool', v_row."tool", 'decision', v_decision),
     idempotency_key => 'ai_tool_approval.decided:' || v_row."approval_id"
   );
   perform "better_supabase"."approval_settle"('ai_tool_approval', v_row."approval_id", 'run',
@@ -4773,7 +4538,7 @@ begin
     raise exception 'You may not change tool policies here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   if set_ai_tool_policy.policy is null then
-    delete from "better_supabase"."ai_tool_policies" x where x."organization_id" = set_ai_tool_policy.tenant and x."tool" = set_ai_tool_policy.tool;
+    delete from "better_supabase"."ai_tool_policies" x where x."tenant_id" = set_ai_tool_policy.tenant and x."tool" = set_ai_tool_policy.tool;
     perform "better_supabase".emit_event('ai_tool_policy.updated', jsonb_build_object('organizationId', set_ai_tool_policy.tenant::text, 'tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy), 'organizations/' || set_ai_tool_policy.tenant::text || '/ai-tool-policies/' || set_ai_tool_policy.tool, (set_ai_tool_policy.tenant)::text, null, 'better-supabase/ai-chat');
   perform better_supabase.audit_event(
     event_type => 'ai_tool_policy.updated',
@@ -4785,9 +4550,9 @@ begin
   );
     return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', null);
   end if;
-  insert into "better_supabase"."ai_tool_policies" ("organization_id", "tool", "policy")
+  insert into "better_supabase"."ai_tool_policies" ("tenant_id", "tool", "policy")
   values (set_ai_tool_policy.tenant, set_ai_tool_policy.tool, set_ai_tool_policy.policy)
-  on conflict ("organization_id", "tool") do update set "policy" = excluded."policy", "updated_at" = now();
+  on conflict ("tenant_id", "tool") do update set "policy" = excluded."policy", "updated_at" = now();
   perform "better_supabase".emit_event('ai_tool_policy.updated', jsonb_build_object('organizationId', set_ai_tool_policy.tenant::text, 'tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy), 'organizations/' || set_ai_tool_policy.tenant::text || '/ai-tool-policies/' || set_ai_tool_policy.tool, (set_ai_tool_policy.tenant)::text, null, 'better-supabase/ai-chat');
   perform better_supabase.audit_event(
     event_type => 'ai_tool_policy.updated',
@@ -4817,7 +4582,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_object_agg(x."tool", x."policy"), '{}'::jsonb)
-    from "better_supabase"."ai_tool_policies" x where x."organization_id" = ai_tool_policies_for.tenant
+    from "better_supabase"."ai_tool_policies" x where x."tenant_id" = ai_tool_policies_for.tenant
   );
 end;
 $$;
@@ -4921,149 +4686,6 @@ $$;
 revoke execute on function "better_supabase"."rate_ai_message"(uuid, text, integer, text, text) from public, anon;
 grant execute on function "better_supabase"."rate_ai_message"(uuid, text, integer, text, text) to authenticated, service_role;
 
--- Creates a read-only link to the branch ending at leaf (default: the one
--- the chat shows); the owner with 'ai_chat.share'. The token is returned once
--- and only its SHA-256 is stored.
-create or replace function "better_supabase"."share_ai_chat"(chat uuid, leaf text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_chat "better_supabase"."ai_chats";
-  v_leaf text;
-  v_token text := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
-  v_id uuid;
-  v_created timestamptz;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_chat from "better_supabase"."ai_chats" x where x."id" = share_ai_chat.chat;
-  if not found or v_chat."owner_id" is distinct from auth.uid() then
-    raise exception 'No chat %', share_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
-  end if;
-  if not coalesce(better_supabase.can('tenant', v_chat."organization_id", 'ai_chat.share'), false) then
-    raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
-  end if;
-  v_leaf := coalesce(share_ai_chat.leaf, v_chat."current_leaf_id");
-  if v_leaf is null or not exists (select 1 from "better_supabase"."ai_messages" x where x."chat_id" = v_chat."id" and x."id" = v_leaf) then
-    raise exception 'Nothing to share yet' using errcode = 'P0002', hint = 'AI_MESSAGE_NOT_FOUND';
-  end if;
-  insert into "better_supabase"."ai_chat_shares" ("chat_id", "token_hash", "leaf_id", "created_by")
-  values (v_chat."id", encode(sha256(convert_to(v_token, 'UTF8')), 'hex'), v_leaf, auth.uid())
-  returning "id", "created_at" into v_id, v_created;
-  perform "better_supabase".emit_event('ai_chat.shared', jsonb_build_object('chatId', v_chat."id", 'shareId', v_id, 'organizationId', v_chat."organization_id"::text, 'ownerId', v_chat."owner_id", 'leafId', v_leaf), 'ai-chats/' || v_chat."id"::text, (v_chat."organization_id")::text, 'ai_chat.shared:' || v_id::text, 'better-supabase/ai-chat');
-  perform better_supabase.audit_event(
-    event_type => 'ai_chat.shared',
-    category => 'ai',
-    target_type => 'ai_chat_share',
-    record_id => v_id::text,
-    tenant => (v_chat."organization_id")::uuid,
-    metadata => jsonb_build_object('chatId', v_chat."id", 'shareId', v_id, 'organizationId', v_chat."organization_id"::text, 'ownerId', v_chat."owner_id", 'leafId', v_leaf),
-    idempotency_key => 'ai_chat.shared:' || v_id::text
-  );
-  return jsonb_build_object('id', v_id, 'token', v_token, 'leaf_id', v_leaf, 'created_at', v_created);
-end;
-$$;
-revoke execute on function "better_supabase"."share_ai_chat"(uuid, text) from public, anon;
-grant execute on function "better_supabase"."share_ai_chat"(uuid, text) to authenticated, service_role;
-
--- Revokes a link; whoever made it, the chat's owner or the service role.
-create or replace function "better_supabase"."revoke_ai_chat_share"(id uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_chat_id uuid;
-  v_chat "better_supabase"."ai_chats";
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  update "better_supabase"."ai_chat_shares" x set "revoked_at" = now()
-  where x."id" = revoke_ai_chat_share.id
-    and x."revoked_at" is null
-    and (
-      coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-      or x."created_by" = (select auth.uid())
-      or exists (select 1 from "better_supabase"."ai_chats" c where c."id" = x."chat_id" and c."owner_id" = (select auth.uid()))
-    )
-  returning x."chat_id" into v_chat_id;
-  if v_chat_id is null then
-    return false;
-  end if;
-  select * into v_chat from "better_supabase"."ai_chats" c where c."id" = v_chat_id;
-  perform "better_supabase".emit_event('ai_chat.share_revoked', jsonb_build_object('chatId', v_chat."id", 'shareId', revoke_ai_chat_share.id, 'organizationId', v_chat."organization_id"::text, 'ownerId', v_chat."owner_id"), 'ai-chats/' || v_chat."id"::text, (v_chat."organization_id")::text, null, 'better-supabase/ai-chat');
-  perform better_supabase.audit_event(
-    event_type => 'ai_chat.share_revoked',
-    category => 'ai',
-    target_type => 'ai_chat_share',
-    record_id => revoke_ai_chat_share.id::text,
-    tenant => (v_chat."organization_id")::uuid,
-    metadata => jsonb_build_object('chatId', v_chat."id", 'shareId', revoke_ai_chat_share.id, 'organizationId', v_chat."organization_id"::text, 'ownerId', v_chat."owner_id")
-  );
-  return true;
-end;
-$$;
-revoke execute on function "better_supabase"."revoke_ai_chat_share"(uuid) from public, anon;
-grant execute on function "better_supabase"."revoke_ai_chat_share"(uuid) to authenticated, service_role;
-
--- A chat's links, newest first, without their tokens.
-create or replace function "better_supabase"."list_ai_chat_shares"(chat uuid)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'id', x."id", 'leaf_id', x."leaf_id", 'created_by', x."created_by",
-    'created_at', x."created_at", 'revoked_at', x."revoked_at"
-  ) order by x."created_at" desc), '[]'::jsonb)
-  from "better_supabase"."ai_chat_shares" x
-  join "better_supabase"."ai_chats" c on c."id" = x."chat_id"
-  where x."chat_id" = list_ai_chat_shares.chat
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or c."owner_id" = (select auth.uid()));
-$$;
-revoke execute on function "better_supabase"."list_ai_chat_shares"(uuid) from public, anon;
-grant execute on function "better_supabase"."list_ai_chat_shares"(uuid) to authenticated, service_role;
-
--- The shared branch for a link token, for anyone holding it: { chat,
--- leaf_id, messages }, or null when the link is unknown or revoked.
-create or replace function "better_supabase"."get_shared_ai_chat"(token text)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_share "better_supabase"."ai_chat_shares";
-  v_chat "better_supabase"."ai_chats";
-begin
-  if get_shared_ai_chat.token is null or get_shared_ai_chat.token !~ '^[0-9a-f]{64}$' then
-    return null;
-  end if;
-  select * into v_share from "better_supabase"."ai_chat_shares" x
-  where x."token_hash" = encode(sha256(convert_to(get_shared_ai_chat.token, 'UTF8')), 'hex') and x."revoked_at" is null;
-  if not found then
-    return null;
-  end if;
-  select * into v_chat from "better_supabase"."ai_chats" x where x."id" = v_share."chat_id";
-  return jsonb_build_object(
-    'chat', jsonb_build_object('id', v_chat."id", 'title', v_chat."title", 'model', v_chat."model", 'created_at', v_chat."created_at"),
-    'leaf_id', v_share."leaf_id",
-    'messages', "better_supabase"."ai_message_path_of"(v_chat."id", v_share."leaf_id", false)
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."get_shared_ai_chat"(text) from public;
-grant execute on function "better_supabase"."get_shared_ai_chat"(text) to anon, authenticated, service_role;
-
 -- Upserts models from the gateway (the service role only): models is an
 -- array, or an object whose models key holds one. Each element holds id, and optionally provider, name, pricing, capabilities, plans and
 -- enabled. prune deletes the models missing from the list.
@@ -5152,7 +4774,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  insert into "better_supabase"."ai_moderation_events" ("organization_id", "chat_id", "message_id", "user_id", "stage", "category", "score", "action")
+  insert into "better_supabase"."ai_moderation_events" ("tenant_id", "chat_id", "message_id", "user_id", "stage", "category", "score", "action")
   values (
     (record_ai_moderation_event.event ->> 'organization_id')::uuid,
     (record_ai_moderation_event.event ->> 'chat_id')::uuid,
@@ -5164,7 +4786,7 @@ begin
     record_ai_moderation_event.event ->> 'action'
   )
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'chat_id', v_row."chat_id", 'message_id', v_row."message_id", 'user_id', v_row."user_id", 'stage', v_row."stage", 'category', v_row."category", 'score', v_row."score", 'action', v_row."action", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'chat_id', v_row."chat_id", 'message_id', v_row."message_id", 'user_id', v_row."user_id", 'stage', v_row."stage", 'category', v_row."category", 'score', v_row."score", 'action', v_row."action", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."record_ai_moderation_event"(jsonb) from public, anon, authenticated;
@@ -5183,10 +4805,10 @@ begin
     raise exception 'You may not review moderation here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."organization_id", 'chat_id', page."chat_id", 'message_id', page."message_id", 'user_id', page."user_id", 'stage', page."stage", 'category', page."category", 'score', page."score", 'action', page."action", 'created_at', page."created_at") order by page."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."tenant_id", 'chat_id', page."chat_id", 'message_id', page."message_id", 'user_id', page."user_id", 'stage', page."stage", 'category', page."category", 'score', page."score", 'action', page."action", 'created_at', page."created_at") order by page."created_at" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."ai_moderation_events" x
-      where x."organization_id" = list_ai_moderation_events.tenant
+      where x."tenant_id" = list_ai_moderation_events.tenant
       order by x."created_at" desc
       limit least(greatest(coalesce(list_ai_moderation_events.size, 100), 1), 1000)
     ) page
@@ -5212,7 +4834,7 @@ begin
   with doomed as (
     select x."id" from "better_supabase"."ai_chats" x
     where x."is_temporary" and x."expires_at" <= now()
-      and not "better_supabase"."is_held"('ai_chats', (x."organization_id")::text)
+      and not "better_supabase"."is_held"('ai_chats', (x."tenant_id")::text)
     limit greatest(coalesce(purge_ai_chats.batch, 1000), 1)
   )
   delete from "better_supabase"."ai_chats" c using doomed where c."id" = doomed."id";
@@ -5226,19 +4848,19 @@ grant execute on function "better_supabase"."purge_ai_chats"(integer) to service
 -- Sandboxes and provider containers a chat started, harness sessions'
 -- included, so one idle-stop claim stops the ones nobody used for
 -- idle_seconds or past expires_at.
-create table if not exists "better_supabase"."ai_sandboxes" (
+create table "better_supabase"."ai_sandboxes" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") between 1 and 200),
-  "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") between 1 and 200),
-  "container_id" text check (length("container_id") <= 200),
-  "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "idle_seconds" integer not null default 600 check ("idle_seconds" > 0),
-  "error" text check (length("error") <= 4000),
+  "harness_id" text constraint bsb_ai_sandboxes_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "provider" text not null constraint bsb_ai_sandboxes_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
+  "sandbox_id" text not null constraint bsb_ai_sandboxes_sandbox_id_check check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
+  "container_id" text constraint bsb_ai_sandboxes_container_id_check check (length("container_id") <= 200),
+  "status" text not null default 'running' constraint bsb_ai_sandboxes_status_check check ("status" in ('running', 'stopping', 'stopped')),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_sandboxes_metadata_check check (jsonb_typeof("metadata") = 'object'),
+  "idle_seconds" integer not null default 600 constraint bsb_ai_sandboxes_idle_seconds_check check ("idle_seconds" > 0),
+  "error" text constraint bsb_ai_sandboxes_error_check check (length("error") <= 4000),
   "last_used_at" timestamptz not null default now(),
   "expires_at" timestamptz,
   "stopped_at" timestamptz,
@@ -5246,19 +4868,18 @@ create table if not exists "better_supabase"."ai_sandboxes" (
   "updated_at" timestamptz not null default now(),
   unique ("provider", "sandbox_id")
 );
-create index if not exists ai_sandboxes_open_idx on "better_supabase"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
-create index if not exists ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
-create index if not exists ai_sandboxes_harness_idx on "better_supabase"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
-create index if not exists ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("organization_id");
-create index if not exists ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
+create index ai_sandboxes_open_idx on "better_supabase"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
+create index ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
+create index ai_sandboxes_harness_idx on "better_supabase"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
+create index ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("tenant_id");
+create index ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
 alter table "better_supabase"."ai_sandboxes" enable row level security;
 revoke all on "better_supabase"."ai_sandboxes" from public, anon, authenticated;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
-drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
-create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes"
+create policy bsb_ai_sandboxes_read on "better_supabase"."ai_sandboxes"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
 
 -- Records a sandbox or container the app started, or marks a known one used
 -- (service role). fields: user_id, chat_id, harness_id, container_id,
@@ -5274,7 +4895,7 @@ declare
   v_row "better_supabase"."ai_sandboxes"%rowtype;
   v_fields jsonb := coalesce(register_ai_sandbox.fields, '{}');
 begin
-  insert into "better_supabase"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id", "container_id", "metadata", "idle_seconds", "expires_at")
+  insert into "better_supabase"."ai_sandboxes" as cur ("tenant_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id", "container_id", "metadata", "idle_seconds", "expires_at")
   values (
     register_ai_sandbox.tenant,
     (v_fields ->> 'user_id')::uuid,
@@ -5299,12 +4920,12 @@ begin
     "stopped_at" = null,
     "last_used_at" = now(),
     "updated_at" = now()
-  where cur."organization_id" is not distinct from excluded."organization_id"
+  where cur."tenant_id" is not distinct from excluded."tenant_id"
   returning * into v_row;
   if not found then
     raise exception 'sandbox % belongs to another tenant', register_ai_sandbox.sandbox_id using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'provider', v_row."provider", 'sandbox_id', v_row."sandbox_id", 'container_id', v_row."container_id", 'status', v_row."status", 'metadata', v_row."metadata", 'idle_seconds', v_row."idle_seconds", 'error', v_row."error", 'last_used_at', v_row."last_used_at", 'expires_at', v_row."expires_at", 'stopped_at', v_row."stopped_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'provider', v_row."provider", 'sandbox_id', v_row."sandbox_id", 'container_id', v_row."container_id", 'status', v_row."status", 'metadata', v_row."metadata", 'idle_seconds', v_row."idle_seconds", 'error', v_row."error", 'last_used_at', v_row."last_used_at", 'expires_at', v_row."expires_at", 'stopped_at', v_row."stopped_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."register_ai_sandbox"(uuid, text, text, jsonb) from public, anon, authenticated;
@@ -5334,7 +4955,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_sandboxes" x
+  select jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_sandboxes" x
   where x."chat_id" = ai_sandbox_for.chat_id and x."provider" = ai_sandbox_for.provider and x."status" = 'running'
     and (x."expires_at" is null or x."expires_at" > now())
   order by x."last_used_at" desc
@@ -5362,7 +4983,7 @@ begin
        or (y."status" = 'stopping' and y."updated_at" <= now() - make_interval(secs => greatest(idle_ai_sandboxes.lease_seconds, 1))))
       and not exists (
         select 1 from "better_supabase"."ai_harness_sessions" z
-        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."locked_until" > now()
+        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."lock_expires_at" > now()
       )
     order by y."last_used_at"
     limit least(greatest(idle_ai_sandboxes.batch, 1), 500)
@@ -5372,7 +4993,7 @@ begin
     from due where x."id" = due."id"
     returning x.*
   )
-  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."organization_id", 'user_id', claimed."user_id", 'chat_id', claimed."chat_id", 'harness_id', claimed."harness_id", 'provider', claimed."provider", 'sandbox_id', claimed."sandbox_id", 'container_id', claimed."container_id", 'status', claimed."status", 'metadata', claimed."metadata", 'idle_seconds', claimed."idle_seconds", 'error', claimed."error", 'last_used_at', claimed."last_used_at", 'expires_at', claimed."expires_at", 'stopped_at', claimed."stopped_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
+  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."tenant_id", 'user_id', claimed."user_id", 'chat_id', claimed."chat_id", 'harness_id', claimed."harness_id", 'provider', claimed."provider", 'sandbox_id', claimed."sandbox_id", 'container_id', claimed."container_id", 'status', claimed."status", 'metadata', claimed."metadata", 'idle_seconds', claimed."idle_seconds", 'error', claimed."error", 'last_used_at', claimed."last_used_at", 'expires_at', claimed."expires_at", 'stopped_at', claimed."stopped_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
   return v_rows;
 end;
 $$;
@@ -5424,9 +5045,9 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
   from "better_supabase"."ai_sandboxes" x
-  where x."organization_id" is not distinct from list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x."chat_id" = list_ai_sandboxes.chat_id)
+  where x."tenant_id" is not distinct from list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x."chat_id" = list_ai_sandboxes.chat_id)
 $$;
 revoke execute on function "better_supabase"."list_ai_sandboxes"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_sandboxes"(uuid, uuid) to authenticated, service_role;
@@ -5621,7 +5242,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."load_ai_harness_session"(uuid, text) from public, anon, authenticated;
@@ -5664,7 +5285,7 @@ begin
   select * into v_row from "better_supabase"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = save_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
     raise exception 'Harness session % is locked', save_ai_harness_session.harness using errcode = '55P03', hint = 'AI_HARNESS_LOCKED';
   end if;
   update "better_supabase"."ai_harness_sessions" x set
@@ -5682,8 +5303,8 @@ begin
       update "better_supabase"."ai_sandboxes" y set "status" = 'stopped', "stopped_at" = now(), "updated_at" = now()
       where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped';
     else
-      insert into "better_supabase"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id")
-      values (v_chat."organization_id", v_chat."owner_id", v_chat."id", v_row."harness_id", coalesce(nullif(save_ai_harness_session.fields ->> 'sandbox_provider', ''), 'harness'), save_ai_harness_session.fields ->> 'sandbox_id')
+      insert into "better_supabase"."ai_sandboxes" as cur ("tenant_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id")
+      values (v_chat."tenant_id", v_chat."owner_id", v_chat."id", v_row."harness_id", coalesce(nullif(save_ai_harness_session.fields ->> 'sandbox_provider', ''), 'harness'), save_ai_harness_session.fields ->> 'sandbox_id')
       on conflict ("provider", "sandbox_id") do update set
         "chat_id" = excluded."chat_id",
         "harness_id" = excluded."harness_id",
@@ -5692,7 +5313,7 @@ begin
         "stopped_at" = null,
         "last_used_at" = now(),
         "updated_at" = now()
-      where cur."organization_id" is not distinct from excluded."organization_id";
+      where cur."tenant_id" is not distinct from excluded."tenant_id";
       if not found then
         raise exception 'sandbox % belongs to another tenant', save_ai_harness_session.fields ->> 'sandbox_id' using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
       end if;
@@ -5701,7 +5322,7 @@ begin
     update "better_supabase"."ai_sandboxes" y set "last_used_at" = now(), "updated_at" = now()
     where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" = 'running';
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_ai_harness_session"(uuid, text, jsonb, text) from public, anon, authenticated;
@@ -5740,12 +5361,12 @@ begin
   select * into v_row from "better_supabase"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = lock_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
     return false;
   end if;
   update "better_supabase"."ai_harness_sessions" x set
     "lock_holder" = lock_ai_harness_session.holder,
-    "locked_until" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
+    "lock_expires_at" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
     "updated_at" = now()
   where x."chat_id" = v_row."chat_id" and x."harness_id" = v_row."harness_id";
   return true;
@@ -5767,7 +5388,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "locked_until" = null, "updated_at" = now()
+  update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "lock_expires_at" = null, "updated_at" = now()
   where x."chat_id" = unlock_ai_harness_session.chat
     and x."harness_id" = unlock_ai_harness_session.harness
     and x."lock_holder" = unlock_ai_harness_session.holder;
@@ -5780,126 +5401,74 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_ai_chat_receive on realtime.messages;
 create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        drop policy if exists bsb_ai_chats_receive on realtime.messages;
 create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_projects" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_projects" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_projects" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_projects" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."ai_chats" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
-    or ("better_supabase"."ai_chats"."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) or (pa."kind"::text = 'customer' and pa."customer_user_id" = (select auth.uid()) and (("better_supabase"."ai_chats"."organization_id")::text, ('ai-chat')::text, ("better_supabase"."ai_chats"."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+    or ("visibility" = 'organization' and "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
+    or ("better_supabase"."ai_chats"."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and (("better_supabase"."ai_chats"."tenant_id")::text, ('ai-chat')::text, ("better_supabase"."ai_chats"."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_chats" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_chats" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_chats" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."ai_sandboxes" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_sandboxes" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.ai_chats', target_type => 'ai_chat', event_prefix => 'ai_chat', deferred => true);
-  perform better_supabase.audit('better_supabase.ai_projects', target_type => 'ai_project', event_prefix => 'ai_project', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_chats deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_chat","event_prefix":"ai_chat"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_projects deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_project","event_prefix":"ai_project"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
@@ -5918,133 +5487,50 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:6d1d03cbd53ce16fb8927cca9426ef9266525d1379779265b3be8289583cb4eb
+-- @bsb-hash sha256:1ab90976aae36dfd2a7429d57f80bf0f7059ca7c87e15a394962437685b08cff
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."ai_projects";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."ai_projects";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_projects";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."ai_projects";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_projects";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."ai_chats";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."ai_chats";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_chats";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."ai_chats";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_chats";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_tool_policies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_moderation_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_sandboxes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Projects group chats and carry instructions and a default model.
-create table if not exists "app_private"."ai_projects" (
+create table "app_private"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
-  "instructions" text not null default '' check (length("instructions") <= 20000),
-  "default_model" text check (length("default_model") <= 200),
+  "name" text not null constraint bsb_ai_projects_name_check check (length("name") >= 1 and length("name") <= 200),
+  "instructions" text not null default '' constraint bsb_ai_projects_instructions_check check (length("instructions") <= 20000),
+  "default_model" text constraint bsb_ai_projects_default_model_check check (length("default_model") <= 200),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_projects_owner_idx on "app_private"."ai_projects" ("owner_id", "organization_id");
+create index ai_projects_owner_idx on "app_private"."ai_projects" ("owner_id", "tenant_id");
 alter table "app_private"."ai_projects" enable row level security;
 revoke all on "app_private"."ai_projects" from public, anon, authenticated;
 grant all on "app_private"."ai_projects" to service_role;
 grant select on "app_private"."ai_projects" to authenticated;
-drop policy if exists ai_projects_owner_read on "app_private"."ai_projects";
-create policy ai_projects_owner_read on "app_private"."ai_projects"
+create policy bsb_ai_projects_owner_read on "app_private"."ai_projects"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
 -- active_stream_id is the reply being written, claimed compare-and-set.
-create table if not exists "app_private"."ai_chats" (
+create table "app_private"."ai_chats" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "project_id" uuid references "app_private"."ai_projects" ("id") on delete set null,
-  "agent_id" text check (length("agent_id") <= 200),
-  "title" text not null default '' check (length("title") <= 300),
-  "model" text check (length("model") <= 200),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'shared')),
-  "mode" text check (length("mode") <= 100),
+  "agent_id" text constraint bsb_ai_chats_agent_id_check check (length("agent_id") <= 200),
+  "title" text not null default '' constraint bsb_ai_chats_title_check check (length("title") <= 300),
+  "model" text constraint bsb_ai_chats_model_check check (length("model") <= 200),
+  "visibility" text not null default 'private' constraint bsb_ai_chats_visibility_check check ("visibility" in ('private', 'organization', 'shared')),
+  "mode" text constraint bsb_ai_chats_mode_check check (length("mode") <= 100),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "is_temporary" boolean not null default false,
@@ -6056,13 +5542,13 @@ create table if not exists "app_private"."ai_chats" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "title")) stored,
-  check (not "is_temporary" or "expires_at" is not null)
+  constraint bsb_ai_chats_check check (not "is_temporary" or "expires_at" is not null)
 );
-create index if not exists ai_chats_owner_idx on "app_private"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
-create index if not exists ai_chats_tenant_idx on "app_private"."ai_chats" ("organization_id");
-create index if not exists ai_chats_project_idx on "app_private"."ai_chats" ("project_id");
-create index if not exists ai_chats_expires_idx on "app_private"."ai_chats" ("expires_at") where "is_temporary";
-create index if not exists ai_chats_search_idx on "app_private"."ai_chats" using gin ("search_tsv");
+create index ai_chats_owner_idx on "app_private"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
+create index ai_chats_tenant_idx on "app_private"."ai_chats" ("tenant_id");
+create index ai_chats_project_idx on "app_private"."ai_chats" ("project_id");
+create index ai_chats_expires_idx on "app_private"."ai_chats" ("expires_at") where "is_temporary";
+create index ai_chats_search_idx on "app_private"."ai_chats" using gin ("search_tsv");
 alter table "app_private"."ai_chats" enable row level security;
 revoke all on "app_private"."ai_chats" from public, anon, authenticated;
 grant all on "app_private"."ai_chats" to service_role;
@@ -6072,190 +5558,183 @@ grant select on "app_private"."ai_chats" to authenticated;
 -- to it (editor): a user, every member of a team, a customer with guest
 -- access, or an external email that reads only through the live link. Each
 -- user sees only their own rows.
-create table if not exists "app_private"."ai_chat_participants" (
+create table "app_private"."ai_chat_participants" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'user' check ("kind" in ('user', 'team', 'customer', 'external')),
+  "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external')),
   "team_id" uuid,
-  "customer_user_id" uuid references auth.users (id) on delete cascade,
-  "email" text check (length("email") <= 320),
-  "role" text not null default 'viewer' check ("role" in ('viewer', 'editor')),
+  "customer_id" uuid references auth.users (id) on delete cascade,
+  "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320),
+  "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor')),
   "added_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
-  check (
+  constraint bsb_ai_chat_participants_check check (
     ("kind" = 'user' and "user_id" is not null)
     or ("kind" = 'team' and "team_id" is not null)
-    or ("kind" = 'customer' and "customer_user_id" is not null)
+    or ("kind" = 'customer' and "customer_id" is not null)
     or ("kind" = 'external' and "email" is not null)
   )
 );
-create unique index if not exists ai_chat_participants_user_key on "app_private"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
-create unique index if not exists ai_chat_participants_team_key on "app_private"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
-create unique index if not exists ai_chat_participants_customer_key on "app_private"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
-create unique index if not exists ai_chat_participants_email_key on "app_private"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
-create index if not exists ai_chat_participants_chat_idx on "app_private"."ai_chat_participants" ("chat_id");
-create index if not exists ai_chat_participants_user_idx on "app_private"."ai_chat_participants" ("user_id");
-create index if not exists ai_chat_participants_customer_user_idx on "app_private"."ai_chat_participants" ("customer_user_id");
-create index if not exists ai_chat_participants_added_by_idx on "app_private"."ai_chat_participants" ("added_by");
+create unique index ai_chat_participants_user_key on "app_private"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
+create unique index ai_chat_participants_team_key on "app_private"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
+create unique index ai_chat_participants_customer_key on "app_private"."ai_chat_participants" ("chat_id", "customer_id") where "kind" = 'customer';
+create unique index ai_chat_participants_email_key on "app_private"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index ai_chat_participants_chat_idx on "app_private"."ai_chat_participants" ("chat_id");
+create index ai_chat_participants_user_idx on "app_private"."ai_chat_participants" ("user_id");
+create index ai_chat_participants_customer_user_idx on "app_private"."ai_chat_participants" ("customer_id");
+create index ai_chat_participants_added_by_idx on "app_private"."ai_chat_participants" ("added_by");
 alter table "app_private"."ai_chat_participants" enable row level security;
 revoke all on "app_private"."ai_chat_participants" from public, anon, authenticated;
 grant all on "app_private"."ai_chat_participants" to service_role;
 grant select on "app_private"."ai_chat_participants" to authenticated;
-drop policy if exists ai_chat_participants_own_read on "app_private"."ai_chat_participants";
-create policy ai_chat_participants_own_read on "app_private"."ai_chat_participants"
+create policy bsb_ai_chat_participants_own_read on "app_private"."ai_chat_participants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists ai_chats_read on "app_private"."ai_chats";
-create policy ai_chats_read on "app_private"."ai_chats"
+create policy bsb_ai_chats_read on "app_private"."ai_chats"
   for select to authenticated
   using ("owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
+    or ("visibility" = 'organization' and "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
     or ("app_private"."ai_chats"."visibility" <> 'private' and exists (select 1 from "app_private"."ai_chat_participants" pa where pa."chat_id" = "app_private"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())))))));
 
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
 -- parts holds the canonical AI message parts; native the SDK's own shape.
-create table if not exists "app_private"."ai_messages" (
+create table "app_private"."ai_messages" (
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") between 1 and 200),
+  "id" text not null constraint bsb_ai_messages_id_check check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
-  "role" text not null check ("role" in ('system', 'user', 'assistant', 'tool')),
-  "parts" jsonb not null default '[]' check (
+  "role" text not null constraint bsb_ai_messages_role_check check ("role" in ('system', 'user', 'assistant', 'tool')),
+  "parts" jsonb not null default '[]' constraint bsb_ai_messages_parts_check check (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") between 1 and 50),
+  "format" text not null default 'canonical' constraint bsb_ai_messages_format_check check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_messages_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "model" text,
-  "status" text not null default 'complete' check ("status" in ('complete', 'aborted', 'error')),
+  "status" text not null default 'complete' constraint bsb_ai_messages_status_check check ("status" in ('complete', 'aborted', 'error')),
   "seq" bigint generated always as identity,
   "created_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, jsonb_path_query_array("parts", '$[*] ? (@.type == "text").text'))) stored,
   primary key ("chat_id", "id"),
   foreign key ("chat_id", "parent_id") references "app_private"."ai_messages" ("chat_id", "id") on delete cascade
 );
-create index if not exists ai_messages_parent_idx on "app_private"."ai_messages" ("chat_id", "parent_id");
-create index if not exists ai_messages_owner_idx on "app_private"."ai_messages" ("owner_id");
-create index if not exists ai_messages_search_idx on "app_private"."ai_messages" using gin ("search_tsv");
-alter table "app_private"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
-create index if not exists ai_messages_author_idx on "app_private"."ai_messages" ("author_id");
+create index ai_messages_parent_idx on "app_private"."ai_messages" ("chat_id", "parent_id");
+create index ai_messages_owner_idx on "app_private"."ai_messages" ("owner_id");
+create index ai_messages_search_idx on "app_private"."ai_messages" using gin ("search_tsv");
+create index ai_messages_author_idx on "app_private"."ai_messages" ("author_id");
 alter table "app_private"."ai_messages" enable row level security;
 revoke all on "app_private"."ai_messages" from public, anon, authenticated;
 grant all on "app_private"."ai_messages" to service_role;
 grant select on "app_private"."ai_messages" to authenticated;
-drop policy if exists ai_messages_read on "app_private"."ai_messages";
-create policy ai_messages_read on "app_private"."ai_messages"
+create policy bsb_ai_messages_read on "app_private"."ai_messages"
   for select to authenticated
   using ("chat_id" in (select x."id" from "app_private"."ai_chats" x));
 
 -- One generation: the stream it wrote, its usage and cost.
-create table if not exists "app_private"."ai_runs" (
+create table "app_private"."ai_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50),
-  "external_run_id" text check (length("external_run_id") <= 200),
+  "engine" text not null default 'ai-sdk' constraint bsb_ai_runs_engine_check check (length("engine") >= 1 and length("engine") <= 50),
+  "external_run_id" text constraint bsb_ai_runs_external_run_id_check check (length("external_run_id") <= 200),
   "model" text,
-  "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
+  "status" text not null default 'running' constraint bsb_ai_runs_status_check check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
   "provider_generation_id" text,
-  "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object'),
-  "cost_micro_usd" bigint check ("cost_micro_usd" >= 0),
+  "usage" jsonb not null default '{}' constraint bsb_ai_runs_usage_check check (jsonb_typeof("usage") = 'object'),
+  "cost_micro_usd" bigint constraint bsb_ai_runs_cost_micro_usd_check check ("cost_micro_usd" >= 0),
   "error" text,
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz
 );
-create index if not exists ai_runs_chat_idx on "app_private"."ai_runs" ("chat_id", "started_at" desc);
-create index if not exists ai_runs_owner_idx on "app_private"."ai_runs" ("owner_id");
-create index if not exists ai_runs_generation_idx on "app_private"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
-create index if not exists ai_runs_external_idx on "app_private"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
+create index ai_runs_chat_idx on "app_private"."ai_runs" ("chat_id", "started_at" desc);
+create index ai_runs_owner_idx on "app_private"."ai_runs" ("owner_id");
+create index ai_runs_generation_idx on "app_private"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
+create index ai_runs_external_idx on "app_private"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
 alter table "app_private"."ai_runs" enable row level security;
 revoke all on "app_private"."ai_runs" from public, anon, authenticated;
 grant all on "app_private"."ai_runs" to service_role;
 grant select on "app_private"."ai_runs" to authenticated;
-drop policy if exists ai_runs_owner_read on "app_private"."ai_runs";
-create policy ai_runs_owner_read on "app_private"."ai_runs"
+create policy bsb_ai_runs_owner_read on "app_private"."ai_runs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
-create table if not exists "app_private"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") between 1 and 200),
+create table "app_private"."ai_tool_approvals" (
+  "approval_id" text primary key constraint bsb_ai_tool_approvals_approval_id_check check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "app_private"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null constraint bsb_ai_tool_approvals_tool_check check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
-  "decision" text check ("decision" in ('approved', 'denied')),
-  "reason" text check (length("reason") <= 2000),
+  "decision" text constraint bsb_ai_tool_approvals_decision_check check ("decision" in ('approved', 'denied')),
+  "reason" text constraint bsb_ai_tool_approvals_reason_check check (length("reason") <= 2000),
   "signature" text,
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_tool_approvals_chat_idx on "app_private"."ai_tool_approvals" ("chat_id");
-create index if not exists ai_tool_approvals_run_idx on "app_private"."ai_tool_approvals" ("run_id");
-create index if not exists ai_tool_approvals_owner_idx on "app_private"."ai_tool_approvals" ("owner_id");
+create index ai_tool_approvals_chat_idx on "app_private"."ai_tool_approvals" ("chat_id");
+create index ai_tool_approvals_run_idx on "app_private"."ai_tool_approvals" ("run_id");
+create index ai_tool_approvals_owner_idx on "app_private"."ai_tool_approvals" ("owner_id");
 alter table "app_private"."ai_tool_approvals" enable row level security;
 revoke all on "app_private"."ai_tool_approvals" from public, anon, authenticated;
 grant all on "app_private"."ai_tool_approvals" to service_role;
 grant select on "app_private"."ai_tool_approvals" to authenticated;
-drop policy if exists ai_tool_approvals_owner_read on "app_private"."ai_tool_approvals";
-create policy ai_tool_approvals_owner_read on "app_private"."ai_tool_approvals"
+create policy bsb_ai_tool_approvals_owner_read on "app_private"."ai_tool_approvals"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
 -- runs (deny).
-create table if not exists "app_private"."ai_tool_policies" (
-  "organization_id" uuid not null,
-  "tool" text not null check (length("tool") between 1 and 200),
-  "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
+create table "app_private"."ai_tool_policies" (
+  "tenant_id" uuid not null,
+  "tool" text not null constraint bsb_ai_tool_policies_tool_check check (length("tool") >= 1 and length("tool") <= 200),
+  "policy" text not null constraint bsb_ai_tool_policies_policy_check check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
-  primary key ("organization_id", "tool")
+  primary key ("tenant_id", "tool")
 );
 alter table "app_private"."ai_tool_policies" enable row level security;
 revoke all on "app_private"."ai_tool_policies" from public, anon, authenticated;
 grant all on "app_private"."ai_tool_policies" to service_role;
 
 -- A question the model asked the user mid-run (a form or a choice).
-create table if not exists "app_private"."ai_pending_inputs" (
+create table "app_private"."ai_pending_inputs" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "app_private"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") between 1 and 2000),
+  "question" text not null constraint bsb_ai_pending_inputs_question_check check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_pending_inputs_chat_idx on "app_private"."ai_pending_inputs" ("chat_id");
-create index if not exists ai_pending_inputs_run_idx on "app_private"."ai_pending_inputs" ("run_id");
-create index if not exists ai_pending_inputs_owner_idx on "app_private"."ai_pending_inputs" ("owner_id");
+create index ai_pending_inputs_chat_idx on "app_private"."ai_pending_inputs" ("chat_id");
+create index ai_pending_inputs_run_idx on "app_private"."ai_pending_inputs" ("run_id");
+create index ai_pending_inputs_owner_idx on "app_private"."ai_pending_inputs" ("owner_id");
 alter table "app_private"."ai_pending_inputs" enable row level security;
 revoke all on "app_private"."ai_pending_inputs" from public, anon, authenticated;
 grant all on "app_private"."ai_pending_inputs" to service_role;
 grant select on "app_private"."ai_pending_inputs" to authenticated;
-drop policy if exists ai_pending_inputs_owner_read on "app_private"."ai_pending_inputs";
-create policy ai_pending_inputs_owner_read on "app_private"."ai_pending_inputs"
+create policy bsb_ai_pending_inputs_owner_read on "app_private"."ai_pending_inputs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- The sources a reply cited, copied out of its parts when it is saved.
-create table if not exists "app_private"."ai_message_sources" (
+create table "app_private"."ai_message_sources" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "source_id" text not null,
-  "source_type" text not null default 'url' check ("source_type" in ('url', 'document')),
+  "source_type" text not null default 'url' constraint bsb_ai_message_sources_source_type_check check ("source_type" in ('url', 'document')),
   "url" text,
   "title" text,
   "provider_metadata" jsonb,
@@ -6266,47 +5745,45 @@ alter table "app_private"."ai_message_sources" enable row level security;
 revoke all on "app_private"."ai_message_sources" from public, anon, authenticated;
 grant all on "app_private"."ai_message_sources" to service_role;
 grant select on "app_private"."ai_message_sources" to authenticated;
-drop policy if exists ai_message_sources_read on "app_private"."ai_message_sources";
-create policy ai_message_sources_read on "app_private"."ai_message_sources"
+create policy bsb_ai_message_sources_read on "app_private"."ai_message_sources"
   for select to authenticated
   using ("chat_id" in (select x."id" from "app_private"."ai_chats" x));
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
-create table if not exists "app_private"."ai_message_feedback" (
+create table "app_private"."ai_message_feedback" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" in (-1, 1)),
-  "reason" text check (length("reason") <= 200),
-  "comment" text check (length("comment") <= 4000),
+  "rating" smallint not null constraint bsb_ai_message_feedback_rating_check check ("rating" in (-1, 1)),
+  "reason" text constraint bsb_ai_message_feedback_reason_check check (length("reason") <= 200),
+  "comment" text constraint bsb_ai_message_feedback_comment_check check (length("comment") <= 4000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id", "user_id"),
   foreign key ("chat_id", "message_id") references "app_private"."ai_messages" ("chat_id", "id") on delete cascade
 );
-create index if not exists ai_message_feedback_user_idx on "app_private"."ai_message_feedback" ("user_id");
+create index ai_message_feedback_user_idx on "app_private"."ai_message_feedback" ("user_id");
 alter table "app_private"."ai_message_feedback" enable row level security;
 revoke all on "app_private"."ai_message_feedback" from public, anon, authenticated;
 grant all on "app_private"."ai_message_feedback" to service_role;
 grant select on "app_private"."ai_message_feedback" to authenticated;
-drop policy if exists ai_message_feedback_own_read on "app_private"."ai_message_feedback";
-create policy ai_message_feedback_own_read on "app_private"."ai_message_feedback"
+create policy bsb_ai_message_feedback_own_read on "app_private"."ai_message_feedback"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
 -- stored; the token is returned once.
-create table if not exists "app_private"."ai_chat_shares" (
+create table "app_private"."ai_chat_shares" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
-  "token_hash" text not null unique check ("token_hash" ~ '^[0-9a-f]{64}$'),
+  "token_hash" text not null unique constraint bsb_ai_chat_shares_token_hash_check check ("token_hash" ~ '^[0-9a-f]{64}$'),
   "leaf_id" text not null,
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create index if not exists ai_chat_shares_chat_idx on "app_private"."ai_chat_shares" ("chat_id");
-create index if not exists ai_chat_shares_created_by_idx on "app_private"."ai_chat_shares" ("created_by");
+create index ai_chat_shares_chat_idx on "app_private"."ai_chat_shares" ("chat_id");
+create index ai_chat_shares_created_by_idx on "app_private"."ai_chat_shares" ("created_by");
 alter table "app_private"."ai_chat_shares" enable row level security;
 revoke all on "app_private"."ai_chat_shares" from public, anon, authenticated;
 grant all on "app_private"."ai_chat_shares" to service_role;
@@ -6314,21 +5791,21 @@ grant all on "app_private"."ai_chat_shares" to service_role;
 -- The live link of a chat: one row, whose salt makes the token
 -- <chat>.<sha256(salt || chat)>. Rotating the salt invalidates every old token.
 -- Only the SQL functions read the salt.
-create table if not exists "app_private"."ai_chat_links" (
+create table "app_private"."ai_chat_links" (
   "chat_id" uuid primary key references "app_private"."ai_chats" ("id") on delete cascade,
-  "salt" text not null check (length("salt") >= 16),
+  "salt" text not null constraint bsb_ai_chat_links_salt_check check (length("salt") >= 16),
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "rotated_at" timestamptz not null default now()
 );
-create index if not exists ai_chat_links_created_by_idx on "app_private"."ai_chat_links" ("created_by");
+create index ai_chat_links_created_by_idx on "app_private"."ai_chat_links" ("created_by");
 alter table "app_private"."ai_chat_links" enable row level security;
 revoke all on "app_private"."ai_chat_links" from public, anon, authenticated;
 grant all on "app_private"."ai_chat_links" to service_role;
 
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
-create table if not exists "app_private"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") between 1 and 200),
+create table "app_private"."ai_model_catalog" (
+  "model_id" text primary key constraint bsb_ai_model_catalog_model_id_check check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -6342,75 +5819,74 @@ revoke all on "app_private"."ai_model_catalog" from public, anon, authenticated;
 grant all on "app_private"."ai_model_catalog" to service_role;
 
 -- What moderation decided about an input, an output or a tool call.
-create table if not exists "app_private"."ai_moderation_events" (
+create table "app_private"."ai_moderation_events" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "chat_id" uuid references "app_private"."ai_chats" ("id") on delete set null,
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
-  "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") between 1 and 100),
+  "stage" text not null constraint bsb_ai_moderation_events_stage_check check ("stage" in ('input', 'output', 'tool')),
+  "category" text not null constraint bsb_ai_moderation_events_category_check check (length("category") >= 1 and length("category") <= 100),
   "score" real,
-  "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
+  "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_moderation_events_tenant_idx on "app_private"."ai_moderation_events" ("organization_id", "created_at" desc);
-create index if not exists ai_moderation_events_chat_idx on "app_private"."ai_moderation_events" ("chat_id");
-create index if not exists ai_moderation_events_user_idx on "app_private"."ai_moderation_events" ("user_id");
+create index ai_moderation_events_tenant_idx on "app_private"."ai_moderation_events" ("tenant_id", "created_at" desc);
+create index ai_moderation_events_chat_idx on "app_private"."ai_moderation_events" ("chat_id");
+create index ai_moderation_events_user_idx on "app_private"."ai_moderation_events" ("user_id");
 alter table "app_private"."ai_moderation_events" enable row level security;
 revoke all on "app_private"."ai_moderation_events" from public, anon, authenticated;
 grant all on "app_private"."ai_moderation_events" to service_role;
 
 -- The progress of a long run, one row per step key, so a reload shows it.
-create table if not exists "app_private"."ai_run_steps" (
+create table "app_private"."ai_run_steps" (
   "id" uuid primary key default gen_random_uuid(),
   "run_id" uuid not null references "app_private"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") between 1 and 200),
-  "label" text not null check (length("label") between 1 and 300),
-  "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
-  "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
+  "step_key" text not null constraint bsb_ai_run_steps_step_key_check check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null constraint bsb_ai_run_steps_label_check check (length("label") >= 1 and length("label") <= 300),
+  "status" text not null default 'running' constraint bsb_ai_run_steps_status_check check ("status" in ('running', 'done', 'error', 'skipped')),
+  "detail" jsonb not null default '{}' constraint bsb_ai_run_steps_detail_check check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz,
   unique ("run_id", "step_key")
 );
-create index if not exists ai_run_steps_chat_idx on "app_private"."ai_run_steps" ("chat_id");
-create index if not exists ai_run_steps_owner_idx on "app_private"."ai_run_steps" ("owner_id");
+create index ai_run_steps_chat_idx on "app_private"."ai_run_steps" ("chat_id");
+create index ai_run_steps_owner_idx on "app_private"."ai_run_steps" ("owner_id");
 alter table "app_private"."ai_run_steps" enable row level security;
 revoke all on "app_private"."ai_run_steps" from public, anon, authenticated;
 grant all on "app_private"."ai_run_steps" to service_role;
 grant select on "app_private"."ai_run_steps" to authenticated;
-drop policy if exists ai_run_steps_owner_read on "app_private"."ai_run_steps";
-create policy ai_run_steps_owner_read on "app_private"."ai_run_steps"
+create policy bsb_ai_run_steps_owner_read on "app_private"."ai_run_steps"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
--- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until
+-- continue state; its sandbox is a row in ai_sandboxes. lock_holder and lock_expires_at
 -- keep two turns from driving one sandbox. Experimental.
-create table if not exists "app_private"."ai_harness_sessions" (
+create table "app_private"."ai_harness_sessions" (
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") between 1 and 200),
+  "harness_id" text not null constraint bsb_ai_harness_sessions_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
-  "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error')),
-  "lock_holder" text check (length("lock_holder") <= 200),
-  "locked_until" timestamptz,
+  "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error')),
+  "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200),
+  "lock_expires_at" timestamptz,
   "last_active_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "harness_id")
 );
-create index if not exists ai_harness_sessions_owner_idx on "app_private"."ai_harness_sessions" ("owner_id");
-create index if not exists ai_harness_sessions_idle_idx on "app_private"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
+create index ai_harness_sessions_owner_idx on "app_private"."ai_harness_sessions" ("owner_id");
+create index ai_harness_sessions_idle_idx on "app_private"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
 alter table "app_private"."ai_harness_sessions" enable row level security;
 revoke all on "app_private"."ai_harness_sessions" from public, anon, authenticated;
 grant all on "app_private"."ai_harness_sessions" to service_role;
 -- Resume state can carry harness credentials and sandbox ids, so only the
 -- service role reads it, through load_ai_harness_session.
-drop policy if exists ai_harness_sessions_owner_read on "app_private"."ai_harness_sessions";
+
 
 -- Whether the caller may read a chat: its owner, the service role, a member
 -- with 'ai_chat.read' when the chat is visible to the organization, or someone
@@ -6429,8 +5905,8 @@ as $$
       and (
         coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
         or x."owner_id" = (select auth.uid())
-        or (x."visibility" = 'organization' and coalesce(better_supabase.can('tenant', x."organization_id", 'ai_chat.read'), false))
-        or (x."visibility" <> 'private' and exists (select 1 from "app_private"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."organization_id" is null or x."organization_id" in (select better_supabase.member_organization_ids()))))))
+        or (x."visibility" = 'organization' and coalesce(better_supabase.can('tenant', x."tenant_id", 'ai_chat.read'), false))
+        or (x."visibility" <> 'private' and exists (select 1 from "app_private"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))))))
       )
   );
 $$;
@@ -6504,12 +5980,12 @@ begin
     if v_row."owner_id" <> v_owner then
       raise exception 'Chat % exists', v_id using errcode = '23505', hint = 'AI_CHAT_EXISTS';
     end if;
-    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
   end if;
-  if v_project is not null and not exists (select 1 from "app_private"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_owner and pr."organization_id" is not distinct from create_ai_chat.tenant) then
+  if v_project is not null and not exists (select 1 from "app_private"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_owner and pr."tenant_id" is not distinct from create_ai_chat.tenant) then
     raise exception 'No project %', v_project using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  insert into "app_private"."ai_chats" ("id", "organization_id", "owner_id", "project_id", "agent_id", "title", "model", "visibility", "mode", "is_temporary", "expires_at")
+  insert into "app_private"."ai_chats" ("id", "tenant_id", "owner_id", "project_id", "agent_id", "title", "model", "visibility", "mode", "is_temporary", "expires_at")
   values (
     v_id, create_ai_chat.tenant, v_owner, v_project, v_fields ->> 'agent_id',
     coalesce(v_fields ->> 'title', ''), v_fields ->> 'model', v_visibility, v_fields ->> 'mode', v_temporary,
@@ -6519,7 +5995,7 @@ begin
   if not v_temporary then
     perform "app_private"."ai_chat_notify"(v_id, v_owner, 'chat.created', '{}'::jsonb, true);
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."create_ai_chat"(uuid, jsonb) from public, anon;
@@ -6547,14 +6023,14 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false)) then
     raise exception 'No chat %', update_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
-  if v_project is not null and not exists (select 1 from "app_private"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_row."owner_id" and pr."organization_id" is not distinct from v_row."organization_id") then
+  if v_project is not null and not exists (select 1 from "app_private"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_row."owner_id" and pr."tenant_id" is not distinct from v_row."tenant_id") then
     raise exception 'No project %', v_project using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  if v_fields ->> 'visibility' = 'organization' and v_row."organization_id" is null then
+  if v_fields ->> 'visibility' = 'organization' and v_row."tenant_id" is null then
     raise exception 'A chat outside a tenant stays private' using errcode = '22023', hint = 'AI_CHAT_NO_TENANT';
   end if;
   if v_fields ->> 'visibility' = 'organization' and v_row."visibility" <> 'organization'
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.share'), false)) then
+    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_chat.share'), false)) then
     raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   update "app_private"."ai_chats" x set
@@ -6575,7 +6051,7 @@ begin
   where x."id" = update_ai_chat.chat
   returning * into v_row;
   perform "app_private"."ai_chat_notify"(v_row."id", v_row."owner_id", 'chat.updated', '{}'::jsonb, not v_row."is_temporary");
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."update_ai_chat"(uuid, jsonb) from public, anon;
@@ -6598,7 +6074,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_chat.manage'), false)) then
     raise exception 'No chat %', delete_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "app_private"."ai_chats" x where x."id" = delete_ai_chat.chat;
@@ -6623,7 +6099,7 @@ begin
     raise exception 'No chat %', get_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   select * into v_row from "app_private"."ai_chats" x where x."id" = get_ai_chat.chat;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."get_ai_chat"(uuid) from public, anon;
@@ -6659,13 +6135,13 @@ begin
     v_at := split_part(list_ai_chats.after, '|', 1)::timestamptz;
     v_id := split_part(list_ai_chats.after, '|', 2)::uuid;
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."organization_id", 'owner_id', page."owner_id", 'project_id', page."project_id", 'agent_id', page."agent_id", 'title', page."title", 'model', page."model", 'visibility', page."visibility", 'mode', page."mode", 'pinned', page."pinned", 'archived_at', page."archived_at", 'is_temporary', page."is_temporary", 'expires_at', page."expires_at", 'current_leaf_id', page."current_leaf_id", 'active_stream_id', page."active_stream_id", 'active_run_id', page."active_run_id", 'last_message_at', page."last_message_at", 'created_at', page."created_at", 'updated_at', page."updated_at") order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."tenant_id", 'owner_id', page."owner_id", 'project_id', page."project_id", 'agent_id', page."agent_id", 'title', page."title", 'model', page."model", 'visibility', page."visibility", 'mode', page."mode", 'pinned', page."pinned", 'archived_at', page."archived_at", 'is_temporary', page."is_temporary", 'expires_at', page."expires_at", 'current_leaf_id', page."current_leaf_id", 'active_stream_id', page."active_stream_id", 'active_run_id', page."active_run_id", 'last_message_at', page."last_message_at", 'created_at', page."created_at", 'updated_at', page."updated_at") order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
   into v_items
   from (
     select x.* from "app_private"."ai_chats" x
-    where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "app_private"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."organization_id" is null or x."organization_id" in (select better_supabase.member_organization_ids())))))))
+    where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "app_private"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids())))))))
       and not x."is_temporary"
-      and (list_ai_chats.tenant is null or x."organization_id" = list_ai_chats.tenant)
+      and (list_ai_chats.tenant is null or x."tenant_id" = list_ai_chats.tenant)
       and (list_ai_chats.project is null or x."project_id" = list_ai_chats.project)
       and (list_ai_chats.pinned is null or x."pinned" = list_ai_chats.pinned)
       and (list_ai_chats.archived is null or (x."archived_at" is not null) = list_ai_chats.archived)
@@ -6708,13 +6184,13 @@ begin
     if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_ai_project.tenant, 'ai_chat.create'), false) then
       raise exception 'You may not create projects here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
     end if;
-    insert into "app_private"."ai_projects" ("organization_id", "owner_id", "name", "instructions", "default_model", "pinned")
+    insert into "app_private"."ai_projects" ("tenant_id", "owner_id", "name", "instructions", "default_model", "pinned")
     values (
       save_ai_project.tenant, auth.uid(), v_fields ->> 'name', coalesce(v_fields ->> 'instructions', ''),
       v_fields ->> 'default_model', coalesce((v_fields ->> 'pinned')::boolean, false)
     )
     returning * into v_row;
-    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
   end if;
   update "app_private"."ai_projects" x set
     "name" = coalesce(v_fields ->> 'name', x."name"),
@@ -6731,7 +6207,7 @@ begin
   if not found then
     raise exception 'No project %', save_ai_project.id using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."save_ai_project"(uuid, uuid, jsonb) from public, anon;
@@ -6765,9 +6241,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."pinned" desc, x."updated_at" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."pinned" desc, x."updated_at" desc), '[]'::jsonb)
   from "app_private"."ai_projects" x
-  where x."owner_id" = (select auth.uid()) and x."organization_id" is not distinct from list_ai_projects.tenant;
+  where x."owner_id" = (select auth.uid()) and x."tenant_id" is not distinct from list_ai_projects.tenant;
 $$;
 revoke execute on function "app_private"."list_ai_projects"(uuid) from public, anon;
 grant execute on function "app_private"."list_ai_projects"(uuid) to authenticated, service_role;
@@ -6789,7 +6265,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "app_private"."ai_chats" x where x."id" = add_ai_chat_participant.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', add_ai_chat_participant.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -6813,7 +6289,7 @@ begin
   update "app_private"."ai_chats" c set "visibility" = 'shared', "updated_at" = now()
   where c."id" = v_chat.id and c."visibility" = 'private';
   perform "app_private"."ai_chat_notify"(v_chat.id, add_ai_chat_participant.participant, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.participant, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "app_private"."add_ai_chat_participant"(uuid, uuid, text, jsonb) from public, anon;
@@ -6869,9 +6345,9 @@ begin
     raise exception 'No chat %', list_ai_chat_participants.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   return (
-    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_user_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
+    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
       || coalesce((
-        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_user_id', x."customer_user_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
+        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_id', x."customer_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
         from "app_private"."ai_chat_participants" x
         where x."chat_id" = list_ai_chat_participants.chat
       ), '[]'::jsonb)
@@ -6903,7 +6379,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "app_private"."ai_chats" x where x."id" = add_ai_chat_party.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', add_ai_chat_party.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -6935,9 +6411,9 @@ begin
     on conflict ("chat_id", "team_id") where "kind" = 'team' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'customer' then
-    insert into "app_private"."ai_chat_participants" ("chat_id", "kind", "customer_user_id", "role", "added_by")
+    insert into "app_private"."ai_chat_participants" ("chat_id", "kind", "customer_id", "role", "added_by")
     values (v_chat.id, 'customer', add_ai_chat_party.party::uuid, v_role, auth.uid())
-    on conflict ("chat_id", "customer_user_id") where "kind" = 'customer' do update set "role" = excluded."role"
+    on conflict ("chat_id", "customer_id") where "kind" = 'customer' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'external' then
     insert into "app_private"."ai_chat_participants" ("chat_id", "kind", "email", "role", "added_by")
@@ -6948,7 +6424,7 @@ begin
   update "app_private"."ai_chats" c set "visibility" = 'shared', "updated_at" = now()
   where c."id" = v_chat.id and c."visibility" = 'private';
   perform "app_private"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.added', jsonb_build_object('kind', add_ai_chat_party.party_kind, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "app_private"."add_ai_chat_party"(uuid, text, text, text) from public, anon;
@@ -6970,14 +6446,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "app_private"."ai_chats" x where x."id" = remove_ai_chat_party.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', remove_ai_chat_party.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "app_private"."ai_chat_participants" x
   where x."chat_id" = v_chat.id and x."kind"::text = remove_ai_chat_party.party_kind
-    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_user_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
+    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
   get diagnostics v_count = row_count;
   if v_count > 0 then
     perform "app_private"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.removed', jsonb_build_object('kind', remove_ai_chat_party.party_kind), true);
@@ -7036,7 +6512,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "app_private"."ai_chats" x where x."id" = create_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', create_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -7072,7 +6548,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "app_private"."ai_chats" x where x."id" = rotate_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', rotate_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -7105,7 +6581,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "app_private"."ai_chats" x where x."id" = revoke_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', revoke_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -7254,7 +6730,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "app_private"."ai_chats" x where x."id" = switch_ai_branch.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "app_private"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "app_private"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))))))) then
     raise exception 'No chat %', switch_ai_branch.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if not exists (select 1 from "app_private"."ai_messages" x where x."chat_id" = switch_ai_branch.chat and x."id" = switch_ai_branch.message_id) then
@@ -7305,7 +6781,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "app_private"."ai_chats" x where x."id" = append_ai_user_message.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "app_private"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "app_private"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))))))) then
     raise exception 'No chat %', append_ai_user_message.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if coalesce(append_ai_user_message.trigger, 'submit-message') = 'regenerate-message' then
@@ -7433,7 +6909,7 @@ grant execute on function "app_private"."save_ai_assistant_message"(uuid, jsonb,
 -- run_id }: the active stream when another reply holds the chat.
 -- external_run_id is the durable engine's own run id, such as a Workflow
 -- SDK run, so stop and resume can reach that run.
-drop function if exists "app_private"."claim_ai_chat_stream"(uuid, text, text, text, text);
+
 create or replace function "app_private"."claim_ai_chat_stream"(chat uuid, stream text, model text default null, message_id text default null, engine text default 'ai-sdk', external_run_id text default null)
 returns jsonb
 language plpgsql
@@ -7537,7 +7013,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "app_private"."ai_chats" x where x."id" = request_ai_chat_stop.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "app_private"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "app_private"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))))))) then
     raise exception 'No chat %', request_ai_chat_stop.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if v_chat."active_stream_id" is null then
@@ -7737,13 +7213,13 @@ begin
     raise exception 'You may not change tool policies here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   if set_ai_tool_policy.policy is null then
-    delete from "app_private"."ai_tool_policies" x where x."organization_id" = set_ai_tool_policy.tenant and x."tool" = set_ai_tool_policy.tool;
+    delete from "app_private"."ai_tool_policies" x where x."tenant_id" = set_ai_tool_policy.tenant and x."tool" = set_ai_tool_policy.tool;
     null;
     return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', null);
   end if;
-  insert into "app_private"."ai_tool_policies" ("organization_id", "tool", "policy")
+  insert into "app_private"."ai_tool_policies" ("tenant_id", "tool", "policy")
   values (set_ai_tool_policy.tenant, set_ai_tool_policy.tool, set_ai_tool_policy.policy)
-  on conflict ("organization_id", "tool") do update set "policy" = excluded."policy", "updated_at" = now();
+  on conflict ("tenant_id", "tool") do update set "policy" = excluded."policy", "updated_at" = now();
   null;
   return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy);
 end;
@@ -7765,7 +7241,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_object_agg(x."tool", x."policy"), '{}'::jsonb)
-    from "app_private"."ai_tool_policies" x where x."organization_id" = ai_tool_policies_for.tenant
+    from "app_private"."ai_tool_policies" x where x."tenant_id" = ai_tool_policies_for.tenant
   );
 end;
 $$;
@@ -7892,7 +7368,7 @@ begin
   if not found or v_chat."owner_id" is distinct from auth.uid() then
     raise exception 'No chat %', share_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
-  if not coalesce(better_supabase.can('tenant', v_chat."organization_id", 'ai_chat.share'), false) then
+  if not coalesce(better_supabase.can('tenant', v_chat."tenant_id", 'ai_chat.share'), false) then
     raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   v_leaf := coalesce(share_ai_chat.leaf, v_chat."current_leaf_id");
@@ -8083,7 +7559,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  insert into "app_private"."ai_moderation_events" ("organization_id", "chat_id", "message_id", "user_id", "stage", "category", "score", "action")
+  insert into "app_private"."ai_moderation_events" ("tenant_id", "chat_id", "message_id", "user_id", "stage", "category", "score", "action")
   values (
     (record_ai_moderation_event.event ->> 'organization_id')::uuid,
     (record_ai_moderation_event.event ->> 'chat_id')::uuid,
@@ -8095,7 +7571,7 @@ begin
     record_ai_moderation_event.event ->> 'action'
   )
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'chat_id', v_row."chat_id", 'message_id', v_row."message_id", 'user_id', v_row."user_id", 'stage', v_row."stage", 'category', v_row."category", 'score', v_row."score", 'action', v_row."action", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'chat_id', v_row."chat_id", 'message_id', v_row."message_id", 'user_id', v_row."user_id", 'stage', v_row."stage", 'category', v_row."category", 'score', v_row."score", 'action', v_row."action", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "app_private"."record_ai_moderation_event"(jsonb) from public, anon, authenticated;
@@ -8114,10 +7590,10 @@ begin
     raise exception 'You may not review moderation here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."organization_id", 'chat_id', page."chat_id", 'message_id', page."message_id", 'user_id', page."user_id", 'stage', page."stage", 'category', page."category", 'score', page."score", 'action', page."action", 'created_at', page."created_at") order by page."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."tenant_id", 'chat_id', page."chat_id", 'message_id', page."message_id", 'user_id', page."user_id", 'stage', page."stage", 'category', page."category", 'score', page."score", 'action', page."action", 'created_at', page."created_at") order by page."created_at" desc), '[]'::jsonb)
     from (
       select * from "app_private"."ai_moderation_events" x
-      where x."organization_id" = list_ai_moderation_events.tenant
+      where x."tenant_id" = list_ai_moderation_events.tenant
       order by x."created_at" desc
       limit least(greatest(coalesce(list_ai_moderation_events.size, 100), 1), 1000)
     ) page
@@ -8157,19 +7633,19 @@ grant execute on function "app_private"."purge_ai_chats"(integer) to service_rol
 -- Sandboxes and provider containers a chat started, harness sessions'
 -- included, so one idle-stop claim stops the ones nobody used for
 -- idle_seconds or past expires_at.
-create table if not exists "app_private"."ai_sandboxes" (
+create table "app_private"."ai_sandboxes" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") between 1 and 200),
-  "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") between 1 and 200),
-  "container_id" text check (length("container_id") <= 200),
-  "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "idle_seconds" integer not null default 600 check ("idle_seconds" > 0),
-  "error" text check (length("error") <= 4000),
+  "harness_id" text constraint bsb_ai_sandboxes_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "provider" text not null constraint bsb_ai_sandboxes_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
+  "sandbox_id" text not null constraint bsb_ai_sandboxes_sandbox_id_check check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
+  "container_id" text constraint bsb_ai_sandboxes_container_id_check check (length("container_id") <= 200),
+  "status" text not null default 'running' constraint bsb_ai_sandboxes_status_check check ("status" in ('running', 'stopping', 'stopped')),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_sandboxes_metadata_check check (jsonb_typeof("metadata") = 'object'),
+  "idle_seconds" integer not null default 600 constraint bsb_ai_sandboxes_idle_seconds_check check ("idle_seconds" > 0),
+  "error" text constraint bsb_ai_sandboxes_error_check check (length("error") <= 4000),
   "last_used_at" timestamptz not null default now(),
   "expires_at" timestamptz,
   "stopped_at" timestamptz,
@@ -8177,19 +7653,18 @@ create table if not exists "app_private"."ai_sandboxes" (
   "updated_at" timestamptz not null default now(),
   unique ("provider", "sandbox_id")
 );
-create index if not exists ai_sandboxes_open_idx on "app_private"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
-create index if not exists ai_sandboxes_chat_idx on "app_private"."ai_sandboxes" ("chat_id");
-create index if not exists ai_sandboxes_harness_idx on "app_private"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
-create index if not exists ai_sandboxes_tenant_idx on "app_private"."ai_sandboxes" ("organization_id");
-create index if not exists ai_sandboxes_user_idx on "app_private"."ai_sandboxes" ("user_id");
+create index ai_sandboxes_open_idx on "app_private"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
+create index ai_sandboxes_chat_idx on "app_private"."ai_sandboxes" ("chat_id");
+create index ai_sandboxes_harness_idx on "app_private"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
+create index ai_sandboxes_tenant_idx on "app_private"."ai_sandboxes" ("tenant_id");
+create index ai_sandboxes_user_idx on "app_private"."ai_sandboxes" ("user_id");
 alter table "app_private"."ai_sandboxes" enable row level security;
 revoke all on "app_private"."ai_sandboxes" from public, anon, authenticated;
 grant select on "app_private"."ai_sandboxes" to authenticated;
 grant all on "app_private"."ai_sandboxes" to service_role;
-drop policy if exists ai_sandboxes_read on "app_private"."ai_sandboxes";
-create policy ai_sandboxes_read on "app_private"."ai_sandboxes"
+create policy bsb_ai_sandboxes_read on "app_private"."ai_sandboxes"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
 
 -- Records a sandbox or container the app started, or marks a known one used
 -- (service role). fields: user_id, chat_id, harness_id, container_id,
@@ -8205,7 +7680,7 @@ declare
   v_row "app_private"."ai_sandboxes"%rowtype;
   v_fields jsonb := coalesce(register_ai_sandbox.fields, '{}');
 begin
-  insert into "app_private"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id", "container_id", "metadata", "idle_seconds", "expires_at")
+  insert into "app_private"."ai_sandboxes" as cur ("tenant_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id", "container_id", "metadata", "idle_seconds", "expires_at")
   values (
     register_ai_sandbox.tenant,
     (v_fields ->> 'user_id')::uuid,
@@ -8230,12 +7705,12 @@ begin
     "stopped_at" = null,
     "last_used_at" = now(),
     "updated_at" = now()
-  where cur."organization_id" is not distinct from excluded."organization_id"
+  where cur."tenant_id" is not distinct from excluded."tenant_id"
   returning * into v_row;
   if not found then
     raise exception 'sandbox % belongs to another tenant', register_ai_sandbox.sandbox_id using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'provider', v_row."provider", 'sandbox_id', v_row."sandbox_id", 'container_id', v_row."container_id", 'status', v_row."status", 'metadata', v_row."metadata", 'idle_seconds', v_row."idle_seconds", 'error', v_row."error", 'last_used_at', v_row."last_used_at", 'expires_at', v_row."expires_at", 'stopped_at', v_row."stopped_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'provider', v_row."provider", 'sandbox_id', v_row."sandbox_id", 'container_id', v_row."container_id", 'status', v_row."status", 'metadata', v_row."metadata", 'idle_seconds', v_row."idle_seconds", 'error', v_row."error", 'last_used_at', v_row."last_used_at", 'expires_at', v_row."expires_at", 'stopped_at', v_row."stopped_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."register_ai_sandbox"(uuid, text, text, jsonb) from public, anon, authenticated;
@@ -8265,7 +7740,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "app_private"."ai_sandboxes" x
+  select jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "app_private"."ai_sandboxes" x
   where x."chat_id" = ai_sandbox_for.chat_id and x."provider" = ai_sandbox_for.provider and x."status" = 'running'
     and (x."expires_at" is null or x."expires_at" > now())
   order by x."last_used_at" desc
@@ -8293,7 +7768,7 @@ begin
        or (y."status" = 'stopping' and y."updated_at" <= now() - make_interval(secs => greatest(idle_ai_sandboxes.lease_seconds, 1))))
       and not exists (
         select 1 from "app_private"."ai_harness_sessions" z
-        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."locked_until" > now()
+        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."lock_expires_at" > now()
       )
     order by y."last_used_at"
     limit least(greatest(idle_ai_sandboxes.batch, 1), 500)
@@ -8303,7 +7778,7 @@ begin
     from due where x."id" = due."id"
     returning x.*
   )
-  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."organization_id", 'user_id', claimed."user_id", 'chat_id', claimed."chat_id", 'harness_id', claimed."harness_id", 'provider', claimed."provider", 'sandbox_id', claimed."sandbox_id", 'container_id', claimed."container_id", 'status', claimed."status", 'metadata', claimed."metadata", 'idle_seconds', claimed."idle_seconds", 'error', claimed."error", 'last_used_at', claimed."last_used_at", 'expires_at', claimed."expires_at", 'stopped_at', claimed."stopped_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
+  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."tenant_id", 'user_id', claimed."user_id", 'chat_id', claimed."chat_id", 'harness_id', claimed."harness_id", 'provider', claimed."provider", 'sandbox_id', claimed."sandbox_id", 'container_id', claimed."container_id", 'status', claimed."status", 'metadata', claimed."metadata", 'idle_seconds', claimed."idle_seconds", 'error', claimed."error", 'last_used_at', claimed."last_used_at", 'expires_at', claimed."expires_at", 'stopped_at', claimed."stopped_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
   return v_rows;
 end;
 $$;
@@ -8355,9 +7830,9 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
   from "app_private"."ai_sandboxes" x
-  where x."organization_id" is not distinct from list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x."chat_id" = list_ai_sandboxes.chat_id)
+  where x."tenant_id" is not distinct from list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x."chat_id" = list_ai_sandboxes.chat_id)
 $$;
 revoke execute on function "app_private"."list_ai_sandboxes"(uuid, uuid) from public, anon;
 grant execute on function "app_private"."list_ai_sandboxes"(uuid, uuid) to authenticated, service_role;
@@ -8552,7 +8027,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "app_private"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "app_private"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."load_ai_harness_session"(uuid, text) from public, anon, authenticated;
@@ -8595,7 +8070,7 @@ begin
   select * into v_row from "app_private"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = save_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
     raise exception 'Harness session % is locked', save_ai_harness_session.harness using errcode = '55P03', hint = 'AI_HARNESS_LOCKED';
   end if;
   update "app_private"."ai_harness_sessions" x set
@@ -8613,8 +8088,8 @@ begin
       update "app_private"."ai_sandboxes" y set "status" = 'stopped', "stopped_at" = now(), "updated_at" = now()
       where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped';
     else
-      insert into "app_private"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id")
-      values (v_chat."organization_id", v_chat."owner_id", v_chat."id", v_row."harness_id", coalesce(nullif(save_ai_harness_session.fields ->> 'sandbox_provider', ''), 'harness'), save_ai_harness_session.fields ->> 'sandbox_id')
+      insert into "app_private"."ai_sandboxes" as cur ("tenant_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id")
+      values (v_chat."tenant_id", v_chat."owner_id", v_chat."id", v_row."harness_id", coalesce(nullif(save_ai_harness_session.fields ->> 'sandbox_provider', ''), 'harness'), save_ai_harness_session.fields ->> 'sandbox_id')
       on conflict ("provider", "sandbox_id") do update set
         "chat_id" = excluded."chat_id",
         "harness_id" = excluded."harness_id",
@@ -8623,7 +8098,7 @@ begin
         "stopped_at" = null,
         "last_used_at" = now(),
         "updated_at" = now()
-      where cur."organization_id" is not distinct from excluded."organization_id";
+      where cur."tenant_id" is not distinct from excluded."tenant_id";
       if not found then
         raise exception 'sandbox % belongs to another tenant', save_ai_harness_session.fields ->> 'sandbox_id' using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
       end if;
@@ -8632,7 +8107,7 @@ begin
     update "app_private"."ai_sandboxes" y set "last_used_at" = now(), "updated_at" = now()
     where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" = 'running';
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "app_private"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "app_private"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."save_ai_harness_session"(uuid, text, jsonb, text) from public, anon, authenticated;
@@ -8671,12 +8146,12 @@ begin
   select * into v_row from "app_private"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = lock_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
     return false;
   end if;
   update "app_private"."ai_harness_sessions" x set
     "lock_holder" = lock_ai_harness_session.holder,
-    "locked_until" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
+    "lock_expires_at" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
     "updated_at" = now()
   where x."chat_id" = v_row."chat_id" and x."harness_id" = v_row."harness_id";
   return true;
@@ -8698,7 +8173,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  update "app_private"."ai_harness_sessions" x set "lock_holder" = null, "locked_until" = null, "updated_at" = now()
+  update "app_private"."ai_harness_sessions" x set "lock_holder" = null, "lock_expires_at" = null, "updated_at" = now()
   where x."chat_id" = unlock_ai_harness_session.chat
     and x."harness_id" = unlock_ai_harness_session.harness
     and x."lock_holder" = unlock_ai_harness_session.holder;
@@ -8711,118 +8186,70 @@ grant execute on function "app_private"."unlock_ai_harness_session"(uuid, text, 
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_ai_chat_receive on realtime.messages;
 create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "app_private"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        drop policy if exists bsb_ai_chats_receive on realtime.messages;
 create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."ai_projects";
-drop policy if exists bsb_tenant_scope_select on "app_private"."ai_projects";
 create policy bsb_tenant_scope_select on "app_private"."ai_projects" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_projects";
 create policy bsb_tenant_scope_insert on "app_private"."ai_projects" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."ai_projects";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "app_private"."ai_projects" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_projects";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "app_private"."ai_projects" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."ai_chats";
-drop policy if exists bsb_tenant_scope_select on "app_private"."ai_chats";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "app_private"."ai_chats" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
+    or ("visibility" = 'organization' and "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
     or ("app_private"."ai_chats"."visibility" <> 'private' and exists (select 1 from "app_private"."ai_chat_participants" pa where pa."chat_id" = "app_private"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())))))))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_chats";
 create policy bsb_tenant_scope_insert on "app_private"."ai_chats" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."ai_chats";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "app_private"."ai_chats" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_chats";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "app_private"."ai_chats" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."ai_sandboxes";
-drop policy if exists bsb_tenant_scope_select on "app_private"."ai_sandboxes";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "app_private"."ai_sandboxes" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_sandboxes";
 create policy bsb_tenant_scope_insert on "app_private"."ai_sandboxes" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."ai_sandboxes";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "app_private"."ai_sandboxes" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_sandboxes";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "app_private"."ai_sandboxes" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
@@ -8841,128 +8268,45 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:3a01a57ec8330c0d0c96b16140218b3d1125385a29152c3b59c5b77719d1310c
+-- @bsb-hash sha256:031ca92e31bfca620bb374c1b3d7fe5f4422494431203931d7acbb94b8f71a28
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_tool_policies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_moderation_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Projects group chats and carry instructions and a default model.
-create table if not exists "better_supabase"."ai_projects" (
+create table "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
-  "instructions" text not null default '' check (length("instructions") <= 20000),
-  "default_model" text check (length("default_model") <= 200),
+  "name" text not null constraint bsb_ai_projects_name_check check (length("name") >= 1 and length("name") <= 200),
+  "instructions" text not null default '' constraint bsb_ai_projects_instructions_check check (length("instructions") <= 20000),
+  "default_model" text constraint bsb_ai_projects_default_model_check check (length("default_model") <= 200),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "organization_id");
+create index ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "tenant_id");
 alter table "better_supabase"."ai_projects" enable row level security;
 revoke all on "better_supabase"."ai_projects" from public, anon, authenticated;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
-drop policy if exists ai_projects_owner_read on "better_supabase"."ai_projects";
-create policy ai_projects_owner_read on "better_supabase"."ai_projects"
+create policy bsb_ai_projects_owner_read on "better_supabase"."ai_projects"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
 -- active_stream_id is the reply being written, claimed compare-and-set.
-create table if not exists "better_supabase"."ai_chats" (
+create table "better_supabase"."ai_chats" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "project_id" uuid references "better_supabase"."ai_projects" ("id") on delete set null,
-  "agent_id" text check (length("agent_id") <= 200),
-  "title" text not null default '' check (length("title") <= 300),
-  "model" text check (length("model") <= 200),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'shared')),
-  "mode" text check (length("mode") <= 100),
+  "agent_id" text constraint bsb_ai_chats_agent_id_check check (length("agent_id") <= 200),
+  "title" text not null default '' constraint bsb_ai_chats_title_check check (length("title") <= 300),
+  "model" text constraint bsb_ai_chats_model_check check (length("model") <= 200),
+  "visibility" text not null default 'private' constraint bsb_ai_chats_visibility_check check ("visibility" in ('private', 'organization', 'shared')),
+  "mode" text constraint bsb_ai_chats_mode_check check (length("mode") <= 100),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "is_temporary" boolean not null default false,
@@ -8974,13 +8318,13 @@ create table if not exists "better_supabase"."ai_chats" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "title")) stored,
-  check (not "is_temporary" or "expires_at" is not null)
+  constraint bsb_ai_chats_check check (not "is_temporary" or "expires_at" is not null)
 );
-create index if not exists ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
-create index if not exists ai_chats_tenant_idx on "better_supabase"."ai_chats" ("organization_id");
-create index if not exists ai_chats_project_idx on "better_supabase"."ai_chats" ("project_id");
-create index if not exists ai_chats_expires_idx on "better_supabase"."ai_chats" ("expires_at") where "is_temporary";
-create index if not exists ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
+create index ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
+create index ai_chats_tenant_idx on "better_supabase"."ai_chats" ("tenant_id");
+create index ai_chats_project_idx on "better_supabase"."ai_chats" ("project_id");
+create index ai_chats_expires_idx on "better_supabase"."ai_chats" ("expires_at") where "is_temporary";
+create index ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
 alter table "better_supabase"."ai_chats" enable row level security;
 revoke all on "better_supabase"."ai_chats" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chats" to service_role;
@@ -8990,190 +8334,183 @@ grant select on "better_supabase"."ai_chats" to authenticated;
 -- to it (editor): a user, every member of a team, a customer with guest
 -- access, or an external email that reads only through the live link. Each
 -- user sees only their own rows.
-create table if not exists "better_supabase"."ai_chat_participants" (
+create table "better_supabase"."ai_chat_participants" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'user' check ("kind" in ('user', 'team', 'customer', 'external')),
+  "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external')),
   "team_id" uuid,
-  "customer_user_id" uuid references auth.users (id) on delete cascade,
-  "email" text check (length("email") <= 320),
-  "role" text not null default 'viewer' check ("role" in ('viewer', 'editor')),
+  "customer_id" uuid references auth.users (id) on delete cascade,
+  "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320),
+  "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor')),
   "added_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
-  check (
+  constraint bsb_ai_chat_participants_check check (
     ("kind" = 'user' and "user_id" is not null)
     or ("kind" = 'team' and "team_id" is not null)
-    or ("kind" = 'customer' and "customer_user_id" is not null)
+    or ("kind" = 'customer' and "customer_id" is not null)
     or ("kind" = 'external' and "email" is not null)
   )
 );
-create unique index if not exists ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
-create unique index if not exists ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
-create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
-create unique index if not exists ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
-create index if not exists ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
-create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
-create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
-create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
+create unique index ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
+create unique index ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
+create unique index ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_id") where "kind" = 'customer';
+create unique index ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
+create index ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_id");
+create index ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
 grant select on "better_supabase"."ai_chat_participants" to authenticated;
-drop policy if exists ai_chat_participants_own_read on "better_supabase"."ai_chat_participants";
-create policy ai_chat_participants_own_read on "better_supabase"."ai_chat_participants"
+create policy bsb_ai_chat_participants_own_read on "better_supabase"."ai_chat_participants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists ai_chats_read on "better_supabase"."ai_chats";
-create policy ai_chats_read on "better_supabase"."ai_chats"
+create policy bsb_ai_chats_read on "better_supabase"."ai_chats"
   for select to authenticated
   using ("owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
+    or ("visibility" = 'organization' and "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
     or ("better_supabase"."ai_chats"."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())))))));
 
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
 -- parts holds the canonical AI message parts; native the SDK's own shape.
-create table if not exists "better_supabase"."ai_messages" (
+create table "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") between 1 and 200),
+  "id" text not null constraint bsb_ai_messages_id_check check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
-  "role" text not null check ("role" in ('system', 'user', 'assistant', 'tool')),
-  "parts" jsonb not null default '[]' check (
+  "role" text not null constraint bsb_ai_messages_role_check check ("role" in ('system', 'user', 'assistant', 'tool')),
+  "parts" jsonb not null default '[]' constraint bsb_ai_messages_parts_check check (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") between 1 and 50),
+  "format" text not null default 'canonical' constraint bsb_ai_messages_format_check check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_messages_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "model" text,
-  "status" text not null default 'complete' check ("status" in ('complete', 'aborted', 'error')),
+  "status" text not null default 'complete' constraint bsb_ai_messages_status_check check ("status" in ('complete', 'aborted', 'error')),
   "seq" bigint generated always as identity,
   "created_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, jsonb_path_query_array("parts", '$[*] ? (@.type == "text").text'))) stored,
   primary key ("chat_id", "id"),
   foreign key ("chat_id", "parent_id") references "better_supabase"."ai_messages" ("chat_id", "id") on delete cascade
 );
-create index if not exists ai_messages_parent_idx on "better_supabase"."ai_messages" ("chat_id", "parent_id");
-create index if not exists ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
-create index if not exists ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
-alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
-create index if not exists ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
+create index ai_messages_parent_idx on "better_supabase"."ai_messages" ("chat_id", "parent_id");
+create index ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
+create index ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
+create index ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
 alter table "better_supabase"."ai_messages" enable row level security;
 revoke all on "better_supabase"."ai_messages" from public, anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
-drop policy if exists ai_messages_read on "better_supabase"."ai_messages";
-create policy ai_messages_read on "better_supabase"."ai_messages"
+create policy bsb_ai_messages_read on "better_supabase"."ai_messages"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- One generation: the stream it wrote, its usage and cost.
-create table if not exists "better_supabase"."ai_runs" (
+create table "better_supabase"."ai_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50),
-  "external_run_id" text check (length("external_run_id") <= 200),
+  "engine" text not null default 'ai-sdk' constraint bsb_ai_runs_engine_check check (length("engine") >= 1 and length("engine") <= 50),
+  "external_run_id" text constraint bsb_ai_runs_external_run_id_check check (length("external_run_id") <= 200),
   "model" text,
-  "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
+  "status" text not null default 'running' constraint bsb_ai_runs_status_check check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
   "provider_generation_id" text,
-  "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object'),
-  "cost_micro_usd" bigint check ("cost_micro_usd" >= 0),
+  "usage" jsonb not null default '{}' constraint bsb_ai_runs_usage_check check (jsonb_typeof("usage") = 'object'),
+  "cost_micro_usd" bigint constraint bsb_ai_runs_cost_micro_usd_check check ("cost_micro_usd" >= 0),
   "error" text,
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz
 );
-create index if not exists ai_runs_chat_idx on "better_supabase"."ai_runs" ("chat_id", "started_at" desc);
-create index if not exists ai_runs_owner_idx on "better_supabase"."ai_runs" ("owner_id");
-create index if not exists ai_runs_generation_idx on "better_supabase"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
-create index if not exists ai_runs_external_idx on "better_supabase"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
+create index ai_runs_chat_idx on "better_supabase"."ai_runs" ("chat_id", "started_at" desc);
+create index ai_runs_owner_idx on "better_supabase"."ai_runs" ("owner_id");
+create index ai_runs_generation_idx on "better_supabase"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
+create index ai_runs_external_idx on "better_supabase"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
 alter table "better_supabase"."ai_runs" enable row level security;
 revoke all on "better_supabase"."ai_runs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
-drop policy if exists ai_runs_owner_read on "better_supabase"."ai_runs";
-create policy ai_runs_owner_read on "better_supabase"."ai_runs"
+create policy bsb_ai_runs_owner_read on "better_supabase"."ai_runs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
-create table if not exists "better_supabase"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") between 1 and 200),
+create table "better_supabase"."ai_tool_approvals" (
+  "approval_id" text primary key constraint bsb_ai_tool_approvals_approval_id_check check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null constraint bsb_ai_tool_approvals_tool_check check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
-  "decision" text check ("decision" in ('approved', 'denied')),
-  "reason" text check (length("reason") <= 2000),
+  "decision" text constraint bsb_ai_tool_approvals_decision_check check ("decision" in ('approved', 'denied')),
+  "reason" text constraint bsb_ai_tool_approvals_reason_check check (length("reason") <= 2000),
   "signature" text,
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_tool_approvals_chat_idx on "better_supabase"."ai_tool_approvals" ("chat_id");
-create index if not exists ai_tool_approvals_run_idx on "better_supabase"."ai_tool_approvals" ("run_id");
-create index if not exists ai_tool_approvals_owner_idx on "better_supabase"."ai_tool_approvals" ("owner_id");
+create index ai_tool_approvals_chat_idx on "better_supabase"."ai_tool_approvals" ("chat_id");
+create index ai_tool_approvals_run_idx on "better_supabase"."ai_tool_approvals" ("run_id");
+create index ai_tool_approvals_owner_idx on "better_supabase"."ai_tool_approvals" ("owner_id");
 alter table "better_supabase"."ai_tool_approvals" enable row level security;
 revoke all on "better_supabase"."ai_tool_approvals" from public, anon, authenticated;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
-drop policy if exists ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals";
-create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
+create policy bsb_ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
 -- runs (deny).
-create table if not exists "better_supabase"."ai_tool_policies" (
-  "organization_id" uuid not null,
-  "tool" text not null check (length("tool") between 1 and 200),
-  "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
+create table "better_supabase"."ai_tool_policies" (
+  "tenant_id" uuid not null,
+  "tool" text not null constraint bsb_ai_tool_policies_tool_check check (length("tool") >= 1 and length("tool") <= 200),
+  "policy" text not null constraint bsb_ai_tool_policies_policy_check check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
-  primary key ("organization_id", "tool")
+  primary key ("tenant_id", "tool")
 );
 alter table "better_supabase"."ai_tool_policies" enable row level security;
 revoke all on "better_supabase"."ai_tool_policies" from public, anon, authenticated;
 grant all on "better_supabase"."ai_tool_policies" to service_role;
 
 -- A question the model asked the user mid-run (a form or a choice).
-create table if not exists "better_supabase"."ai_pending_inputs" (
+create table "better_supabase"."ai_pending_inputs" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") between 1 and 2000),
+  "question" text not null constraint bsb_ai_pending_inputs_question_check check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_pending_inputs_chat_idx on "better_supabase"."ai_pending_inputs" ("chat_id");
-create index if not exists ai_pending_inputs_run_idx on "better_supabase"."ai_pending_inputs" ("run_id");
-create index if not exists ai_pending_inputs_owner_idx on "better_supabase"."ai_pending_inputs" ("owner_id");
+create index ai_pending_inputs_chat_idx on "better_supabase"."ai_pending_inputs" ("chat_id");
+create index ai_pending_inputs_run_idx on "better_supabase"."ai_pending_inputs" ("run_id");
+create index ai_pending_inputs_owner_idx on "better_supabase"."ai_pending_inputs" ("owner_id");
 alter table "better_supabase"."ai_pending_inputs" enable row level security;
 revoke all on "better_supabase"."ai_pending_inputs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
-drop policy if exists ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs";
-create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
+create policy bsb_ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- The sources a reply cited, copied out of its parts when it is saved.
-create table if not exists "better_supabase"."ai_message_sources" (
+create table "better_supabase"."ai_message_sources" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "source_id" text not null,
-  "source_type" text not null default 'url' check ("source_type" in ('url', 'document')),
+  "source_type" text not null default 'url' constraint bsb_ai_message_sources_source_type_check check ("source_type" in ('url', 'document')),
   "url" text,
   "title" text,
   "provider_metadata" jsonb,
@@ -9184,47 +8521,45 @@ alter table "better_supabase"."ai_message_sources" enable row level security;
 revoke all on "better_supabase"."ai_message_sources" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
-drop policy if exists ai_message_sources_read on "better_supabase"."ai_message_sources";
-create policy ai_message_sources_read on "better_supabase"."ai_message_sources"
+create policy bsb_ai_message_sources_read on "better_supabase"."ai_message_sources"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
-create table if not exists "better_supabase"."ai_message_feedback" (
+create table "better_supabase"."ai_message_feedback" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" in (-1, 1)),
-  "reason" text check (length("reason") <= 200),
-  "comment" text check (length("comment") <= 4000),
+  "rating" smallint not null constraint bsb_ai_message_feedback_rating_check check ("rating" in (-1, 1)),
+  "reason" text constraint bsb_ai_message_feedback_reason_check check (length("reason") <= 200),
+  "comment" text constraint bsb_ai_message_feedback_comment_check check (length("comment") <= 4000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id", "user_id"),
   foreign key ("chat_id", "message_id") references "better_supabase"."ai_messages" ("chat_id", "id") on delete cascade
 );
-create index if not exists ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
+create index ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
 alter table "better_supabase"."ai_message_feedback" enable row level security;
 revoke all on "better_supabase"."ai_message_feedback" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
-drop policy if exists ai_message_feedback_own_read on "better_supabase"."ai_message_feedback";
-create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
+create policy bsb_ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
 -- stored; the token is returned once.
-create table if not exists "better_supabase"."ai_chat_shares" (
+create table "better_supabase"."ai_chat_shares" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "token_hash" text not null unique check ("token_hash" ~ '^[0-9a-f]{64}$'),
+  "token_hash" text not null unique constraint bsb_ai_chat_shares_token_hash_check check ("token_hash" ~ '^[0-9a-f]{64}$'),
   "leaf_id" text not null,
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create index if not exists ai_chat_shares_chat_idx on "better_supabase"."ai_chat_shares" ("chat_id");
-create index if not exists ai_chat_shares_created_by_idx on "better_supabase"."ai_chat_shares" ("created_by");
+create index ai_chat_shares_chat_idx on "better_supabase"."ai_chat_shares" ("chat_id");
+create index ai_chat_shares_created_by_idx on "better_supabase"."ai_chat_shares" ("created_by");
 alter table "better_supabase"."ai_chat_shares" enable row level security;
 revoke all on "better_supabase"."ai_chat_shares" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_shares" to service_role;
@@ -9232,21 +8567,21 @@ grant all on "better_supabase"."ai_chat_shares" to service_role;
 -- The live link of a chat: one row, whose salt makes the token
 -- <chat>.<sha256(salt || chat)>. Rotating the salt invalidates every old token.
 -- Only the SQL functions read the salt.
-create table if not exists "better_supabase"."ai_chat_links" (
+create table "better_supabase"."ai_chat_links" (
   "chat_id" uuid primary key references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "salt" text not null check (length("salt") >= 16),
+  "salt" text not null constraint bsb_ai_chat_links_salt_check check (length("salt") >= 16),
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "rotated_at" timestamptz not null default now()
 );
-create index if not exists ai_chat_links_created_by_idx on "better_supabase"."ai_chat_links" ("created_by");
+create index ai_chat_links_created_by_idx on "better_supabase"."ai_chat_links" ("created_by");
 alter table "better_supabase"."ai_chat_links" enable row level security;
 revoke all on "better_supabase"."ai_chat_links" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_links" to service_role;
 
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
-create table if not exists "better_supabase"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") between 1 and 200),
+create table "better_supabase"."ai_model_catalog" (
+  "model_id" text primary key constraint bsb_ai_model_catalog_model_id_check check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -9260,75 +8595,74 @@ revoke all on "better_supabase"."ai_model_catalog" from public, anon, authentica
 grant all on "better_supabase"."ai_model_catalog" to service_role;
 
 -- What moderation decided about an input, an output or a tool call.
-create table if not exists "better_supabase"."ai_moderation_events" (
+create table "better_supabase"."ai_moderation_events" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete set null,
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
-  "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") between 1 and 100),
+  "stage" text not null constraint bsb_ai_moderation_events_stage_check check ("stage" in ('input', 'output', 'tool')),
+  "category" text not null constraint bsb_ai_moderation_events_category_check check (length("category") >= 1 and length("category") <= 100),
   "score" real,
-  "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
+  "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("organization_id", "created_at" desc);
-create index if not exists ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
-create index if not exists ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
+create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("tenant_id", "created_at" desc);
+create index ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
+create index ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
 alter table "better_supabase"."ai_moderation_events" enable row level security;
 revoke all on "better_supabase"."ai_moderation_events" from public, anon, authenticated;
 grant all on "better_supabase"."ai_moderation_events" to service_role;
 
 -- The progress of a long run, one row per step key, so a reload shows it.
-create table if not exists "better_supabase"."ai_run_steps" (
+create table "better_supabase"."ai_run_steps" (
   "id" uuid primary key default gen_random_uuid(),
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") between 1 and 200),
-  "label" text not null check (length("label") between 1 and 300),
-  "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
-  "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
+  "step_key" text not null constraint bsb_ai_run_steps_step_key_check check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null constraint bsb_ai_run_steps_label_check check (length("label") >= 1 and length("label") <= 300),
+  "status" text not null default 'running' constraint bsb_ai_run_steps_status_check check ("status" in ('running', 'done', 'error', 'skipped')),
+  "detail" jsonb not null default '{}' constraint bsb_ai_run_steps_detail_check check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz,
   unique ("run_id", "step_key")
 );
-create index if not exists ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
-create index if not exists ai_run_steps_owner_idx on "better_supabase"."ai_run_steps" ("owner_id");
+create index ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
+create index ai_run_steps_owner_idx on "better_supabase"."ai_run_steps" ("owner_id");
 alter table "better_supabase"."ai_run_steps" enable row level security;
 revoke all on "better_supabase"."ai_run_steps" from public, anon, authenticated;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
-drop policy if exists ai_run_steps_owner_read on "better_supabase"."ai_run_steps";
-create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
+create policy bsb_ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
--- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until
+-- continue state; its sandbox is a row in ai_sandboxes. lock_holder and lock_expires_at
 -- keep two turns from driving one sandbox. Experimental.
-create table if not exists "better_supabase"."ai_harness_sessions" (
+create table "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") between 1 and 200),
+  "harness_id" text not null constraint bsb_ai_harness_sessions_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
-  "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error')),
-  "lock_holder" text check (length("lock_holder") <= 200),
-  "locked_until" timestamptz,
+  "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error')),
+  "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200),
+  "lock_expires_at" timestamptz,
   "last_active_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "harness_id")
 );
-create index if not exists ai_harness_sessions_owner_idx on "better_supabase"."ai_harness_sessions" ("owner_id");
-create index if not exists ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
+create index ai_harness_sessions_owner_idx on "better_supabase"."ai_harness_sessions" ("owner_id");
+create index ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
 alter table "better_supabase"."ai_harness_sessions" enable row level security;
 revoke all on "better_supabase"."ai_harness_sessions" from public, anon, authenticated;
 grant all on "better_supabase"."ai_harness_sessions" to service_role;
 -- Resume state can carry harness credentials and sandbox ids, so only the
 -- service role reads it, through load_ai_harness_session.
-drop policy if exists ai_harness_sessions_owner_read on "better_supabase"."ai_harness_sessions";
+
 
 -- Whether the caller may read a chat: its owner, the service role, a member
 -- with 'ai_chat.read' when the chat is visible to the organization, or someone
@@ -9347,8 +8681,8 @@ as $$
       and (
         coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
         or x."owner_id" = (select auth.uid())
-        or (x."visibility" = 'organization' and coalesce(better_supabase.can('tenant', x."organization_id", 'ai_chat.read'), false))
-        or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."organization_id" is null or x."organization_id" in (select better_supabase.member_organization_ids()))))))
+        or (x."visibility" = 'organization' and coalesce(better_supabase.can('tenant', x."tenant_id", 'ai_chat.read'), false))
+        or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))))))
       )
   );
 $$;
@@ -9422,12 +8756,12 @@ begin
     if v_row."owner_id" <> v_owner then
       raise exception 'Chat % exists', v_id using errcode = '23505', hint = 'AI_CHAT_EXISTS';
     end if;
-    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
   end if;
-  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_owner and pr."organization_id" is not distinct from create_ai_chat.tenant) then
+  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_owner and pr."tenant_id" is not distinct from create_ai_chat.tenant) then
     raise exception 'No project %', v_project using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  insert into "better_supabase"."ai_chats" ("id", "organization_id", "owner_id", "project_id", "agent_id", "title", "model", "visibility", "mode", "is_temporary", "expires_at")
+  insert into "better_supabase"."ai_chats" ("id", "tenant_id", "owner_id", "project_id", "agent_id", "title", "model", "visibility", "mode", "is_temporary", "expires_at")
   values (
     v_id, create_ai_chat.tenant, v_owner, v_project, v_fields ->> 'agent_id',
     coalesce(v_fields ->> 'title', ''), v_fields ->> 'model', v_visibility, v_fields ->> 'mode', v_temporary,
@@ -9437,7 +8771,7 @@ begin
   if not v_temporary then
     perform "better_supabase"."ai_chat_notify"(v_id, v_owner, 'chat.created', '{}'::jsonb, true);
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_ai_chat"(uuid, jsonb) from public, anon;
@@ -9465,14 +8799,14 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false)) then
     raise exception 'No chat %', update_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
-  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_row."owner_id" and pr."organization_id" is not distinct from v_row."organization_id") then
+  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_row."owner_id" and pr."tenant_id" is not distinct from v_row."tenant_id") then
     raise exception 'No project %', v_project using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  if v_fields ->> 'visibility' = 'organization' and v_row."organization_id" is null then
+  if v_fields ->> 'visibility' = 'organization' and v_row."tenant_id" is null then
     raise exception 'A chat outside a tenant stays private' using errcode = '22023', hint = 'AI_CHAT_NO_TENANT';
   end if;
   if v_fields ->> 'visibility' = 'organization' and v_row."visibility" <> 'organization'
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.share'), false)) then
+    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_chat.share'), false)) then
     raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_chats" x set
@@ -9493,7 +8827,7 @@ begin
   where x."id" = update_ai_chat.chat
   returning * into v_row;
   perform "better_supabase"."ai_chat_notify"(v_row."id", v_row."owner_id", 'chat.updated', '{}'::jsonb, not v_row."is_temporary");
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."update_ai_chat"(uuid, jsonb) from public, anon;
@@ -9516,7 +8850,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_chat.manage'), false)) then
     raise exception 'No chat %', delete_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "better_supabase"."ai_chats" x where x."id" = delete_ai_chat.chat;
@@ -9541,7 +8875,7 @@ begin
     raise exception 'No chat %', get_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   select * into v_row from "better_supabase"."ai_chats" x where x."id" = get_ai_chat.chat;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_ai_chat"(uuid) from public, anon;
@@ -9577,13 +8911,13 @@ begin
     v_at := split_part(list_ai_chats.after, '|', 1)::timestamptz;
     v_id := split_part(list_ai_chats.after, '|', 2)::uuid;
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."organization_id", 'owner_id', page."owner_id", 'project_id', page."project_id", 'agent_id', page."agent_id", 'title', page."title", 'model', page."model", 'visibility', page."visibility", 'mode', page."mode", 'pinned', page."pinned", 'archived_at', page."archived_at", 'is_temporary', page."is_temporary", 'expires_at', page."expires_at", 'current_leaf_id', page."current_leaf_id", 'active_stream_id', page."active_stream_id", 'active_run_id', page."active_run_id", 'last_message_at', page."last_message_at", 'created_at', page."created_at", 'updated_at', page."updated_at") order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."tenant_id", 'owner_id', page."owner_id", 'project_id', page."project_id", 'agent_id', page."agent_id", 'title', page."title", 'model', page."model", 'visibility', page."visibility", 'mode', page."mode", 'pinned', page."pinned", 'archived_at', page."archived_at", 'is_temporary', page."is_temporary", 'expires_at', page."expires_at", 'current_leaf_id', page."current_leaf_id", 'active_stream_id', page."active_stream_id", 'active_run_id', page."active_run_id", 'last_message_at', page."last_message_at", 'created_at', page."created_at", 'updated_at', page."updated_at") order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
   into v_items
   from (
     select x.* from "better_supabase"."ai_chats" x
-    where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."organization_id" is null or x."organization_id" in (select better_supabase.member_organization_ids())))))))
+    where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids())))))))
       and not x."is_temporary"
-      and (list_ai_chats.tenant is null or x."organization_id" = list_ai_chats.tenant)
+      and (list_ai_chats.tenant is null or x."tenant_id" = list_ai_chats.tenant)
       and (list_ai_chats.project is null or x."project_id" = list_ai_chats.project)
       and (list_ai_chats.pinned is null or x."pinned" = list_ai_chats.pinned)
       and (list_ai_chats.archived is null or (x."archived_at" is not null) = list_ai_chats.archived)
@@ -9626,13 +8960,13 @@ begin
     if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_ai_project.tenant, 'ai_chat.create'), false) then
       raise exception 'You may not create projects here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
     end if;
-    insert into "better_supabase"."ai_projects" ("organization_id", "owner_id", "name", "instructions", "default_model", "pinned")
+    insert into "better_supabase"."ai_projects" ("tenant_id", "owner_id", "name", "instructions", "default_model", "pinned")
     values (
       save_ai_project.tenant, auth.uid(), v_fields ->> 'name', coalesce(v_fields ->> 'instructions', ''),
       v_fields ->> 'default_model', coalesce((v_fields ->> 'pinned')::boolean, false)
     )
     returning * into v_row;
-    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
   end if;
   update "better_supabase"."ai_projects" x set
     "name" = coalesce(v_fields ->> 'name', x."name"),
@@ -9649,7 +8983,7 @@ begin
   if not found then
     raise exception 'No project %', save_ai_project.id using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_ai_project"(uuid, uuid, jsonb) from public, anon;
@@ -9683,9 +9017,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."pinned" desc, x."updated_at" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."pinned" desc, x."updated_at" desc), '[]'::jsonb)
   from "better_supabase"."ai_projects" x
-  where x."owner_id" = (select auth.uid()) and x."organization_id" is not distinct from list_ai_projects.tenant;
+  where x."owner_id" = (select auth.uid()) and x."tenant_id" is not distinct from list_ai_projects.tenant;
 $$;
 revoke execute on function "better_supabase"."list_ai_projects"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_projects"(uuid) to authenticated, service_role;
@@ -9707,7 +9041,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = add_ai_chat_participant.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', add_ai_chat_participant.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -9731,7 +9065,7 @@ begin
   update "better_supabase"."ai_chats" c set "visibility" = 'shared', "updated_at" = now()
   where c."id" = v_chat.id and c."visibility" = 'private';
   perform "better_supabase"."ai_chat_notify"(v_chat.id, add_ai_chat_participant.participant, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.participant, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."add_ai_chat_participant"(uuid, uuid, text, jsonb) from public, anon;
@@ -9787,9 +9121,9 @@ begin
     raise exception 'No chat %', list_ai_chat_participants.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   return (
-    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_user_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
+    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
       || coalesce((
-        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_user_id', x."customer_user_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
+        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_id', x."customer_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
         from "better_supabase"."ai_chat_participants" x
         where x."chat_id" = list_ai_chat_participants.chat
       ), '[]'::jsonb)
@@ -9821,7 +9155,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = add_ai_chat_party.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', add_ai_chat_party.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -9853,9 +9187,9 @@ begin
     on conflict ("chat_id", "team_id") where "kind" = 'team' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'customer' then
-    insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "customer_user_id", "role", "added_by")
+    insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "customer_id", "role", "added_by")
     values (v_chat.id, 'customer', add_ai_chat_party.party::uuid, v_role, auth.uid())
-    on conflict ("chat_id", "customer_user_id") where "kind" = 'customer' do update set "role" = excluded."role"
+    on conflict ("chat_id", "customer_id") where "kind" = 'customer' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'external' then
     insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "email", "role", "added_by")
@@ -9866,7 +9200,7 @@ begin
   update "better_supabase"."ai_chats" c set "visibility" = 'shared', "updated_at" = now()
   where c."id" = v_chat.id and c."visibility" = 'private';
   perform "better_supabase"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.added', jsonb_build_object('kind', add_ai_chat_party.party_kind, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."add_ai_chat_party"(uuid, text, text, text) from public, anon;
@@ -9888,14 +9222,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = remove_ai_chat_party.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', remove_ai_chat_party.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "better_supabase"."ai_chat_participants" x
   where x."chat_id" = v_chat.id and x."kind"::text = remove_ai_chat_party.party_kind
-    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_user_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
+    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
   get diagnostics v_count = row_count;
   if v_count > 0 then
     perform "better_supabase"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.removed', jsonb_build_object('kind', remove_ai_chat_party.party_kind), true);
@@ -9954,7 +9288,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = create_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', create_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -9990,7 +9324,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = rotate_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', rotate_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -10023,7 +9357,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = revoke_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', revoke_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -10172,7 +9506,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = switch_ai_branch.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))))))) then
     raise exception 'No chat %', switch_ai_branch.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if not exists (select 1 from "better_supabase"."ai_messages" x where x."chat_id" = switch_ai_branch.chat and x."id" = switch_ai_branch.message_id) then
@@ -10223,7 +9557,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = append_ai_user_message.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))))))) then
     raise exception 'No chat %', append_ai_user_message.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if coalesce(append_ai_user_message.trigger, 'submit-message') = 'regenerate-message' then
@@ -10351,7 +9685,7 @@ grant execute on function "better_supabase"."save_ai_assistant_message"(uuid, js
 -- run_id }: the active stream when another reply holds the chat.
 -- external_run_id is the durable engine's own run id, such as a Workflow
 -- SDK run, so stop and resume can reach that run.
-drop function if exists "better_supabase"."claim_ai_chat_stream"(uuid, text, text, text, text);
+
 create or replace function "better_supabase"."claim_ai_chat_stream"(chat uuid, stream text, model text default null, message_id text default null, engine text default 'ai-sdk', external_run_id text default null)
 returns jsonb
 language plpgsql
@@ -10455,7 +9789,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = request_ai_chat_stop.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))))))) then
     raise exception 'No chat %', request_ai_chat_stop.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if v_chat."active_stream_id" is null then
@@ -10655,13 +9989,13 @@ begin
     raise exception 'You may not change tool policies here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   if set_ai_tool_policy.policy is null then
-    delete from "better_supabase"."ai_tool_policies" x where x."organization_id" = set_ai_tool_policy.tenant and x."tool" = set_ai_tool_policy.tool;
+    delete from "better_supabase"."ai_tool_policies" x where x."tenant_id" = set_ai_tool_policy.tenant and x."tool" = set_ai_tool_policy.tool;
     null;
     return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', null);
   end if;
-  insert into "better_supabase"."ai_tool_policies" ("organization_id", "tool", "policy")
+  insert into "better_supabase"."ai_tool_policies" ("tenant_id", "tool", "policy")
   values (set_ai_tool_policy.tenant, set_ai_tool_policy.tool, set_ai_tool_policy.policy)
-  on conflict ("organization_id", "tool") do update set "policy" = excluded."policy", "updated_at" = now();
+  on conflict ("tenant_id", "tool") do update set "policy" = excluded."policy", "updated_at" = now();
   null;
   return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy);
 end;
@@ -10683,7 +10017,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_object_agg(x."tool", x."policy"), '{}'::jsonb)
-    from "better_supabase"."ai_tool_policies" x where x."organization_id" = ai_tool_policies_for.tenant
+    from "better_supabase"."ai_tool_policies" x where x."tenant_id" = ai_tool_policies_for.tenant
   );
 end;
 $$;
@@ -10810,7 +10144,7 @@ begin
   if not found or v_chat."owner_id" is distinct from auth.uid() then
     raise exception 'No chat %', share_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
-  if not coalesce(better_supabase.can('tenant', v_chat."organization_id", 'ai_chat.share'), false) then
+  if not coalesce(better_supabase.can('tenant', v_chat."tenant_id", 'ai_chat.share'), false) then
     raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   v_leaf := coalesce(share_ai_chat.leaf, v_chat."current_leaf_id");
@@ -11001,7 +10335,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  insert into "better_supabase"."ai_moderation_events" ("organization_id", "chat_id", "message_id", "user_id", "stage", "category", "score", "action")
+  insert into "better_supabase"."ai_moderation_events" ("tenant_id", "chat_id", "message_id", "user_id", "stage", "category", "score", "action")
   values (
     (record_ai_moderation_event.event ->> 'organization_id')::uuid,
     (record_ai_moderation_event.event ->> 'chat_id')::uuid,
@@ -11013,7 +10347,7 @@ begin
     record_ai_moderation_event.event ->> 'action'
   )
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'chat_id', v_row."chat_id", 'message_id', v_row."message_id", 'user_id', v_row."user_id", 'stage', v_row."stage", 'category', v_row."category", 'score', v_row."score", 'action', v_row."action", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'chat_id', v_row."chat_id", 'message_id', v_row."message_id", 'user_id', v_row."user_id", 'stage', v_row."stage", 'category', v_row."category", 'score', v_row."score", 'action', v_row."action", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."record_ai_moderation_event"(jsonb) from public, anon, authenticated;
@@ -11032,10 +10366,10 @@ begin
     raise exception 'You may not review moderation here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."organization_id", 'chat_id', page."chat_id", 'message_id', page."message_id", 'user_id', page."user_id", 'stage', page."stage", 'category', page."category", 'score', page."score", 'action', page."action", 'created_at', page."created_at") order by page."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."tenant_id", 'chat_id', page."chat_id", 'message_id', page."message_id", 'user_id', page."user_id", 'stage', page."stage", 'category', page."category", 'score', page."score", 'action', page."action", 'created_at', page."created_at") order by page."created_at" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."ai_moderation_events" x
-      where x."organization_id" = list_ai_moderation_events.tenant
+      where x."tenant_id" = list_ai_moderation_events.tenant
       order by x."created_at" desc
       limit least(greatest(coalesce(list_ai_moderation_events.size, 100), 1), 1000)
     ) page
@@ -11075,19 +10409,19 @@ grant execute on function "better_supabase"."purge_ai_chats"(integer) to service
 -- Sandboxes and provider containers a chat started, harness sessions'
 -- included, so one idle-stop claim stops the ones nobody used for
 -- idle_seconds or past expires_at.
-create table if not exists "better_supabase"."ai_sandboxes" (
+create table "better_supabase"."ai_sandboxes" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") between 1 and 200),
-  "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") between 1 and 200),
-  "container_id" text check (length("container_id") <= 200),
-  "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "idle_seconds" integer not null default 600 check ("idle_seconds" > 0),
-  "error" text check (length("error") <= 4000),
+  "harness_id" text constraint bsb_ai_sandboxes_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "provider" text not null constraint bsb_ai_sandboxes_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
+  "sandbox_id" text not null constraint bsb_ai_sandboxes_sandbox_id_check check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
+  "container_id" text constraint bsb_ai_sandboxes_container_id_check check (length("container_id") <= 200),
+  "status" text not null default 'running' constraint bsb_ai_sandboxes_status_check check ("status" in ('running', 'stopping', 'stopped')),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_sandboxes_metadata_check check (jsonb_typeof("metadata") = 'object'),
+  "idle_seconds" integer not null default 600 constraint bsb_ai_sandboxes_idle_seconds_check check ("idle_seconds" > 0),
+  "error" text constraint bsb_ai_sandboxes_error_check check (length("error") <= 4000),
   "last_used_at" timestamptz not null default now(),
   "expires_at" timestamptz,
   "stopped_at" timestamptz,
@@ -11095,19 +10429,18 @@ create table if not exists "better_supabase"."ai_sandboxes" (
   "updated_at" timestamptz not null default now(),
   unique ("provider", "sandbox_id")
 );
-create index if not exists ai_sandboxes_open_idx on "better_supabase"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
-create index if not exists ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
-create index if not exists ai_sandboxes_harness_idx on "better_supabase"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
-create index if not exists ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("organization_id");
-create index if not exists ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
+create index ai_sandboxes_open_idx on "better_supabase"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
+create index ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
+create index ai_sandboxes_harness_idx on "better_supabase"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
+create index ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("tenant_id");
+create index ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
 alter table "better_supabase"."ai_sandboxes" enable row level security;
 revoke all on "better_supabase"."ai_sandboxes" from public, anon, authenticated;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
-drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
-create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes"
+create policy bsb_ai_sandboxes_read on "better_supabase"."ai_sandboxes"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
 
 -- Records a sandbox or container the app started, or marks a known one used
 -- (service role). fields: user_id, chat_id, harness_id, container_id,
@@ -11123,7 +10456,7 @@ declare
   v_row "better_supabase"."ai_sandboxes"%rowtype;
   v_fields jsonb := coalesce(register_ai_sandbox.fields, '{}');
 begin
-  insert into "better_supabase"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id", "container_id", "metadata", "idle_seconds", "expires_at")
+  insert into "better_supabase"."ai_sandboxes" as cur ("tenant_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id", "container_id", "metadata", "idle_seconds", "expires_at")
   values (
     register_ai_sandbox.tenant,
     (v_fields ->> 'user_id')::uuid,
@@ -11148,12 +10481,12 @@ begin
     "stopped_at" = null,
     "last_used_at" = now(),
     "updated_at" = now()
-  where cur."organization_id" is not distinct from excluded."organization_id"
+  where cur."tenant_id" is not distinct from excluded."tenant_id"
   returning * into v_row;
   if not found then
     raise exception 'sandbox % belongs to another tenant', register_ai_sandbox.sandbox_id using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'provider', v_row."provider", 'sandbox_id', v_row."sandbox_id", 'container_id', v_row."container_id", 'status', v_row."status", 'metadata', v_row."metadata", 'idle_seconds', v_row."idle_seconds", 'error', v_row."error", 'last_used_at', v_row."last_used_at", 'expires_at', v_row."expires_at", 'stopped_at', v_row."stopped_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'provider', v_row."provider", 'sandbox_id', v_row."sandbox_id", 'container_id', v_row."container_id", 'status', v_row."status", 'metadata', v_row."metadata", 'idle_seconds', v_row."idle_seconds", 'error', v_row."error", 'last_used_at', v_row."last_used_at", 'expires_at', v_row."expires_at", 'stopped_at', v_row."stopped_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."register_ai_sandbox"(uuid, text, text, jsonb) from public, anon, authenticated;
@@ -11183,7 +10516,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_sandboxes" x
+  select jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_sandboxes" x
   where x."chat_id" = ai_sandbox_for.chat_id and x."provider" = ai_sandbox_for.provider and x."status" = 'running'
     and (x."expires_at" is null or x."expires_at" > now())
   order by x."last_used_at" desc
@@ -11211,7 +10544,7 @@ begin
        or (y."status" = 'stopping' and y."updated_at" <= now() - make_interval(secs => greatest(idle_ai_sandboxes.lease_seconds, 1))))
       and not exists (
         select 1 from "better_supabase"."ai_harness_sessions" z
-        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."locked_until" > now()
+        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."lock_expires_at" > now()
       )
     order by y."last_used_at"
     limit least(greatest(idle_ai_sandboxes.batch, 1), 500)
@@ -11221,7 +10554,7 @@ begin
     from due where x."id" = due."id"
     returning x.*
   )
-  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."organization_id", 'user_id', claimed."user_id", 'chat_id', claimed."chat_id", 'harness_id', claimed."harness_id", 'provider', claimed."provider", 'sandbox_id', claimed."sandbox_id", 'container_id', claimed."container_id", 'status', claimed."status", 'metadata', claimed."metadata", 'idle_seconds', claimed."idle_seconds", 'error', claimed."error", 'last_used_at', claimed."last_used_at", 'expires_at', claimed."expires_at", 'stopped_at', claimed."stopped_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
+  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."tenant_id", 'user_id', claimed."user_id", 'chat_id', claimed."chat_id", 'harness_id', claimed."harness_id", 'provider', claimed."provider", 'sandbox_id', claimed."sandbox_id", 'container_id', claimed."container_id", 'status', claimed."status", 'metadata', claimed."metadata", 'idle_seconds', claimed."idle_seconds", 'error', claimed."error", 'last_used_at', claimed."last_used_at", 'expires_at', claimed."expires_at", 'stopped_at', claimed."stopped_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
   return v_rows;
 end;
 $$;
@@ -11273,9 +10606,9 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
   from "better_supabase"."ai_sandboxes" x
-  where x."organization_id" is not distinct from list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x."chat_id" = list_ai_sandboxes.chat_id)
+  where x."tenant_id" is not distinct from list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x."chat_id" = list_ai_sandboxes.chat_id)
 $$;
 revoke execute on function "better_supabase"."list_ai_sandboxes"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_sandboxes"(uuid, uuid) to authenticated, service_role;
@@ -11470,7 +10803,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."load_ai_harness_session"(uuid, text) from public, anon, authenticated;
@@ -11513,7 +10846,7 @@ begin
   select * into v_row from "better_supabase"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = save_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
     raise exception 'Harness session % is locked', save_ai_harness_session.harness using errcode = '55P03', hint = 'AI_HARNESS_LOCKED';
   end if;
   update "better_supabase"."ai_harness_sessions" x set
@@ -11531,8 +10864,8 @@ begin
       update "better_supabase"."ai_sandboxes" y set "status" = 'stopped', "stopped_at" = now(), "updated_at" = now()
       where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped';
     else
-      insert into "better_supabase"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id")
-      values (v_chat."organization_id", v_chat."owner_id", v_chat."id", v_row."harness_id", coalesce(nullif(save_ai_harness_session.fields ->> 'sandbox_provider', ''), 'harness'), save_ai_harness_session.fields ->> 'sandbox_id')
+      insert into "better_supabase"."ai_sandboxes" as cur ("tenant_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id")
+      values (v_chat."tenant_id", v_chat."owner_id", v_chat."id", v_row."harness_id", coalesce(nullif(save_ai_harness_session.fields ->> 'sandbox_provider', ''), 'harness'), save_ai_harness_session.fields ->> 'sandbox_id')
       on conflict ("provider", "sandbox_id") do update set
         "chat_id" = excluded."chat_id",
         "harness_id" = excluded."harness_id",
@@ -11541,7 +10874,7 @@ begin
         "stopped_at" = null,
         "last_used_at" = now(),
         "updated_at" = now()
-      where cur."organization_id" is not distinct from excluded."organization_id";
+      where cur."tenant_id" is not distinct from excluded."tenant_id";
       if not found then
         raise exception 'sandbox % belongs to another tenant', save_ai_harness_session.fields ->> 'sandbox_id' using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
       end if;
@@ -11550,7 +10883,7 @@ begin
     update "better_supabase"."ai_sandboxes" y set "last_used_at" = now(), "updated_at" = now()
     where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" = 'running';
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_ai_harness_session"(uuid, text, jsonb, text) from public, anon, authenticated;
@@ -11589,12 +10922,12 @@ begin
   select * into v_row from "better_supabase"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = lock_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
     return false;
   end if;
   update "better_supabase"."ai_harness_sessions" x set
     "lock_holder" = lock_ai_harness_session.holder,
-    "locked_until" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
+    "lock_expires_at" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
     "updated_at" = now()
   where x."chat_id" = v_row."chat_id" and x."harness_id" = v_row."harness_id";
   return true;
@@ -11616,7 +10949,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "locked_until" = null, "updated_at" = now()
+  update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "lock_expires_at" = null, "updated_at" = now()
   where x."chat_id" = unlock_ai_harness_session.chat
     and x."harness_id" = unlock_ai_harness_session.harness
     and x."lock_holder" = unlock_ai_harness_session.holder;
@@ -11629,130 +10962,74 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_ai_chat_receive on realtime.messages;
 create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        drop policy if exists bsb_ai_chats_receive on realtime.messages;
 create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_projects" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_projects" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_projects" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_projects" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."ai_chats" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid())
-    or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
+    or ("visibility" = 'organization' and "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
     or ("better_supabase"."ai_chats"."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())))))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_chats" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_chats" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_chats" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."ai_sandboxes" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_sandboxes" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.ai-chat.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."claim_ai_chat_stream"(uuid, text, text, text, text);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."ai_chat_can_read"(chat uuid)
 returns boolean
@@ -12325,19 +11602,6 @@ as $$ select "better_supabase"."unlock_ai_harness_session"($1, $2, $3) $$;
 revoke execute on function "api"."unlock_ai_harness_session"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "api"."unlock_ai_harness_session"(uuid, text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block-data ai-chat
@@ -12355,126 +11619,27 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:6b2b2b0da13aa3f64ffa49fbb4b9e13d062409077e4c83e7cb8b458a3f966521
+-- @bsb-hash sha256:8d6014713b4206244491a8d3aff9e91949761a966024f5e1a8269957d98bcb02
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_tool_policies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_moderation_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Projects group chats and carry instructions and a default model.
 -- better_supabase.ai_projects is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_projects" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."ai_projects" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."ai_projects" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."ai_projects" add column if not exists "owner_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."ai_projects" add column if not exists "name" text check (length("name") between 1 and 200);
-alter table "better_supabase"."ai_projects" add column if not exists "instructions" text not null default '' check (length("instructions") <= 20000);
-alter table "better_supabase"."ai_projects" add column if not exists "default_model" text check (length("default_model") <= 200);
+alter table "better_supabase"."ai_projects" add column if not exists "name" text constraint bsb_ai_projects_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."ai_projects" add column if not exists "instructions" text not null default '' constraint bsb_ai_projects_instructions_check check (length("instructions") <= 20000);
+alter table "better_supabase"."ai_projects" add column if not exists "default_model" text constraint bsb_ai_projects_default_model_check check (length("default_model") <= 200);
 alter table "better_supabase"."ai_projects" add column if not exists "pinned" boolean not null default false;
 alter table "better_supabase"."ai_projects" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."ai_projects" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."ai_projects" add column if not exists "updated_at" timestamptz not null default now();
-create index if not exists ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "organization_id");
+create index if not exists ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "tenant_id");
 alter table "better_supabase"."ai_projects" enable row level security;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
-drop policy if exists bsb_ai_projects_select on "better_supabase"."ai_projects";
 create policy bsb_ai_projects_select on "better_supabase"."ai_projects"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
@@ -12483,14 +11648,14 @@ create policy bsb_ai_projects_select on "better_supabase"."ai_projects"
 -- active_stream_id is the reply being written, claimed compare-and-set.
 -- better_supabase.ai_chats is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_chats" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."ai_chats" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."ai_chats" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."ai_chats" add column if not exists "owner_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_chats" add column if not exists "project_id" uuid references "better_supabase"."ai_projects" ("id") on delete set null;
-alter table "better_supabase"."ai_chats" add column if not exists "agent_id" text check (length("agent_id") <= 200);
-alter table "better_supabase"."ai_chats" add column if not exists "title" text not null default '' check (length("title") <= 300);
-alter table "better_supabase"."ai_chats" add column if not exists "model" text check (length("model") <= 200);
-alter table "better_supabase"."ai_chats" add column if not exists "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'shared'));
-alter table "better_supabase"."ai_chats" add column if not exists "mode" text check (length("mode") <= 100);
+alter table "better_supabase"."ai_chats" add column if not exists "agent_id" text constraint bsb_ai_chats_agent_id_check check (length("agent_id") <= 200);
+alter table "better_supabase"."ai_chats" add column if not exists "title" text not null default '' constraint bsb_ai_chats_title_check check (length("title") <= 300);
+alter table "better_supabase"."ai_chats" add column if not exists "model" text constraint bsb_ai_chats_model_check check (length("model") <= 200);
+alter table "better_supabase"."ai_chats" add column if not exists "visibility" text not null default 'private' constraint bsb_ai_chats_visibility_check check ("visibility" in ('private', 'organization', 'shared'));
+alter table "better_supabase"."ai_chats" add column if not exists "mode" text constraint bsb_ai_chats_mode_check check (length("mode") <= 100);
 alter table "better_supabase"."ai_chats" add column if not exists "pinned" boolean not null default false;
 alter table "better_supabase"."ai_chats" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."ai_chats" add column if not exists "is_temporary" boolean not null default false;
@@ -12503,7 +11668,7 @@ alter table "better_supabase"."ai_chats" add column if not exists "created_at" t
 alter table "better_supabase"."ai_chats" add column if not exists "updated_at" timestamptz not null default now();
 alter table "better_supabase"."ai_chats" add column if not exists "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "title")) stored;
 create index if not exists ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
-create index if not exists ai_chats_tenant_idx on "better_supabase"."ai_chats" ("organization_id");
+create index if not exists ai_chats_tenant_idx on "better_supabase"."ai_chats" ("tenant_id");
 create index if not exists ai_chats_project_idx on "better_supabase"."ai_chats" ("project_id");
 create index if not exists ai_chats_expires_idx on "better_supabase"."ai_chats" ("expires_at") where "is_temporary";
 create index if not exists ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
@@ -12519,33 +11684,31 @@ grant select on "better_supabase"."ai_chats" to authenticated;
 alter table "better_supabase"."ai_chat_participants" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."ai_chat_participants" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
 alter table "better_supabase"."ai_chat_participants" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."ai_chat_participants" add column if not exists "kind" text not null default 'user' check ("kind" in ('user', 'team', 'customer', 'external'));
+alter table "better_supabase"."ai_chat_participants" add column if not exists "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external'));
 alter table "better_supabase"."ai_chat_participants" add column if not exists "team_id" uuid;
-alter table "better_supabase"."ai_chat_participants" add column if not exists "customer_user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."ai_chat_participants" add column if not exists "email" text check (length("email") <= 320);
-alter table "better_supabase"."ai_chat_participants" add column if not exists "role" text not null default 'viewer' check ("role" in ('viewer', 'editor'));
+alter table "better_supabase"."ai_chat_participants" add column if not exists "customer_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."ai_chat_participants" add column if not exists "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320);
+alter table "better_supabase"."ai_chat_participants" add column if not exists "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor'));
 alter table "better_supabase"."ai_chat_participants" add column if not exists "added_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."ai_chat_participants" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
 create unique index if not exists ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
-create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
+create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_id") where "kind" = 'customer';
 create unique index if not exists ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
 create index if not exists ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
-create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
+create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_id");
 create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
 grant select on "better_supabase"."ai_chat_participants" to authenticated;
-drop policy if exists bsb_ai_chat_participants_select on "better_supabase"."ai_chat_participants";
 create policy bsb_ai_chat_participants_select on "better_supabase"."ai_chat_participants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists bsb_ai_chats_select on "better_supabase"."ai_chats";
 create policy bsb_ai_chats_select on "better_supabase"."ai_chats"
   for select to authenticated
   using ("owner_id" = (select auth.uid())
-    or ("visibility"::text = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
+    or ("visibility"::text = 'organization' and "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
     or ("better_supabase"."ai_chats"."visibility"::text <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())))))));
 
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
@@ -12553,17 +11716,17 @@ create policy bsb_ai_chats_select on "better_supabase"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 -- better_supabase.ai_messages is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_messages" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
-alter table "better_supabase"."ai_messages" add column if not exists "id" text check (length("id") between 1 and 200);
+alter table "better_supabase"."ai_messages" add column if not exists "id" text constraint bsb_ai_messages_id_check check (length("id") >= 1 and length("id") <= 200);
 alter table "better_supabase"."ai_messages" add column if not exists "parent_id" text;
 alter table "better_supabase"."ai_messages" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."ai_messages" add column if not exists "role" text check ("role" in ('system', 'user', 'assistant', 'tool'));
-alter table "better_supabase"."ai_messages" add column if not exists "parts" jsonb not null default '[]' check ( jsonb_typeof("parts") = 'array' and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))') );
-alter table "better_supabase"."ai_messages" add column if not exists "format" text not null default 'canonical' check (length("format") between 1 and 50);
+alter table "better_supabase"."ai_messages" add column if not exists "role" text constraint bsb_ai_messages_role_check check ("role" in ('system', 'user', 'assistant', 'tool'));
+alter table "better_supabase"."ai_messages" add column if not exists "parts" jsonb not null default '[]' constraint bsb_ai_messages_parts_check check ( jsonb_typeof("parts") = 'array' and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))') );
+alter table "better_supabase"."ai_messages" add column if not exists "format" text not null default 'canonical' constraint bsb_ai_messages_format_check check (length("format") >= 1 and length("format") <= 50);
 alter table "better_supabase"."ai_messages" add column if not exists "native" jsonb;
-alter table "better_supabase"."ai_messages" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."ai_messages" add column if not exists "metadata" jsonb not null default '{}' constraint bsb_ai_messages_metadata_check check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."ai_messages" add column if not exists "model" text;
-alter table "better_supabase"."ai_messages" add column if not exists "status" text not null default 'complete' check ("status" in ('complete', 'aborted', 'error'));
+alter table "better_supabase"."ai_messages" add column if not exists "status" text not null default 'complete' constraint bsb_ai_messages_status_check check ("status" in ('complete', 'aborted', 'error'));
 alter table "better_supabase"."ai_messages" add column if not exists "seq" bigint generated always as identity;
 alter table "better_supabase"."ai_messages" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."ai_messages" add column if not exists "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, jsonb_path_query_array("parts", '$[*] ? (@.type == "text").text'))) stored;
@@ -12575,7 +11738,6 @@ create unique index if not exists "bsb_ai_messages_id_key" on "better_supabase".
 alter table "better_supabase"."ai_messages" enable row level security;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
-drop policy if exists bsb_ai_messages_select on "better_supabase"."ai_messages";
 create policy bsb_ai_messages_select on "better_supabase"."ai_messages"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
@@ -12587,13 +11749,13 @@ alter table "better_supabase"."ai_runs" add column if not exists "chat_id" uuid 
 alter table "better_supabase"."ai_runs" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_runs" add column if not exists "assistant_message_id" text;
 alter table "better_supabase"."ai_runs" add column if not exists "stream_id" text;
-alter table "better_supabase"."ai_runs" add column if not exists "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50);
-alter table "better_supabase"."ai_runs" add column if not exists "external_run_id" text check (length("external_run_id") <= 200);
+alter table "better_supabase"."ai_runs" add column if not exists "engine" text not null default 'ai-sdk' constraint bsb_ai_runs_engine_check check (length("engine") >= 1 and length("engine") <= 50);
+alter table "better_supabase"."ai_runs" add column if not exists "external_run_id" text constraint bsb_ai_runs_external_run_id_check check (length("external_run_id") <= 200);
 alter table "better_supabase"."ai_runs" add column if not exists "model" text;
-alter table "better_supabase"."ai_runs" add column if not exists "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled'));
+alter table "better_supabase"."ai_runs" add column if not exists "status" text not null default 'running' constraint bsb_ai_runs_status_check check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled'));
 alter table "better_supabase"."ai_runs" add column if not exists "provider_generation_id" text;
-alter table "better_supabase"."ai_runs" add column if not exists "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object');
-alter table "better_supabase"."ai_runs" add column if not exists "cost_micro_usd" bigint check ("cost_micro_usd" >= 0);
+alter table "better_supabase"."ai_runs" add column if not exists "usage" jsonb not null default '{}' constraint bsb_ai_runs_usage_check check (jsonb_typeof("usage") = 'object');
+alter table "better_supabase"."ai_runs" add column if not exists "cost_micro_usd" bigint constraint bsb_ai_runs_cost_micro_usd_check check ("cost_micro_usd" >= 0);
 alter table "better_supabase"."ai_runs" add column if not exists "error" text;
 alter table "better_supabase"."ai_runs" add column if not exists "started_at" timestamptz not null default now();
 alter table "better_supabase"."ai_runs" add column if not exists "ended_at" timestamptz;
@@ -12604,23 +11766,22 @@ create index if not exists ai_runs_external_idx on "better_supabase"."ai_runs" (
 alter table "better_supabase"."ai_runs" enable row level security;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
-drop policy if exists bsb_ai_runs_select on "better_supabase"."ai_runs";
 create policy bsb_ai_runs_select on "better_supabase"."ai_runs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 -- better_supabase.ai_tool_approvals is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."ai_tool_approvals" add column if not exists "approval_id" text check (length("approval_id") between 1 and 200);
+alter table "better_supabase"."ai_tool_approvals" add column if not exists "approval_id" text constraint bsb_ai_tool_approvals_approval_id_check check (length("approval_id") >= 1 and length("approval_id") <= 200);
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "message_id" text;
-alter table "better_supabase"."ai_tool_approvals" add column if not exists "tool" text check (length("tool") between 1 and 200);
+alter table "better_supabase"."ai_tool_approvals" add column if not exists "tool" text constraint bsb_ai_tool_approvals_tool_check check (length("tool") >= 1 and length("tool") <= 200);
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "tool_call_id" text;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "input" jsonb;
-alter table "better_supabase"."ai_tool_approvals" add column if not exists "decision" text check ("decision" in ('approved', 'denied'));
-alter table "better_supabase"."ai_tool_approvals" add column if not exists "reason" text check (length("reason") <= 2000);
+alter table "better_supabase"."ai_tool_approvals" add column if not exists "decision" text constraint bsb_ai_tool_approvals_decision_check check ("decision" in ('approved', 'denied'));
+alter table "better_supabase"."ai_tool_approvals" add column if not exists "reason" text constraint bsb_ai_tool_approvals_reason_check check (length("reason") <= 2000);
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "signature" text;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "decided_by" uuid;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "decided_at" timestamptz;
@@ -12632,7 +11793,6 @@ create unique index if not exists "bsb_ai_tool_approvals_id_key" on "better_supa
 alter table "better_supabase"."ai_tool_approvals" enable row level security;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
-drop policy if exists bsb_ai_tool_approvals_select on "better_supabase"."ai_tool_approvals";
 create policy bsb_ai_tool_approvals_select on "better_supabase"."ai_tool_approvals"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
@@ -12640,11 +11800,11 @@ create policy bsb_ai_tool_approvals_select on "better_supabase"."ai_tool_approva
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
 -- runs (deny).
 -- better_supabase.ai_tool_policies is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."ai_tool_policies" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."ai_tool_policies" add column if not exists "tool" text check (length("tool") between 1 and 200);
-alter table "better_supabase"."ai_tool_policies" add column if not exists "policy" text check ("policy" in ('auto', 'ask', 'deny'));
+alter table "better_supabase"."ai_tool_policies" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."ai_tool_policies" add column if not exists "tool" text constraint bsb_ai_tool_policies_tool_check check (length("tool") >= 1 and length("tool") <= 200);
+alter table "better_supabase"."ai_tool_policies" add column if not exists "policy" text constraint bsb_ai_tool_policies_policy_check check ("policy" in ('auto', 'ask', 'deny'));
 alter table "better_supabase"."ai_tool_policies" add column if not exists "updated_at" timestamptz not null default now();
-create unique index if not exists "bsb_ai_tool_policies_tool_key" on "better_supabase"."ai_tool_policies" ("organization_id", "tool");
+create unique index if not exists "bsb_ai_tool_policies_tool_key" on "better_supabase"."ai_tool_policies" ("tenant_id", "tool");
 alter table "better_supabase"."ai_tool_policies" enable row level security;
 grant all on "better_supabase"."ai_tool_policies" to service_role;
 
@@ -12655,7 +11815,7 @@ alter table "better_supabase"."ai_pending_inputs" add column if not exists "chat
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null;
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "tool_call_id" text;
-alter table "better_supabase"."ai_pending_inputs" add column if not exists "question" text check (length("question") between 1 and 2000);
+alter table "better_supabase"."ai_pending_inputs" add column if not exists "question" text constraint bsb_ai_pending_inputs_question_check check (length("question") >= 1 and length("question") <= 2000);
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "schema" jsonb;
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "answer" jsonb;
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "answered_at" timestamptz;
@@ -12666,7 +11826,6 @@ create index if not exists ai_pending_inputs_owner_idx on "better_supabase"."ai_
 alter table "better_supabase"."ai_pending_inputs" enable row level security;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
-drop policy if exists bsb_ai_pending_inputs_select on "better_supabase"."ai_pending_inputs";
 create policy bsb_ai_pending_inputs_select on "better_supabase"."ai_pending_inputs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
@@ -12676,14 +11835,13 @@ create policy bsb_ai_pending_inputs_select on "better_supabase"."ai_pending_inpu
 alter table "better_supabase"."ai_message_sources" add column if not exists "chat_id" uuid;
 alter table "better_supabase"."ai_message_sources" add column if not exists "message_id" text;
 alter table "better_supabase"."ai_message_sources" add column if not exists "source_id" text;
-alter table "better_supabase"."ai_message_sources" add column if not exists "source_type" text not null default 'url' check ("source_type" in ('url', 'document'));
+alter table "better_supabase"."ai_message_sources" add column if not exists "source_type" text not null default 'url' constraint bsb_ai_message_sources_source_type_check check ("source_type" in ('url', 'document'));
 alter table "better_supabase"."ai_message_sources" add column if not exists "url" text;
 alter table "better_supabase"."ai_message_sources" add column if not exists "title" text;
 alter table "better_supabase"."ai_message_sources" add column if not exists "provider_metadata" jsonb;
 alter table "better_supabase"."ai_message_sources" enable row level security;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
-drop policy if exists bsb_ai_message_sources_select on "better_supabase"."ai_message_sources";
 create policy bsb_ai_message_sources_select on "better_supabase"."ai_message_sources"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
@@ -12693,9 +11851,9 @@ create policy bsb_ai_message_sources_select on "better_supabase"."ai_message_sou
 alter table "better_supabase"."ai_message_feedback" add column if not exists "chat_id" uuid;
 alter table "better_supabase"."ai_message_feedback" add column if not exists "message_id" text;
 alter table "better_supabase"."ai_message_feedback" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."ai_message_feedback" add column if not exists "rating" smallint check ("rating" in (-1, 1));
-alter table "better_supabase"."ai_message_feedback" add column if not exists "reason" text check (length("reason") <= 200);
-alter table "better_supabase"."ai_message_feedback" add column if not exists "comment" text check (length("comment") <= 4000);
+alter table "better_supabase"."ai_message_feedback" add column if not exists "rating" smallint constraint bsb_ai_message_feedback_rating_check check ("rating" in (-1, 1));
+alter table "better_supabase"."ai_message_feedback" add column if not exists "reason" text constraint bsb_ai_message_feedback_reason_check check (length("reason") <= 200);
+alter table "better_supabase"."ai_message_feedback" add column if not exists "comment" text constraint bsb_ai_message_feedback_comment_check check (length("comment") <= 4000);
 alter table "better_supabase"."ai_message_feedback" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."ai_message_feedback" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
@@ -12703,7 +11861,6 @@ create unique index if not exists "bsb_ai_message_feedback_user_key" on "better_
 alter table "better_supabase"."ai_message_feedback" enable row level security;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
-drop policy if exists bsb_ai_message_feedback_select on "better_supabase"."ai_message_feedback";
 create policy bsb_ai_message_feedback_select on "better_supabase"."ai_message_feedback"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
@@ -12713,7 +11870,7 @@ create policy bsb_ai_message_feedback_select on "better_supabase"."ai_message_fe
 -- better_supabase.ai_chat_shares is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_chat_shares" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."ai_chat_shares" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
-alter table "better_supabase"."ai_chat_shares" add column if not exists "token_hash" text check ("token_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."ai_chat_shares" add column if not exists "token_hash" text constraint bsb_ai_chat_shares_token_hash_check check ("token_hash" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."ai_chat_shares" add column if not exists "leaf_id" text;
 alter table "better_supabase"."ai_chat_shares" add column if not exists "created_by" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_chat_shares" add column if not exists "created_at" timestamptz not null default now();
@@ -12729,7 +11886,7 @@ grant all on "better_supabase"."ai_chat_shares" to service_role;
 -- Only the SQL functions read the salt.
 -- better_supabase.ai_chat_links is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_chat_links" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
-alter table "better_supabase"."ai_chat_links" add column if not exists "salt" text check (length("salt") >= 16);
+alter table "better_supabase"."ai_chat_links" add column if not exists "salt" text constraint bsb_ai_chat_links_salt_check check (length("salt") >= 16);
 alter table "better_supabase"."ai_chat_links" add column if not exists "created_by" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_chat_links" add column if not exists "rotated_at" timestamptz not null default now();
 create index if not exists ai_chat_links_created_by_idx on "better_supabase"."ai_chat_links" ("created_by");
@@ -12740,7 +11897,7 @@ grant all on "better_supabase"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 -- better_supabase.ai_model_catalog is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."ai_model_catalog" add column if not exists "model_id" text check (length("model_id") between 1 and 200);
+alter table "better_supabase"."ai_model_catalog" add column if not exists "model_id" text constraint bsb_ai_model_catalog_model_id_check check (length("model_id") >= 1 and length("model_id") <= 200);
 alter table "better_supabase"."ai_model_catalog" add column if not exists "provider" text not null default '';
 alter table "better_supabase"."ai_model_catalog" add column if not exists "name" text not null default '';
 alter table "better_supabase"."ai_model_catalog" add column if not exists "pricing" jsonb not null default '{}';
@@ -12755,16 +11912,16 @@ grant all on "better_supabase"."ai_model_catalog" to service_role;
 -- What moderation decided about an input, an output or a tool call.
 -- better_supabase.ai_moderation_events is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_moderation_events" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."ai_moderation_events" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."ai_moderation_events" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."ai_moderation_events" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete set null;
 alter table "better_supabase"."ai_moderation_events" add column if not exists "message_id" text;
 alter table "better_supabase"."ai_moderation_events" add column if not exists "user_id" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."ai_moderation_events" add column if not exists "stage" text check ("stage" in ('input', 'output', 'tool'));
-alter table "better_supabase"."ai_moderation_events" add column if not exists "category" text check (length("category") between 1 and 100);
+alter table "better_supabase"."ai_moderation_events" add column if not exists "stage" text constraint bsb_ai_moderation_events_stage_check check ("stage" in ('input', 'output', 'tool'));
+alter table "better_supabase"."ai_moderation_events" add column if not exists "category" text constraint bsb_ai_moderation_events_category_check check (length("category") >= 1 and length("category") <= 100);
 alter table "better_supabase"."ai_moderation_events" add column if not exists "score" real;
-alter table "better_supabase"."ai_moderation_events" add column if not exists "action" text check ("action" in ('allow', 'flag', 'redact', 'block'));
+alter table "better_supabase"."ai_moderation_events" add column if not exists "action" text constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block'));
 alter table "better_supabase"."ai_moderation_events" add column if not exists "created_at" timestamptz not null default now();
-create index if not exists ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("organization_id", "created_at" desc);
+create index if not exists ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("tenant_id", "created_at" desc);
 create index if not exists ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
 create index if not exists ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
 alter table "better_supabase"."ai_moderation_events" enable row level security;
@@ -12776,10 +11933,10 @@ alter table "better_supabase"."ai_run_steps" add column if not exists "id" uuid 
 alter table "better_supabase"."ai_run_steps" add column if not exists "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete cascade;
 alter table "better_supabase"."ai_run_steps" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
 alter table "better_supabase"."ai_run_steps" add column if not exists "owner_id" uuid;
-alter table "better_supabase"."ai_run_steps" add column if not exists "step_key" text check (length("step_key") between 1 and 200);
-alter table "better_supabase"."ai_run_steps" add column if not exists "label" text check (length("label") between 1 and 300);
-alter table "better_supabase"."ai_run_steps" add column if not exists "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped'));
-alter table "better_supabase"."ai_run_steps" add column if not exists "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object');
+alter table "better_supabase"."ai_run_steps" add column if not exists "step_key" text constraint bsb_ai_run_steps_step_key_check check (length("step_key") >= 1 and length("step_key") <= 200);
+alter table "better_supabase"."ai_run_steps" add column if not exists "label" text constraint bsb_ai_run_steps_label_check check (length("label") >= 1 and length("label") <= 300);
+alter table "better_supabase"."ai_run_steps" add column if not exists "status" text not null default 'running' constraint bsb_ai_run_steps_status_check check ("status" in ('running', 'done', 'error', 'skipped'));
+alter table "better_supabase"."ai_run_steps" add column if not exists "detail" jsonb not null default '{}' constraint bsb_ai_run_steps_detail_check check (jsonb_typeof("detail") = 'object');
 alter table "better_supabase"."ai_run_steps" add column if not exists "started_at" timestamptz not null default now();
 alter table "better_supabase"."ai_run_steps" add column if not exists "ended_at" timestamptz;
 create index if not exists ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
@@ -12788,23 +11945,22 @@ create unique index if not exists "bsb_ai_run_steps_key_key" on "better_supabase
 alter table "better_supabase"."ai_run_steps" enable row level security;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
-drop policy if exists bsb_ai_run_steps_select on "better_supabase"."ai_run_steps";
 create policy bsb_ai_run_steps_select on "better_supabase"."ai_run_steps"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
--- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until
+-- continue state; its sandbox is a row in ai_sandboxes. lock_holder and lock_expires_at
 -- keep two turns from driving one sandbox. Experimental.
 -- better_supabase.ai_harness_sessions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
-alter table "better_supabase"."ai_harness_sessions" add column if not exists "harness_id" text check (length("harness_id") between 1 and 200);
+alter table "better_supabase"."ai_harness_sessions" add column if not exists "harness_id" text constraint bsb_ai_harness_sessions_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200);
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "resume_state" jsonb;
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "continue_state" jsonb;
-alter table "better_supabase"."ai_harness_sessions" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error'));
-alter table "better_supabase"."ai_harness_sessions" add column if not exists "lock_holder" text check (length("lock_holder") <= 200);
-alter table "better_supabase"."ai_harness_sessions" add column if not exists "locked_until" timestamptz;
+alter table "better_supabase"."ai_harness_sessions" add column if not exists "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error'));
+alter table "better_supabase"."ai_harness_sessions" add column if not exists "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200);
+alter table "better_supabase"."ai_harness_sessions" add column if not exists "lock_expires_at" timestamptz;
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "last_active_at" timestamptz not null default now();
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "updated_at" timestamptz not null default now();
@@ -12833,8 +11989,8 @@ as $$
       and (
         coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
         or x."owner_id" = (select auth.uid())
-        or (x."visibility"::text = 'organization' and coalesce(better_supabase.can('tenant', x."organization_id", 'ai_chat.read'), false))
-        or (x."visibility"::text <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."organization_id" is null or x."organization_id" in (select better_supabase.member_organization_ids()))))))
+        or (x."visibility"::text = 'organization' and coalesce(better_supabase.can('tenant', x."tenant_id", 'ai_chat.read'), false))
+        or (x."visibility"::text <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))))))
       )
   );
 $$;
@@ -12908,12 +12064,12 @@ begin
     if v_row."owner_id" <> v_owner then
       raise exception 'Chat % exists', v_id using errcode = '23505', hint = 'AI_CHAT_EXISTS';
     end if;
-    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
   end if;
-  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_owner and pr."organization_id" is not distinct from create_ai_chat.tenant) then
+  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_owner and pr."tenant_id" is not distinct from create_ai_chat.tenant) then
     raise exception 'No project %', v_project using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  insert into "better_supabase"."ai_chats" ("id", "organization_id", "owner_id", "project_id", "agent_id", "title", "model", "visibility", "mode", "is_temporary", "expires_at")
+  insert into "better_supabase"."ai_chats" ("id", "tenant_id", "owner_id", "project_id", "agent_id", "title", "model", "visibility", "mode", "is_temporary", "expires_at")
   values (
     v_id, create_ai_chat.tenant, v_owner, v_project, v_fields ->> 'agent_id',
     coalesce(v_fields ->> 'title', ''), v_fields ->> 'model', better_supabase.as_column_type(v_visibility, (null::"better_supabase"."ai_chats")."visibility"), v_fields ->> 'mode', v_temporary,
@@ -12923,7 +12079,7 @@ begin
   if not v_temporary then
     perform "better_supabase"."ai_chat_notify"(v_id, v_owner, 'chat.created', '{}'::jsonb, true);
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_ai_chat"(uuid, jsonb) from public, anon;
@@ -12951,14 +12107,14 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false)) then
     raise exception 'No chat %', update_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
-  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_row."owner_id" and pr."organization_id" is not distinct from v_row."organization_id") then
+  if v_project is not null and not exists (select 1 from "better_supabase"."ai_projects" pr where pr."id" = v_project and pr."owner_id" = v_row."owner_id" and pr."tenant_id" is not distinct from v_row."tenant_id") then
     raise exception 'No project %', v_project using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  if v_fields ->> 'visibility' = 'organization' and v_row."organization_id" is null then
+  if v_fields ->> 'visibility' = 'organization' and v_row."tenant_id" is null then
     raise exception 'A chat outside a tenant stays private' using errcode = '22023', hint = 'AI_CHAT_NO_TENANT';
   end if;
   if v_fields ->> 'visibility' = 'organization' and v_row."visibility"::text <> 'organization'
-    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.share'), false)) then
+    and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_chat.share'), false)) then
     raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_chats" x set
@@ -12979,7 +12135,7 @@ begin
   where x."id" = update_ai_chat.chat
   returning * into v_row;
   perform "better_supabase"."ai_chat_notify"(v_row."id", v_row."owner_id", 'chat.updated', '{}'::jsonb, not v_row."is_temporary");
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."update_ai_chat"(uuid, jsonb) from public, anon;
@@ -13002,7 +12158,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_chat.manage'), false)) then
     raise exception 'No chat %', delete_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "better_supabase"."ai_chats" x where x."id" = delete_ai_chat.chat;
@@ -13027,7 +12183,7 @@ begin
     raise exception 'No chat %', get_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   select * into v_row from "better_supabase"."ai_chats" x where x."id" = get_ai_chat.chat;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'mode', v_row."mode", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_ai_chat"(uuid) from public, anon;
@@ -13063,13 +12219,13 @@ begin
     v_at := split_part(list_ai_chats.after, '|', 1)::timestamptz;
     v_id := split_part(list_ai_chats.after, '|', 2)::uuid;
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."organization_id", 'owner_id', page."owner_id", 'project_id', page."project_id", 'agent_id', page."agent_id", 'title', page."title", 'model', page."model", 'visibility', page."visibility", 'mode', page."mode", 'pinned', page."pinned", 'archived_at', page."archived_at", 'is_temporary', page."is_temporary", 'expires_at', page."expires_at", 'current_leaf_id', page."current_leaf_id", 'active_stream_id', page."active_stream_id", 'active_run_id', page."active_run_id", 'last_message_at', page."last_message_at", 'created_at', page."created_at", 'updated_at', page."updated_at") order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."tenant_id", 'owner_id', page."owner_id", 'project_id', page."project_id", 'agent_id', page."agent_id", 'title', page."title", 'model', page."model", 'visibility', page."visibility", 'mode', page."mode", 'pinned', page."pinned", 'archived_at', page."archived_at", 'is_temporary', page."is_temporary", 'expires_at', page."expires_at", 'current_leaf_id', page."current_leaf_id", 'active_stream_id', page."active_stream_id", 'active_run_id', page."active_run_id", 'last_message_at', page."last_message_at", 'created_at', page."created_at", 'updated_at', page."updated_at") order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
   into v_items
   from (
     select x.* from "better_supabase"."ai_chats" x
-    where (x."owner_id" = v_uid or (x."visibility"::text <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."organization_id" is null or x."organization_id" in (select better_supabase.member_organization_ids())))))))
+    where (x."owner_id" = v_uid or (x."visibility"::text <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids())))))))
       and not x."is_temporary"
-      and (list_ai_chats.tenant is null or x."organization_id" = list_ai_chats.tenant)
+      and (list_ai_chats.tenant is null or x."tenant_id" = list_ai_chats.tenant)
       and (list_ai_chats.project is null or x."project_id" = list_ai_chats.project)
       and (list_ai_chats.pinned is null or x."pinned" = list_ai_chats.pinned)
       and (list_ai_chats.archived is null or (x."archived_at" is not null) = list_ai_chats.archived)
@@ -13112,13 +12268,13 @@ begin
     if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_ai_project.tenant, 'ai_chat.create'), false) then
       raise exception 'You may not create projects here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
     end if;
-    insert into "better_supabase"."ai_projects" ("organization_id", "owner_id", "name", "instructions", "default_model", "pinned")
+    insert into "better_supabase"."ai_projects" ("tenant_id", "owner_id", "name", "instructions", "default_model", "pinned")
     values (
       save_ai_project.tenant, auth.uid(), v_fields ->> 'name', coalesce(v_fields ->> 'instructions', ''),
       v_fields ->> 'default_model', coalesce((v_fields ->> 'pinned')::boolean, false)
     )
     returning * into v_row;
-    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
   end if;
   update "better_supabase"."ai_projects" x set
     "name" = coalesce(v_fields ->> 'name', x."name"),
@@ -13135,7 +12291,7 @@ begin
   if not found then
     raise exception 'No project %', save_ai_project.id using errcode = 'P0002', hint = 'AI_PROJECT_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'name', v_row."name", 'instructions', v_row."instructions", 'default_model', v_row."default_model", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_ai_project"(uuid, uuid, jsonb) from public, anon;
@@ -13169,9 +12325,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."pinned" desc, x."updated_at" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."pinned" desc, x."updated_at" desc), '[]'::jsonb)
   from "better_supabase"."ai_projects" x
-  where x."owner_id" = (select auth.uid()) and x."organization_id" is not distinct from list_ai_projects.tenant;
+  where x."owner_id" = (select auth.uid()) and x."tenant_id" is not distinct from list_ai_projects.tenant;
 $$;
 revoke execute on function "better_supabase"."list_ai_projects"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_projects"(uuid) to authenticated, service_role;
@@ -13193,7 +12349,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = add_ai_chat_participant.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', add_ai_chat_participant.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -13217,7 +12373,7 @@ begin
   update "better_supabase"."ai_chats" c set "visibility" = better_supabase.as_column_type('shared', (null::"better_supabase"."ai_chats")."visibility"), "updated_at" = now()
   where c."id" = v_chat.id and c."visibility"::text = 'private';
   perform "better_supabase"."ai_chat_notify"(v_chat.id, add_ai_chat_participant.participant, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.participant, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."add_ai_chat_participant"(uuid, uuid, text, jsonb) from public, anon;
@@ -13273,9 +12429,9 @@ begin
     raise exception 'No chat %', list_ai_chat_participants.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   return (
-    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_user_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
+    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
       || coalesce((
-        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_user_id', x."customer_user_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
+        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_id', x."customer_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
         from "better_supabase"."ai_chat_participants" x
         where x."chat_id" = list_ai_chat_participants.chat
       ), '[]'::jsonb)
@@ -13307,7 +12463,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = add_ai_chat_party.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', add_ai_chat_party.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -13339,9 +12495,9 @@ begin
     on conflict ("chat_id", "team_id") where "kind" = 'team' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'customer' then
-    insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "customer_user_id", "role", "added_by")
+    insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "customer_id", "role", "added_by")
     values (v_chat.id, better_supabase.as_column_type('customer', (null::"better_supabase"."ai_chat_participants")."kind"), add_ai_chat_party.party::uuid, better_supabase.as_column_type(v_role, (null::"better_supabase"."ai_chat_participants")."role"), auth.uid())
-    on conflict ("chat_id", "customer_user_id") where "kind" = 'customer' do update set "role" = excluded."role"
+    on conflict ("chat_id", "customer_id") where "kind" = 'customer' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'external' then
     insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "email", "role", "added_by")
@@ -13352,7 +12508,7 @@ begin
   update "better_supabase"."ai_chats" c set "visibility" = better_supabase.as_column_type('shared', (null::"better_supabase"."ai_chats")."visibility"), "updated_at" = now()
   where c."id" = v_chat.id and c."visibility"::text = 'private';
   perform "better_supabase"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.added', jsonb_build_object('kind', add_ai_chat_party.party_kind, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."add_ai_chat_party"(uuid, text, text, text) from public, anon;
@@ -13374,14 +12530,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = remove_ai_chat_party.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', remove_ai_chat_party.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "better_supabase"."ai_chat_participants" x
   where x."chat_id" = v_chat.id and x."kind"::text = remove_ai_chat_party.party_kind
-    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_user_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
+    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
   get diagnostics v_count = row_count;
   if v_count > 0 then
     perform "better_supabase"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.removed', jsonb_build_object('kind', remove_ai_chat_party.party_kind), true);
@@ -13440,7 +12596,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = create_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', create_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -13476,7 +12632,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = rotate_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', rotate_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -13509,7 +12665,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."id" as id, x."owner_id" as owner, x."organization_id" as tenant into v_chat
+  select x."id" as id, x."owner_id" as owner, x."tenant_id" as tenant into v_chat
   from "better_supabase"."ai_chats" x where x."id" = revoke_ai_chat_link.chat for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat.owner = (select auth.uid()), false)) then
     raise exception 'No chat %', revoke_ai_chat_link.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -13658,7 +12814,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = switch_ai_branch.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility"::text <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility"::text <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))))))) then
     raise exception 'No chat %', switch_ai_branch.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if not exists (select 1 from "better_supabase"."ai_messages" x where x."chat_id" = switch_ai_branch.chat and x."id" = switch_ai_branch.message_id) then
@@ -13709,7 +12865,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = append_ai_user_message.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility"::text <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility"::text <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))))))) then
     raise exception 'No chat %', append_ai_user_message.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if coalesce(append_ai_user_message.trigger, 'submit-message') = 'regenerate-message' then
@@ -13837,7 +12993,7 @@ grant execute on function "better_supabase"."save_ai_assistant_message"(uuid, js
 -- run_id }: the active stream when another reply holds the chat.
 -- external_run_id is the durable engine's own run id, such as a Workflow
 -- SDK run, so stop and resume can reach that run.
-drop function if exists "better_supabase"."claim_ai_chat_stream"(uuid, text, text, text, text);
+
 create or replace function "better_supabase"."claim_ai_chat_stream"(chat uuid, stream text, model text default null, message_id text default null, engine text default 'ai-sdk', external_run_id text default null)
 returns jsonb
 language plpgsql
@@ -13941,7 +13097,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = request_ai_chat_stop.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility"::text <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."organization_id" is null or v_chat."organization_id" in (select better_supabase.member_organization_ids()))))))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (v_chat."visibility"::text <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."role"::text in ('editor') and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid()))) and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select better_supabase.member_organization_ids()))))))) then
     raise exception 'No chat %', request_ai_chat_stop.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if v_chat."active_stream_id" is null then
@@ -14141,13 +13297,13 @@ begin
     raise exception 'You may not change tool policies here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   if set_ai_tool_policy.policy is null then
-    delete from "better_supabase"."ai_tool_policies" x where x."organization_id" = set_ai_tool_policy.tenant and x."tool" = set_ai_tool_policy.tool;
+    delete from "better_supabase"."ai_tool_policies" x where x."tenant_id" = set_ai_tool_policy.tenant and x."tool" = set_ai_tool_policy.tool;
     null;
     return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', null);
   end if;
-  insert into "better_supabase"."ai_tool_policies" ("organization_id", "tool", "policy")
+  insert into "better_supabase"."ai_tool_policies" ("tenant_id", "tool", "policy")
   values (set_ai_tool_policy.tenant, set_ai_tool_policy.tool, better_supabase.as_column_type(set_ai_tool_policy.policy, (null::"better_supabase"."ai_tool_policies")."policy"))
-  on conflict ("organization_id", "tool") do update set "policy" = excluded."policy", "updated_at" = now();
+  on conflict ("tenant_id", "tool") do update set "policy" = excluded."policy", "updated_at" = now();
   null;
   return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy);
 end;
@@ -14169,7 +13325,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_object_agg(x."tool", x."policy"), '{}'::jsonb)
-    from "better_supabase"."ai_tool_policies" x where x."organization_id" = ai_tool_policies_for.tenant
+    from "better_supabase"."ai_tool_policies" x where x."tenant_id" = ai_tool_policies_for.tenant
   );
 end;
 $$;
@@ -14296,7 +13452,7 @@ begin
   if not found or v_chat."owner_id" is distinct from auth.uid() then
     raise exception 'No chat %', share_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
-  if not coalesce(better_supabase.can('tenant', v_chat."organization_id", 'ai_chat.share'), false) then
+  if not coalesce(better_supabase.can('tenant', v_chat."tenant_id", 'ai_chat.share'), false) then
     raise exception 'You may not share chats here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   v_leaf := coalesce(share_ai_chat.leaf, v_chat."current_leaf_id");
@@ -14487,7 +13643,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  insert into "better_supabase"."ai_moderation_events" ("organization_id", "chat_id", "message_id", "user_id", "stage", "category", "score", "action")
+  insert into "better_supabase"."ai_moderation_events" ("tenant_id", "chat_id", "message_id", "user_id", "stage", "category", "score", "action")
   values (
     (record_ai_moderation_event.event ->> 'organization_id')::uuid,
     (record_ai_moderation_event.event ->> 'chat_id')::uuid,
@@ -14499,7 +13655,7 @@ begin
     better_supabase.as_column_type(record_ai_moderation_event.event ->> 'action', (null::"better_supabase"."ai_moderation_events")."action")
   )
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'chat_id', v_row."chat_id", 'message_id', v_row."message_id", 'user_id', v_row."user_id", 'stage', v_row."stage", 'category', v_row."category", 'score', v_row."score", 'action', v_row."action", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'chat_id', v_row."chat_id", 'message_id', v_row."message_id", 'user_id', v_row."user_id", 'stage', v_row."stage", 'category', v_row."category", 'score', v_row."score", 'action', v_row."action", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."record_ai_moderation_event"(jsonb) from public, anon, authenticated;
@@ -14518,10 +13674,10 @@ begin
     raise exception 'You may not review moderation here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."organization_id", 'chat_id', page."chat_id", 'message_id', page."message_id", 'user_id', page."user_id", 'stage', page."stage", 'category', page."category", 'score', page."score", 'action', page."action", 'created_at', page."created_at") order by page."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', page."id", 'organization_id', page."tenant_id", 'chat_id', page."chat_id", 'message_id', page."message_id", 'user_id', page."user_id", 'stage', page."stage", 'category', page."category", 'score', page."score", 'action', page."action", 'created_at', page."created_at") order by page."created_at" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."ai_moderation_events" x
-      where x."organization_id" = list_ai_moderation_events.tenant
+      where x."tenant_id" = list_ai_moderation_events.tenant
       order by x."created_at" desc
       limit least(greatest(coalesce(list_ai_moderation_events.size, 100), 1), 1000)
     ) page
@@ -14563,17 +13719,17 @@ grant execute on function "better_supabase"."purge_ai_chats"(integer) to service
 -- idle_seconds or past expires_at.
 -- better_supabase.ai_sandboxes is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_sandboxes" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."ai_sandboxes" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."ai_sandboxes" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."ai_sandboxes" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_sandboxes" add column if not exists "chat_id" uuid;
-alter table "better_supabase"."ai_sandboxes" add column if not exists "harness_id" text check (length("harness_id") between 1 and 200);
-alter table "better_supabase"."ai_sandboxes" add column if not exists "provider" text check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$');
-alter table "better_supabase"."ai_sandboxes" add column if not exists "sandbox_id" text check (length("sandbox_id") between 1 and 200);
-alter table "better_supabase"."ai_sandboxes" add column if not exists "container_id" text check (length("container_id") <= 200);
-alter table "better_supabase"."ai_sandboxes" add column if not exists "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped'));
-alter table "better_supabase"."ai_sandboxes" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
-alter table "better_supabase"."ai_sandboxes" add column if not exists "idle_seconds" integer not null default 600 check ("idle_seconds" > 0);
-alter table "better_supabase"."ai_sandboxes" add column if not exists "error" text check (length("error") <= 4000);
+alter table "better_supabase"."ai_sandboxes" add column if not exists "harness_id" text constraint bsb_ai_sandboxes_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200);
+alter table "better_supabase"."ai_sandboxes" add column if not exists "provider" text constraint bsb_ai_sandboxes_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$');
+alter table "better_supabase"."ai_sandboxes" add column if not exists "sandbox_id" text constraint bsb_ai_sandboxes_sandbox_id_check check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200);
+alter table "better_supabase"."ai_sandboxes" add column if not exists "container_id" text constraint bsb_ai_sandboxes_container_id_check check (length("container_id") <= 200);
+alter table "better_supabase"."ai_sandboxes" add column if not exists "status" text not null default 'running' constraint bsb_ai_sandboxes_status_check check ("status" in ('running', 'stopping', 'stopped'));
+alter table "better_supabase"."ai_sandboxes" add column if not exists "metadata" jsonb not null default '{}' constraint bsb_ai_sandboxes_metadata_check check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."ai_sandboxes" add column if not exists "idle_seconds" integer not null default 600 constraint bsb_ai_sandboxes_idle_seconds_check check ("idle_seconds" > 0);
+alter table "better_supabase"."ai_sandboxes" add column if not exists "error" text constraint bsb_ai_sandboxes_error_check check (length("error") <= 4000);
 alter table "better_supabase"."ai_sandboxes" add column if not exists "last_used_at" timestamptz not null default now();
 alter table "better_supabase"."ai_sandboxes" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."ai_sandboxes" add column if not exists "stopped_at" timestamptz;
@@ -14583,15 +13739,14 @@ create index if not exists ai_sandboxes_open_idx on "better_supabase"."ai_sandbo
 create unique index if not exists "bsb_ai_sandboxes_sandbox_key" on "better_supabase"."ai_sandboxes" ("provider", "sandbox_id");
 create index if not exists ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
 create index if not exists ai_sandboxes_harness_idx on "better_supabase"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
-create index if not exists ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("organization_id");
+create index if not exists ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("tenant_id");
 create index if not exists ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
 alter table "better_supabase"."ai_sandboxes" enable row level security;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
-drop policy if exists bsb_ai_sandboxes_select on "better_supabase"."ai_sandboxes";
 create policy bsb_ai_sandboxes_select on "better_supabase"."ai_sandboxes"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
 
 -- Records a sandbox or container the app started, or marks a known one used
 -- (service role). fields: user_id, chat_id, harness_id, container_id,
@@ -14607,7 +13762,7 @@ declare
   v_row "better_supabase"."ai_sandboxes"%rowtype;
   v_fields jsonb := coalesce(register_ai_sandbox.fields, '{}');
 begin
-  insert into "better_supabase"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id", "container_id", "metadata", "idle_seconds", "expires_at")
+  insert into "better_supabase"."ai_sandboxes" as cur ("tenant_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id", "container_id", "metadata", "idle_seconds", "expires_at")
   values (
     register_ai_sandbox.tenant,
     (v_fields ->> 'user_id')::uuid,
@@ -14632,12 +13787,12 @@ begin
     "stopped_at" = null,
     "last_used_at" = now(),
     "updated_at" = now()
-  where cur."organization_id" is not distinct from excluded."organization_id"
+  where cur."tenant_id" is not distinct from excluded."tenant_id"
   returning * into v_row;
   if not found then
     raise exception 'sandbox % belongs to another tenant', register_ai_sandbox.sandbox_id using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'provider', v_row."provider", 'sandbox_id', v_row."sandbox_id", 'container_id', v_row."container_id", 'status', v_row."status", 'metadata', v_row."metadata", 'idle_seconds', v_row."idle_seconds", 'error', v_row."error", 'last_used_at', v_row."last_used_at", 'expires_at', v_row."expires_at", 'stopped_at', v_row."stopped_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'provider', v_row."provider", 'sandbox_id', v_row."sandbox_id", 'container_id', v_row."container_id", 'status', v_row."status", 'metadata', v_row."metadata", 'idle_seconds', v_row."idle_seconds", 'error', v_row."error", 'last_used_at', v_row."last_used_at", 'expires_at', v_row."expires_at", 'stopped_at', v_row."stopped_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."register_ai_sandbox"(uuid, text, text, jsonb) from public, anon, authenticated;
@@ -14667,7 +13822,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_sandboxes" x
+  select jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_sandboxes" x
   where x."chat_id" = ai_sandbox_for.chat_id and x."provider" = ai_sandbox_for.provider and x."status"::text = 'running'
     and (x."expires_at" is null or x."expires_at" > now())
   order by x."last_used_at" desc
@@ -14695,7 +13850,7 @@ begin
        or (y."status"::text = 'stopping' and y."updated_at" <= now() - make_interval(secs => greatest(idle_ai_sandboxes.lease_seconds, 1))))
       and not exists (
         select 1 from "better_supabase"."ai_harness_sessions" z
-        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."locked_until" > now()
+        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."lock_expires_at" > now()
       )
     order by y."last_used_at"
     limit least(greatest(idle_ai_sandboxes.batch, 1), 500)
@@ -14705,7 +13860,7 @@ begin
     from due where x."id" = due."id"
     returning x.*
   )
-  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."organization_id", 'user_id', claimed."user_id", 'chat_id', claimed."chat_id", 'harness_id', claimed."harness_id", 'provider', claimed."provider", 'sandbox_id', claimed."sandbox_id", 'container_id', claimed."container_id", 'status', claimed."status", 'metadata', claimed."metadata", 'idle_seconds', claimed."idle_seconds", 'error', claimed."error", 'last_used_at', claimed."last_used_at", 'expires_at', claimed."expires_at", 'stopped_at', claimed."stopped_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
+  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."tenant_id", 'user_id', claimed."user_id", 'chat_id', claimed."chat_id", 'harness_id', claimed."harness_id", 'provider', claimed."provider", 'sandbox_id', claimed."sandbox_id", 'container_id', claimed."container_id", 'status', claimed."status", 'metadata', claimed."metadata", 'idle_seconds', claimed."idle_seconds", 'error', claimed."error", 'last_used_at', claimed."last_used_at", 'expires_at', claimed."expires_at", 'stopped_at', claimed."stopped_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
   return v_rows;
 end;
 $$;
@@ -14757,9 +13912,9 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
   from "better_supabase"."ai_sandboxes" x
-  where x."organization_id" is not distinct from list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x."chat_id" = list_ai_sandboxes.chat_id)
+  where x."tenant_id" is not distinct from list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x."chat_id" = list_ai_sandboxes.chat_id)
 $$;
 revoke execute on function "better_supabase"."list_ai_sandboxes"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_sandboxes"(uuid, uuid) to authenticated, service_role;
@@ -14954,7 +14109,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status"::text <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status"::text <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."load_ai_harness_session"(uuid, text) from public, anon, authenticated;
@@ -14997,7 +14152,7 @@ begin
   select * into v_row from "better_supabase"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = save_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
     raise exception 'Harness session % is locked', save_ai_harness_session.harness using errcode = '55P03', hint = 'AI_HARNESS_LOCKED';
   end if;
   update "better_supabase"."ai_harness_sessions" x set
@@ -15015,8 +14170,8 @@ begin
       update "better_supabase"."ai_sandboxes" y set "status" = better_supabase.as_column_type('stopped', (null::"better_supabase"."ai_sandboxes")."status"), "stopped_at" = now(), "updated_at" = now()
       where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status"::text <> 'stopped';
     else
-      insert into "better_supabase"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id")
-      values (v_chat."organization_id", v_chat."owner_id", v_chat."id", v_row."harness_id", coalesce(nullif(save_ai_harness_session.fields ->> 'sandbox_provider', ''), 'harness'), save_ai_harness_session.fields ->> 'sandbox_id')
+      insert into "better_supabase"."ai_sandboxes" as cur ("tenant_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id")
+      values (v_chat."tenant_id", v_chat."owner_id", v_chat."id", v_row."harness_id", coalesce(nullif(save_ai_harness_session.fields ->> 'sandbox_provider', ''), 'harness'), save_ai_harness_session.fields ->> 'sandbox_id')
       on conflict ("provider", "sandbox_id") do update set
         "chat_id" = excluded."chat_id",
         "harness_id" = excluded."harness_id",
@@ -15025,7 +14180,7 @@ begin
         "stopped_at" = null,
         "last_used_at" = now(),
         "updated_at" = now()
-      where cur."organization_id" is not distinct from excluded."organization_id";
+      where cur."tenant_id" is not distinct from excluded."tenant_id";
       if not found then
         raise exception 'sandbox % belongs to another tenant', save_ai_harness_session.fields ->> 'sandbox_id' using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
       end if;
@@ -15034,7 +14189,7 @@ begin
     update "better_supabase"."ai_sandboxes" y set "last_used_at" = now(), "updated_at" = now()
     where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status"::text = 'running';
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status"::text <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status"::text <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_ai_harness_session"(uuid, text, jsonb, text) from public, anon, authenticated;
@@ -15073,12 +14228,12 @@ begin
   select * into v_row from "better_supabase"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = lock_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
     return false;
   end if;
   update "better_supabase"."ai_harness_sessions" x set
     "lock_holder" = lock_ai_harness_session.holder,
-    "locked_until" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
+    "lock_expires_at" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
     "updated_at" = now()
   where x."chat_id" = v_row."chat_id" and x."harness_id" = v_row."harness_id";
   return true;
@@ -15100,7 +14255,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "locked_until" = null, "updated_at" = now()
+  update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "lock_expires_at" = null, "updated_at" = now()
   where x."chat_id" = unlock_ai_harness_session.chat
     and x."harness_id" = unlock_ai_harness_session.harness
     and x."lock_holder" = unlock_ai_harness_session.holder;
@@ -15113,118 +14268,70 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_ai_chat_receive on realtime.messages;
 create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        drop policy if exists bsb_ai_chats_receive on realtime.messages;
 create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_projects" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_projects" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_projects" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_projects" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."ai_chats" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid())
-    or ("visibility"::text = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
+    or ("visibility"::text = 'organization' and "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
     or ("better_supabase"."ai_chats"."visibility"::text <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())))))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_chats" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_chats" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_chats" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."ai_sandboxes" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_sandboxes" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
@@ -15243,128 +14350,45 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:1e8f74925433234030ec7728cef4e3f2e5dd7107c1101e8897ba6127cdea8d2f
+-- @bsb-hash sha256:93819ea5059bfb9745aba789856cb2727677967eca6f1599aafe46b484501b06
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_tool_policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_tool_policies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_moderation_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_moderation_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Projects group chats and carry instructions and a default model.
-create table if not exists "better_supabase"."ai_projects" (
+create table "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") between 1 and 200),
-  "instructions" text not null default '' check (length("instructions") <= 20000),
-  "default_model" text check (length("default_model") <= 200),
+  "name" text not null constraint bsb_ai_projects_name_check check (length("name") >= 1 and length("name") <= 200),
+  "instructions" text not null default '' constraint bsb_ai_projects_instructions_check check (length("instructions") <= 20000),
+  "default_model" text constraint bsb_ai_projects_default_model_check check (length("default_model") <= 200),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "org_id");
+create index ai_projects_owner_idx on "better_supabase"."ai_projects" ("owner_id", "org_id");
 alter table "better_supabase"."ai_projects" enable row level security;
 revoke all on "better_supabase"."ai_projects" from public, anon, authenticated;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
-drop policy if exists ai_projects_owner_read on "better_supabase"."ai_projects";
-create policy ai_projects_owner_read on "better_supabase"."ai_projects"
+create policy bsb_ai_projects_owner_read on "better_supabase"."ai_projects"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
 -- active_stream_id is the reply being written, claimed compare-and-set.
-create table if not exists "better_supabase"."ai_chats" (
+create table "better_supabase"."ai_chats" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "project_id" uuid references "better_supabase"."ai_projects" ("id") on delete set null,
-  "agent_id" text check (length("agent_id") <= 200),
-  "title" text not null default '' check (length("title") <= 300),
-  "model" text check (length("model") <= 200),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'shared')),
-  "mode" text check (length("mode") <= 100),
+  "agent_id" text constraint bsb_ai_chats_agent_id_check check (length("agent_id") <= 200),
+  "title" text not null default '' constraint bsb_ai_chats_title_check check (length("title") <= 300),
+  "model" text constraint bsb_ai_chats_model_check check (length("model") <= 200),
+  "visibility" text not null default 'private' constraint bsb_ai_chats_visibility_check check ("visibility" in ('private', 'organization', 'shared')),
+  "mode" text constraint bsb_ai_chats_mode_check check (length("mode") <= 100),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "is_temporary" boolean not null default false,
@@ -15376,13 +14400,13 @@ create table if not exists "better_supabase"."ai_chats" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "title")) stored,
-  check (not "is_temporary" or "expires_at" is not null)
+  constraint bsb_ai_chats_check check (not "is_temporary" or "expires_at" is not null)
 );
-create index if not exists ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
-create index if not exists ai_chats_tenant_idx on "better_supabase"."ai_chats" ("org_id");
-create index if not exists ai_chats_project_idx on "better_supabase"."ai_chats" ("project_id");
-create index if not exists ai_chats_expires_idx on "better_supabase"."ai_chats" ("expires_at") where "is_temporary";
-create index if not exists ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
+create index ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
+create index ai_chats_tenant_idx on "better_supabase"."ai_chats" ("org_id");
+create index ai_chats_project_idx on "better_supabase"."ai_chats" ("project_id");
+create index ai_chats_expires_idx on "better_supabase"."ai_chats" ("expires_at") where "is_temporary";
+create index ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
 alter table "better_supabase"."ai_chats" enable row level security;
 revoke all on "better_supabase"."ai_chats" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chats" to service_role;
@@ -15392,42 +14416,40 @@ grant select on "better_supabase"."ai_chats" to authenticated;
 -- to it (editor): a user, every member of a team, a customer with guest
 -- access, or an external email that reads only through the live link. Each
 -- user sees only their own rows.
-create table if not exists "better_supabase"."ai_chat_participants" (
+create table "better_supabase"."ai_chat_participants" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'user' check ("kind" in ('user', 'team', 'customer', 'external')),
+  "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external')),
   "team_id" uuid,
-  "customer_user_id" uuid references auth.users (id) on delete cascade,
-  "email" text check (length("email") <= 320),
-  "role" text not null default 'viewer' check ("role" in ('viewer', 'editor')),
+  "customer_id" uuid references auth.users (id) on delete cascade,
+  "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320),
+  "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor')),
   "added_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
-  check (
+  constraint bsb_ai_chat_participants_check check (
     ("kind" = 'user' and "user_id" is not null)
     or ("kind" = 'team' and "team_id" is not null)
-    or ("kind" = 'customer' and "customer_user_id" is not null)
+    or ("kind" = 'customer' and "customer_id" is not null)
     or ("kind" = 'external' and "email" is not null)
   )
 );
-create unique index if not exists ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
-create unique index if not exists ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
-create unique index if not exists ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
-create unique index if not exists ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
-create index if not exists ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
-create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
-create index if not exists ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
-create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
+create unique index ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
+create unique index ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
+create unique index ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_id") where "kind" = 'customer';
+create unique index ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
+create index ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
+create index ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_id");
+create index ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
 grant select on "better_supabase"."ai_chat_participants" to authenticated;
-drop policy if exists ai_chat_participants_own_read on "better_supabase"."ai_chat_participants";
-create policy ai_chat_participants_own_read on "better_supabase"."ai_chat_participants"
+create policy bsb_ai_chat_participants_own_read on "better_supabase"."ai_chat_participants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-drop policy if exists ai_chats_read on "better_supabase"."ai_chats";
-create policy ai_chats_read on "better_supabase"."ai_chats"
+create policy bsb_ai_chats_read on "better_supabase"."ai_chats"
   for select to authenticated
   using ("owner_id" = (select auth.uid())
     or ("visibility" = 'organization' and "org_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
@@ -15436,108 +14458,104 @@ create policy ai_chats_read on "better_supabase"."ai_chats"
 -- The message tree: (chat_id, id) is the key, parent_id the previous turn.
 -- Editing a prompt or regenerating a reply adds a sibling, never an update.
 -- parts holds the canonical AI message parts; native the SDK's own shape.
-create table if not exists "better_supabase"."ai_messages" (
+create table "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") between 1 and 200),
+  "id" text not null constraint bsb_ai_messages_id_check check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
-  "role" text not null check ("role" in ('system', 'user', 'assistant', 'tool')),
-  "parts" jsonb not null default '[]' check (
+  "role" text not null constraint bsb_ai_messages_role_check check ("role" in ('system', 'user', 'assistant', 'tool')),
+  "parts" jsonb not null default '[]' constraint bsb_ai_messages_parts_check check (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") between 1 and 50),
+  "format" text not null default 'canonical' constraint bsb_ai_messages_format_check check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_messages_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "model" text,
-  "status" text not null default 'complete' check ("status" in ('complete', 'aborted', 'error')),
+  "status" text not null default 'complete' constraint bsb_ai_messages_status_check check ("status" in ('complete', 'aborted', 'error')),
   "seq" bigint generated always as identity,
   "created_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, jsonb_path_query_array("parts", '$[*] ? (@.type == "text").text'))) stored,
   primary key ("chat_id", "id"),
   foreign key ("chat_id", "parent_id") references "better_supabase"."ai_messages" ("chat_id", "id") on delete cascade
 );
-create index if not exists ai_messages_parent_idx on "better_supabase"."ai_messages" ("chat_id", "parent_id");
-create index if not exists ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
-create index if not exists ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
-alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
-create index if not exists ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
+create index ai_messages_parent_idx on "better_supabase"."ai_messages" ("chat_id", "parent_id");
+create index ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
+create index ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
+create index ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
 alter table "better_supabase"."ai_messages" enable row level security;
 revoke all on "better_supabase"."ai_messages" from public, anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
-drop policy if exists ai_messages_read on "better_supabase"."ai_messages";
-create policy ai_messages_read on "better_supabase"."ai_messages"
+create policy bsb_ai_messages_read on "better_supabase"."ai_messages"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- One generation: the stream it wrote, its usage and cost.
-create table if not exists "better_supabase"."ai_runs" (
+create table "better_supabase"."ai_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50),
-  "external_run_id" text check (length("external_run_id") <= 200),
+  "engine" text not null default 'ai-sdk' constraint bsb_ai_runs_engine_check check (length("engine") >= 1 and length("engine") <= 50),
+  "external_run_id" text constraint bsb_ai_runs_external_run_id_check check (length("external_run_id") <= 200),
   "model" text,
-  "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
+  "status" text not null default 'running' constraint bsb_ai_runs_status_check check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
   "provider_generation_id" text,
-  "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object'),
-  "cost_micro_usd" bigint check ("cost_micro_usd" >= 0),
+  "usage" jsonb not null default '{}' constraint bsb_ai_runs_usage_check check (jsonb_typeof("usage") = 'object'),
+  "cost_micro_usd" bigint constraint bsb_ai_runs_cost_micro_usd_check check ("cost_micro_usd" >= 0),
   "error" text,
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz
 );
-create index if not exists ai_runs_chat_idx on "better_supabase"."ai_runs" ("chat_id", "started_at" desc);
-create index if not exists ai_runs_owner_idx on "better_supabase"."ai_runs" ("owner_id");
-create index if not exists ai_runs_generation_idx on "better_supabase"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
-create index if not exists ai_runs_external_idx on "better_supabase"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
+create index ai_runs_chat_idx on "better_supabase"."ai_runs" ("chat_id", "started_at" desc);
+create index ai_runs_owner_idx on "better_supabase"."ai_runs" ("owner_id");
+create index ai_runs_generation_idx on "better_supabase"."ai_runs" ("provider_generation_id") where "provider_generation_id" is not null;
+create index ai_runs_external_idx on "better_supabase"."ai_runs" ("engine", "external_run_id") where "external_run_id" is not null;
 alter table "better_supabase"."ai_runs" enable row level security;
 revoke all on "better_supabase"."ai_runs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
-drop policy if exists ai_runs_owner_read on "better_supabase"."ai_runs";
-create policy ai_runs_owner_read on "better_supabase"."ai_runs"
+create policy bsb_ai_runs_owner_read on "better_supabase"."ai_runs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Tool calls that wait for a person: requested by the server, decided once.
-create table if not exists "better_supabase"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") between 1 and 200),
+create table "better_supabase"."ai_tool_approvals" (
+  "approval_id" text primary key constraint bsb_ai_tool_approvals_approval_id_check check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") between 1 and 200),
+  "tool" text not null constraint bsb_ai_tool_approvals_tool_check check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
-  "decision" text check ("decision" in ('approved', 'denied')),
-  "reason" text check (length("reason") <= 2000),
+  "decision" text constraint bsb_ai_tool_approvals_decision_check check ("decision" in ('approved', 'denied')),
+  "reason" text constraint bsb_ai_tool_approvals_reason_check check (length("reason") <= 2000),
   "signature" text,
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_tool_approvals_chat_idx on "better_supabase"."ai_tool_approvals" ("chat_id");
-create index if not exists ai_tool_approvals_run_idx on "better_supabase"."ai_tool_approvals" ("run_id");
-create index if not exists ai_tool_approvals_owner_idx on "better_supabase"."ai_tool_approvals" ("owner_id");
+create index ai_tool_approvals_chat_idx on "better_supabase"."ai_tool_approvals" ("chat_id");
+create index ai_tool_approvals_run_idx on "better_supabase"."ai_tool_approvals" ("run_id");
+create index ai_tool_approvals_owner_idx on "better_supabase"."ai_tool_approvals" ("owner_id");
 alter table "better_supabase"."ai_tool_approvals" enable row level security;
 revoke all on "better_supabase"."ai_tool_approvals" from public, anon, authenticated;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
-drop policy if exists ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals";
-create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
+create policy bsb_ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- Per tenant: whether a tool runs (auto), waits for approval (ask) or never
 -- runs (deny).
-create table if not exists "better_supabase"."ai_tool_policies" (
+create table "better_supabase"."ai_tool_policies" (
   "org_id" uuid not null,
-  "tool" text not null check (length("tool") between 1 and 200),
-  "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
+  "tool" text not null constraint bsb_ai_tool_policies_tool_check check (length("tool") >= 1 and length("tool") <= 200),
+  "policy" text not null constraint bsb_ai_tool_policies_policy_check check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "tool")
 );
@@ -15546,36 +14564,35 @@ revoke all on "better_supabase"."ai_tool_policies" from public, anon, authentica
 grant all on "better_supabase"."ai_tool_policies" to service_role;
 
 -- A question the model asked the user mid-run (a form or a choice).
-create table if not exists "better_supabase"."ai_pending_inputs" (
+create table "better_supabase"."ai_pending_inputs" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") between 1 and 2000),
+  "question" text not null constraint bsb_ai_pending_inputs_question_check check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_pending_inputs_chat_idx on "better_supabase"."ai_pending_inputs" ("chat_id");
-create index if not exists ai_pending_inputs_run_idx on "better_supabase"."ai_pending_inputs" ("run_id");
-create index if not exists ai_pending_inputs_owner_idx on "better_supabase"."ai_pending_inputs" ("owner_id");
+create index ai_pending_inputs_chat_idx on "better_supabase"."ai_pending_inputs" ("chat_id");
+create index ai_pending_inputs_run_idx on "better_supabase"."ai_pending_inputs" ("run_id");
+create index ai_pending_inputs_owner_idx on "better_supabase"."ai_pending_inputs" ("owner_id");
 alter table "better_supabase"."ai_pending_inputs" enable row level security;
 revoke all on "better_supabase"."ai_pending_inputs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
-drop policy if exists ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs";
-create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
+create policy bsb_ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- The sources a reply cited, copied out of its parts when it is saved.
-create table if not exists "better_supabase"."ai_message_sources" (
+create table "better_supabase"."ai_message_sources" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "source_id" text not null,
-  "source_type" text not null default 'url' check ("source_type" in ('url', 'document')),
+  "source_type" text not null default 'url' constraint bsb_ai_message_sources_source_type_check check ("source_type" in ('url', 'document')),
   "url" text,
   "title" text,
   "provider_metadata" jsonb,
@@ -15586,47 +14603,45 @@ alter table "better_supabase"."ai_message_sources" enable row level security;
 revoke all on "better_supabase"."ai_message_sources" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
-drop policy if exists ai_message_sources_read on "better_supabase"."ai_message_sources";
-create policy ai_message_sources_read on "better_supabase"."ai_message_sources"
+create policy bsb_ai_message_sources_read on "better_supabase"."ai_message_sources"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
 -- Thumbs up (1) or down (-1) on a reply, one per user.
-create table if not exists "better_supabase"."ai_message_feedback" (
+create table "better_supabase"."ai_message_feedback" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" in (-1, 1)),
-  "reason" text check (length("reason") <= 200),
-  "comment" text check (length("comment") <= 4000),
+  "rating" smallint not null constraint bsb_ai_message_feedback_rating_check check ("rating" in (-1, 1)),
+  "reason" text constraint bsb_ai_message_feedback_reason_check check (length("reason") <= 200),
+  "comment" text constraint bsb_ai_message_feedback_comment_check check (length("comment") <= 4000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id", "user_id"),
   foreign key ("chat_id", "message_id") references "better_supabase"."ai_messages" ("chat_id", "id") on delete cascade
 );
-create index if not exists ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
+create index ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
 alter table "better_supabase"."ai_message_feedback" enable row level security;
 revoke all on "better_supabase"."ai_message_feedback" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
-drop policy if exists ai_message_feedback_own_read on "better_supabase"."ai_message_feedback";
-create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
+create policy bsb_ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
 -- A read-only link to one branch of a chat. Only the SHA-256 of the token is
 -- stored; the token is returned once.
-create table if not exists "better_supabase"."ai_chat_shares" (
+create table "better_supabase"."ai_chat_shares" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "token_hash" text not null unique check ("token_hash" ~ '^[0-9a-f]{64}$'),
+  "token_hash" text not null unique constraint bsb_ai_chat_shares_token_hash_check check ("token_hash" ~ '^[0-9a-f]{64}$'),
   "leaf_id" text not null,
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create index if not exists ai_chat_shares_chat_idx on "better_supabase"."ai_chat_shares" ("chat_id");
-create index if not exists ai_chat_shares_created_by_idx on "better_supabase"."ai_chat_shares" ("created_by");
+create index ai_chat_shares_chat_idx on "better_supabase"."ai_chat_shares" ("chat_id");
+create index ai_chat_shares_created_by_idx on "better_supabase"."ai_chat_shares" ("created_by");
 alter table "better_supabase"."ai_chat_shares" enable row level security;
 revoke all on "better_supabase"."ai_chat_shares" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_shares" to service_role;
@@ -15634,21 +14649,21 @@ grant all on "better_supabase"."ai_chat_shares" to service_role;
 -- The live link of a chat: one row, whose salt makes the token
 -- <chat>.<sha256(salt || chat)>. Rotating the salt invalidates every old token.
 -- Only the SQL functions read the salt.
-create table if not exists "better_supabase"."ai_chat_links" (
+create table "better_supabase"."ai_chat_links" (
   "chat_id" uuid primary key references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "salt" text not null check (length("salt") >= 16),
+  "salt" text not null constraint bsb_ai_chat_links_salt_check check (length("salt") >= 16),
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "rotated_at" timestamptz not null default now()
 );
-create index if not exists ai_chat_links_created_by_idx on "better_supabase"."ai_chat_links" ("created_by");
+create index ai_chat_links_created_by_idx on "better_supabase"."ai_chat_links" ("created_by");
 alter table "better_supabase"."ai_chat_links" enable row level security;
 revoke all on "better_supabase"."ai_chat_links" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_links" to service_role;
 
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
-create table if not exists "better_supabase"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") between 1 and 200),
+create table "better_supabase"."ai_model_catalog" (
+  "model_id" text primary key constraint bsb_ai_model_catalog_model_id_check check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -15662,75 +14677,74 @@ revoke all on "better_supabase"."ai_model_catalog" from public, anon, authentica
 grant all on "better_supabase"."ai_model_catalog" to service_role;
 
 -- What moderation decided about an input, an output or a tool call.
-create table if not exists "better_supabase"."ai_moderation_events" (
+create table "better_supabase"."ai_moderation_events" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete set null,
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
-  "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") between 1 and 100),
+  "stage" text not null constraint bsb_ai_moderation_events_stage_check check ("stage" in ('input', 'output', 'tool')),
+  "category" text not null constraint bsb_ai_moderation_events_category_check check (length("category") >= 1 and length("category") <= 100),
   "score" real,
-  "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
+  "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
-create index if not exists ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("org_id", "created_at" desc);
-create index if not exists ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
-create index if not exists ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
+create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("org_id", "created_at" desc);
+create index ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
+create index ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
 alter table "better_supabase"."ai_moderation_events" enable row level security;
 revoke all on "better_supabase"."ai_moderation_events" from public, anon, authenticated;
 grant all on "better_supabase"."ai_moderation_events" to service_role;
 
 -- The progress of a long run, one row per step key, so a reload shows it.
-create table if not exists "better_supabase"."ai_run_steps" (
+create table "better_supabase"."ai_run_steps" (
   "id" uuid primary key default gen_random_uuid(),
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") between 1 and 200),
-  "label" text not null check (length("label") between 1 and 300),
-  "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
-  "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
+  "step_key" text not null constraint bsb_ai_run_steps_step_key_check check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null constraint bsb_ai_run_steps_label_check check (length("label") >= 1 and length("label") <= 300),
+  "status" text not null default 'running' constraint bsb_ai_run_steps_status_check check ("status" in ('running', 'done', 'error', 'skipped')),
+  "detail" jsonb not null default '{}' constraint bsb_ai_run_steps_detail_check check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz,
   unique ("run_id", "step_key")
 );
-create index if not exists ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
-create index if not exists ai_run_steps_owner_idx on "better_supabase"."ai_run_steps" ("owner_id");
+create index ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
+create index ai_run_steps_owner_idx on "better_supabase"."ai_run_steps" ("owner_id");
 alter table "better_supabase"."ai_run_steps" enable row level security;
 revoke all on "better_supabase"."ai_run_steps" from public, anon, authenticated;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
-drop policy if exists ai_run_steps_owner_read on "better_supabase"."ai_run_steps";
-create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
+create policy bsb_ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
--- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until
+-- continue state; its sandbox is a row in ai_sandboxes. lock_holder and lock_expires_at
 -- keep two turns from driving one sandbox. Experimental.
-create table if not exists "better_supabase"."ai_harness_sessions" (
+create table "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") between 1 and 200),
+  "harness_id" text not null constraint bsb_ai_harness_sessions_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
-  "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error')),
-  "lock_holder" text check (length("lock_holder") <= 200),
-  "locked_until" timestamptz,
+  "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error')),
+  "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200),
+  "lock_expires_at" timestamptz,
   "last_active_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "harness_id")
 );
-create index if not exists ai_harness_sessions_owner_idx on "better_supabase"."ai_harness_sessions" ("owner_id");
-create index if not exists ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
+create index ai_harness_sessions_owner_idx on "better_supabase"."ai_harness_sessions" ("owner_id");
+create index ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
 alter table "better_supabase"."ai_harness_sessions" enable row level security;
 revoke all on "better_supabase"."ai_harness_sessions" from public, anon, authenticated;
 grant all on "better_supabase"."ai_harness_sessions" to service_role;
 -- Resume state can carry harness credentials and sandbox ids, so only the
 -- service role reads it, through load_ai_harness_session.
-drop policy if exists ai_harness_sessions_owner_read on "better_supabase"."ai_harness_sessions";
+
 
 -- Whether the caller may read a chat: its owner, the service role, a member
 -- with 'ai_chat.read' when the chat is visible to the organization, or someone
@@ -16133,7 +15147,7 @@ begin
   update "better_supabase"."ai_chats" c set "visibility" = 'shared', "updated_at" = now()
   where c."id" = v_chat.id and c."visibility" = 'private';
   perform "better_supabase"."ai_chat_notify"(v_chat.id, add_ai_chat_participant.participant, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.participant, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."add_ai_chat_participant"(uuid, uuid, text, jsonb) from public, anon;
@@ -16189,9 +15203,9 @@ begin
     raise exception 'No chat %', list_ai_chat_participants.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   return (
-    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_user_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
+    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
       || coalesce((
-        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_user_id', x."customer_user_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
+        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_id', x."customer_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
         from "better_supabase"."ai_chat_participants" x
         where x."chat_id" = list_ai_chat_participants.chat
       ), '[]'::jsonb)
@@ -16255,9 +15269,9 @@ begin
     on conflict ("chat_id", "team_id") where "kind" = 'team' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'customer' then
-    insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "customer_user_id", "role", "added_by")
+    insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "customer_id", "role", "added_by")
     values (v_chat.id, 'customer', add_ai_chat_party.party::uuid, v_role, auth.uid())
-    on conflict ("chat_id", "customer_user_id") where "kind" = 'customer' do update set "role" = excluded."role"
+    on conflict ("chat_id", "customer_id") where "kind" = 'customer' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'external' then
     insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "email", "role", "added_by")
@@ -16268,7 +15282,7 @@ begin
   update "better_supabase"."ai_chats" c set "visibility" = 'shared', "updated_at" = now()
   where c."id" = v_chat.id and c."visibility" = 'private';
   perform "better_supabase"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.added', jsonb_build_object('kind', add_ai_chat_party.party_kind, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."add_ai_chat_party"(uuid, text, text, text) from public, anon;
@@ -16297,7 +15311,7 @@ begin
   end if;
   delete from "better_supabase"."ai_chat_participants" x
   where x."chat_id" = v_chat.id and x."kind"::text = remove_ai_chat_party.party_kind
-    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_user_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
+    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
   get diagnostics v_count = row_count;
   if v_count > 0 then
     perform "better_supabase"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.removed', jsonb_build_object('kind', remove_ai_chat_party.party_kind), true);
@@ -16753,7 +15767,7 @@ grant execute on function "better_supabase"."save_ai_assistant_message"(uuid, js
 -- run_id }: the active stream when another reply holds the chat.
 -- external_run_id is the durable engine's own run id, such as a Workflow
 -- SDK run, so stop and resume can reach that run.
-drop function if exists "better_supabase"."claim_ai_chat_stream"(uuid, text, text, text, text);
+
 create or replace function "better_supabase"."claim_ai_chat_stream"(chat uuid, stream text, model text default null, message_id text default null, engine text default 'ai-sdk', external_run_id text default null)
 returns jsonb
 language plpgsql
@@ -17477,19 +16491,19 @@ grant execute on function "better_supabase"."purge_ai_chats"(integer) to service
 -- Sandboxes and provider containers a chat started, harness sessions'
 -- included, so one idle-stop claim stops the ones nobody used for
 -- idle_seconds or past expires_at.
-create table if not exists "better_supabase"."ai_sandboxes" (
+create table "better_supabase"."ai_sandboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") between 1 and 200),
-  "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") between 1 and 200),
-  "container_id" text check (length("container_id") <= 200),
-  "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "idle_seconds" integer not null default 600 check ("idle_seconds" > 0),
-  "error" text check (length("error") <= 4000),
+  "harness_id" text constraint bsb_ai_sandboxes_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "provider" text not null constraint bsb_ai_sandboxes_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
+  "sandbox_id" text not null constraint bsb_ai_sandboxes_sandbox_id_check check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
+  "container_id" text constraint bsb_ai_sandboxes_container_id_check check (length("container_id") <= 200),
+  "status" text not null default 'running' constraint bsb_ai_sandboxes_status_check check ("status" in ('running', 'stopping', 'stopped')),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_sandboxes_metadata_check check (jsonb_typeof("metadata") = 'object'),
+  "idle_seconds" integer not null default 600 constraint bsb_ai_sandboxes_idle_seconds_check check ("idle_seconds" > 0),
+  "error" text constraint bsb_ai_sandboxes_error_check check (length("error") <= 4000),
   "last_used_at" timestamptz not null default now(),
   "expires_at" timestamptz,
   "stopped_at" timestamptz,
@@ -17497,17 +16511,16 @@ create table if not exists "better_supabase"."ai_sandboxes" (
   "updated_at" timestamptz not null default now(),
   unique ("provider", "sandbox_id")
 );
-create index if not exists ai_sandboxes_open_idx on "better_supabase"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
-create index if not exists ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
-create index if not exists ai_sandboxes_harness_idx on "better_supabase"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
-create index if not exists ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("org_id");
-create index if not exists ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
+create index ai_sandboxes_open_idx on "better_supabase"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
+create index ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
+create index ai_sandboxes_harness_idx on "better_supabase"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
+create index ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("org_id");
+create index ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
 alter table "better_supabase"."ai_sandboxes" enable row level security;
 revoke all on "better_supabase"."ai_sandboxes" from public, anon, authenticated;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
-drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
-create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes"
+create policy bsb_ai_sandboxes_read on "better_supabase"."ai_sandboxes"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
 
@@ -17613,7 +16626,7 @@ begin
        or (y."status" = 'stopping' and y."updated_at" <= now() - make_interval(secs => greatest(idle_ai_sandboxes.lease_seconds, 1))))
       and not exists (
         select 1 from "better_supabase"."ai_harness_sessions" z
-        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."locked_until" > now()
+        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."lock_expires_at" > now()
       )
     order by y."last_used_at"
     limit least(greatest(idle_ai_sandboxes.batch, 1), 500)
@@ -17872,7 +16885,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."load_ai_harness_session"(uuid, text) from public, anon, authenticated;
@@ -17915,7 +16928,7 @@ begin
   select * into v_row from "better_supabase"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = save_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from save_ai_harness_session.holder then
     raise exception 'Harness session % is locked', save_ai_harness_session.harness using errcode = '55P03', hint = 'AI_HARNESS_LOCKED';
   end if;
   update "better_supabase"."ai_harness_sessions" x set
@@ -17952,7 +16965,7 @@ begin
     update "better_supabase"."ai_sandboxes" y set "last_used_at" = now(), "updated_at" = now()
     where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" = 'running';
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'lock_expires_at', v_row."lock_expires_at", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_ai_harness_session"(uuid, text, jsonb, text) from public, anon, authenticated;
@@ -17991,12 +17004,12 @@ begin
   select * into v_row from "better_supabase"."ai_harness_sessions" x
   where x."chat_id" = v_chat."id" and x."harness_id" = lock_ai_harness_session.harness
   for update;
-  if v_row."locked_until" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
+  if v_row."lock_expires_at" > now() and v_row."lock_holder" is distinct from lock_ai_harness_session.holder then
     return false;
   end if;
   update "better_supabase"."ai_harness_sessions" x set
     "lock_holder" = lock_ai_harness_session.holder,
-    "locked_until" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
+    "lock_expires_at" = now() + make_interval(secs => lock_ai_harness_session.ttl_seconds),
     "updated_at" = now()
   where x."chat_id" = v_row."chat_id" and x."harness_id" = v_row."harness_id";
   return true;
@@ -18018,7 +17031,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "locked_until" = null, "updated_at" = now()
+  update "better_supabase"."ai_harness_sessions" x set "lock_holder" = null, "lock_expires_at" = null, "updated_at" = now()
   where x."chat_id" = unlock_ai_harness_session.chat
     and x."harness_id" = unlock_ai_harness_session.harness
     and x."lock_holder" = unlock_ai_harness_session.holder;
@@ -18031,63 +17044,36 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_ai_chat_receive on realtime.messages;
 create policy bsb_ai_chat_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid));
-        drop policy if exists bsb_ai_chats_receive on realtime.messages;
 create policy bsb_ai_chats_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text);
-  end if;
-end;
-$$;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_projects";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_projects" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("owner_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_projects" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_projects" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_projects";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_projects" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_chats";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_chats" as restrictive
   for select to public
   using (
@@ -18096,53 +17082,32 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_chats" as restric
     or ("visibility" = 'organization' and "org_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
     or ("better_supabase"."ai_chats"."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = "better_supabase"."ai_chats"."id" and (((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())))))))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_chats" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_chats" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_chats";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_chats" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_sandboxes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_select on "better_supabase"."ai_sandboxes" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_update on "better_supabase"."ai_sandboxes" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat

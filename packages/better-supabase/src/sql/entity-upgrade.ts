@@ -1,8 +1,7 @@
 import type { BlockSqlContext } from "./context.ts";
-import type { BlockSqlLayout } from "./module-types.ts";
+import type { BlockSqlFile, BlockSqlLayout } from "./module-types.ts";
 import type { Qualified } from "./rename-sql.ts";
 
-import { ENTITY_KEY_RENAMES } from "../core/renames.ts";
 import { sqlString } from "../core/template.ts";
 import { entityMarkers } from "./markers.ts";
 import { moduleContext } from "./module-context.ts";
@@ -140,30 +139,6 @@ function installedLayout(
   }
 
   return { ...layout, modules: configured };
-}
-
-/**
- * `markers` with the entity keys 0.47 renamed at their current key:
- * `work_item=ticket/tickets` on a tasks install reads `task=ticket/tickets`.
- */
-function currentMarkerKeys(
-  markers: ReadonlyMap<string, string>,
-  layout: BlockSqlLayout,
-): ReadonlyMap<string, string> {
-  return new Map(
-    [...markers].map(([module, marker]) => {
-      const renames =
-        ENTITY_KEY_RENAMES[layout.instances?.[module]?.block ?? module] ?? {};
-
-      const parts = marker.split(" ").map((part) => {
-        const [key = "", noun] = part.split("=");
-
-        return noun === undefined ? part : `${renames[key] ?? key}=${noun}`;
-      });
-
-      return [module, parts.join(" ")];
-    }),
-  );
 }
 
 /**
@@ -324,16 +299,18 @@ const namesLabel = (marker: string | undefined): string =>
  * indexes, policies, triggers and functions are renamed in place, permission
  * keys keep their grants, and stored subject types follow. `installedText` is
  * the installed module files or migration; `modules` the installed modules.
+ * `rendered` is `renderBlocks(names, layout)` when the caller has it already.
  */
 export function entityRenamePlan(
   names: readonly string[],
   modules: readonly string[],
   installedText: string,
   layout: BlockSqlLayout,
+  rendered?: readonly BlockSqlFile[],
 ): EntityRenamePlan {
-  const before = currentMarkerKeys(entityMarkers(installedText), layout);
+  const before = entityMarkers(installedText);
 
-  const current = renderBlocks(names, layout).filter(
+  const current = (rendered ?? renderBlocks(names, layout)).filter(
     (file) => file.kind === "schema",
   );
 
@@ -353,7 +330,7 @@ export function entityRenamePlan(
     (file) => file.kind === "schema",
   );
 
-  const rendered = previous.map((file) => file.module);
+  const renderedModules = previous.map((file) => file.module);
 
   const bodyOf = (files: typeof current, module: string): string =>
     files
@@ -363,7 +340,10 @@ export function entityRenamePlan(
 
   const contexts = (from: BlockSqlLayout): Map<string, BlockSqlContext> =>
     new Map(
-      rendered.map((module) => [module, moduleContext(module, from, rendered)]),
+      renderedModules.map((module) => [
+        module,
+        moduleContext(module, from, renderedModules),
+      ]),
     );
 
   const oldContexts = contexts(oldLayout);
@@ -371,7 +351,7 @@ export function entityRenamePlan(
   const steps: EntityRenameStep[] = [];
   const refused: string[] = [];
 
-  for (const module of rendered) {
+  for (const module of renderedModules) {
     const schema = newContexts.get(module)?.schemaName ?? "better_supabase";
 
     const renames = bodyRenames(

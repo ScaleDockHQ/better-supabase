@@ -130,7 +130,7 @@ create table if not exists ${types} (
   unique (${d("tenant")}, ${d("key")})
 );${ctx.owns("documentTypes") ? "" : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("documentTypes").name}_key`)} on ${types} (${d("tenant")}, ${d("key")});`}
 ${lockTable(types, { read: true })}
-${renderPolicy(makePolicy({ table: types, name: sqlIdent(`${ctx.tableName("documentTypes").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(d("tenant"), parts.read) }), { drop: true, target: types })}
+${renderPolicy(makePolicy({ table: types, name: sqlIdent(`${ctx.tableName("documentTypes").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(d("tenant"), parts.read) }), { target: types })}
 
 -- The reason a document type's field schema is invalid, or null.
 create or replace function ${ctx.fn("attachment_schema_error")}(fields jsonb)
@@ -339,12 +339,19 @@ alter table ${t} add column if not exists ${c("sourcePath")} text check (length(
 ${ensureCheck(t, "bsb_attachments_external", `(${c("source")} is null) = (${c("externalId")} is null)`)}
 create unique index if not exists ${ctx.naming.rename("attachments_external_idx")} on ${t} (${c("tenant")}, ${c("source")}, ${c("externalId")}) where ${c("source")} is not null;
 create index if not exists ${ctx.naming.rename("attachments_document_type_idx")} on ${t} (${c("documentType")}) where ${c("documentType")} is not null;
-do $$
-begin
-  update ${t} set ${c("storage")} = 'stored' where ${c("uploadedAt")} is not null and ${c("storage")} = 'pending_upload';
-end;
-$$;
 `;
+}
+
+/**
+ * Marks the records that were uploaded before the storage status existed as
+ * stored. The column defaults to pending_upload, so a table that already had
+ * rows needs this once; it is data, which a schema diff never writes.
+ */
+export function storageStatusBackfill(
+  t: string,
+  c: (logical: string) => string,
+): string {
+  return `update ${t} set ${c("storage")} = 'stored' where ${c("uploadedAt")} is not null and ${c("storage")} = 'pending_upload';`;
 }
 
 /**

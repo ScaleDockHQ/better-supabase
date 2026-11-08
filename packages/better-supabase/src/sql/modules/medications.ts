@@ -10,20 +10,17 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { guestOr } from "../guest-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { medicationAdministrationFunctions } from "./medications-administrations.ts";
 import { medicationFunctions } from "./medications-functions.ts";
 import {
-  ADMINISTRATION_EXTRA,
   ADMINISTRATION_STATUSES,
   CODE_SYSTEMS,
-  MEDICATION_EXTRA,
   medicationKeys,
   medicationTimeZone,
   missedAfterMinutes,
-  ORDER_RESERVED,
   ORDER_SOURCES,
   ROW_RESERVED,
   ORDER_STATUSES,
@@ -87,15 +84,7 @@ const NAMES: BlockSqlNames = {
     "before_medication_administration_record",
     "after_medication_administration_record",
   ],
-  options: [
-    "missedAfterMinutes",
-    "missedCaseKind",
-    "timeZone",
-    "extraColumns",
-    MEDICATION_EXTRA,
-    ADMINISTRATION_EXTRA,
-    "guestRead",
-  ],
+  options: ["missedAfterMinutes", "missedCaseKind", "timeZone", "guestRead"],
   tables: {
     medications: {
       name: "medications",
@@ -217,7 +206,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   // A guest with a read grant on the record reads its orders, doses and the
@@ -252,7 +241,7 @@ create table if not exists ${medications} (
   ${m("highRisk")} boolean not null default false,
   ${m("archivedAt")} timestamptz,${stamps("medications", ["createdAt", "updatedAt"])}
   unique (${m("tenant")}, ${m("id")})
-);${addExtraColumns(medications, ctx.extraColumns("medications", ROW_RESERVED, MEDICATION_EXTRA))}${appKey("medications", "tenant_id", `${m("tenant")}, ${m("id")}`)}
+);${appKey("medications", "tenant_id", `${m("tenant")}, ${m("id")}`)}
 create index if not exists ${name("medications", "tenant_idx")} on ${medications} (${m("tenant")}, ${m("name")});
 create unique index if not exists ${name("medications", "code_idx")} on ${medications} (${m("tenant")}, ${m("codeSystem")}, ${m("code")}) where ${m("code")} is not null;
 ${lockModuleTable(ctx, "medications", { read: true })}
@@ -286,7 +275,7 @@ create table if not exists ${orders} (
   check (${o("asNeeded")} or ${o("schedule")} is not null),
   unique (${o("tenant")}, ${o("id")}),
   foreign key (${o("tenant")}, ${o("medication")}) references ${medications} (${m("tenant")}, ${m("id")})
-);${addExtraColumns(orders, ctx.extraColumns("orders", ORDER_RESERVED))}${appKey("orders", "tenant_id", `${o("tenant")}, ${o("id")}`)}
+);${appKey("orders", "tenant_id", `${o("tenant")}, ${o("id")}`)}
 create index if not exists ${name("orders", "item_idx")} on ${orders} (${o("tenant")}, ${o("medication")});
 create index if not exists ${name("orders", "subject_idx")} on ${orders} (${o("subjectType")}, ${o("subjectId")});
 create index if not exists ${name("orders", "status_idx")} on ${orders} (${o("tenant")}, ${o("status")});
@@ -326,7 +315,7 @@ create table if not exists ${administrations} (
   check (${a("checkedBy")} is null or ${a("checkedBy")} is distinct from ${a("performer")}),
   unique (${a("order")}, ${a("scheduledAt")}),
   foreign key (${a("tenant")}, ${a("order")}) references ${orders} (${o("tenant")}, ${o("id")}) on delete cascade
-);${addExtraColumns(administrations, ctx.extraColumns("administrations", ROW_RESERVED, ADMINISTRATION_EXTRA))}${appKey("administrations", "order_time_key", `${a("order")}, ${a("scheduledAt")}`)}
+);${appKey("administrations", "order_time_key", `${a("order")}, ${a("scheduledAt")}`)}
 create index if not exists ${name("administrations", "order_idx")} on ${administrations} (${a("tenant")}, ${a("order")});
 create index if not exists ${name("administrations", "planned_idx")} on ${administrations} (${a("scheduledAt")}) where ${a("status")} = 'planned';
 create index if not exists ${name("administrations", "given_idx")} on ${administrations} (${a("order")}, ${a("administeredAt")}) where ${a("status")} = 'given';
@@ -389,11 +378,11 @@ ${tables(ctx)}${medicationFunctions(ctx)}${medicationAdministrationFunctions(ctx
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const medicationFields = extraFieldsArg(
-    ctx.extraColumns("medications", ROW_RESERVED, MEDICATION_EXTRA),
+    ctx.extraColumns("medications", ROW_RESERVED),
   ).contract;
 
   const administrationFields = extraFieldsArg(
-    ctx.extraColumns("administrations", ROW_RESERVED, ADMINISTRATION_EXTRA),
+    ctx.extraColumns("administrations", ROW_RESERVED),
   ).contract;
 
   return [

@@ -28,15 +28,9 @@ const issueOf = (value: unknown): { code: string; path: string } => {
 
 describe("safeParseDesign", () => {
   it("returns the design without its empty parts", () => {
-    expect(
-      safeParseDesign({
-        extraColumns: { tags: { color: "text" } },
-        positions: {},
-      }),
-    ).toEqual({
-      ok: true,
-      design: { extraColumns: { tags: { color: "text" } } },
-    });
+    expect(safeParseDesign({ positions: {}, seeds: { locale: "nl" } })).toEqual(
+      { ok: true, design: { seeds: { locale: "nl" } } },
+    );
   });
 
   it.each([
@@ -44,22 +38,10 @@ describe("safeParseDesign", () => {
     ["an unknown key", { tables: {} }, "unknown_key", "/tables"],
     ["a newer format", { version: 99 }, "unsupported_format", "/version"],
     [
-      "an unknown block",
-      { extraColumns: { nope: { a: "text" } } },
-      "unknown_block",
-      "/extraColumns/nope",
-    ],
-    [
-      "a bad column name",
-      { extraColumns: { tags: { "Bad Name": "text" } } },
-      "invalid_name",
-      "/extraColumns/tags/Bad Name",
-    ],
-    [
-      "a bad SQL type",
-      { extraColumns: { tags: { color: "text; drop table x" } } },
-      "invalid_type",
-      "/extraColumns/tags/color",
+      "the removed extraColumns key",
+      { extraColumns: { tags: { color: "text" } } },
+      "unknown_key",
+      "/extraColumns",
     ],
     [
       "a bad position",
@@ -123,16 +105,10 @@ describe("DesignParseError", () => {
   });
 
   it("points into a design file at the same paths as a design", () => {
-    const text = JSON.stringify({
-      preset: "crm",
-      extraColumns: { nope: { a: "text" } },
-    });
+    const text = JSON.stringify({ preset: "crm", tables: {} });
 
     expect(() => readDesignFile(text)).toThrow(
-      expect.objectContaining({
-        code: "unknown_block",
-        path: "/extraColumns/nope",
-      }),
+      expect.objectContaining({ code: "unknown_key", path: "/tables" }),
     );
   });
 
@@ -154,15 +130,14 @@ describe("safeDesignFileSource", () => {
   });
 
   it("returns the issue for an invalid design", () => {
-    expect(
-      safeDesignFileSource(crm, { extraColumns: { nope: { a: "text" } } }),
-    ).toEqual({
+    expect(safeDesignFileSource(crm, { tables: {} } as never)).toEqual({
       ok: false,
       issues: [
         {
-          code: "unknown_block",
-          path: "/extraColumns/nope",
-          message: 'design.extraColumns.nope: "nope" is not a block',
+          code: "unknown_key",
+          path: "/tables",
+          message:
+            'design: unknown key "tables"; a design has preset, appTables, positions and seeds',
         },
       ],
     });

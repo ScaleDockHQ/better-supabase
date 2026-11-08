@@ -248,7 +248,7 @@ function datasetOf(value: unknown): EvalDataset {
 
   return {
     id: textOf(row["id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     name: textOf(row["name"]),
     description: optionalText(row["description"]),
     createdAt: instantOf(row["created_at"]),
@@ -354,7 +354,7 @@ function runOf(value: unknown): EvalRun {
   return {
     id: textOf(row["id"]),
     datasetId: textOf(row["dataset_id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     promptName: textOf(row["prompt_name"]),
     promptVersion: Number(row["prompt_version"]),
     model: textOf(row["model"]),

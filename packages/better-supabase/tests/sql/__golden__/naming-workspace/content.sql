@@ -1,74 +1,24 @@
 -- ==== schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:22d8cc5ec2ad6906515b12fdb787dcfd40463a68393611082d0fdf3fcb784a7c
+-- @bsb-hash sha256:d2064a6beb082b596c99c40e0941d495485da46fece6937efa5365b4ac75daf1
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Content entries per organization: typed, localized pages and posts with a
 -- slug, drafted, scheduled and published, readable by anyone once published.
-create table if not exists "better_supabase"."content_entries" (
+create table "better_supabase"."content_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- One of options.types and options.locales; the functions check both.
   "type" text not null,
   "locale" text not null,
-  "slug" text not null check (length("slug") <= 200 and "slug" ~ '^[a-z0-9]+(?:[-/][a-z0-9]+)*$'),
-  "title" text not null check (length("title") between 1 and 300),
-  "summary" text check ("summary" is null or length("summary") <= 2000),
-  "body" jsonb not null default '{}'::jsonb check (jsonb_typeof("body") in ('object', 'array')),
-  "status" text not null default 'draft' check ("status" in ('draft', 'scheduled', 'published', 'archived')),
+  "slug" text not null constraint bsb_content_entries_slug_check check (length("slug") <= 200 and "slug" ~ '^[a-z0-9]+(?:[-/][a-z0-9]+)*$'),
+  "title" text not null constraint bsb_content_entries_title_check check (length("title") >= 1 and length("title") <= 300),
+  "summary" text constraint bsb_content_entries_summary_check check ("summary" is null or length("summary") <= 2000),
+  "body" jsonb not null default '{}'::jsonb constraint bsb_content_entries_body_check check (jsonb_typeof("body") in ('object', 'array')),
+  "status" text not null default 'draft' constraint bsb_content_entries_status_check check ("status" in ('draft', 'scheduled', 'published', 'archived')),
   "publish_at" timestamptz,
   "published_at" timestamptz,
   "author_id" uuid references auth.users (id) on delete set null,
@@ -82,21 +32,20 @@ create table if not exists "better_supabase"."content_entries" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "type", "locale", "slug"),
   unique ("tenant_id", "translation_group_id", "locale"),
-  check ("status" <> 'scheduled' or "publish_at" is not null),
-  check ("status" <> 'published' or "published_at" is not null)
+  constraint bsb_content_entries_check check ("status" <> 'scheduled' or "publish_at" is not null),
+  constraint bsb_content_entries_check1 check ("status" <> 'published' or "published_at" is not null)
 );
-create index if not exists "content_entries_published_idx" on "better_supabase"."content_entries" ("tenant_id", "type", "locale", "published_at" desc) where "status" = 'published';
-create index if not exists "content_entries_due_idx" on "better_supabase"."content_entries" ("publish_at") where "status" = 'scheduled';
-create index if not exists "content_entries_updated_idx" on "better_supabase"."content_entries" ("tenant_id", "updated_at" desc);
-create index if not exists "content_entries_author_idx" on "better_supabase"."content_entries" ("author_id");
-create index if not exists "content_entries_cover_idx" on "better_supabase"."content_entries" ("cover_attachment_id");
+create index "content_entries_published_idx" on "better_supabase"."content_entries" ("tenant_id", "type", "locale", "published_at" desc) where "status" = 'published';
+create index "content_entries_due_idx" on "better_supabase"."content_entries" ("publish_at") where "status" = 'scheduled';
+create index "content_entries_updated_idx" on "better_supabase"."content_entries" ("tenant_id", "updated_at" desc);
+create index "content_entries_author_idx" on "better_supabase"."content_entries" ("author_id");
+create index "content_entries_cover_idx" on "better_supabase"."content_entries" ("cover_attachment_id");
 
 alter table "better_supabase"."content_entries" enable row level security;
 revoke all on "better_supabase"."content_entries" from public, anon, authenticated;
 grant select on "better_supabase"."content_entries" to authenticated;
 grant all on "better_supabase"."content_entries" to service_role;
-drop policy if exists content_entries_read on "better_supabase"."content_entries";
-create policy content_entries_read on "better_supabase"."content_entries"
+create policy bsb_content_entries_read on "better_supabase"."content_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')));
 
@@ -646,52 +595,22 @@ grant execute on function "better_supabase"."public_content_entries"(uuid, text,
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
-    create function better_supabase.member_workspace_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."content_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."content_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."content_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('content.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."content_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."content_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."content_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."content_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."content_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."content_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_142_content.sql
 -- better-supabase module: content

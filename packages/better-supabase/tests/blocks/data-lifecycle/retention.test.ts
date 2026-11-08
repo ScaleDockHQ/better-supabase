@@ -4,7 +4,7 @@ import { createRetention } from "../../../src/blocks/data-lifecycle/index.ts";
 
 const policy = {
   id: "p1",
-  organization_id: "org-1",
+  tenant_id: "org-1",
   plan: null,
   kind: "audit",
   keep: "7 years",
@@ -13,7 +13,7 @@ const policy = {
 
 const hold = (overrides: Record<string, unknown> = {}) => ({
   id: "h1",
-  organization_id: null,
+  tenant_id: null,
   kind: "audit",
   reason: "Litigation",
   placed_by: null,

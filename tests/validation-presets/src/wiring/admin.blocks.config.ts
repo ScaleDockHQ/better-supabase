@@ -34,7 +34,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  bulk: {
+  "bulk-actions": {
     schema: "better_supabase",
     options: {
       limit: 500,
@@ -129,8 +129,8 @@ export const permissions = {
     manage: "billing.manage",
     readAll: "billing.read",
   },
-  bulk: {
-    run: "bulk.run",
+  "bulk-actions": {
+    run: "bulk_actions.run",
   },
   enrollments: {
     read: "enrollments.read",
@@ -186,4 +186,4 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bulk.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "flags.manage" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bulk_actions.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "flags.manage" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";

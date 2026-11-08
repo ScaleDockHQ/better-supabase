@@ -1,65 +1,33 @@
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:3145089c0e5865ad5128068836f3840f97ab1cf24b3620034e0ab57ec0823ab5
+-- @bsb-hash sha256:fc3657033e598f4945be3fcfe209668a78d341afc25ef2e5dfca2b148c331ba3
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."outbox_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."outbox_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."outbox_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."outbox_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."outbox_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."outbox_events" (
+create table "better_supabase"."outbox_events" (
   "id" uuid primary key default gen_random_uuid(),
   "position" bigint generated always as identity unique,
   "type" text not null,
   "source" text,
   "subject" text,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "key" text,
   "payload" jsonb not null default '{}',
   "actor_id" uuid,
   "created_at" timestamptz not null default now(),
   "xid" xid8 not null default pg_current_xact_id()
 );
-create unique index if not exists outbox_events_key_idx on "better_supabase"."outbox_events" ("key", "organization_id") nulls not distinct where "key" is not null;
-create index if not exists outbox_events_subject_idx on "better_supabase"."outbox_events" ("subject", "position");
-create index if not exists outbox_events_type_idx on "better_supabase"."outbox_events" ("type", "position");
-create index if not exists outbox_events_created_idx on "better_supabase"."outbox_events" ("created_at");
-create index if not exists outbox_events_xid_idx on "better_supabase"."outbox_events" ("xid", "position");
+create unique index outbox_events_key_idx on "better_supabase"."outbox_events" ("key", "tenant_id") nulls not distinct where "key" is not null;
+create index outbox_events_subject_idx on "better_supabase"."outbox_events" ("subject", "position");
+create index outbox_events_type_idx on "better_supabase"."outbox_events" ("type", "position");
+create index outbox_events_created_idx on "better_supabase"."outbox_events" ("created_at");
+create index outbox_events_xid_idx on "better_supabase"."outbox_events" ("xid", "position");
 alter table "better_supabase"."outbox_events" enable row level security;
 revoke all on "better_supabase"."outbox_events" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_events" to service_role;
 
-create table if not exists "better_supabase"."outbox_consumers" (
+create table "better_supabase"."outbox_consumers" (
   "name" text primary key,
   -- The last event passed, ordered by (transaction id, position). Without
   -- the xid column, cursor_xid stays 0 and the position alone orders.
@@ -68,23 +36,20 @@ create table if not exists "better_supabase"."outbox_consumers" (
   -- Type patterns ('organization.*', 'invoice.paid'); null takes every event.
   "types" text[],
   "lease_owner" text,
-  "lease_until" timestamptz,
+  "lease_expires_at" timestamptz,
   -- Failed claims in a row since the cursor last moved, and when to try again.
   "attempts" integer not null default 0,
   "last_error" text,
   "retry_at" timestamptz,
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."outbox_consumers" add column if not exists "attempts" integer not null default 0;
-alter table "better_supabase"."outbox_consumers" add column if not exists "last_error" text;
-alter table "better_supabase"."outbox_consumers" add column if not exists "retry_at" timestamptz;
 alter table "better_supabase"."outbox_consumers" enable row level security;
 revoke all on "better_supabase"."outbox_consumers" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_consumers" to service_role;
 
 -- Events a consumer skipped after max_attempts failures, with a copy of the
 -- event, so one bad event can't stop the consumer.
-create table if not exists "better_supabase"."outbox_dead_letters" (
+create table "better_supabase"."outbox_dead_letters" (
   "consumer" text not null references "better_supabase"."outbox_consumers" ("name") on delete cascade,
   "position" bigint not null,
   "event_id" text not null,
@@ -95,14 +60,14 @@ create table if not exists "better_supabase"."outbox_dead_letters" (
   "dead_at" timestamptz not null default now(),
   primary key ("consumer", "position")
 );
-create index if not exists outbox_dead_letters_dead_at_idx on "better_supabase"."outbox_dead_letters" ("dead_at");
+create index outbox_dead_letters_dead_at_idx on "better_supabase"."outbox_dead_letters" ("dead_at");
 alter table "better_supabase"."outbox_dead_letters" enable row level security;
 revoke all on "better_supabase"."outbox_dead_letters" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_dead_letters" to service_role;
 
 
 -- create or replace can't change the return type of an earlier install.
-drop function if exists "better_supabase"."emit_event"(text, jsonb, text, text, text, text);
+
 -- Appends an event in the caller's transaction, so it exists only if the
 -- transaction commits, and returns its id. A repeated key (per tenant)
 -- returns the first event's id.
@@ -144,29 +109,27 @@ begin
   end if;
   if key is not null then
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
     if found_id is not null then
       return found_id;
     end if;
   end if;
-  insert into "better_supabase"."outbox_events" ("type", "payload", "source", "subject", "organization_id", "key", "actor_id")
+  insert into "better_supabase"."outbox_events" ("type", "payload", "source", "subject", "tenant_id", "key", "actor_id")
   values (event_type, coalesce(payload, '{}'), source, coalesce(subject, payload ->> 'subject'), tenant::uuid, key, auth.uid())
   on conflict do nothing
   returning "id"::text into found_id;
   if found_id is null then
     -- Another transaction emitted the same key first.
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
   end if;
   return found_id;
 end;
 $$;
 revoke execute on function "better_supabase"."emit_event"(text, jsonb, text, text, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."emit_event"(text, jsonb, text, text, text, text) to service_role;
-
-drop function if exists "better_supabase"."purge_outbox"(interval);
 -- The signature before purge_outbox could pass over idle consumers.
-drop function if exists "better_supabase"."purge_outbox"(interval, integer);
+
 
 -- Registers a consumer. A new one starts after the latest event, or at the
 -- first with from_start. Registering again changes only its types.
@@ -222,9 +185,9 @@ declare
   events jsonb;
 begin
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = owner, "lease_until" = now() + lease, "updated_at" = now()
+  set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
   where k."name" = consumer
-    and (k."lease_until" is null or k."lease_until" < now() or k."lease_owner" = owner)
+    and (k."lease_expires_at" is null or k."lease_expires_at" < now() or k."lease_owner" = owner)
     and (k."retry_at" is null or k."retry_at" <= now())
   returning k.* into c;
   if not found then
@@ -243,7 +206,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, row_number() over (order by e."xid", e."position") as n
@@ -288,7 +251,7 @@ begin
       select e."xid", e."position" from "better_supabase"."outbox_events" e where e."position" = upto
     ),
     "attempts" = 0, "last_error" = null, "retry_at" = null,
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
     and upto is not null
     and exists (select 1 from "better_supabase"."outbox_events" e where e."position" = upto and (e."xid", e."position") > (k."cursor_xid", k."cursor_position"));
@@ -296,7 +259,7 @@ begin
     return true;
   end if;
   update "better_supabase"."outbox_consumers" k
-  set "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+  set "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner;
   return found;
 end;
@@ -327,7 +290,7 @@ declare
 begin
   update "better_supabase"."outbox_consumers" k
   set "attempts" = k."attempts" + 1, "last_error" = left(error, 4000),
-    "lease_owner" = null, "lease_until" = null, "updated_at" = now()
+    "lease_owner" = null, "lease_expires_at" = null, "updated_at" = now()
   where k."name" = consumer and k."lease_owner" = owner
   returning k.* into c;
   if not found then
@@ -343,7 +306,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ), c."attempts", c."last_error"
@@ -413,7 +376,7 @@ as $$
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, e."position" as position
@@ -455,8 +418,8 @@ begin
     where e."id" in (
       select d."id" from "better_supabase"."outbox_events" d
       where (d."created_at" < now() - least(coalesce(older_than, '30 days'::interval), "better_supabase"."retention_floor"('outbox'))
-      and d."created_at" < now() - coalesce("better_supabase"."retention_for"('outbox', (d."organization_id")::text), coalesce(older_than, '30 days'::interval))
-      and not "better_supabase"."is_held"('outbox', (d."organization_id")::text))
+      and d."created_at" < now() - coalesce("better_supabase"."retention_for"('outbox', (d."tenant_id")::text), coalesce(older_than, '30 days'::interval))
+      and not "better_supabase"."is_held"('outbox', (d."tenant_id")::text))
         and (
           not exists (select 1 from active)
           or (d."xid", d."position") <= (
@@ -542,20 +505,6 @@ revoke execute on function "better_supabase"."track_events"(regclass, text, text
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-drop function if exists "api"."emit_event"(text, jsonb, text, text, text, text);
-drop function if exists "api"."purge_outbox"(interval);
-drop function if exists "api"."purge_outbox"(interval, integer);
-
-create or replace function "api"."import_run"()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."import_run"() $$;
-revoke execute on function "api"."import_run"() from public;
-grant execute on function "api"."import_run"() to anon, authenticated, service_role;
-
 create or replace function "api"."emit_event"(event_type text, payload jsonb default '{}', subject text default null, tenant text default null, key text default null, source text default null)
 returns text
 language sql
@@ -638,16 +587,3 @@ set search_path = ''
 as $$ select "better_supabase"."purge_outbox"($1, $2, $3) $$;
 revoke execute on function "api"."purge_outbox"(interval, integer, interval) from public, anon, authenticated;
 grant execute on function "api"."purge_outbox"(interval, integer, interval) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

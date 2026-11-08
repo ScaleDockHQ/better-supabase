@@ -170,9 +170,9 @@ export type {
   TestAuthorizerOptions,
 } from "./authorizer.ts";
 
-export { testGenerator } from "./generator.ts";
+export { testGeneratorPlugin } from "./generator.ts";
 
-export type { TestGeneratorOptions } from "./generator.ts";
+export type { TestGeneratorPluginOptions } from "./generator.ts";
 
 export type { AdapterRun, TestAdapterOptions } from "./adapter.ts";
 

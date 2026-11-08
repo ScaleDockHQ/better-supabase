@@ -19,7 +19,7 @@ const layout: BlockSqlLayout = {
       idType: "uuid",
       tenant: "tenant_id",
       title: "name",
-      deletedAt: "deleted_at",
+      deletedAt: "archived_at",
       permissions: { read: "drive.read", write: "drive.manage" },
     },
   },
@@ -46,8 +46,8 @@ const DRIVES_LAYOUT: BlockSqlLayout = {
       idType: "uuid",
       tenant: "tenant_id",
       title: "name",
-      deletedAt: "deleted_at",
-      held: "legal_hold_until",
+      deletedAt: "archived_at",
+      held: "legal_hold_expires_at",
       permissions: { read: "drive.read", write: "drive.manage" },
     },
   },
@@ -273,7 +273,7 @@ describe.skipIf(!live)("drive", () => {
       await s.service();
 
       const events = await s.rows<{ type: string }>(
-        "select distinct type collate \"C\" as type from better_supabase.outbox_events where organization_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
+        "select distinct type collate \"C\" as type from better_supabase.outbox_events where tenant_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
         [tenant],
       );
 
@@ -1247,7 +1247,7 @@ describe.skipIf(!live)("drive", () => {
 
       await s.service();
       await s.client.query(
-        "update drive_it.drive_nodes set legal_hold_until = now() + interval '1 day' where external_id = 'root'",
+        "update drive_it.drive_nodes set legal_hold_expires_at = now() + interval '1 day' where external_id = 'root'",
       );
       await s.asRole(owner);
       expect(
@@ -1256,7 +1256,7 @@ describe.skipIf(!live)("drive", () => {
 
       await s.service();
       await s.client.query(
-        "update drive_it.drive_nodes set legal_hold_until = null where external_id = 'root'",
+        "update drive_it.drive_nodes set legal_hold_expires_at = null where external_id = 'root'",
       );
       await s.asRole(owner);
       expect(
@@ -1277,7 +1277,7 @@ describe.skipIf(!live)("drive", () => {
       ).toBe(0);
 
       const events = await s.rows<{ type: string }>(
-        "select distinct type collate \"C\" as type from better_supabase.outbox_events where organization_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
+        "select distinct type collate \"C\" as type from better_supabase.outbox_events where tenant_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
         [tenant],
       );
 
@@ -1334,11 +1334,11 @@ describe.skipIf(!live)("drive", () => {
 
       await s.service();
       await s.client.query(
-        "update drive_it.drive_nodes set legal_hold_until = now() + interval '1 day' where id = $1",
+        "update drive_it.drive_nodes set legal_hold_expires_at = now() + interval '1 day' where id = $1",
         [child.id],
       );
       await s.client.query(
-        "update better_supabase.trash_items set purge_after = now() - interval '1 day' where batch_id = $1",
+        "update better_supabase.trash_items set purge_at = now() - interval '1 day' where batch_id = $1",
         [batch.batchId],
       );
 
@@ -1365,7 +1365,7 @@ describe.skipIf(!live)("drive", () => {
       ).toBe(2);
 
       await s.client.query(
-        "update drive_it.drive_nodes set legal_hold_until = null where id = $1",
+        "update drive_it.drive_nodes set legal_hold_expires_at = null where id = $1",
         [child.id],
       );
 
@@ -1380,7 +1380,7 @@ describe.skipIf(!live)("drive", () => {
       ).toBe(0);
 
       const events = await s.rows<{ type: string }>(
-        "select distinct type collate \"C\" as type from better_supabase.outbox_events where organization_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
+        "select distinct type collate \"C\" as type from better_supabase.outbox_events where tenant_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
         [tenant],
       );
 
@@ -1447,7 +1447,7 @@ describe.skipIf(!live)("drive", () => {
 
       const records = () =>
         s.rows<{ external_key: string; missing: boolean }>(
-          "select external_key, missing_since is not null as missing from better_supabase.import_records where source = $1 and entity = 'drive_node' order by external_key",
+          "select external_key, went_missing_at is not null as missing from better_supabase.import_records where source = $1 and entity = 'drive_node' order by external_key",
           [`drive:${connection.id}`],
         );
 
@@ -1513,7 +1513,7 @@ describe.skipIf(!live)("drive", () => {
         ).toBe(2);
 
         await s.client.query(
-          "update drive_it.drive_nodes set legal_hold_until = now() + interval '1 day' where external_id = 'a'",
+          "update drive_it.drive_nodes set legal_hold_expires_at = now() + interval '1 day' where external_id = 'a'",
         );
 
         await sync(listing("root"), "run-5", true);

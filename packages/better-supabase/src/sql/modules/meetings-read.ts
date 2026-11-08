@@ -73,7 +73,7 @@ begin
       from ${decisions} y where y.${d("tenant")} = v_row.${m("tenant")} and y.${d("meeting")} = v_row.${m("id")}
     ), '[]'::jsonb),
     'actionItems', coalesce((
-      select jsonb_agg(jsonb_build_object('workItemId', z.${tasks.col("items", "id")}, 'title', z.${t("title")}, 'state', z.${t("state")}, 'dueAt', z.${t("dueAt")},
+      select jsonb_agg(jsonb_build_object('taskId', z.${tasks.col("items", "id")}, 'title', z.${t("title")}, 'state', z.${t("state")}, 'dueAt', z.${t("dueAt")},
         'agendaItemId', y.${x("agendaItem")}, 'decisionId', y.${x("decision")}) order by y.${x("createdAt")})
       from ${actions} y join ${tasks.table("items")} z on z.${tasks.col("items", "id")} = y.${x("task")}
       where y.${x("tenant")} = v_row.${m("tenant")} and y.${x("meeting")} = v_row.${m("id")}

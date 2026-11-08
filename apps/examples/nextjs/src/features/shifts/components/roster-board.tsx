@@ -2,8 +2,7 @@ import type { ShiftStatus } from "better-supabase/blocks/shifts";
 
 import { CalendarDaysIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
-import { refresh } from "next/cache";
-import { connection } from "next/server";
+import { io, refresh } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 
 import {
@@ -52,7 +51,7 @@ const STATUS_VARIANT = {
  * published shifts; planners with `shifts.write` also the drafts.
  */
 export async function RosterBoard() {
-  await connection();
+  await io();
   const today = Temporal.Now.plainDateISO("UTC");
   const monday = today.subtract({ days: today.dayOfWeek - 1 });
 

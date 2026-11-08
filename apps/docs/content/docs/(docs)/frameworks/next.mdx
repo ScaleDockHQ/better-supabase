@@ -115,6 +115,31 @@ share one call to Auth, so the single-use refresh token is spent once
 Auth answers the loser with `refresh_token_already_used`; the proxy keeps the
 user signed in while the old token is valid instead of signing them out.
 
+### A smaller proxy bundle
+
+`better-supabase/next/proxy` exports `createProxy()`, the same proxy without
+the Server Component side of `createNext`. Import it in `src/proxy.ts` so the
+proxy bundle leaves out sign-in flows, record bindings and REST resources:
+
+```ts title="src/proxy.ts"
+import { createProxy } from "better-supabase/next/proxy";
+import { betterSupabase } from "@/lib/supabase";
+
+export const proxy = createProxy(betterSupabase, {
+  protect: (auth, request) =>
+    auth.kind !== "user" && request.nextUrl.pathname.startsWith("/app")
+      ? Response.redirect(new URL("/login", request.url))
+      : undefined,
+});
+```
+
+`createProxy(betterSupabase, options)` takes the `createNext` options (`env`,
+`auth`, `leeway`) and the proxy options (`before`, `protect`, `after`,
+`verifySession`, `serverTiming`) in one object. It also exports
+`mutableResponse`, `overrideRequestHeaders`, `syncMiddlewareSetCookie` and
+`serverTimingValue` for a proxy that composes other middleware. It imports no
+Node built-in, so it runs wherever the Next.js proxy runs.
+
 ### Ended sessions
 
 An access token stays valid until it expires, even after its session is
@@ -163,11 +188,11 @@ A proxy that does not use `bsb.proxy` can run the same check with
 `verifySession` covers document loads. An app that keeps the session in
 httpOnly cookies, with no browser Supabase client, also notices a revoked
 session, a ban or changed claims while a page stays open with
-`sessionStatusRoute` from `better-supabase/server` and `useSessionWatch` from
+`sessionStatusRoute` from `better-supabase/server/accounts` and `useSessionWatch` from
 `better-supabase/next/client`:
 
 ```ts title="app/api/session-status/route.ts"
-import { sessionStatusRoute } from "better-supabase/server";
+import { sessionStatusRoute } from "better-supabase/server/accounts";
 
 import { bsb } from "@/lib/supabase/server";
 
@@ -328,6 +353,76 @@ flows that must see a user the Auth server has revoked or deleted since the
 token was issued, such as changing a password or deleting an account. The
 `user` on the session comes from the claims, so it works with either cookie
 [encoding](/docs/auth/sessions#encoding).
+
+### The signed-in user and `AuthGate`
+
+`bsb.user()` returns the user as plain data, `{ id, email, name,
+organizationId }`, or `null` for anyone else. It never returns the token or the
+session. Call it inside a `'use cache: private'` function: it sets
+`cacheLife({ stale: 300 })` and the session tags like `bsb.cached()`, so the
+user rides in the App Shell.
+
+```ts title="src/features/auth/auth-queries.ts"
+import "server-only";
+import { bsb } from "@/lib/supabase/server";
+
+export async function getUser() {
+  "use cache: private";
+  return bsb.user();
+}
+```
+
+`AuthGate` from `better-supabase/next/auth-gate` is a Server Component for the
+app layout. The layout stays synchronous: the gate renders a `<Suspense>`
+around one `getUser()` promise and hands it to `useUser()` in Client
+Components, keyed on the user id so a user change never shows the last user's
+DOM.
+
+```tsx title="src/app/(app)/layout.tsx"
+import { AuthGate } from "better-supabase/next/auth-gate";
+import { getUser } from "@/features/auth/auth-queries";
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthGate
+      user={getUser}
+      fallback={<AppShellSkeleton />}
+      redirect="/sign-in"
+    >
+      {children}
+    </AuthGate>
+  );
+}
+```
+
+```tsx title="src/components/account-menu.tsx"
+"use client";
+import { useUser } from "better-supabase/next/auth-gate";
+
+export function AccountMenu() {
+  const user = useUser();
+  return <span>{user?.email}</span>;
+}
+```
+
+`useUser()` uses `use()` on the promise, so render it under a `<Suspense>`
+boundary. `redirect` sends a signed-out visitor away, and `refuse` answers with
+`forbidden()` or `unauthorized()` instead. The proxy still does the cookie-only
+redirect before rendering; the gate is the second check. A `check` function
+runs before the first `<Suspense>` when the status code must be set there, but
+awaiting a request API in it makes the layout dynamic.
+
+### Taint
+
+With `experimental.taint: true` in `next.config.ts`, `createNext` calls React's
+`experimental_taintUniqueValue` on the access token and the refresh token of
+each request, and `experimental_taintObjectReference` on the auth state, the
+server context and the `bsb.admin()` context. A Server Component that passes
+one of them to a Client Component then fails with React's taint error instead
+of leaking it into the page. `createNextConfig()` from `@better-supabase/next-config`
+turns the flag on. Taint is the second layer: return plain data such as
+`bsb.user()` first. Without the flag, or on a React build without the API,
+the calls do nothing. The Supabase clients a context creates are not tainted.
 
 With `cacheComponents` enabled, see [Cache Components](/docs/frameworks/next-cache-components)
 for instant navigations and role-aware menus, and the

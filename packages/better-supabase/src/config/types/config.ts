@@ -1,3 +1,4 @@
+import type { FrameworkBinding } from "../../plugins/frameworks.ts";
 import type { PresetName } from "../../preset/presets.ts";
 import type { PresetSpec } from "../../preset/spec.ts";
 import type { Casing } from "../../schema/types.ts";
@@ -36,14 +37,21 @@ import type {
   GenConfig,
   IntegrationName,
   KeysConfig,
-  OpenApiConfig,
   SkillsConfig,
   SpecOutputConfig,
   SpecsConfig,
 } from "./tooling.ts";
 
-/** The frameworks `gen.hooks` writes data hooks for. */
+/** The frameworks `gen.hooks` writes data hooks for without registration. */
 export type DataHooksFramework = "react" | "vue" | "svelte" | "solid";
+
+/**
+ * A built-in framework, or the name of a binding registered with `frameworks`.
+ * `resolveConfig` refuses a name nothing registers.
+ */
+export type HooksFramework =
+  | DataHooksFramework
+  | (string & Record<never, never>);
 
 /**
  * A function `hooks.ts` wraps each table's select in, as `scoped((db: AppDb) =>
@@ -57,7 +65,7 @@ export interface DataHooksSelect {
 /** `gen.hooks` with options. */
 export interface DataHooksConfig {
   /** Defaults as `gen.hooks` does without options. */
-  readonly framework?: DataHooksFramework;
+  readonly framework?: HooksFramework;
   readonly select?: DataHooksSelect;
 }
 
@@ -77,7 +85,7 @@ export interface FlatConfig {
    * Main generated module. Defaults to `src/lib/supabase/generated.ts`;
    * `database.types.ts` is written next to it.
    */
-  readonly output?: string;
+  readonly file?: string;
   /**
    * PostgREST major version, written to `__InternalSupabase` in
    * `database.types.ts` so `createClient` picks matching behavior. Defaults to
@@ -85,18 +93,24 @@ export interface FlatConfig {
    */
   readonly postgrestVersion?: string;
   /**
-   * Write one `records/<type>.ts` next to `output` per record type that an
+   * Write one `records/<type>.ts` next to `file` per record type that an
    * installed block binds to (`defineRecordType`). Defaults to `true`.
    */
-  readonly recordTypes?: boolean;
+  readonly records?: boolean;
   /**
-   * Write `hooks.ts` next to `output`: `defineDataHooks` from this framework's
+   * Write `hooks.ts` next to `file`: `defineDataHooks` from this framework's
    * entry, once per block instance and table (`useTickets`, `useTicket`).
    * Defaults to `react` when the adapters include `next`, `react` or `expo`,
    * and to `false` otherwise. The object form also wraps each table's select in
    * a function of the app's (`select`).
    */
-  readonly hooks?: DataHooksFramework | DataHooksConfig | false;
+  readonly hooks?: HooksFramework | DataHooksConfig | false;
+  /**
+   * Framework bindings of your own, built with `defineFramework` from
+   * `better-supabase/plugins`. `gen.hooks` takes a registered name, and `init`
+   * detects the framework from its `detect` packages.
+   */
+  readonly frameworks?: readonly FrameworkBinding[];
   /** Types for jsonb columns, keyed by `table.column`. */
   readonly json?: Readonly<Record<string, JsonTypeConfig>>;
   readonly codecs?: CodecsConfig;
@@ -142,7 +156,7 @@ export interface FlatConfig {
    * `auth.tenant` without its claim (that is `claims.tenant`): the organization
    * column and how the `memberships` extension resolves it.
    */
-  readonly organization?: Omit<TenantConfig, "claim">;
+  readonly tenant?: Omit<TenantConfig, "claim">;
   readonly claims?: ClaimsConfig;
   readonly buckets?: Readonly<Record<string, BucketConfig>>;
   /**
@@ -170,7 +184,7 @@ export interface FlatConfig {
    * module writes `subject_title`, `subject_url` and `can_subject` from it, and
    * `gen` types `SubjectType` from its keys.
    */
-  readonly subjects?: SubjectsConfig;
+  readonly recordTypes?: SubjectsConfig;
   /**
    * A named preset (`saas`, `crm`, ...), or a preset object: the conventions
    * that differ from the defaults and the blocks. It expands into `blocks`,
@@ -199,8 +213,6 @@ export interface FlatConfig {
    */
   readonly sql?: SqlConfig;
   readonly seed?: SeedConfig;
-  /** @deprecated Use `specs`; `openapi.entry` and `openapi.output` map onto it. */
-  readonly openapi?: OpenApiConfig;
   /**
    * The documents `better-supabase spec emit` writes (OpenAPI, AsyncAPI,
    * Arazzo).
@@ -214,7 +226,7 @@ export interface FlatConfig {
    * The integrations `init` and `add` wrote; `add` without a name sets up the
    * ones that have no files yet.
    */
-  readonly integrations?: readonly IntegrationName[];
+  readonly adapters?: readonly IntegrationName[];
   readonly skills?: SkillsConfig;
   readonly keys?: KeysConfig;
 }
@@ -230,8 +242,10 @@ export interface ResolvedConfig {
   /** `database.types.ts` next to `output`. */
   readonly databaseTypesOutput: string;
   readonly postgrestVersion: string;
-  readonly recordTypes: boolean;
-  readonly hooks: DataHooksFramework | false;
+  readonly records: boolean;
+  readonly hooks: HooksFramework | false;
+  /** Every registered binding: the built-in ones, then `frameworks`. */
+  readonly frameworks: readonly FrameworkBinding[];
   /** `gen.hooks.select`. */
   readonly hooksSelect?: DataHooksSelect;
   readonly json: Readonly<Record<string, JsonTypeConfig>>;
@@ -288,7 +302,6 @@ export interface ResolvedConfig {
   readonly appTables: AppTablesConfig;
   readonly sql: ResolvedSqlConfig;
   readonly seed: ResolvedSeedConfig;
-  readonly openapi: Required<OpenApiConfig>;
   readonly specs: {
     readonly entry: string;
     readonly outputs: readonly SpecOutputConfig[];
@@ -296,22 +309,16 @@ export interface ResolvedConfig {
     readonly manifest?: string;
   };
   readonly doctor: Required<
-    Omit<
-      DoctorConfig,
-      "claimsLimit" | "output" | "migrationSafety" | "baseline"
-    >
+    Omit<DoctorConfig, "claimsLimit" | "file" | "migrationSafety" | "baseline">
   > &
-    Pick<
-      DoctorConfig,
-      "claimsLimit" | "output" | "migrationSafety" | "baseline"
-    >;
+    Pick<DoctorConfig, "claimsLimit" | "file" | "migrationSafety" | "baseline">;
   /**
    * `tasks` stays unset without a list, so `gen` picks the steps the project
    * uses.
    */
   readonly gen: GenConfig;
-  readonly env: { readonly output: string; readonly prefix?: string };
-  readonly integrations: readonly IntegrationName[];
+  readonly env: { readonly file: string; readonly prefix?: string };
+  readonly adapters: readonly IntegrationName[];
   readonly skills: SkillsConfig;
   readonly keys: KeysConfig;
   /** The environment block the CLI applied, when one was active. */

@@ -60,7 +60,7 @@
               "enum": ["none", "api"],
               "type": "string"
             },
-            "integrations": {
+            "adapters": {
               "type": "array",
               "items": {
                 "enum": [
@@ -555,15 +555,6 @@
           }
         },
         "additionalProperties": false
-      }
-    },
-    "extraColumns": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": {
-          "type": "string"
-        }
       }
     },
     "positions": {

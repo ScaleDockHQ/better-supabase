@@ -11,7 +11,7 @@ import { blockNames } from "../../src/core/block-names.ts";
 const NAMES = {
   entities: [
     {
-      from: { singular: "work_item", plural: "work_items" },
+      from: { singular: "task", plural: "tasks" },
       to: { singular: "task", plural: "tasks" },
     },
     {
@@ -138,9 +138,7 @@ describe("renameBlock", () => {
     const ticket = { singular: "ticket", plural: "tickets" } as const;
 
     const tickets = renameBlock(tasksBlock, {
-      entities: [
-        { from: { singular: "work_item", plural: "work_items" }, to: ticket },
-      ],
+      entities: [{ from: { singular: "task", plural: "tasks" }, to: ticket }],
       events: [{ from: { singular: "task", plural: "tasks" }, to: ticket }],
     });
 
@@ -175,10 +173,10 @@ describe("renameBlock", () => {
     const block = defineBlock({
       name: "items",
       category: "work",
-      create: () => ({ listWorkItems: () => "listed" }),
+      create: () => ({ listTasks: () => "listed" }),
       provides: {
-        sink: (client: { readonly listWorkItems: () => string }) => {
-          client.listWorkItems();
+        sink: (client: { readonly listTasks: () => string }) => {
+          client.listTasks();
 
           return;
         },
@@ -199,7 +197,7 @@ describe("renameBlock", () => {
     const block = defineBlock({
       name: "items",
       category: "work",
-      invalidates: { "work_item.*": ["listWorkItems", "getWorkItem"] },
+      invalidates: { "task.*": ["listTasks", "getTask"] },
     });
 
     expect(renameBlock(block, NAMES).invalidates).toEqual({
@@ -214,16 +212,16 @@ describe("renameBlock", () => {
       name: "items",
       category: "work",
       create: () => ({
-        kind: { workItemId: "w0" },
-        fetchWorkItem: async (id: string) => ({ workItemId: id }),
-        onWorkItem: (callback: (item: { workItemId: string }) => unknown) =>
-          callback({ workItemId: "w1" }),
+        kind: { taskId: "w0" },
+        fetchTask: async (id: string) => ({ taskId: id }),
+        onTask: (callback: (item: { taskId: string }) => unknown) =>
+          callback({ taskId: "w1" }),
         watch: (handlers: {
-          readonly scope: { readonly workItemId: string };
-          readonly onWorkItem: (item: { workItemId: string }) => void;
+          readonly scope: { readonly taskId: string };
+          readonly onTask: (item: { taskId: string }) => void;
         }) => {
           seen.push(handlers.scope);
-          handlers.onWorkItem({ workItemId: "w2" });
+          handlers.onTask({ taskId: "w2" });
         },
       }),
     });
@@ -265,7 +263,7 @@ describe("renameBlock", () => {
       kind: { taskId: "w0" },
       fetched: { taskId: "w4" },
       callbackResult: { taskId: "w9" },
-      seen: [{ taskId: "w1" }, { workItemId: "w3" }, { taskId: "w2" }],
+      seen: [{ taskId: "w1" }, { taskId: "w3" }, { taskId: "w2" }],
     });
   });
 

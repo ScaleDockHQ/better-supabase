@@ -220,7 +220,7 @@ describe("testNoteTaker", () => {
     };
 
     await expect(
-      testNoteTaker(broken, { input: { engagement: {}, transcript: [] } }),
+      testNoteTaker(broken, { input: { activity: {}, transcript: [] } }),
     ).rejects.toBeInstanceOf(ConformanceError);
   });
 });

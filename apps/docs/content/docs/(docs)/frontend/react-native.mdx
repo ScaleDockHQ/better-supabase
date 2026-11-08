@@ -271,11 +271,11 @@ Hermes has no `Temporal`, and installing a polyfill on `globalThis` is a side
 effect most apps avoid. Pass the namespace to the definition instead:
 
 ```ts title="src/lib/supabase/index.ts"
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 import { Temporal } from "temporal-polyfill";
-import { schema } from "./generated";
+import { schema } from "./generated-schema";
 
-export const betterSupabase = defineSupabase(schema, { temporal: Temporal });
+export const betterSupabase = createSupabase(schema, { temporal: Temporal });
 ```
 
 With `codecs: { timestamptz: "instant" }`, rows then decode `timestamptz`

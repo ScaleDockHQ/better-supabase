@@ -1,4 +1,6 @@
 import "server-only";
+import type { Tasks } from "better-supabase/blocks/tasks";
+
 import { rpcTransport } from "better-supabase/blocks";
 import { createCommerce } from "better-supabase/blocks/commerce";
 import { createCrm } from "better-supabase/blocks/crm";
@@ -60,6 +62,21 @@ export function filespaceOf(db: AppDb, drive: ReturnType<typeof driveOf>) {
 }
 
 /**
+ * The composites call the tasks block under its default names, and this app
+ * names the entity `work_item`: `assign` takes the id as `workItemId`.
+ */
+function defaultTasks(tasks: AppDb["$blocks"]["tasks"]): Tasks {
+  // SAFETY: the composites call `create` and `assign` only; `assign` is
+  // translated, and every other method keeps its renamed input.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the renamed client's other inputs differ from the default `Tasks` (1 finding)
+  return {
+    ...tasks,
+    assign: (input: { taskId: string; userIds: readonly string[] }) =>
+      tasks.assign({ workItemId: input.taskId, userIds: input.userIds }),
+  } as unknown as Tasks;
+}
+
+/**
  * The `support` composite's helpers: `openTicket` and `escalate` over the
  * inbox, tasks, SLA and knowledge clients.
  */
@@ -70,7 +87,7 @@ export function supportOf(db: AppDb) {
     transport: rpcTransport(db.$client),
     parts: {
       inbox: blocks.inbox,
-      tasks: blocks.tasks,
+      tasks: defaultTasks(blocks.tasks),
       sla: blocks.sla,
       knowledge: blocks.knowledge,
     },
@@ -105,8 +122,8 @@ export function projectsOf(db: AppDb) {
   return createProjects({
     transport: rpcTransport(db.$client),
     parts: {
-      tasks: blocks.tasks,
-      "time-tracking": blocks.timeTracking,
+      tasks: defaultTasks(blocks.tasks),
+      "time-entries": blocks.timeEntries,
       "billable-time": blocks.billableTime,
       approvals: blocks.approvals,
       invoices: blocks.invoices,

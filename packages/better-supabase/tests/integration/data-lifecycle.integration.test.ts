@@ -314,7 +314,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       expect(memory.files.get(path)).not.toContain(created.secret);
 
       await s.rows(
-        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        "insert into better_supabase.organization_deletions (tenant_id, purge_at) values ($1, now() - interval '1 minute')",
         [organization],
       );
 
@@ -490,7 +490,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         `insert into public.bsb_test_teams values ($1);
          with p as (insert into public.bsb_test_projects (organization_id) values ($1) returning id)
          insert into public.bsb_test_tasks (organization_id, project_id) select $1, id from p;
-         insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute');`.replaceAll(
+         insert into better_supabase.organization_deletions (tenant_id, purge_at) values ($1, now() - interval '1 minute');`.replaceAll(
           "$1",
           `'${team}'`,
         ),
@@ -514,7 +514,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       ).toBe(0);
       expect(
         await s.value<string | null>(
-          "(select purged_at::text from better_supabase.organization_deletions where organization_id = $1)",
+          "(select purged_at::text from better_supabase.organization_deletions where tenant_id = $1)",
           [team],
         ),
       ).not.toBeNull();
@@ -712,7 +712,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       const events = async (): Promise<readonly string[]> =>
         (
           await s.rows<{ type: string }>(
-            "select type from better_supabase.outbox_events where type like 'organization.%' and organization_id = $1 order by position",
+            "select type from better_supabase.outbox_events where type like 'organization.%' and tenant_id = $1 order by position",
             [organization],
           )
         ).map((event) => event.type);
@@ -753,12 +753,12 @@ describe.skipIf(!live)("data lifecycle", () => {
         organization_id: string | null;
         payload: { organizationId: string };
       }>(
-        "select organization_id, payload from better_supabase.outbox_events where type = 'organization.purged' and payload ->> 'organizationId' = $1",
+        "select tenant_id, payload from better_supabase.outbox_events where type = 'organization.purged' and payload ->> 'organizationId' = $1",
         [organization],
       );
 
       expect(purgedEvent).toMatchObject({
-        organization_id: null,
+        tenant_id: null,
         payload: { organizationId: organization },
       });
       expect(
@@ -885,7 +885,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       const owner = await s.user("owner");
       const organization = await s.organization(owner);
       await s.rows(
-        `insert into better_supabase.organization_settings (organization_id, key, value)
+        `insert into better_supabase.organization_settings (tenant_id, key, value)
          values ($1, 'note', '"=1+1, \\"quoted\\""'::jsonb)`,
         [organization],
       );
@@ -915,7 +915,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       const csv = memory.files.get(settings!)!;
       const [header, row] = csv.split("\r\n");
       expect(header!.split(",")).toEqual(
-        expect.arrayContaining(["organization_id", "key", "value"]),
+        expect.arrayContaining(["tenant_id", "key", "value"]),
       );
       expect(row).toContain(`"'=1+1, ""quoted"""`);
     } finally {
@@ -973,7 +973,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       ).toBe("LEDGER_APPEND_ONLY");
 
       await s.rows(
-        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        "insert into better_supabase.organization_deletions (tenant_id, purge_at) values ($1, now() - interval '1 minute')",
         [organization],
       );
 
@@ -1063,7 +1063,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       ).toBe(false);
 
       await s.rows(
-        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        "insert into better_supabase.organization_deletions (tenant_id, purge_at) values ($1, now() - interval '1 minute')",
         [organization],
       );
 
@@ -1120,14 +1120,14 @@ describe.skipIf(!live)("data lifecycle", () => {
       });
 
       const [server] = await s.rows<{ id: string }>(
-        `insert into better_supabase.connector_servers (organization_id, name, url, auth_type, credential_ref)
+        `insert into better_supabase.connector_servers (tenant_id, name, url, auth_type, credential_ref)
          values ($1, 'Docs', 'https://mcp.test', 'header', $2), ($1, 'Wiki', 'https://wiki.test', 'header', $3)
          returning id`,
         [organization, serverRef, foreignRef],
       );
 
       await s.rows(
-        "insert into better_supabase.connector_grants (user_id, server_id, organization_id, credential_ref) values ($1, $2, $3, $4)",
+        "insert into better_supabase.connector_grants (user_id, server_id, tenant_id, credential_ref) values ($1, $2, $3, $4)",
         [owner.id, server!.id, organization, grantRef],
       );
 
@@ -1165,7 +1165,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         ]),
       ).toBe("ORGANIZATION_DELETION_NOT_DUE");
       await s.rows(
-        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        "insert into better_supabase.organization_deletions (tenant_id, purge_at) values ($1, now() - interval '1 minute')",
         [organization],
       );
 

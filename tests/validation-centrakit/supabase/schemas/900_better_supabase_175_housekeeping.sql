@@ -1,18 +1,15 @@
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:4118df764de64152fe40ea04a1ce2f0c1acd9d34a473e726db98269f4758c21b
+-- @bsb-hash sha256:b9ef27dac29807e1b591c644f23caff578f213d758424e39fbb9aa9abb5d28ea
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
 -- One row per job the dispatcher ran: when, with what result, and how often.
-create table if not exists "better_supabase"."maintenance_state" (
+create table "better_supabase"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
-  "last_status" text check ("last_status" in ('ok', 'error')),
+  "last_status" text constraint bsb_maintenance_state_last_status_check check ("last_status" in ('ok', 'error')),
   "last_result" jsonb,
   "last_error" text,
   "runs" bigint not null default 0
@@ -125,16 +122,3 @@ revoke execute on function better_supabase.maintenance_schedule(text) from publi
 grant execute on function better_supabase.maintenance_schedule(text) to service_role;
 revoke execute on function better_supabase.maintenance_scheduler() from public, anon, authenticated;
 grant execute on function better_supabase.maintenance_scheduler() to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

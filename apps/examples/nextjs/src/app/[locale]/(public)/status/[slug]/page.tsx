@@ -10,7 +10,9 @@ export default function StatusRoute({
 }: PageProps<"/[locale]/status/[slug]">) {
   return (
     <Suspense fallback={<StatusPageSkeleton />}>
-      <StatusPage params={params} />
+      {params.then(({ slug }) => (
+        <StatusPage slug={slug} />
+      ))}
     </Suspense>
   );
 }

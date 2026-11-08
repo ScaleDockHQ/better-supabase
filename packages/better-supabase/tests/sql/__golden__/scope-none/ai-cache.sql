@@ -1,18 +1,16 @@
 -- ==== schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:c4023ee50fe182a8c37f42964788e7581aeac12b5d2c703fb5962cf45ece4e3f
+-- @bsb-hash sha256:d64612c66f1886b7728dc15e55cc0301234db6af08b1ff4fb094271f49f9ce50
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Model responses cached by a key the application derives from the request
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
 create table if not exists "better_supabase"."ai_cache_entries" (
-  "key" text primary key check (length("key") between 1 and 256),
+  "key" text primary key check (length("key") >= 1 and length("key") <= 256),
   "organization_id" uuid,
   "kind" text not null default 'generate' check ("kind" in ('generate', 'stream', 'embed', 'other')),
   "model" text check (length("model") <= 200),
@@ -131,19 +129,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_ai_cache"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_ai_cache"(integer) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache

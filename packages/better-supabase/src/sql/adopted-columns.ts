@@ -5,6 +5,7 @@ import type { BlockSqlLayout } from "./module-types.ts";
 import { moduleContext } from "./module-context.ts";
 import { SQL_MODULES } from "./registry.ts";
 import { moduleBody } from "./render.ts";
+import { memoized } from "./result-memo.ts";
 import {
   declaredColumnTypes,
   declaredEnums,
@@ -41,13 +42,40 @@ const rendered = (render: () => string | undefined): string => {
   }
 };
 
+/** A map of sets as `[key, [member, ...]]` pairs, which a store can hold. */
+type WriteEntries = readonly (readonly [string, readonly string[]])[];
+
+const isWriteEntries = (value: unknown): value is WriteEntries =>
+  Array.isArray(value) &&
+  value.every(
+    (entry) =>
+      Array.isArray(entry) &&
+      typeof entry[0] === "string" &&
+      Array.isArray(entry[1]),
+  );
+
+const entriesOf = (
+  writes: ReadonlyMap<string, ReadonlySet<string>>,
+): WriteEntries => [...writes].map(([key, set]) => [key, [...set]] as const);
+
+const writesOf = (
+  entries: WriteEntries,
+): ReadonlyMap<string, ReadonlySet<string>> =>
+  new Map(entries.map(([key, members]) => [key, new Set(members)]));
+
 let defaults: ReadonlyMap<string, ReadonlySet<string>> | undefined;
 
 function defaultWrites(): ReadonlyMap<string, ReadonlySet<string>> {
-  defaults ??= computedWrites(
-    Object.values(SQL_MODULES)
-      .map((module) => rendered(() => module.sql))
-      .join("\n"),
+  defaults ??= writesOf(
+    memoized("default-writes", [], isWriteEntries, () =>
+      entriesOf(
+        computedWrites(
+          Object.values(SQL_MODULES)
+            .map((module) => rendered(() => module.sql))
+            .join("\n"),
+        ),
+      ),
+    ),
   );
 
   return defaults;
@@ -58,18 +86,28 @@ function configuredWrites(
   ownTables: Readonly<Record<string, string>> | undefined,
   subjects: BlockSqlLayout["subjects"],
 ): ReadonlyMap<string, ReadonlySet<string>> {
-  return computedWrites(
-    Object.keys(modules)
-      .map((name) =>
-        rendered(() =>
-          moduleBody(name, {
-            modules,
-            ...(ownTables === undefined ? {} : { ownTables }),
-            ...(subjects === undefined ? {} : { subjects }),
-          }),
+  return writesOf(
+    memoized(
+      "configured-writes",
+      [modules, ownTables, subjects],
+      isWriteEntries,
+      () =>
+        entriesOf(
+          computedWrites(
+            Object.keys(modules)
+              .map((name) =>
+                rendered(() =>
+                  moduleBody(name, {
+                    modules,
+                    ...(ownTables === undefined ? {} : { ownTables }),
+                    ...(subjects === undefined ? {} : { subjects }),
+                  }),
+                ),
+              )
+              .join("\n"),
+          ),
         ),
-      )
-      .join("\n"),
+    ),
   );
 }
 
@@ -78,15 +116,23 @@ const managedText = new Map<
   ReadonlyMap<string, readonly (readonly [string, boolean])[]>
 >();
 
-function managedTextColumns(
-  module: string,
-): ReadonlyMap<string, readonly (readonly [string, boolean])[]> {
-  const cached = managedText.get(module);
+type TextColumns = ReadonlyMap<string, readonly (readonly [string, boolean])[]>;
 
-  if (cached !== undefined) {
-    return cached;
-  }
+const isTextEntries = (
+  value: unknown,
+): value is readonly (readonly [
+  string,
+  readonly (readonly [string, boolean])[],
+])[] =>
+  Array.isArray(value) &&
+  value.every(
+    (entry) =>
+      Array.isArray(entry) &&
+      typeof entry[0] === "string" &&
+      Array.isArray(entry[1]),
+  );
 
+function computeManagedText(module: string): TextColumns {
   const definition = SQL_MODULES[module];
   const ctx = moduleContext(module, {});
   const tables = new Map<string, readonly (readonly [string, boolean])[]>();
@@ -121,6 +167,22 @@ function managedTextColumns(
       );
     }
   }
+
+  return tables;
+}
+
+function managedTextColumns(module: string): TextColumns {
+  const cached = managedText.get(module);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const tables = new Map(
+    memoized("managed-text", [module], isTextEntries, () => [
+      ...computeManagedText(module),
+    ]),
+  );
 
   managedText.set(module, tables);
 

@@ -1,46 +1,9 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:68e08d48fe77cf30446cf5a9a7d3358f42a7b5fcf044ebaa0de7d5884519c8bd
+-- @bsb-hash sha256:52e62b8f6ef74cf7f610dfdf4aef6ecef141abd7e2ae25457f22fbb10a3d17c2
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Before a node is deleted for good, its stored objects go into
 -- drive_node.purged for the app to remove through Storage; after, its
@@ -68,7 +31,6 @@ begin
   return old;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_purging" on "centrakit"."file_node";
 create trigger "bsb_drive_node_purging"
   before delete on "centrakit"."file_node"
   for each row execute function "better_supabase"."drive_node_purging"();
@@ -85,7 +47,6 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bsb_drive_node_purged" on "centrakit"."file_node";
 create trigger "bsb_drive_node_purged"
   after delete on "centrakit"."file_node"
   for each row execute function "better_supabase"."drive_node_purged"();
@@ -283,16 +244,3 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_changes"(uuid, text, integer, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_changes"(uuid, text, integer, uuid) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

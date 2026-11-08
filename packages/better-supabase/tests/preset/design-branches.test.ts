@@ -122,11 +122,10 @@ describe("design versions and non-object parts", () => {
     });
   });
 
-  it("rejects extra columns and positions that are not objects", () => {
-    expect(issueOf({ extraColumns: 5 }).path).toBe("/extraColumns");
+  it("rejects positions that are not objects and the removed extraColumns key", () => {
     expect(issueOf({ positions: 5 }).path).toBe("/positions");
-    expect(issueOf({ extraColumns: { nope: { a: "text" } } }).code).toBe(
-      "unknown_block",
+    expect(issueOf({ extraColumns: { tags: { a: "text" } } }).code).toBe(
+      "unknown_key",
     );
   });
 

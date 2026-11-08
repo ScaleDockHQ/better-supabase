@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -16,12 +16,10 @@ export type MeetingsSqlOptions = {
    */
   readonly calendar?: string;
   /** Extra columns on the meetings table. */
-  readonly extraColumns?: ExtraColumns;
 };
 
 export const meetingsSqlOptions: BlockOptionsSchema<MeetingsSqlOptions> =
   blockOptions<MeetingsSqlOptions>({
     kinds: option.strings(),
     calendar: option.string(),
-    extraColumns: option.extraColumns(),
   });

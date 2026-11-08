@@ -14,10 +14,9 @@ import {
 } from "../accounting-sources-sql.ts";
 import { ensureExclusion } from "../exclusion.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { tableMoves } from "../table-renames.ts";
 import { leaseAccountingSources } from "./leases-accounting.ts";
 import { LEASE_RESERVED, leasesFunctions } from "./leases-functions.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -60,7 +59,6 @@ const EVENTS: BlockSqlEvents<LeasesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("leases", 2),
   entities: {
     lease: {
       table: "leases",
@@ -73,7 +71,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["extraColumns", "noOverlap"],
+  options: ["noOverlap"],
   tables: {
     leases: {
       name: "leases",
@@ -135,7 +133,7 @@ function leaseOverlap(ctx: BlockSqlContext): string {
 
   return `\n${ensureExclusion(
     ctx.table("leases"),
-    ctx.naming.rename("leases_no_overlap"),
+    ctx.naming.rename("leases_no_overlap_excl"),
     [
       { expression: l("unit"), operator: "=" },
       {
@@ -199,7 +197,7 @@ create table if not exists ${leases} (
   ${l("createdAt")} timestamptz not null default now(),
   ${l("updatedAt")} timestamptz not null default now(),
   check (${l("endsOn")} is null or ${l("endsOn")} > ${l("startsOn")})
-);${addExtraColumns(leases, ctx.extraColumns("leases", LEASE_RESERVED))}
+);
 create index if not exists ${index("leases", "tenant_idx")} on ${leases} (${l("tenant")}, ${l("status")}, ${l("startsOn")} desc);
 create index if not exists ${index("leases", "unit_idx")} on ${leases} (${l("unit")});
 create index if not exists ${index("leases", "party_idx")} on ${leases} (${l("tenant")}, ${l("partyType")}, ${l("partyId")});

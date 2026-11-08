@@ -20,7 +20,7 @@ export interface PresetField<
   readonly key: K;
   readonly values: readonly V[];
   readonly default: V | readonly V[];
-  /** The field takes several values (`integrations`). */
+  /** The field takes several values (`adapters`). */
   readonly multi?: true;
   readonly label: string;
   readonly labels: { readonly [P in V]: PresetValueInfo };
@@ -36,7 +36,7 @@ export interface PresetConventions {
   readonly tenantName: PresetTenantName;
   readonly access: "roles" | "catalog" | "provider" | "custom";
   readonly api: "none" | "api";
-  readonly integrations: readonly IntegrationName[];
+  readonly adapters: readonly IntegrationName[];
 }
 
 /** A convention field's key. */
@@ -209,7 +209,7 @@ export const CONVENTION_FIELDS: readonly PresetField<PresetFieldKey>[] = [
     default: "none",
   }),
   field({
-    key: "integrations",
+    key: "adapters",
     label: "Integrations",
     values: ["next", "hono", "orpc", "edge", "expo", "mcp", "client", "react"],
     labels: {
@@ -297,13 +297,13 @@ export interface PresetInstance extends InstanceKeys {
    * by entity key: `{ person: { auditReads: true } }`. They land on
    * `blocks.<name>.entities.<entity>` next to its name.
    */
-  readonly subjects?: Readonly<Record<string, PresetSubjectSettings>>;
+  readonly subjects?: Readonly<Record<string, PresetSubjectOptions>>;
   readonly options?: Readonly<Record<string, unknown>>;
   readonly tables?: Readonly<Record<string, string | null>>;
 }
 
 /** `team` and `auditReads` for one subject a block registers. */
-export type PresetSubjectSettings = Pick<EntityConfig, "team" | "auditReads">;
+export type PresetSubjectOptions = Pick<EntityConfig, "team" | "auditReads">;
 
 /** Every convention at its default. */
 export const DEFAULT_CONVENTIONS: PresetConventions = {
@@ -315,5 +315,5 @@ export const DEFAULT_CONVENTIONS: PresetConventions = {
   tenantName: "organization",
   access: "roles",
   api: "none",
-  integrations: [],
+  adapters: [],
 };

@@ -12,7 +12,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN } from "../rank-sql.ts";
-import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import { lockTable, schemaPreamble } from "../shared.ts";
 import { caseCloseFunctions } from "./cases-close.ts";
 import { caseFunctions } from "./cases-functions.ts";
 import { caseReadFunctions } from "./cases-read.ts";
@@ -95,7 +95,7 @@ const NAMES: BlockSqlNames = {
     "before_case_close",
     "after_case_close",
   ],
-  options: ["severities", "sources", "kinds", "intakeKind", "extraColumns"],
+  options: ["severities", "sources", "kinds", "intakeKind"],
   tables: {
     kinds: {
       name: "case_kinds",
@@ -208,7 +208,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, q.read),
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const text = (column: string, max: number): string =>
@@ -279,7 +279,7 @@ create table if not exists ${cases} (
   unique (${c("tenant")}, ${c("number")}),
   unique (${c("tenant")}, ${c("id")}),
   foreign key (${c("tenant")}, ${c("kind")}) references ${kinds} (${k("tenant")}, ${k("id")}) on delete restrict
-);${addExtraColumns(cases, q.extras)}${appKey("cases", "tenant_number", `${c("tenant")}, ${c("number")}`)}${appKey("cases", "tenant_id", `${c("tenant")}, ${c("id")}`)}
+);${appKey("cases", "tenant_number", `${c("tenant")}, ${c("number")}`)}${appKey("cases", "tenant_id", `${c("tenant")}, ${c("id")}`)}
 create index if not exists ${name("cases", "status_idx")} on ${cases} (${c("tenant")}, ${c("status")});
 create index if not exists ${name("cases", "kind_stage_idx")} on ${cases} (${c("tenant")}, ${c("kind")}, ${c("stage")});
 create index if not exists ${name("cases", "board_idx")} on ${cases} (${c("pipeline")}, ${c("stage")}, ${c("rank")});

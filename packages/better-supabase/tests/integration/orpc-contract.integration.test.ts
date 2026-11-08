@@ -9,7 +9,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { OrpcRequestContext } from "../../src/orpc/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { parseEnv } from "../../src/env/index.ts";
 import { createOrpc } from "../../src/orpc/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
@@ -67,7 +67,7 @@ const contract = {
 describe.skipIf(!live)(
   "a contract-first oRPC router against the local stack",
   () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const env = parseEnv({
       SUPABASE_URL: url,

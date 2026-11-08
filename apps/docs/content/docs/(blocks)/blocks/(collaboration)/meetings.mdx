@@ -150,15 +150,14 @@ summary, and pages with `limit` and `offset`.
 
 ## Options
 
-| Option         | Default                                                               | Does                                                         |
-| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `kinds`        | `meeting`, `board`, `management_review`, `one_on_one`, `toolbox_talk` | The allowed kinds; lowercase letters, digits, `_`            |
-| `calendar`     | none                                                                  | The name of a calendar that mirrors planned meetings         |
-| `extraColumns` | none                                                                  | Columns the app adds to `meetings`, written through `fields` |
+| Option     | Default                                                               | Does                                                 |
+| ---------- | --------------------------------------------------------------------- | ---------------------------------------------------- |
+| `kinds`    | `meeting`, `board`, `management_review`, `one_on_one`, `toolbox_talk` | The allowed kinds; lowercase letters, digits, `_`    |
+| `calendar` | none                                                                  | The name of a calendar that mirrors planned meetings |
 
 ## Custom fields
 
-`blocks.meetings.options.extraColumns` adds columns to the `meetings` table,
+Columns you add to `meetings` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 for example a room code or a cost center. `create` and `update` take their
 values under `fields`, and every read returns them under `fields` next to the
 meeting. Pass a Standard Schema as `fields` to `createMeetings` to type and
@@ -194,7 +193,7 @@ goes on the linked tasks and documents.
 | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `meeting.created`, `meeting.updated`, `meeting.started`, `meeting.concluded`, `meeting.cancelled`, `meeting.deleted` | `organizationId`, `id`, `kind`, `title`, `status`      |
 | `meeting_decision.recorded`, `meeting_decision.decided`                                                              | `organizationId`, `id`, `meetingId`, `title`, `status` |
-| `meeting_action_item.created`                                                                                        | `organizationId`, `meetingId`, `workItemId`, `title`   |
+| `meeting_action_item.created`                                                                                        | `organizationId`, `meetingId`, `taskId`, `title`       |
 
 The hooks are `before_meeting_create`, `after_meeting_create`,
 `before_meeting_hold`, `after_meeting_hold` and `after_meeting_decision`.

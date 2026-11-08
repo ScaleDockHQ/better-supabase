@@ -110,8 +110,8 @@ select is(
 
 -- Unchanged: no write, no audit row.
 reset role;
-select set_config('bsb.audit', (select count(*)::text from better_supabase.audit_events), true);
-select set_config('bsb.updated', (select updated_at::text from public.customers where name = 'Alpha'), true);
+select set_config('better_supabase.audit', (select count(*)::text from better_supabase.audit_events), true);
+select set_config('better_supabase.updated', (select updated_at::text from public.customers where name = 'Alpha'), true);
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}', true);
 set local role authenticated;
 select set_config(
@@ -135,12 +135,12 @@ select is(
 reset role;
 select is(
   (select updated_at::text from public.customers where name = 'Alpha'),
-  current_setting('bsb.updated'),
+  current_setting('better_supabase.updated'),
   'an unchanged item does not touch the target'
 );
 select is(
   (select count(*)::text from better_supabase.audit_events),
-  current_setting('bsb.audit'),
+  current_setting('better_supabase.audit'),
   'an unchanged item writes no audit row'
 );
 
@@ -154,7 +154,7 @@ select is(
 );
 reset role;
 select isnt(
-  (select missing_since from better_supabase.import_records where external_key = 'c2' and source = 'erp'),
+  (select went_missing_at from better_supabase.import_records where external_key = 'c2' and source = 'erp'),
   null,
   'the missing record is marked'
 );
@@ -192,7 +192,7 @@ select better_supabase.import_upsert_batch(
   current_setting('bsb.run3')::uuid, 'customer', '[{"key":"c2","data":{"name":"Beta","kvk":"2"}}]'::jsonb
 );
 select is(
-  (select missing_since from better_supabase.import_records where external_key = 'c2' and source = 'erp'),
+  (select went_missing_at from better_supabase.import_records where external_key = 'c2' and source = 'erp'),
   null,
   'a run that sends a missing key clears its mark'
 );
@@ -200,7 +200,7 @@ select is(
 -- Conflict: a user changed the target after the last import.
 reset role;
 update better_supabase.import_records
-  set subject_updated_at_at_import = now() - interval '1 hour'
+  set subject_imported_updated_at = now() - interval '1 hour'
   where external_key = 'c1' and source = 'erp';
 set local role service_role;
 select is(

@@ -1,124 +1,49 @@
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:f4f36401a605935b115087fe3c6a221c7ddb44553afb4ade6d69840fd5e8773c
+-- @bsb-hash sha256:b2bfffe18c743915d51cc6375b2e51dcf7ad6d52dd6b350fe671e9fb24672f6a
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."job_openings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."job_openings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."job_openings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."job_openings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."job_openings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."applications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."applications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."applications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."applications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."applications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."application_scorecards";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."application_scorecards";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."application_scorecards";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."application_scorecards";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."application_scorecards";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."interviews";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."interviews";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."interviews";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."interviews";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."interviews";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Hiring: jobs, applications on a pipeline per job, scorecards per stage,
 -- interviews, and a hire event the app turns into an employee.
 
-create table if not exists "better_supabase"."job_openings" (
+create table "better_supabase"."job_openings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") between 1 and 200),
+  "title" text not null constraint bsb_job_openings_title_check check (length("title") >= 1 and length("title") <= 200),
   "team_id" uuid,
   "location" text,
   "employment_type" text,
   "description" text,
-  "hiring_manager_user_id" uuid,
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed')),
+  "hiring_manager_id" uuid,
+  "status" text not null default 'draft' constraint bsb_job_openings_status_check check ("status" in ('draft', 'open', 'closed')),
   "opened_at" timestamptz,
   "closed_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists jobs_tenant_status_idx on "better_supabase"."job_openings" ("tenant_id", "status");
+create index jobs_tenant_status_idx on "better_supabase"."job_openings" ("tenant_id", "status");
 alter table "better_supabase"."job_openings" enable row level security;
 revoke all on "better_supabase"."job_openings" from public, anon, authenticated;
 grant select on "better_supabase"."job_openings" to authenticated;
 grant all on "better_supabase"."job_openings" to service_role;
-drop policy if exists jobs_read on "better_supabase"."job_openings";
-create policy jobs_read on "better_supabase"."job_openings"
+create policy bsb_jobs_read on "better_supabase"."job_openings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
-create table if not exists "better_supabase"."applications" (
+create table "better_supabase"."applications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "job_id" uuid not null references "better_supabase"."job_openings" ("id") on delete cascade,
   "candidate_type" text not null,
   "candidate_id" text not null,
   "source" text,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
-  "state" text not null default 'active' check ("state" in ('active', 'hired', 'rejected', 'withdrawn')),
+  "state" text not null default 'active' constraint bsb_applications_state_check check ("state" in ('active', 'hired', 'rejected', 'withdrawn')),
   "rejection_reason" text,
   "hired_at" timestamptz,
   "rank" text collate "C" not null default 'V',
@@ -126,40 +51,38 @@ create table if not exists "better_supabase"."applications" (
   "updated_at" timestamptz not null default now(),
   unique ("job_id", "candidate_type", "candidate_id")
 );
-create index if not exists applications_board_idx on "better_supabase"."applications" ("pipeline_id", "stage_id", "rank");
-create index if not exists applications_candidate_idx on "better_supabase"."applications" ("candidate_type", "candidate_id");
+create index applications_board_idx on "better_supabase"."applications" ("pipeline_id", "stage_id", "rank");
+create index applications_candidate_idx on "better_supabase"."applications" ("candidate_type", "candidate_id");
 alter table "better_supabase"."applications" enable row level security;
 revoke all on "better_supabase"."applications" from public, anon, authenticated;
 grant select on "better_supabase"."applications" to authenticated;
 grant all on "better_supabase"."applications" to service_role;
-drop policy if exists applications_read on "better_supabase"."applications";
-create policy applications_read on "better_supabase"."applications"
+create policy bsb_applications_read on "better_supabase"."applications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
-create table if not exists "better_supabase"."application_scorecards" (
+create table "better_supabase"."application_scorecards" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "application_id" uuid not null references "better_supabase"."applications" ("id") on delete cascade,
   "stage_id" uuid,
-  "reviewer_user_id" uuid not null,
-  "rating" smallint not null check ("rating" between 1 and 4),
-  "recommendation" text not null check ("recommendation" in ('strong_no', 'no', 'yes', 'strong_yes')),
+  "reviewer_id" uuid not null,
+  "rating" smallint not null constraint bsb_application_scorecards_rating_check check ("rating" >= 1 and "rating" <= 4),
+  "recommendation" text not null constraint bsb_application_scorecards_recommendation_check check ("recommendation" in ('strong_no', 'no', 'yes', 'strong_yes')),
   "notes" text,
   "submitted_at" timestamptz not null default now(),
-  unique nulls not distinct ("application_id", "stage_id", "reviewer_user_id")
+  unique nulls not distinct ("application_id", "stage_id", "reviewer_id")
 );
-create index if not exists application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_user_id");
+create index application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_id");
 alter table "better_supabase"."application_scorecards" enable row level security;
 revoke all on "better_supabase"."application_scorecards" from public, anon, authenticated;
 grant select on "better_supabase"."application_scorecards" to authenticated;
 grant all on "better_supabase"."application_scorecards" to service_role;
-drop policy if exists application_scorecards_read on "better_supabase"."application_scorecards";
-create policy application_scorecards_read on "better_supabase"."application_scorecards"
+create policy bsb_application_scorecards_read on "better_supabase"."application_scorecards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
-create table if not exists "better_supabase"."interviews" (
+create table "better_supabase"."interviews" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "application_id" uuid not null references "better_supabase"."applications" ("id") on delete cascade,
@@ -170,15 +93,14 @@ create table if not exists "better_supabase"."interviews" (
   "interviewer_user_ids" uuid[] not null default '{}',
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_at" > "starts_at")
+  constraint bsb_interviews_check check ("ends_at" > "starts_at")
 );
-create index if not exists interviews_application_idx on "better_supabase"."interviews" ("application_id", "starts_at");
+create index interviews_application_idx on "better_supabase"."interviews" ("application_id", "starts_at");
 alter table "better_supabase"."interviews" enable row level security;
 revoke all on "better_supabase"."interviews" from public, anon, authenticated;
 grant select on "better_supabase"."interviews" to authenticated;
 grant all on "better_supabase"."interviews" to service_role;
-drop policy if exists interviews_read on "better_supabase"."interviews";
-create policy interviews_read on "better_supabase"."interviews"
+create policy bsb_interviews_read on "better_supabase"."interviews"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')) or (select auth.uid()) = any ("interviewer_user_ids"));
 
@@ -210,7 +132,6 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_application_guard() from public, anon, authenticated;
-drop trigger if exists bsb_application_guard on "better_supabase"."applications";
 create trigger bsb_application_guard before update of "state" on "better_supabase"."applications"
 for each row execute function better_supabase.bsb_application_guard();
 
@@ -242,7 +163,7 @@ begin
   end if;
   begin
     if save_job.job is null then
-      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
+      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
         coalesce(save_job.attrs ->> 'status', 'draft'))
@@ -254,7 +175,7 @@ begin
         "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
         "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
         "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_user_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_user_id" end,
+        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
         "status" = coalesce(save_job.attrs ->> 'status', x."status"),
         "updated_at" = now()
       where x."id" = save_job.job
@@ -280,7 +201,7 @@ grant execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) to aut
 
 -- An application of a candidate (a record in config.subjects, a person by
 -- default) to an open job. Applying again returns the same application.
-drop function if exists "better_supabase"."apply_to_job"(uuid, jsonb, text, uuid, jsonb);
+
 create or replace function "better_supabase"."apply_to_job"(job uuid, candidate jsonb, source text, owner uuid)
 returns jsonb
 language plpgsql
@@ -371,7 +292,7 @@ begin
   if v_row."id" is not null then
     return to_jsonb(v_row);
   end if;
-  insert into "better_supabase"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_user_id")
+  insert into "better_supabase"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_id")
   values (v_job."tenant_id", v_job."id", v_type, v_id, nullif(trim(apply_to_job.source), ''), coalesce(apply_to_job.owner, auth.uid()))
   returning * into v_row;
   perform "better_supabase".emit_event('application.created', jsonb_build_object('organizationId', v_row."tenant_id", 'applicationId', v_row."id", 'subjectType', 'application', 'subjectId', v_row."id"::text, 'jobId', v_row."job_id", 'candidateType', v_row."candidate_type", 'candidateId', v_row."candidate_id"), 'applications/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/hiring');
@@ -480,16 +401,16 @@ begin
     raise exception 'no such application you can review' using errcode = 'P0002', hint = 'HIRING_APPLICATION_NOT_FOUND';
   end if;
   begin
-    insert into "better_supabase"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_user_id", "rating", "recommendation", "notes")
+    insert into "better_supabase"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_id", "rating", "recommendation", "notes")
     values (v_row."tenant_id", v_row."id", v_row."stage_id", auth.uid(), submit_scorecard.rating, submit_scorecard.recommendation, submit_scorecard.notes)
-    on conflict ("application_id", "stage_id", "reviewer_user_id") do update set
+    on conflict ("application_id", "stage_id", "reviewer_id") do update set
       "rating" = excluded."rating", "recommendation" = excluded."recommendation",
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
     raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end;
-  perform "better_supabase".emit_event('scorecard.submitted', jsonb_build_object('organizationId', v_row."tenant_id", 'applicationId', v_row."id", 'subjectType', 'application', 'subjectId', v_row."id"::text, 'jobId', v_row."job_id", 'candidateType', v_row."candidate_type", 'candidateId', v_row."candidate_id", 'reviewerId', v_card."reviewer_user_id", 'recommendation', v_card."recommendation"), 'applications/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/hiring');
+  perform "better_supabase".emit_event('scorecard.submitted', jsonb_build_object('organizationId', v_row."tenant_id", 'applicationId', v_row."id", 'subjectType', 'application', 'subjectId', v_row."id"::text, 'jobId', v_row."job_id", 'candidateType', v_row."candidate_type", 'candidateId', v_row."candidate_id", 'reviewerId', v_card."reviewer_id", 'recommendation', v_card."recommendation"), 'applications/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/hiring');
   return to_jsonb(v_card);
 end;
 $$;
@@ -584,136 +505,79 @@ grant execute on function "better_supabase"."list_applications"(uuid, text) to a
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."job_openings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."job_openings";
 create policy bsb_tenant_scope_select on "better_supabase"."job_openings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."job_openings";
 create policy bsb_tenant_scope_insert on "better_supabase"."job_openings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."job_openings";
 create policy bsb_tenant_scope_update on "better_supabase"."job_openings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."job_openings";
 create policy bsb_tenant_scope_delete on "better_supabase"."job_openings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."applications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."applications";
 create policy bsb_tenant_scope_select on "better_supabase"."applications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."applications";
 create policy bsb_tenant_scope_insert on "better_supabase"."applications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."applications";
 create policy bsb_tenant_scope_update on "better_supabase"."applications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."applications";
 create policy bsb_tenant_scope_delete on "better_supabase"."applications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."application_scorecards";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."application_scorecards";
 create policy bsb_tenant_scope_select on "better_supabase"."application_scorecards" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."application_scorecards";
 create policy bsb_tenant_scope_insert on "better_supabase"."application_scorecards" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."application_scorecards";
 create policy bsb_tenant_scope_update on "better_supabase"."application_scorecards" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."application_scorecards";
 create policy bsb_tenant_scope_delete on "better_supabase"."application_scorecards" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."interviews";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."interviews";
 create policy bsb_tenant_scope_select on "better_supabase"."interviews" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')) or (select auth.uid()) = any ("interviewer_user_ids"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."interviews";
 create policy bsb_tenant_scope_insert on "better_supabase"."interviews" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."interviews";
 create policy bsb_tenant_scope_update on "better_supabase"."interviews" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."interviews";
 create policy bsb_tenant_scope_delete on "better_supabase"."interviews" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.job_openings', target_type => 'job_opening', event_prefix => 'job_opening', deferred => true);
-  perform better_supabase.audit('better_supabase.applications', target_type => 'application', event_prefix => 'application', deferred => true);
-  perform better_supabase.audit('better_supabase.interviews', target_type => 'interview', event_prefix => 'interview', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.job_openings deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"job_opening","event_prefix":"job_opening"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.applications deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"application","event_prefix":"application"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.interviews deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"interview","event_prefix":"interview"}');
 
 -- blocks.hiring.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."apply_to_job"(uuid, jsonb, text, uuid, jsonb);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."save_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
@@ -789,16 +653,3 @@ set search_path = ''
 as $$ select "better_supabase"."list_applications"($1, $2) $$;
 revoke execute on function "api"."list_applications"(uuid, text) from public, anon;
 grant execute on function "api"."list_applications"(uuid, text) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

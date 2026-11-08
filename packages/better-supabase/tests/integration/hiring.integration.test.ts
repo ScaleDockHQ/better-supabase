@@ -175,7 +175,7 @@ describe.skipIf(!live)("hiring", () => {
       expect(hired.hiredAt).toBeDefined();
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and (type like 'application.%' or type like 'job_opening.%' or type like 'scorecard.%' or type like 'interview.%') order by created_at",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and (type like 'application.%' or type like 'job_opening.%' or type like 'scorecard.%' or type like 'interview.%') order by created_at",
         [org],
       );
 

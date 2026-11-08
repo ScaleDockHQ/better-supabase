@@ -11,7 +11,7 @@ import { createdByExtension } from "../../src/blocks/created-by/index.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { allTenantsContext } from "../../src/core/plugin.ts";
 import { validation } from "../../src/core/validation.ts";
 import { defineSchema } from "../../src/schema/define.ts";
@@ -23,7 +23,7 @@ const NOW = Temporal.Instant.from("2026-09-24T10:00:00Z");
 const ORG = "00000000-0000-4000-8000-000000000001";
 const USER = "00000000-0000-4000-8000-0000000000aa";
 
-const base = defineSupabase(schema, { now: () => NOW });
+const base = createSupabase(schema, { now: () => NOW });
 
 describe("timestamps", () => {
   const betterSupabase = base.use(updatedAtExtension());
@@ -90,7 +90,7 @@ describe("timestamps", () => {
       body: [{ id: "c" }],
     }));
 
-    const clockless = defineSupabase(schema, {
+    const clockless = createSupabase(schema, {
       now: () => {
         throw new TypeError("Temporal is not available");
       },
@@ -200,7 +200,7 @@ describe("softDelete", () => {
       headers: { "content-range": "*/1" },
     }));
 
-    const clockless = defineSupabase(schema, {
+    const clockless = createSupabase(schema, {
       now: () => {
         throw new TypeError("Temporal is not available");
       },
@@ -499,7 +499,7 @@ describe("actor", () => {
   it("stamps impersonatedBy from the impersonator, and leaves it alone otherwise", async () => {
     const customers = schema.meta.tables["customers"]!;
 
-    const impersonation = defineSupabase(
+    const impersonation = createSupabase(
       defineSchema<Models, Database, Functions>({
         ...schema.meta,
         tables: {
@@ -670,7 +670,7 @@ describe("validation", () => {
       body: [{ id: "c" }],
     }));
 
-    const result = await defineSupabase(withCodec as typeof schema)
+    const result = await createSupabase(withCodec as typeof schema)
       .use(validation({ schemas: { customers: { insert } } }))
       .connect(client)
       .customers.create(

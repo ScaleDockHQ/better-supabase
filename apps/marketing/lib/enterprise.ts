@@ -3,7 +3,7 @@ import type { Feature } from "./home";
 export const pillars: readonly Feature[] = [
   {
     title: "RLS stays in charge",
-    body: "defineSupabase holds no secrets. Every request connects with the caller’s client, so Postgres policies decide what each user sees.",
+    body: "createSupabase holds no secrets. Every request connects with the caller’s client, so Postgres policies decide what each user sees.",
     href: "/docs/auth",
   },
   {

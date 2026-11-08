@@ -3,7 +3,7 @@ import { ImmutableRequest } from "expo-server/private";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { writeSession } from "../../src/auth/session.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError, DbException } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { createExpo } from "../../src/expo/index.ts";
@@ -72,7 +72,7 @@ describe("createExpo", () => {
     }),
   );
 
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const bsb = createExpo(betterSupabase, {
     env,
@@ -312,7 +312,7 @@ describe("createExpo", () => {
 describe("createExpo bootstrap, getAccess and cached", () => {
   const seed = vi.fn<(userId: string, version: number) => void>();
 
-  const bsb = createExpo(defineSupabase(schema), {
+  const bsb = createExpo(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     versions: {

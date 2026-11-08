@@ -220,9 +220,6 @@ export function accessProviderMode(
       ...(provider.memberships && provider.memberships.length > 0
         ? { memberships: provider.memberships }
         : {}),
-      ...(provider.approvals?.distinctApprover === true
-        ? { approvals: { distinctApprover: true } }
-        : {}),
       ...(provider.operations && Object.keys(provider.operations).length > 0
         ? { operations: provider.operations }
         : {}),
@@ -231,6 +228,9 @@ export function accessProviderMode(
         ? { ownsPermissions: true }
         : {}),
       ...(truncatedClaim === undefined ? {} : { truncatedClaim }),
+      ...(provider.wildcards === undefined
+        ? {}
+        : { wildcards: provider.wildcards }),
     },
   };
 }

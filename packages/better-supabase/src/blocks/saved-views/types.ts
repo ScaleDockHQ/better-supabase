@@ -110,6 +110,9 @@ export interface SavedView<
   readonly isDefault: boolean;
   /** The caller's own flags; all false without the preferences table. */
   readonly preference: SavedViewPreference;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
 }

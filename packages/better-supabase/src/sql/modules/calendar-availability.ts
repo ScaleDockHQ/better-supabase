@@ -445,7 +445,7 @@ function autoDecline(ctx: BlockSqlContext): string {
   const block = ctx.fn("calendar_block_auto_decline");
 
   const inviteTrigger = sqlIdent(
-    `${ctx.tableName("attendees").name}_auto_decline`,
+    `bsb_${ctx.tableName("attendees").name}_auto_decline`,
   );
 
   const features = calendarFeatures(ctx);
@@ -490,8 +490,8 @@ begin
 end;
 $$;
 ${triggerGrant(`${block}()`)}
-drop trigger if exists ${sqlIdent(`${ctx.tableName("events").name}_auto_decline`)} on ${events};
-create trigger ${sqlIdent(`${ctx.tableName("events").name}_auto_decline`)}
+drop trigger if exists ${sqlIdent(`bsb_${ctx.tableName("events").name}_auto_decline`)} on ${events};
+create trigger ${sqlIdent(`bsb_${ctx.tableName("events").name}_auto_decline`)}
 after insert or update of ${e("startsAt")}, ${e("endsAt")}, ${e("kind")}, ${e("autoDecline")}, ${e("status")} on ${events}
 for each row
 when (${ctx.is("events", "kind", `new.${e("kind")}`, ["event"], true)} and new.${e("autoDecline")} and ${ctx.is("events", "status", `new.${e("status")}`, ["cancelled"], true)}${features.table ? "" : ` and ${recurrence.single("new.")}`})
@@ -555,7 +555,7 @@ export function workingHoursTable(ctx: BlockSqlContext): string {
   unique (${h("tenant")}, ${h("user")}, ${h("weekday")}, ${h("startsAt")})
 );
 ${lockTable(hours, { read: true })}
-${renderPolicy(makePolicy({ table: hours, name: `${name}_read`, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), read)} or ${h("user")} = (select auth.uid())` }), { drop: true, target: hours })}
+${renderPolicy(makePolicy({ table: hours, name: `${name}_read`, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), read)} or ${h("user")} = (select auth.uid())` }), { target: hours })}
 `;
 }
 

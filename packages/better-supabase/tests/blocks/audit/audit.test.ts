@@ -9,7 +9,7 @@ import {
   setAuditRetention,
   toOcsf,
 } from "../../../src/blocks/audit/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { SPEC_PINS } from "../../../src/core/spec-pins.ts";
 import { defineSchema } from "../../../src/schema/define.ts";
 import { fakeSql, pgError } from "../../fixtures/fake-sql.ts";
@@ -81,12 +81,12 @@ describe("setAuditRetention", () => {
     const plain = setAuditRetention(fake.sql, {
       table: "plans",
       column: "days",
-      key: "organization_id",
+      key: "tenant_id",
     });
 
     await plain("a");
     expect(fake.calls.at(-1)?.text).toContain(
-      'from "public"."plans" where "organization_id"',
+      'from "public"."plans" where "tenant_id"',
     );
   });
 
@@ -143,7 +143,7 @@ const ROWS = [
     changed: ["stage"],
     actor_id: "u1",
     actor_role: "authenticated",
-    organization_id: "o1",
+    tenant_id: "o1",
     event_type: null,
     category: null,
     outcome: null,
@@ -160,7 +160,7 @@ const ROWS = [
     changed: null,
     actor_id: "u1",
     actor_role: null,
-    organization_id: "o1",
+    tenant_id: "o1",
     event_type: "api_key.revoked",
     category: "security",
     outcome: "success",
@@ -177,7 +177,7 @@ const ROWS = [
     changed: null,
     actor_id: null,
     actor_role: null,
-    organization_id: "o1",
+    tenant_id: "o1",
     event_type: "sso.enforced",
     category: null,
     outcome: "denied",
@@ -299,7 +299,7 @@ describe("auditListQuery", () => {
     hasDefault: false,
   });
 
-  const betterSupabase = defineSupabase(
+  const betterSupabase = createSupabase(
     defineSchema<AnyModels>({
       version: 1,
       casing: "camel",

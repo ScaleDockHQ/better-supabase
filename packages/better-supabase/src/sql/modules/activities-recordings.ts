@@ -11,7 +11,7 @@ import {
 } from "../shared.ts";
 
 /** The queue `attach_activity_recording` enqueues a transcription job on. */
-const TRANSCRIBE_QUEUE = "engagements.transcribe";
+const TRANSCRIBE_QUEUE = "activities.transcribe";
 
 /** The most segments one transcript keeps. */
 const MAX_SEGMENTS = 20_000;
@@ -19,7 +19,7 @@ const MAX_SEGMENTS = 20_000;
 /** The tables `options.recordings` adds, for the module's names. */
 export const RECORDING_TABLES = {
   recordings: {
-    name: "engagement_recordings",
+    name: "activity_recordings",
     app: {},
     optional: [
       "language",
@@ -33,7 +33,7 @@ export const RECORDING_TABLES = {
     columns: {
       id: "id",
       tenant: "tenant_id",
-      engagement: "activity_id",
+      activity: "activity_id",
       file: "file_id",
       filename: "filename",
       mediaType: "media_type",
@@ -48,7 +48,7 @@ export const RECORDING_TABLES = {
     },
   },
   segments: {
-    name: "engagement_transcript_segments",
+    name: "activity_transcript_segments",
     app: {},
     optional: ["speaker", "speakerUser", "confidence"],
     columns: {
@@ -56,7 +56,7 @@ export const RECORDING_TABLES = {
       tenant: "tenant_id",
       position: "position",
       speaker: "speaker",
-      speakerUser: "speaker_user_id",
+      speakerUser: "speaker_id",
       startsMs: "starts_ms",
       endsMs: "ends_ms",
       text: "text",
@@ -64,12 +64,12 @@ export const RECORDING_TABLES = {
     },
   },
   notes: {
-    name: "engagement_notes",
+    name: "activity_notes",
     app: {},
     optional: ["model", "createdBy", "createdAt", "updatedAt"],
     typed: ["source"],
     columns: {
-      engagement: "activity_id",
+      activity: "activity_id",
       tenant: "tenant_id",
       summary: "summary",
       model: "model",
@@ -86,7 +86,7 @@ export const RECORDING_TABLES = {
     columns: {
       id: "id",
       tenant: "tenant_id",
-      engagement: "activity_id",
+      activity: "activity_id",
       task: "task_id",
       createdAt: "created_at",
     },
@@ -100,14 +100,14 @@ export const recordingsOn = (ctx: BlockSqlContext): boolean =>
 
 /**
  * Recordings and transcripts of calls and meetings, stored as ai-files files,
- * and notes an AI or a member writes about an engagement.
+ * and notes an AI or a member writes about an activity.
  */
 export function recordingsSql(
   ctx: BlockSqlContext,
   helpers: {
-    /** Whether the caller can edit the engagement row `alias`. */
+    /** Whether the caller can edit the activity row `alias`. */
     readonly editable: (alias: string) => string;
-    /** The `ctx.record` statement for an event on engagement `id`. */
+    /** The `ctx.record` statement for an event on activity `id`. */
     readonly record: (
       event: string,
       id: string,
@@ -116,11 +116,11 @@ export function recordingsSql(
       extra?: string,
       key?: string,
     ) => string;
-    /** Reads the subjects of engagement `id` into `v_subjects` and `v_first`. */
+    /** Reads the subjects of activity `id` into `v_subjects` and `v_first`. */
     readonly loadSubjects: (id: string) => string;
-    /** The permission key that edits any engagement, as a SQL literal. */
+    /** The permission key that edits any activity, as a SQL literal. */
     readonly manage: string;
-    /** An engagement row `alias` as the module's reads return it. */
+    /** An activity row `alias` as the module's reads return it. */
     readonly row: (alias: string) => string;
   },
 ): string {
@@ -135,7 +135,7 @@ export function recordingsSql(
   const fileTable = files.table("files");
   const fn = (name: string): string => ctx.fn(name);
   const t = (table: string): string => ctx.table(table);
-  const e = (column: string): string => ctx.col("engagements", column);
+  const e = (column: string): string => ctx.col("activities", column);
   const r = (column: string): string => ctx.col("recordings", column);
   const s = (column: string): string => ctx.col("segments", column);
   const n = (column: string): string => ctx.col("notes", column);
@@ -165,7 +165,7 @@ export function recordingsSql(
   const attached = (
     [
       ["tenant", "v_tenant"],
-      ["engagement", "attach_activity_recording.engagement"],
+      ["activity", "attach_activity_recording.activity"],
       ["file", `fx.${f("id")}`],
       ["filename", `fx.${f("filename")}`],
       ["mediaType", `fx.${f("mediaType")}`],
@@ -190,7 +190,7 @@ export function recordingsSql(
 
   const noted = (
     [
-      ["engagement", "save_activity_notes.engagement"],
+      ["activity", "save_activity_notes.activity"],
       ["tenant", "v_tenant"],
       ["summary", "v_summary"],
       ["model", "nullif(save_activity_notes.notes ->> 'model', '')"],
@@ -207,7 +207,7 @@ export function recordingsSql(
   ).filter(([column]) => ctx.has("notes", column));
 
   const recordingJson = (alias: string): string =>
-    `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'engagementId', ${alias}.${r("engagement")}, 'fileId', ${alias}.${r("file")}, 'filename', ${alias}.${r("filename")}, 'mediaType', ${alias}.${r("mediaType")}, 'status', ${alias}.${r("status")}, 'language', ${field("recordings", alias, "language")}, 'durationSeconds', ${field("recordings", alias, "durationSeconds")}, 'error', ${field("recordings", alias, "error")}, 'model', ${field("recordings", alias, "model")}, 'segmentCount', (select count(*)::integer from ${t("segments")} sc where sc.${s("recording")} = ${alias}.${r("id")}), 'createdBy', ${field("recordings", alias, "createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'transcribedAt', ${field("recordings", alias, "transcribedAt")})`;
+    `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'activityId', ${alias}.${r("activity")}, 'fileId', ${alias}.${r("file")}, 'filename', ${alias}.${r("filename")}, 'mediaType', ${alias}.${r("mediaType")}, 'status', ${alias}.${r("status")}, 'language', ${field("recordings", alias, "language")}, 'durationSeconds', ${field("recordings", alias, "durationSeconds")}, 'error', ${field("recordings", alias, "error")}, 'model', ${field("recordings", alias, "model")}, 'segmentCount', (select count(*)::integer from ${t("segments")} sc where sc.${s("recording")} = ${alias}.${r("id")}), 'createdBy', ${field("recordings", alias, "createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'transcribedAt', ${field("recordings", alias, "transcribedAt")})`;
 
   const oneRecording = (id: string): string =>
     `(select ${recordingJson("rx")} from ${t("recordings")} rx where rx.${r("id")} = ${id})`;
@@ -222,7 +222,7 @@ export function recordingsSql(
   // The task ids behind a note's action items; empty without the tasks block.
   const taskIds = (alias: string): string =>
     withTasks
-      ? `coalesce((select jsonb_agg(ax.${a("task")} order by ax.${a("createdAt")}, ax.${a("id")}) from ${t("actions")} ax where ax.${a("engagement")} = ${alias}.${n("engagement")}), '[]'::jsonb)`
+      ? `coalesce((select jsonb_agg(ax.${a("task")} order by ax.${a("createdAt")}, ax.${a("id")}) from ${t("actions")} ax where ax.${a("activity")} = ${alias}.${n("activity")}), '[]'::jsonb)`
       : "'[]'::jsonb";
 
   // One task per action item, as the caller; an item whose title a linked task
@@ -235,51 +235,51 @@ export function recordingsSql(
       : `for v_item in select i.value from jsonb_array_elements(v_items) i loop
     if not exists (
       select 1 from ${t("actions")} ax join ${tasks.table("items")} k on k.${tasks.col("items", "id")} = ax.${a("task")}
-      where ax.${a("engagement")} = save_activity_notes.engagement and k.${tasks.col("items", "title")} = left(btrim(v_item ->> 'text'), 500)
+      where ax.${a("activity")} = save_activity_notes.activity and k.${tasks.col("items", "title")} = left(btrim(v_item ->> 'text'), 500)
     ) then
       v_task := (${tasks.fn("create_task")}(
         v_tenant,
         jsonb_strip_nulls(jsonb_build_object('title', left(btrim(v_item ->> 'text'), 500), 'dueAt', v_item ->> 'dueAt')),
         case when nullif(v_item ->> 'ownerId', '') is null then '{}'::uuid[] else array[(v_item ->> 'ownerId')::uuid] end
       ) ->> 'id')::uuid;
-      insert into ${t("actions")} (${a("tenant")}, ${a("engagement")}, ${a("task")})
-      values (v_tenant, save_activity_notes.engagement, v_task);
+      insert into ${t("actions")} (${a("tenant")}, ${a("activity")}, ${a("task")})
+      values (v_tenant, save_activity_notes.activity, v_task);
     end if;
   end loop;`;
 
   const notesJson = (alias: string): string =>
-    `jsonb_build_object('engagementId', ${alias}.${n("engagement")}, 'organizationId', ${alias}.${n("tenant")}, 'summary', ${alias}.${n("summary")}, 'actionTaskIds', ${taskIds(alias)}, 'model', ${field("notes", alias, "model")}, 'source', ${alias}.${n("source")}, 'createdBy', ${field("notes", alias, "createdBy")}, 'createdAt', ${field("notes", alias, "createdAt")}, 'updatedAt', ${field("notes", alias, "updatedAt")})`;
+    `jsonb_build_object('activityId', ${alias}.${n("activity")}, 'organizationId', ${alias}.${n("tenant")}, 'summary', ${alias}.${n("summary")}, 'actionTaskIds', ${taskIds(alias)}, 'model', ${field("notes", alias, "model")}, 'source', ${alias}.${n("source")}, 'createdBy', ${field("notes", alias, "createdBy")}, 'createdAt', ${field("notes", alias, "createdAt")}, 'updatedAt', ${field("notes", alias, "updatedAt")})`;
 
-  const engagementVisible = (column: string): string =>
-    `exists (select 1 from ${t("engagements")} ex where ex.${e("id")} = ${column})`;
+  const activityVisible = (column: string): string =>
+    `exists (select 1 from ${t("activities")} ex where ex.${e("id")} = ${column})`;
 
   const recordingPayload = (recording: string): string =>
     `'recordingId', ${recording}`;
 
   const enqueue = ctx.installed("queue")
     ? `
-  ${ctx.enqueue(TRANSCRIBE_QUEUE, "jsonb_build_object('recordingId', v_recording)", "'engagements.transcribe:' || v_recording::text")}`
+  ${ctx.enqueue(TRANSCRIBE_QUEUE, "jsonb_build_object('recordingId', v_recording)", "'activities.transcribe:' || v_recording::text")}`
     : "";
 
   const tables = ctx.manages
     ? `
--- Recordings of calls and meetings: an ai-files file on an engagement,
+-- Recordings of calls and meetings: an ai-files file on an activity,
 -- waiting for its transcript until a transcriber saves one.
 create table if not exists ${t("recordings")} (
   ${r("id")} uuid primary key default gen_random_uuid(),
   ${r("tenant")} ${ctx.idType} not null,
-  ${r("engagement")} uuid not null references ${t("engagements")} (${e("id")}) on delete cascade,
+  ${r("activity")} uuid not null references ${t("activities")} (${e("id")}) on delete cascade,
   ${r("file")} uuid not null references ${fileTable} (${f("id")}) on delete cascade,
   ${r("filename")} text not null,
   ${r("mediaType")} text not null,
   ${r("status")} text not null default 'pending' check (${r("status")} in ('pending', 'transcribed', 'failed')),${optional("recordings", "language", (x) => `${x} text`)}${optional("recordings", "durationSeconds", (x) => `${x} integer check (${x} >= 0)`)}${optional("recordings", "error", (x) => `${x} text`)}${optional("recordings", "model", (x) => `${x} text`)}${optional("recordings", "createdBy", (x) => `${x} uuid`)}
   ${r("createdAt")} timestamptz not null default now(),${optional("recordings", "transcribedAt", (x) => `${x} timestamptz`)}
-  unique (${r("engagement")}, ${r("file")})
-);${key("recordings", "file_key", `${r("engagement")}, ${r("file")}`)}
-create index if not exists ${ctx.naming.rename("engagement_recordings_file_idx")} on ${t("recordings")} (${r("file")});
-create index if not exists ${ctx.naming.rename("engagement_recordings_pending_idx")} on ${t("recordings")} (${r("createdAt")}) where ${r("status")} = 'pending';
+  unique (${r("activity")}, ${r("file")})
+);${key("recordings", "file_key", `${r("activity")}, ${r("file")}`)}
+create index if not exists ${ctx.naming.rename("activity_recordings_file_idx")} on ${t("recordings")} (${r("file")});
+create index if not exists ${ctx.naming.rename("activity_recordings_pending_idx")} on ${t("recordings")} (${r("createdAt")}) where ${r("status")} = 'pending';
 ${lockTable(t("recordings"), { read: true })}
-${renderPolicy(makePolicy({ table: t("recordings"), name: `${ctx.tableName("recordings").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(r("engagement")) }), { drop: true, target: t("recordings") })}
+${renderPolicy(makePolicy({ table: t("recordings"), name: `${ctx.tableName("recordings").name}_read`, command: "select", roles: ["authenticated"], using: activityVisible(r("activity")) }), { target: t("recordings") })}
 
 -- A transcript, one row per speaker turn, offsets in milliseconds from the
 -- start of the recording.
@@ -294,12 +294,12 @@ create table if not exists ${t("segments")} (
   check (${s("endsMs")} >= ${s("startsMs")})
 );
 ${lockTable(t("segments"), { read: true })}
-${renderPolicy(makePolicy({ table: t("segments"), name: `${ctx.tableName("segments").name}_read`, command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("recordings")} rx where rx.${r("id")} = ${s("recording")})` }), { drop: true, target: t("segments") })}
+${renderPolicy(makePolicy({ table: t("segments"), name: `${ctx.tableName("segments").name}_read`, command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("recordings")} rx where rx.${r("id")} = ${s("recording")})` }), { target: t("segments") })}
 
--- Notes on an engagement: a summary and action items, written by an AI
--- note taker or a member. One row per engagement; saving replaces it.
+-- Notes on an activity: a summary and action items, written by an AI
+-- note taker or a member. One row per activity; saving replaces it.
 create table if not exists ${t("notes")} (
-  ${n("engagement")} uuid primary key references ${t("engagements")} (${e("id")}) on delete cascade,
+  ${n("activity")} uuid primary key references ${t("activities")} (${e("id")}) on delete cascade,
   ${n("tenant")} ${ctx.idType} not null,
   ${n("summary")} text not null check (length(${n("summary")}) between 1 and 20000),
 ${optional("notes", "model", (x) => `${x} text`)}
@@ -314,9 +314,9 @@ ${optional("notes", "model", (x) => `${x} text`)}
         `,\n  ${n(column)} ${column === "createdBy" ? "uuid" : "timestamptz not null default now()"}`,
     )
     .join("")}
-);${key("notes", "engagement_key", n("engagement"))}
+);${key("notes", "activity_key", n("activity"))}
 ${lockTable(t("notes"), { read: true })}
-${renderPolicy(makePolicy({ table: t("notes"), name: `${ctx.tableName("notes").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(n("engagement")) }), { drop: true, target: t("notes") })}
+${renderPolicy(makePolicy({ table: t("notes"), name: `${ctx.tableName("notes").name}_read`, command: "select", roles: ["authenticated"], using: activityVisible(n("activity")) }), { target: t("notes") })}
 ${
   tasks === undefined
     ? ""
@@ -326,23 +326,23 @@ ${
 create table if not exists ${t("actions")} (
   ${a("id")} uuid primary key default gen_random_uuid(),
   ${a("tenant")} ${ctx.idType} not null,
-  ${a("engagement")} uuid not null references ${t("engagements")} (${e("id")}) on delete cascade,
+  ${a("activity")} uuid not null references ${t("activities")} (${e("id")}) on delete cascade,
   ${a("task")} uuid not null references ${tasks.table("items")} (${tasks.col("items", "id")}) on delete cascade,${ctx.has("actions", "createdAt") ? `\n  ${a("createdAt")} timestamptz not null default now(),` : ""}
-  unique (${a("engagement")}, ${a("task")})
-);${key("actions", "engagement_task", `${a("engagement")}, ${a("task")}`)}
+  unique (${a("activity")}, ${a("task")})
+);${key("actions", "activity_task", `${a("activity")}, ${a("task")}`)}
 create index if not exists ${sqlIdent(`${ctx.tableName("actions").name}_task_idx`)} on ${t("actions")} (${a("task")});
 ${lockTable(t("actions"), { read: true })}
-${renderPolicy(makePolicy({ table: t("actions"), name: `${ctx.tableName("actions").name}_read`, command: "select", roles: ["authenticated"], using: engagementVisible(a("engagement")) }), { drop: true, target: t("actions") })}
+${renderPolicy(makePolicy({ table: t("actions"), name: `${ctx.tableName("actions").name}_read`, command: "select", roles: ["authenticated"], using: activityVisible(a("activity")) }), { target: t("actions") })}
 `
 }`
     : "";
 
   return `${tables}
--- Attaches a ready ai-files file of the engagement's tenant as a recording.
--- The author, the owner and engagements.manage may attach; the file must be
--- the caller's own unless they manage engagements. With the jobs block a
+-- Attaches a ready ai-files file of the activity's tenant as a recording.
+-- The author, the owner and activities.manage may attach; the file must be
+-- the caller's own unless they manage activities. With the jobs block a
 -- transcription job goes on the ${TRANSCRIBE_QUEUE} queue.
-create or replace function ${fn("attach_activity_recording")}(engagement uuid, file uuid, language text)
+create or replace function ${fn("attach_activity_recording")}(activity uuid, file uuid, language text)
 returns jsonb
 language plpgsql
 security definer
@@ -356,9 +356,9 @@ declare
   v_first jsonb;
 begin
   select x.${e("tenant")}, x.${e("type")} into v_tenant, v_type
-  from ${t("engagements")} x where x.${e("id")} = attach_activity_recording.engagement and ${editable("x")};
+  from ${t("activities")} x where x.${e("id")} = attach_activity_recording.activity and ${editable("x")};
   if v_tenant is null then
-    ${fail("ACTIVITY_NOT_FOUND", "no such engagement you can edit", "P0002")}
+    ${fail("ACTIVITY_NOT_FOUND", "no such activity you can edit", "P0002")}
   end if;
   if not exists (
     select 1 from ${fileTable} fx
@@ -372,20 +372,20 @@ begin
   insert into ${t("recordings")} (${attached.map(([column]) => r(column)).join(", ")})
   select ${attached.map(([, value]) => value).join(", ")}
   from ${fileTable} fx where fx.${f("id")} = attach_activity_recording.file
-  on conflict (${r("engagement")}, ${r("file")}) do nothing
+  on conflict (${r("activity")}, ${r("file")}) do nothing
   returning ${r("id")} into v_recording;
   if v_recording is null then
-    ${fail("ACTIVITY_RECORDING_EXISTS", "the file is already a recording of this engagement", "23505")}
+    ${fail("ACTIVITY_RECORDING_EXISTS", "the file is already a recording of this activity", "23505")}
   end if;
-  ${loadSubjects("attach_activity_recording.engagement")}
-  ${record("activity.recorded", "attach_activity_recording.engagement", "v_type", "v_tenant", recordingPayload("v_recording"))}${enqueue}
+  ${loadSubjects("attach_activity_recording.activity")}
+  ${record("activity.recorded", "attach_activity_recording.activity", "v_type", "v_tenant", recordingPayload("v_recording"))}${enqueue}
   return ${oneRecording("v_recording")};
 end;
 $$;
 ${userGrant(`${fn("attach_activity_recording")}(uuid, uuid, text)`)}
 
--- An engagement's recordings, oldest first, as the caller may read them.
-create or replace function ${fn("activity_recordings")}(engagement uuid)
+-- An activity's recordings, oldest first, as the caller may read them.
+create or replace function ${fn("activity_recordings")}(activity uuid)
 returns jsonb
 language sql
 stable
@@ -394,7 +394,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(${recordingJson("rx")} order by rx.${r("createdAt")}, rx.${r("id")}), '[]'::jsonb)
   from ${t("recordings")} rx
-  where rx.${r("engagement")} = activity_recordings.engagement
+  where rx.${r("activity")} = activity_recordings.activity
 $$;
 ${userGrant(`${fn("activity_recordings")}(uuid)`)}
 
@@ -435,7 +435,7 @@ ${userGrant(`${fn("activity_transcript")}(uuid, integer, integer)`)}
 -- Replaces a recording's transcript: segments is [{ speaker, speakerUserId,
 -- startMs, endMs, text, confidence }] in order, attrs { language,
 -- durationSeconds, model }. The service role (a transcription job) and
--- whoever may edit the engagement may save one.
+-- whoever may edit the activity may save one.
 create or replace function ${fn("save_activity_transcript")}(recording uuid, segments jsonb, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -444,7 +444,7 @@ set search_path = ''
 as $$
 declare
   v_recording uuid := save_activity_transcript.recording;
-  v_engagement uuid;
+  v_activity uuid;
   v_tenant ${ctx.idType};
   v_type text;
   v_item jsonb;
@@ -452,12 +452,12 @@ declare
   v_subjects jsonb;
   v_first jsonb;
 begin
-  select rx.${r("engagement")}, rx.${r("tenant")}, x.${e("type")} into v_engagement, v_tenant, v_type
+  select rx.${r("activity")}, rx.${r("tenant")}, x.${e("type")} into v_activity, v_tenant, v_type
   from ${t("recordings")} rx
-  join ${t("engagements")} x on x.${e("id")} = rx.${r("engagement")}
+  join ${t("activities")} x on x.${e("id")} = rx.${r("activity")}
   where rx.${r("id")} = v_recording and ${editable("x")}
   for update of rx;
-  if v_engagement is null then
+  if v_activity is null then
     ${fail("ACTIVITY_RECORDING_NOT_FOUND", "no such recording you can edit", "P0002")}
   end if;
   if jsonb_typeof(save_activity_transcript.segments) is distinct from 'array'
@@ -482,8 +482,8 @@ begin
   update ${t("recordings")} rx set
     ${r("status")} = 'transcribed'${set("recordings", "error", "null")}${set("recordings", "language", `coalesce(nullif(save_activity_transcript.attrs ->> 'language', ''), ${field("recordings", "rx", "language")})`)}${set("recordings", "durationSeconds", `coalesce((save_activity_transcript.attrs ->> 'durationSeconds')::integer, ${field("recordings", "rx", "durationSeconds")})`)}${set("recordings", "model", `coalesce(nullif(save_activity_transcript.attrs ->> 'model', ''), ${field("recordings", "rx", "model")})`)}${set("recordings", "transcribedAt", "now()")}
   where rx.${r("id")} = v_recording;
-  ${loadSubjects("v_engagement")}
-  ${record("activity.transcribed", "v_engagement", "v_type", "v_tenant", recordingPayload("v_recording"), "'activity.transcribed:' || v_recording::text || ':' || md5(save_activity_transcript.segments::text)")}
+  ${loadSubjects("v_activity")}
+  ${record("activity.transcribed", "v_activity", "v_type", "v_tenant", recordingPayload("v_recording"), "'activity.transcribed:' || v_recording::text || ':' || md5(save_activity_transcript.segments::text)")}
   return ${oneRecording("v_recording")};
 end;
 $$;
@@ -525,11 +525,11 @@ as $$
 $$;
 ${serviceGrant(`${fn("pending_activity_recordings")}(integer)`)}
 
--- Saves an engagement's notes: notes { summary, actionItems: [{ text,
+-- Saves an activity's notes: notes { summary, actionItems: [{ text,
 -- ownerId, dueAt }], model, source }. Replaces earlier notes. Each action item
--- becomes a task through the tasks block, unless the engagement already has a
+-- becomes a task through the tasks block, unless the activity already has a
 -- task with that title; without the tasks block action items are refused.
-create or replace function ${fn("save_activity_notes")}(engagement uuid, notes jsonb)
+create or replace function ${fn("save_activity_notes")}(activity uuid, notes jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -546,9 +546,9 @@ declare
   v_task uuid;
 begin
   select x.${e("tenant")}, x.${e("type")} into v_tenant, v_type
-  from ${t("engagements")} x where x.${e("id")} = save_activity_notes.engagement and ${editable("x")};
+  from ${t("activities")} x where x.${e("id")} = save_activity_notes.activity and ${editable("x")};
   if v_tenant is null then
-    ${fail("ACTIVITY_NOT_FOUND", "no such engagement you can edit", "P0002")}
+    ${fail("ACTIVITY_NOT_FOUND", "no such activity you can edit", "P0002")}
   end if;
   if v_summary is null or length(v_summary) > 20000 then
     ${fail("ACTIVITY_NOTES_INVALID", "notes need a summary of at most 20000 characters", "22023")}
@@ -561,7 +561,7 @@ begin
   end if;
   insert into ${t("notes")} (${noted.map(([column]) => n(column)).join(", ")})
   values (${noted.map(([, value]) => value).join(", ")})
-  on conflict (${n("engagement")}) do update set
+  on conflict (${n("activity")}) do update set
     ${n("summary")} = excluded.${n("summary")},
     ${[
       ...(ctx.has("notes", "model")
@@ -571,17 +571,17 @@ begin
       ...(ctx.has("notes", "updatedAt") ? [`${n("updatedAt")} = now()`] : []),
     ].join(", ")};
   ${actionTasks}
-  ${loadSubjects("save_activity_notes.engagement")}
-  ${record("activity.summarized", "save_activity_notes.engagement", "v_type", "v_tenant", "", "'activity.summarized:' || save_activity_notes.engagement::text || ':' || md5(save_activity_notes.notes::text)")}
-  return (select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("engagement")} = save_activity_notes.engagement);
+  ${loadSubjects("save_activity_notes.activity")}
+  ${record("activity.summarized", "save_activity_notes.activity", "v_type", "v_tenant", "", "'activity.summarized:' || save_activity_notes.activity::text || ':' || md5(save_activity_notes.notes::text)")}
+  return (select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("activity")} = save_activity_notes.activity);
 end;
 $$;
 ${userGrant(`${fn("save_activity_notes")}(uuid, jsonb)`)}
 
--- An engagement with the transcripts of its recordings in order, for a note
--- taker: { engagement, segments: [{ recordingId, position, ... }] }. Null
+-- An activity with the transcripts of its recordings in order, for a note
+-- taker: { activity, segments: [{ recordingId, position, ... }] }. Null
 -- when the caller can't read it.
-create or replace function ${fn("activity_with_transcripts")}(engagement uuid)
+create or replace function ${fn("activity_with_transcripts")}(activity uuid)
 returns jsonb
 language sql
 stable
@@ -589,28 +589,28 @@ security invoker
 set search_path = ''
 as $$
   select jsonb_build_object(
-    'engagement', ${row("x")},
+    'activity', ${row("x")},
     'segments', coalesce((
       select jsonb_agg(${segmentJson("sx")} || jsonb_build_object('recordingId', rx.${r("id")}) order by rx.${r("createdAt")}, rx.${r("id")}, sx.${s("position")})
       from ${t("recordings")} rx
       join ${t("segments")} sx on sx.${s("recording")} = rx.${r("id")}
-      where rx.${r("engagement")} = x.${e("id")}
+      where rx.${r("activity")} = x.${e("id")}
     ), '[]'::jsonb)
   )
-  from ${t("engagements")} x
-  where x.${e("id")} = activity_with_transcripts.engagement
+  from ${t("activities")} x
+  where x.${e("id")} = activity_with_transcripts.activity
 $$;
 ${userGrant(`${fn("activity_with_transcripts")}(uuid)`)}
 
--- An engagement's notes, or null.
-create or replace function ${fn("activity_notes")}(engagement uuid)
+-- An activity's notes, or null.
+create or replace function ${fn("activity_notes")}(activity uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("engagement")} = activity_notes.engagement
+  select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("activity")} = activity_notes.activity
 $$;
 ${userGrant(`${fn("activity_notes")}(uuid)`)}
 `;

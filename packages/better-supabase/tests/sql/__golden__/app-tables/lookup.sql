@@ -1,45 +1,10 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:f9f0539e3af9a5a5ddbd25ec344e71d8da90fcac708ecbd71f112f482218229f
+-- @bsb-hash sha256:cd9146f2f0d6373155e3f6d3919b2bdc310aec9c27f3e4bab14f1d268d35fa8f
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 
 create or replace function "public"."bsb_valid_bsn"(value text)
 returns boolean
@@ -109,50 +74,38 @@ grant select ("id", "organization_id", "created_at", "updated_at", "iban", "phon
 grant insert ("id", "organization_id", "created_at", "updated_at", "bsn", "email", "iban", "phone", "born_on"), update ("id", "organization_id", "created_at", "updated_at", "bsn", "email", "iban", "phone", "born_on") on "public"."patients" to authenticated;
 grant delete on "public"."patients" to authenticated;
 grant all on "public"."patients" to service_role;
-drop policy if exists patients_select on "public"."patients";
 create policy patients_select on "public"."patients"
   for select to authenticated
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists patients_insert on "public"."patients";
 create policy patients_insert on "public"."patients"
   for insert to authenticated
   with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists patients_update on "public"."patients";
 create policy patients_update on "public"."patients"
   for update to authenticated
   using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()))
   with check (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists patients_delete on "public"."patients";
 create policy patients_delete on "public"."patients"
   for delete to authenticated
   using (("organization_id" in (select better_supabase.member_organization_ids())) and (select better_supabase.actor_may_write()));
-drop policy if exists bsb_tenant_scope on "public"."patients";
-drop policy if exists bsb_tenant_scope_select on "public"."patients";
 create policy bsb_tenant_scope_select on "public"."patients" as restrictive
   for select to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_insert on "public"."patients";
 create policy bsb_tenant_scope_insert on "public"."patients" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "public"."patients";
 create policy bsb_tenant_scope_update on "public"."patients" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "public"."patients";
 create policy bsb_tenant_scope_delete on "public"."patients" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-alter table "public"."patients" drop constraint if exists "patients_iban_check";
 alter table "public"."patients" add constraint "patients_iban_check" check ("public"."bsb_valid_iban"("iban"));
-alter table "public"."patients" drop constraint if exists "patients_phone_check";
 alter table "public"."patients" add constraint "patients_phone_check" check ("phone" ~* '^\+[1-9][0-9]{1,14}$');
 create index if not exists "patients_organization_id_idx" on "public"."patients" ("organization_id");
 create index if not exists "patients_bsn_lookup_idx" on "public"."patients" ("bsn_lookup");
 create index if not exists "patients_email_lookup_idx" on "public"."patients" ("email_lookup");
 create index if not exists "patients_born_on_lookup_idx" on "public"."patients" ("born_on_lookup");
-drop trigger if exists "bsb_updated_at" on "public"."patients";
 create trigger "bsb_updated_at" before update on "public"."patients"
   for each row execute function better_supabase.set_updated_at();
 -- Encrypts bsn, email, born_on with the row's data key before the row is written.
@@ -238,7 +191,6 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."patients_seal"() from public, anon, authenticated;
-drop trigger if exists "bsb_seal_fields" on "public"."patients";
 create trigger "bsb_seal_fields" before insert or update of "organization_id", "bsn", "email", "born_on", "bsn_lookup", "email_lookup", "born_on_lookup" on "public"."patients"
   for each row execute function "better_supabase"."patients_seal"();
 -- Decrypts bsn, email, born_on for the rows the caller reaches, as the table's policies do.
@@ -375,12 +327,10 @@ alter table "public"."keys" enable row level security;
 revoke all on "public"."keys" from public, anon, authenticated;
 grant select ("id", "created_at", "updated_at") on "public"."keys" to authenticated;
 grant all on "public"."keys" to service_role;
-drop policy if exists keys_select on "public"."keys";
 create policy keys_select on "public"."keys"
   for select to authenticated
   using (((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true'));
 create index if not exists "keys_token_lookup_idx" on "public"."keys" ("token_lookup");
-drop trigger if exists "bsb_updated_at" on "public"."keys";
 create trigger "bsb_updated_at" before update on "public"."keys"
   for each row execute function better_supabase.set_updated_at();
 -- Encrypts token with the row's data key before the row is written.
@@ -423,7 +373,6 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."keys_seal"() from public, anon, authenticated;
-drop trigger if exists "bsb_seal_fields" on "public"."keys";
 create trigger "bsb_seal_fields" before insert or update of "token", "token_lookup" on "public"."keys"
   for each row execute function "better_supabase"."keys_seal"();
 -- Decrypts token for the rows the caller reaches, as the table's policies do.

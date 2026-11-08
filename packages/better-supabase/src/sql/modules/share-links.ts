@@ -11,7 +11,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -50,7 +49,7 @@ const NAMES: BlockSqlNames = {
     share_link: { table: "links", singular: "share_link", primary: true },
   },
   events: EVENTS,
-  options: ["extraColumns", "tokenHash", "fullRows"],
+  options: ["tokenHash", "fullRows"],
   tables: {
     links: {
       name: "share_links",
@@ -592,7 +591,7 @@ function build(ctx: BlockSqlContext): string {
   ${ctx.col("links", "maxUses")} integer,
   ${ctx.col("links", "createdBy")} uuid${ctx.has("links", "leaf") ? `,` : ""}
   ${ctx.has("links", "leaf") ? `${ctx.col("links", "leaf")} text` : ""}
-);${addExtraColumns(links, extras)}
+);
 ${ctx.has("links", "versionId") ? `alter table ${links} add column if not exists ${ctx.col("links", "versionId")} uuid;\n` : ""}${full && ctx.has("links", "createdAt") ? `alter table ${links} add column if not exists ${ctx.col("links", "createdAt")} timestamptz not null default now();\n` : ""}${ctx.has("links", "useCount") ? `alter table ${links} add column if not exists ${ctx.col("links", "useCount")} integer not null default 0;\n` : ""}${ctx.has("links", "lastUsedAt") ? `alter table ${links} add column if not exists ${ctx.col("links", "lastUsedAt")} timestamptz;\n` : ""}${protectedLink ? `alter table ${links} add column if not exists ${ctx.col("links", "passwordHash")} text;\n` : ""}${downloads ? `alter table ${links} add column if not exists ${ctx.col("links", "downloadAllowed")} boolean not null default true;\n` : ""}${lockTable(links, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("links").name}_subject_idx`)} on ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")});
 ${
@@ -642,7 +641,7 @@ drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text
 drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid);
 drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid, timestamptz);
 drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text, uuid, timestamptz, jsonb);
--- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 ${createOverloads(hashed, extra.type)
   .map(
     (tail) =>
@@ -914,4 +913,10 @@ export const SHARE_LINKS: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  data: (ctx) =>
+    ctx
+      .contributions("share-links")
+      .flatMap((each) => each.data ?? [])
+      .filter((statement) => statement !== "")
+      .join("\n"),
 };

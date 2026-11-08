@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -42,8 +42,8 @@ export type DriveControl = {
 /**
  * `blocks.drive.options.sync`: what `drive_sync_batch` does when a full listing
  * no longer lists a node. `delete` (the default) removes it, unless a legal
- * hold keeps it; `mark` keeps it and sets `missing_since` on its record in the
- * imports record map, so it needs the `imports` block.
+ * hold keeps it; `mark` keeps it and sets `went_missing_at` on its record in
+ * the imports record map, so it needs the `imports` block.
  */
 export type DriveSync = { readonly prune?: "mark" | "delete" };
 
@@ -68,7 +68,6 @@ export type DriveSqlOptions = {
   readonly roleFunctions?: DriveRoleFunctions;
   readonly readPolicy?: boolean;
   readonly previewPrefix?: string;
-  readonly extraColumns?: ExtraColumns;
   readonly maxTextBytes?: number;
   readonly quota?: DriveQuota;
   readonly control?: DriveControl;
@@ -97,7 +96,6 @@ export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
     roleFunctions: option.unknown<DriveRoleFunctions>(),
     readPolicy: option.boolean({ default: true }),
     previewPrefix: option.string({ default: "_previews" }),
-    extraColumns: option.extraColumns(),
     maxTextBytes: option.number({ default: 1_048_576 }),
     quota: option.unknown<DriveQuota>(),
     control: option.unknown<DriveControl>(),

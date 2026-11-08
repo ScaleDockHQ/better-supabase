@@ -12,7 +12,6 @@ import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   fail,
   lockTable,
@@ -63,7 +62,7 @@ const NAMES: BlockSqlNames = {
     "before_version_restore",
     "after_version_restore",
   ],
-  options: ["keep", "debounce", "extraColumns"],
+  options: ["keep", "debounce"],
   tables: {
     versions: {
       name: "versions",
@@ -442,13 +441,13 @@ function build(ctx: BlockSqlContext): string {
       : "";
 
   const privateDocuments = ctx.installed("ai-files")
-    ? `\n${renderPolicy(makePolicy({ table: versions, name: ctx.of("ai-files").naming.rename("versions_ai_documents"), command: "select", roles: ["authenticated"], permissive: false, using: `${c("subjectType")} <> ${sqlString(aiDocumentSubject(ctx.of("ai-files")))}` }), { drop: true, target: versions })}`
+    ? `\n${renderPolicy(makePolicy({ table: versions, name: ctx.of("ai-files").naming.rename("versions_ai_documents"), command: "select", roles: ["authenticated"], permissive: false, using: `${c("subjectType")} <> ${sqlString(aiDocumentSubject(ctx.of("ai-files")))}` }), { target: versions })}`
     : "";
 
   const tables = ctx.manages
-    ? `${versionsTableDdl(ctx)}${addExtraColumns(versions, extras)}
+    ? `${versionsTableDdl(ctx)}
 ${lockTable(versions, { read: true })}
-${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("versions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: versions })}${privateDocuments}
+${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("versions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { target: versions })}${privateDocuments}
 `
     : "";
 
@@ -529,7 +528,7 @@ end;
 $$;
 ${serviceGrant(`${fn("version_insert")}(${ctx.idType}, text, text, jsonb, text, text, text, boolean, uuid, text)`)}
 
--- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- fields: the extra columns (columns your schema files add) to set
 -- on the version written, or on the latest one when the content is unchanged.
 drop function if exists ${fn("snapshot_version")}(${ctx.idType}, text, text, jsonb, text, text);
 drop function if exists ${fn("snapshot_version")}(${ctx.idType}, text, text, jsonb, text, text, jsonb);

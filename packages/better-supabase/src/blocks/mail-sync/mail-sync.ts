@@ -64,7 +64,7 @@ export interface MailAccount {
   readonly credentialRef: CredentialRef;
   /**
    * `records`: members who can read a linked record see the thread, and it is
-   * logged as an engagement. `private`: only the member sees it.
+   * logged as an activity. `private`: only the member sees it.
    */
   readonly share: "records" | "private";
   readonly status: "active" | "paused" | "error" | "disconnected";
@@ -92,8 +92,8 @@ export interface MailThread {
   readonly snippet?: string;
   readonly lastMessageAt?: Temporal.Instant;
   readonly messageCount: number;
-  /** The engagement the thread is logged as, with `engagements` installed. */
-  readonly engagementId?: string;
+  /** The activity the thread is logged as, with `activities` installed. */
+  readonly activityId?: string;
   readonly subjects: readonly MailSubject[];
 }
 
@@ -345,7 +345,7 @@ function threadOf(value: unknown): MailThread {
     subject: optionalText(row["subject"]),
     snippet: optionalText(row["snippet"]),
     lastMessageAt: optionalInstant(row["last_message_at"]),
-    engagementId: optionalText(row["activity_id"] ?? row["engagement_id"]),
+    activityId: optionalText(row["activity_id"] ?? row["activity_id"]),
   };
 
   return {
@@ -448,7 +448,7 @@ const missing = (message: string, hint: string) =>
 /**
  * The mail-sync block: members connect Gmail, Outlook or another provider with
  * their own OAuth grant; a job pulls their mail into threads linked to the
- * people and companies on them, logged as email engagements; `send` sends from
+ * people and companies on them, logged as email activities; `send` sends from
  * the member's mailbox and stores the message.
  */
 export function createMailSync(options: MailSyncOptions): MailSync {

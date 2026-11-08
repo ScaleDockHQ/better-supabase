@@ -65,7 +65,7 @@ describe("managementTarget", () => {
     expect(() => managementTarget(config(), {}, { projectRef: "abc" })).toThrow(
       expect.objectContaining({
         code: "auth_required",
-        exitCode: 3,
+        exitCode: 2,
         message: expect.stringContaining(
           "Reading project abc needs a Supabase access token. Set SUPABASE_ACCESS_TOKEN",
         ),

@@ -22,6 +22,13 @@ const MIN_CLIENT_STALE = 30;
 /** The shortest `stale` a private entry needs to ride in the App Shell. */
 const APP_SHELL_STALE = 300;
 
+/** What `life: "max"` stands for. */
+const MAX_LIFE: Required<Omit<CachedLife, "capToToken">> = {
+  stale: 300,
+  revalidate: 2_592_000,
+  expire: 31_536_000,
+};
+
 /** `"use cache: remote"` lifetimes when `life` leaves them unset. */
 const REMOTE_LIFE = { revalidate: 300, expire: 3600 } as const;
 
@@ -70,13 +77,14 @@ function tokenSecondsLeft(
 export function cachedLife(
   session: AuthSession,
   scope: CacheScope,
-  life: CachedLife = {},
+  lifeOption: CachedLife | "max" = {},
   options: {
     readonly now?: number;
     readonly warn?: (message: string) => void;
   } = {},
 ): { stale: number; revalidate?: number; expire?: number } {
   const { warn } = options;
+  const life: CachedLife = lifeOption === "max" ? MAX_LIFE : lifeOption;
 
   if (warn && life.stale !== undefined && life.stale < APP_SHELL_STALE) {
     warnOnce(

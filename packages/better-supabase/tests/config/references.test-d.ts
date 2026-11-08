@@ -11,10 +11,10 @@ import { defineConfig } from "../../src/config/resolve.ts";
 describe("defineConfig", () => {
   it("returns the literal config", () => {
     const config = defineConfig({
-      blocks: { tasks: { names: { work_item: "task" } } },
+      blocks: { tasks: { names: { task: "task" } } },
     });
 
-    expectTypeOf(config.blocks.tasks.names.work_item).toEqualTypeOf<"task">();
+    expectTypeOf(config.blocks.tasks.names.task).toEqualTypeOf<"task">();
   });
 
   it("types the roles other blocks name from blocks.permissions.roles", () => {
@@ -59,7 +59,7 @@ describe("defineConfig", () => {
         tasks: { permissions: { read: "tasks.read" } },
         permissions: { roles: { member: ["tasks.read"] } },
       },
-      subjects: {
+      recordTypes: {
         task: { table: "public.tasks", permissions: { read: "tasks.read" } },
       },
     });
@@ -74,7 +74,7 @@ describe("defineConfig", () => {
       auth: { authorization: typed },
       blocks: { permissions: { roles: { member: ["tasks.read"] } } },
       // @ts-expect-error -- "tasks.delete" is not a key the provider declares.
-      subjects: {
+      recordTypes: {
         task: {
           table: "public.tasks",
           permissions: { write: { key: "tasks.delete" } },

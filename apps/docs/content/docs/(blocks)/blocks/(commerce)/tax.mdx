@@ -23,7 +23,7 @@ The module requires `tenant` and `permissions`. With
 writes `invoice_tax_lines` and feeds the tax return. With
 [accounting](/docs/blocks/accounting) a code links to the accounts the tax
 posts to, and `accounting_tax_report` reads its codes from this block.
-[Accounting requires `tax`](/docs/migration/0.46-to-0.47), so installing
+Accounting requires `tax`, so installing
 accounting installs it. With `legal-entities` a code can belong to one legal
 entity, with `outbox` the block records its events, and with `audit` every
 change is audited.

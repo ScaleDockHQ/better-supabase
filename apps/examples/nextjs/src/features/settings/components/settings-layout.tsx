@@ -6,7 +6,6 @@ import type { SettingEntries } from "better-supabase/blocks/settings";
 import { tenantOf } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
-import { toast } from "sonner";
 
 import type { SettingField, SettingsState } from "@/hooks/use-settings";
 
@@ -36,13 +35,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useSettings } from "@/hooks/use-settings";
 import { useAuth } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { settingsConfig } from "@/lib/supabase/blocks/slices";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { settings } from "../settings-definition";
 
 /** The API schema `gen` wrote for the settings block. */
-const API_SCHEMA = blockConfig.settings.api;
+const API_SCHEMA = settingsConfig.api;
 
 /** What a control produces; the key's schema validates it before it is stored. */
 type ControlValue = string | number | boolean;

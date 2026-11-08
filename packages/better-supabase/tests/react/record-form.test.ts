@@ -2,7 +2,7 @@ import type * as ReactModule from "react";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { workItemInputSchema } from "../../src/blocks/tasks/schemas.ts";
+import { taskInputSchema } from "../../src/blocks/tasks/schemas.ts";
 import { useRecordForm } from "../../src/react/record-form.ts";
 import { recordForm } from "../../src/records/record-form.ts";
 import { renderHook } from "../fixtures/hook-runtime.ts";
@@ -13,7 +13,7 @@ vi.mock("react", async (importOriginal) => ({
   ...(await import("../fixtures/hook-runtime.ts")).reactHooks,
 }));
 
-const form = recordForm(workItemInputSchema, {
+const form = recordForm(taskInputSchema, {
   fields: ["title", "priority"],
   customFields: [
     { key: "region", label: "Region", type: "text", required: false },

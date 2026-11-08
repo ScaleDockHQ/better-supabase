@@ -25,11 +25,11 @@ const overApp = (
 describe("impersonation module", () => {
   it("owns its table and gates starts with is_platform", () => {
     const sql = support({
-      permissions: { start: "system.users.manage", view: "system.audit.read" },
+      permissions: { start: "system.users.manage", read: "system.audit.read" },
     });
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."support_sessions" (',
+      'create table "better_supabase"."support_sessions" (',
     );
     expect(sql).toContain(`"is_platform"('system.users.manage')`);
     expect(sql).toContain(`"is_platform"('system.audit.read')`);
@@ -116,9 +116,7 @@ describe("impersonation module", () => {
     expect(sql).not.toContain(
       'create table if not exists "better_supabase"."support_sessions"',
     );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."support_requests"',
-    );
+    expect(sql).toContain('create table "better_supabase"."support_requests"');
     expect(sql).toContain(
       'insert into "public"."impersonation_sessions" ("impersonator_id", "target_user_id", "reason", "expires_at")',
     );
@@ -142,7 +140,7 @@ describe("impersonation module", () => {
   it("needs a second admin by default, in a table that refuses self-approval", () => {
     const sql = support();
     expect(sql).toContain(
-      'constraint support_requests_distinct_approver check ("approved_by" <> "admin_id")',
+      'constraint bsb_support_requests_distinct_approver check ("approved_by" <> "admin_id")',
     );
     expect(sql).toContain("hint = 'SUPPORT_APPROVAL_REQUIRED'");
     expect(sql).toContain("hint = 'SUPPORT_SELF_APPROVAL'");
@@ -231,8 +229,6 @@ describe("impersonation approvers from the provider", () => {
         functions: {
           ...moduleProvider.functions,
           ...(isApprover === undefined ? {} : { isApprover }),
-          // oxlint-disable-next-line typescript/no-deprecated -- canApprove covers tool calls only.
-          canApprove: "authz.can_approve({tool}, {tenant})",
         },
       },
     }).find(
@@ -245,12 +241,12 @@ describe("impersonation approvers from the provider", () => {
     );
 
     expect(sql).toContain(
-      `if not service and not coalesce((authz.is_approver('support-session', v_row."id"::text, v_row."organization_id", 'organization')), false) then`,
+      `if not service and not coalesce((authz.is_approver('support-session', v_row."id"::text, v_row."tenant_id", 'organization')), false) then`,
     );
     expect(sql).not.toContain("can_approve");
   });
 
-  it("keeps the start permission without isApprover, never canApprove", () => {
+  it("keeps the start permission without isApprover", () => {
     const sql = withApprover();
     expect(sql).not.toContain("can_approve");
     expect(sql).toContain(

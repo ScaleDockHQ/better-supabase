@@ -18,7 +18,7 @@ function transport(result: (args: Record<string, unknown>) => unknown) {
 const CARD = {
   id: "c1",
   stage_id: null,
-  reviewer_user_id: "u1",
+  reviewer_id: "u1",
   rating: 4,
   notes: null,
   submitted_at: "2026-10-15T09:00:00Z",

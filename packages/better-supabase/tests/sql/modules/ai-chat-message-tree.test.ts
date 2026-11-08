@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody } from "../../../src/sql/render.ts";
+import { moduleBody } from "../app-columns.ts";
 
 const body = (options: Record<string, unknown>, more: AnyBlocksConfig = {}) =>
   moduleBody("ai-chat", { modules: { "ai-chat": { options }, ...more } })!;
@@ -87,9 +87,6 @@ describe("ai-chat message shapes", () => {
     expect(sql).toContain(
       '"author_id" uuid references auth.users (id) on delete set null',
     );
-    expect(sql).toContain(
-      'alter table "better_supabase"."ai_messages" add column if not exists "author_id"',
-    );
   });
 });
 
@@ -98,10 +95,10 @@ describe("ai-chat without a tenant", () => {
     const sql = body({ tenant: false });
 
     expect(sql).toContain(
-      'alter table "better_supabase"."ai_chats" alter column "organization_id" drop not null;',
+      'alter table "better_supabase"."ai_chats" alter column "tenant_id" drop not null;',
     );
     expect(sql).toContain(
-      'alter table "better_supabase"."ai_projects" alter column "organization_id" drop not null;',
+      'alter table "better_supabase"."ai_projects" alter column "tenant_id" drop not null;',
     );
     expect(sql).toContain("AI_CHAT_NO_TENANT");
     expect(sql).toContain("is not distinct from");
@@ -111,8 +108,8 @@ describe("ai-chat without a tenant", () => {
   it("keeps the tenant required by default", () => {
     const sql = body({});
 
-    expect(sql).not.toContain('alter column "organization_id" drop not null');
-    expect(sql).toContain('"organization_id" uuid not null');
+    expect(sql).not.toContain('alter column "tenant_id" drop not null');
+    expect(sql).toContain('"tenant_id" uuid not null');
   });
 });
 
@@ -134,21 +131,12 @@ describe("ai-chat extra columns on every table", () => {
       ["ai_runs", "cost_center"],
     ]) {
       expect(sql).toContain(
-        `alter table "better_supabase"."${table}" add column if not exists "${column}" text;`,
+        `alter table "better_supabase"."${table}" add column "${column}" text;`,
       );
     }
 
     expect(sql).toContain("'fields', jsonb_build_object('thread_kind'");
     expect(sql).toContain("append_ai_user_message.message -> 'fields'");
     expect(sql).toContain("record_ai_moderation_event.event -> 'fields'");
-  });
-
-  it("refuses a column a table already has", () => {
-    expect(() => body({ messageExtraColumns: { role: "text" } })).toThrow(
-      /shadows a column/,
-    );
-    expect(() =>
-      body({ projectExtraColumns: { archived: "boolean" } }),
-    ).toThrow(/shadows a column/);
   });
 });

@@ -42,8 +42,8 @@ export interface LinkInput<F extends object = Record<never, never>> {
   /** Data on the link, such as a Gantt dependency's `type` and `lag`. */
   readonly data?: Readonly<Record<string, unknown>>;
   /**
-   * Values for the app's extra columns (`options.extraColumns`); left out keeps
-   * the stored ones.
+   * Values for the app's extra columns (the columns the app's schema files
+   * add); left out keeps the stored ones.
    */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
@@ -68,7 +68,10 @@ export interface LinkResult<F extends object = Record<never, never>> {
     readonly data: Readonly<Record<string, unknown>>;
   } | null;
   readonly undo: UndoToken | null;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
 }
 
@@ -88,7 +91,10 @@ export interface Relation<F extends object = Record<never, never>> {
   readonly subject: RecordRef;
   readonly data: Readonly<Record<string, unknown>>;
   readonly createdAt: Temporal.Instant;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
 }
 
@@ -98,7 +104,10 @@ export interface RelationEdge<F extends object = Record<never, never>> {
   readonly source: RecordRef;
   readonly target: RecordRef;
   readonly data: Readonly<Record<string, unknown>>;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
 }
 
@@ -124,9 +133,8 @@ export interface RelationsOptions<
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * A Standard Schema for the extra columns of the relations table
-   * (`blocks.relations.options.extraColumns`): writes are validated, reads
-   * parsed.
+   * A Standard Schema for the extra columns of the relations table (columns the
+   * app's schema files add to the table): writes are validated, reads parsed.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

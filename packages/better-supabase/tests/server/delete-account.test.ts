@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { MutationNotice } from "../../src/core/events.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import {
   deleteAccount,
@@ -61,7 +61,7 @@ function setup(
     auth: { admin: { deleteUser } },
   } as unknown as SupabaseClient;
 
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
   const notices: MutationNotice[] = [];
   betterSupabase.on("mutation", (notice) => notices.push(notice));
 
@@ -77,7 +77,7 @@ function setup(
 describe("deleteAccount", () => {
   it("takes the service client itself, from the server entry", async () => {
     const { betterSupabase, deleteUser, service } = setup();
-    const server = await import("../../src/server/index.ts");
+    const server = await import("../../src/server/accounts/index.ts");
     expect(
       await server.deleteAccount(betterSupabase, service(), USER).orThrow(),
     ).toEqual({ userId: USER, removed: {} });

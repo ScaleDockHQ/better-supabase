@@ -9,7 +9,6 @@ import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   activeMembership,
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -58,11 +57,9 @@ export const TENANT_POLICY_TABLES = {
 /** The keys the policy reads return next to the extra columns. */
 const POLICY_KEYS: readonly string[] = ["fields"];
 
-/** `blocks.approvals.options.policyExtraColumns`, on the tenant policies table. */
+/** The columns your schema files add, on the tenant policies table. */
 const policyExtras = (ctx: BlockSqlContext): readonly ExtraColumn[] =>
-  tenantPoliciesOn(ctx)
-    ? ctx.extraColumns("policies", POLICY_KEYS, "policyExtraColumns")
-    : [];
+  tenantPoliciesOn(ctx) ? ctx.extraColumns("policies", POLICY_KEYS) : [];
 
 /** Whether `blocks.approvals.options.tenantPolicies` is on. */
 export const tenantPoliciesOn = (ctx: BlockSqlContext): boolean =>
@@ -447,9 +444,9 @@ create table if not exists ${t} (
   ${p("enabled")} boolean not null default true,${column("createdBy", (name) => `${name} uuid`)}
   ${p("createdAt")} timestamptz not null default now()${has("updatedAt") ? `,\n  ${p("updatedAt")} timestamptz not null default now()` : ""}
 );
-${has("effect") ? `alter table ${t} add column if not exists ${p("effect")} text;\n` : ""}${platform ? `alter table ${t} alter column ${p("tenant")} drop not null;\n` : ""}create index if not exists ${sqlIdent(`${ctx.tableName("policies").name}_lookup_idx`)} on ${t} (${p("tenant")}, ${p("subjectType")}, ${p("action")});${addExtraColumns(t, extras)}
+${has("effect") ? `alter table ${t} add column if not exists ${p("effect")} text;\n` : ""}${platform ? `alter table ${t} alter column ${p("tenant")} drop not null;\n` : ""}create index if not exists ${sqlIdent(`${ctx.tableName("policies").name}_lookup_idx`)} on ${t} (${p("tenant")}, ${p("subjectType")}, ${p("action")});
 ${lockModuleTable(ctx, "policies", { read: true })}
-${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("approval_policies_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(p("tenant"), read) }), { drop: true, target: t })}`
+${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("approval_policies_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(p("tenant"), read) }), { target: t })}`
     : "";
 
   const conditionCheck = has("conditions")

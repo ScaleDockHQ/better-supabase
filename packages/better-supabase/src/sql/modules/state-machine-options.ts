@@ -447,7 +447,7 @@ function historyOf(
     id: text("id", "id"),
     from: text("from", "from_status"),
     to: text("to", "to_status"),
-    actor: text("actor", "actor_user_id"),
+    actor: text("actor", "actor_id"),
     reason: text("reason", "reason"),
     subject: text("subject", "subject_id"),
     tenant: text("tenant", tenant),

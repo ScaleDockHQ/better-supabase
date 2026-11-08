@@ -12,7 +12,6 @@ import {
   userGrant,
   revokeTable,
 } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import { embeddingColumn, textSearchConfig } from "./knowledge.ts";
 import { DOCUMENTS, memoryDocumentsSql } from "./memory-documents.ts";
 import {
@@ -27,7 +26,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const MEMORIES = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   owner: "owner_id",
   scope: "scope",
   agent: "agent_id",
@@ -46,7 +45,7 @@ const MEMORIES = {
   category: "category",
   confidence: "confidence",
   expiresAt: "expires_at",
-  deletedAt: "deleted_at",
+  deletedAt: "archived_at",
   useCount: "use_count",
   lastUsedAt: "last_used_at",
   tsv: "tsv",
@@ -70,14 +69,13 @@ const MESSAGE_EMBEDDINGS = {
   chat: "chat_id",
   message: "message_id",
   user: "user_id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   embedding: "embedding",
   model: "embedding_model",
   createdAt: "created_at",
 } as const;
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("memory", 4),
   entities: {
     memory: {
       table: "memories",
@@ -413,7 +411,7 @@ alter table ${memories} enable row level security;
 ${revokeTable(memories)}
 grant select on ${memories} to authenticated;
 grant all on ${memories} to service_role;
-${renderPolicy(makePolicy({ table: memories, name: ctx.naming.rename("memories_read"), command: "select", roles: ["authenticated"], using: `(${m.owner} = (select auth.uid()) or (${m.owner} is null and ${ctx.scope.check(m.tenant, read)}))${live("")}` }), { drop: true, target: memories })}
+${renderPolicy(makePolicy({ table: memories, name: ctx.naming.rename("memories_read"), command: "select", roles: ["authenticated"], using: `(${m.owner} = (select auth.uid()) or (${m.owner} is null and ${ctx.scope.check(m.tenant, read)}))${live("")}` }), { target: memories })}
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
@@ -431,7 +429,7 @@ alter table ${messageEmbeddings} enable row level security;
 ${revokeTable(messageEmbeddings)}
 grant select on ${messageEmbeddings} to authenticated;
 grant all on ${messageEmbeddings} to service_role;
-${renderPolicy(makePolicy({ table: messageEmbeddings, name: sqlIdent(`${ctx.tableName("messageEmbeddings").name}_read`), command: "select", roles: ["authenticated"], using: `${e.user} = (select auth.uid())` }), { drop: true, target: messageEmbeddings })}
+${renderPolicy(makePolicy({ table: messageEmbeddings, name: sqlIdent(`${ctx.tableName("messageEmbeddings").name}_read`), command: "select", roles: ["authenticated"], using: `${e.user} = (select auth.uid())` }), { target: messageEmbeddings })}
 
 -- A core memory file, or the files under a directory, or null.
 create or replace function ${fn("memory_view")}(tenant ${id}, path text default '/memories', ns jsonb default '{}')

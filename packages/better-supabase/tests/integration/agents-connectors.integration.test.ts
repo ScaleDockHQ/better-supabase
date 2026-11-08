@@ -447,7 +447,7 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
       expect(second).toEqual([]);
 
       const [stale] = await s.rows<{ id: string }>(
-        `insert into better_supabase.ai_task_runs (task_id, organization_id, user_id, scheduled_for, created_at)
+        `insert into better_supabase.ai_task_runs (task_id, tenant_id, user_id, scheduled_at, created_at)
          values ($1, $2, $3, now(), now() - interval '2 hours') returning id`,
         [task.id, tenant, member.id],
       );

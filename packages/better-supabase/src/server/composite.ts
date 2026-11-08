@@ -10,8 +10,8 @@ import type { Db } from "../core/repository-types.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { ServerContextIn } from "./entries/context.ts";
 import type { ServerCore } from "./entries/core.ts";
-import type { GuardEntryConfig } from "./entries/guard.ts";
-import type { SessionEntryConfig } from "./entries/session.ts";
+import type { GuardEntryOptions } from "./entries/guard.ts";
+import type { SessionEntryOptions } from "./entries/session.ts";
 import type { SqlIn } from "./entries/sql.ts";
 import type { ReplicaState } from "./replicas.ts";
 import type { GuardOptions } from "./respond.ts";
@@ -41,7 +41,7 @@ import { createServer } from "./server.ts";
 
 /** What `withBetterSupabase` takes besides the definition or server. */
 export interface BetterSupabaseConfig
-  extends SessionEntryConfig, GuardEntryConfig {}
+  extends SessionEntryOptions, GuardEntryOptions {}
 
 /** The keys `withBetterSupabase` puts on `ctx`. */
 export interface BetterSupabaseContributions<

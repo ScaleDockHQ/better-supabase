@@ -10,7 +10,7 @@ export { createReactRouter } from "./create.ts";
 
 export type {
   BetterReactRouter,
-  ReactRouterArgs,
+  ReactRouterParams,
   ReactRouterContextProvider,
   ReactRouterOptions,
 } from "./create.ts";

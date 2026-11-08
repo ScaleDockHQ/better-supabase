@@ -1,15 +1,5 @@
 import type { GEN_TASKS, INTEGRATION_NAMES, SKILLS_AGENTS } from "../names.ts";
 
-export interface OpenApiConfig {
-  /**
-   * Module exporting the document (or a function returning it) as `openapi` or
-   * default.
-   */
-  readonly entry?: string;
-  /** JSON file `better-supabase spec emit openapi` writes. */
-  readonly output?: string;
-}
-
 /** A docs UI `spec emit --ui` writes next to an OpenAPI document. */
 export type SpecUiName =
   | "scalar"
@@ -25,13 +15,10 @@ export interface SpecOutputConfig {
   /** Defaults to the format's default version, e.g. `3.1` for OpenAPI. */
   readonly version?: string;
   /** File to write, relative to the root. Defaults to the format's file name. */
-  readonly output?: string;
+  readonly file?: string;
   /** Overlay files (JSON or YAML), applied in order. */
   readonly overlays?: readonly string[];
-  /**
-   * Defaults to `yaml` when `output` ends in `.yaml` or `.yml`, otherwise
-   * `json`.
-   */
+  /** Defaults to `yaml` when `file` ends in `.yaml` or `.yml`, otherwise `json`. */
   readonly serialize?: "json" | "yaml";
   /**
    * Also writes a reference page (`openapi.html` for `openapi.json`) next to
@@ -105,6 +92,27 @@ export interface GenConfig {
    */
   readonly contentMapper?: boolean;
   /**
+   * Writes one module per table, `tables/<table>.ts`, next to `generated.ts`,
+   * and leaves the tables out of `generated.meta.js`. Each module exports the
+   * table's runtime metadata, so a page imports `customers` from
+   * `tables/customers` and carries that table only. `generated.ts` imports them
+   * all for the server and adds `clientSchema`, a schema that registers the
+   * tables a client uses (`bsb.table(customers)`), for a browser client without
+   * a table registry. `hooks.ts` reads through `bsb.table`. Defaults to `true`;
+   * `false` writes the single module.
+   */
+  readonly tableModules?: boolean;
+  /**
+   * Writes one module per block instance, `blocks/<instance>.ts`, with that
+   * instance's config slice, and `blocks/permissions.ts` with the permission
+   * keys. `blocks.config.ts` composes the slices for the server. A record file
+   * imports the slices of the blocks it binds and `blocks/permissions.ts`, so a
+   * page that imports a record loads those instances and no others. A browser
+   * client passes the slices it uses to `createClient({ blocks })`. Defaults to
+   * `true`; `false` writes `blockConfig` as one object.
+   */
+  readonly blockModules?: boolean;
+  /**
    * Block instances the browser client wires: `gen` writes `blocks.client.ts`
    * with `clientBlocks`, a `defineBlocks` set over only these instances, so
    * `createClient(app.blocks(clientBlocks))` has `db.<instance>` without
@@ -141,6 +149,20 @@ export interface PowerSyncGenConfig {
    * `@powersync/common`.
    */
   readonly import?: string;
+  /**
+   * App tables that sync with their parent subject, such as `job_parties` under
+   * `jobs`. Each streams the rows whose `column` holds the id of a parent row
+   * in the user's organizations (and, when the parent has `deleted-at`, one
+   * that is not deleted). `table` is `schema.table`, `parent` is the type of a
+   * table tagged `@bsb subject`, and the parent needs a tenant column. A child
+   * needs an `id` column and a saved snapshot (`better-supabase gen
+   * --save-snapshot`) for its column types.
+   */
+  readonly children?: readonly {
+    readonly table: string;
+    readonly parent: string;
+    readonly column: string;
+  }[];
 }
 
 /** Glue `better-supabase init` and `add` write for a framework or runtime. */
@@ -148,7 +170,7 @@ export type IntegrationName = (typeof INTEGRATION_NAMES)[number];
 
 export interface EnvFileConfig {
   /** Env file `better-supabase dev env` writes. Defaults to `.env.local`. */
-  readonly output?: string;
+  readonly file?: string;
   /**
    * Prefix for the browser variables, such as `NEXT_PUBLIC_`; `'none'` for no
    * prefix. Detected from the framework by default.
@@ -169,7 +191,7 @@ export interface KeysConfig {
    * Signing key file `better-supabase dev keys` writes. Defaults to
    * `supabase/signing_keys.json`.
    */
-  readonly output?: string;
+  readonly file?: string;
 }
 
 export interface DoctorConfig {
@@ -185,7 +207,7 @@ export interface DoctorConfig {
    */
   readonly format?: "text" | "sarif" | "github";
   /** Write the report to this file. */
-  readonly output?: string;
+  readonly file?: string;
   /**
    * App source files doctor scans for API use (BS210). Globs relative to the
    * root. Defaults to `['src/**\/*.{ts,tsx}']`, plus

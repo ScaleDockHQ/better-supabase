@@ -94,7 +94,7 @@ function setup() {
     create_invoice: () => DRAFT,
     issue_invoice: () => SENT,
     record_invoice_payment: () => ({ ...SENT, status: "paid", balance: "0" }),
-    invoice_e_endpoints: () => ({ buyer: { scheme: "0106", id: "12345678" } }),
+    e_invoice_endpoints: () => ({ buyer: { scheme: "0106", id: "12345678" } }),
     list_e_invoice_deliveries: () => [],
     record_e_invoice_delivery: () => ({
       created: true,
@@ -172,7 +172,7 @@ describe("invoices helpers", () => {
     });
     expect(t.calls.map(([fn]) => fn)).toEqual([
       "issue_invoice",
-      "invoice_e_endpoints",
+      "e_invoice_endpoints",
       "list_e_invoice_deliveries",
       "record_e_invoice_delivery",
     ]);

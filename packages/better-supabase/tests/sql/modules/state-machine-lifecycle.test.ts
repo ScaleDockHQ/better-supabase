@@ -34,7 +34,7 @@ describe("workflow-driven lifecycle", () => {
     const sql = sqlOf(machine({ stages: true }));
 
     expect(sql).toContain(
-      'add column if not exists "workflow_version_id" uuid references "better_supabase"."workflow_versions"',
+      'add column "workflow_version_id" uuid references "better_supabase"."workflow_versions"',
     );
     expect(sql).toContain('function "better_supabase"."lifecycle_graph"');
     expect(sql).toContain("STATE_LIFECYCLE_UNPUBLISHED");

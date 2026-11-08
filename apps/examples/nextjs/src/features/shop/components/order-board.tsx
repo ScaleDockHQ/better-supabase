@@ -23,7 +23,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import { getOrderBoard } from "../kitchen-queries";
+import { getOrderBoard } from "../shop-queries";
 import { KitchenLive } from "./kitchen-live";
 import { OrderStateBoard } from "./order-state-board";
 

@@ -1,109 +1,11 @@
 -- ==== schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:dec095e5504a79d02af4f997b4ebd1dc643f93d35652d41132489a307f34df2a
+-- @bsb-hash sha256:94d47875cf8179640ebde02dabd52cf7415d574fbad59e86c2ca8466e09224c3
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pick_waves";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pick_waves";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pick_waves";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pick_waves";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pick_waves";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pick_lists";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pick_lists";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pick_lists";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pick_lists";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pick_lists";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pick_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pick_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pick_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pick_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pick_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."count_plans";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."count_plans";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."count_plans";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."count_plans";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."count_plans";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."putaway_rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."putaway_rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."putaway_rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."putaway_rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."putaway_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."bin_slots";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bin_slots";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bin_slots";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bin_slots";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bin_slots";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."variant_sizes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."variant_sizes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."variant_sizes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."variant_sizes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_sizes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Warehouse work over the inventory block: waves of pick lists made from a
 -- document's stock allocations, each a work item for a picker, with the bin,
 -- lot and serial numbers the picker confirms, and cycle count plans that open
@@ -111,38 +13,37 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- a review before they post.
 
 -- A wave groups pick lists that are picked together.
-create table if not exists "better_supabase"."pick_waves" (
+create table "better_supabase"."pick_waves" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null constraint bsb_pick_waves_name_check check (length("name") >= 1 and length("name") <= 200),
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "status" text not null default 'draft' check ("status" in ('draft', 'released', 'completed', 'cancelled')),
+  "status" text not null default 'draft' constraint bsb_pick_waves_status_check check ("status" in ('draft', 'released', 'completed', 'cancelled')),
   "released_at" timestamptz,
   "completed_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "pick_waves_tenant_idx" on "better_supabase"."pick_waves" ("tenant_id", "status", "created_at" desc);
-create index if not exists "pick_waves_location_idx" on "better_supabase"."pick_waves" ("location_id");
+create index "pick_waves_tenant_idx" on "better_supabase"."pick_waves" ("tenant_id", "status", "created_at" desc);
+create index "pick_waves_location_idx" on "better_supabase"."pick_waves" ("location_id");
 alter table "better_supabase"."pick_waves" enable row level security;
 revoke all on "better_supabase"."pick_waves" from public, anon, authenticated;
 grant select on "better_supabase"."pick_waves" to authenticated;
 grant all on "better_supabase"."pick_waves" to service_role;
-drop policy if exists pick_waves_read on "better_supabase"."pick_waves";
-create policy pick_waves_read on "better_supabase"."pick_waves"
+create policy bsb_pick_waves_read on "better_supabase"."pick_waves"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
 -- One document's stock to pick at one location, as a work item for a picker.
-create table if not exists "better_supabase"."pick_lists" (
+create table "better_supabase"."pick_lists" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "wave_id" uuid,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "document_type" text not null check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "document_id" text not null check (length("document_id") between 1 and 200),
-  "status" text not null default 'open' check ("status" in ('open', 'picked', 'cancelled')),
+  "document_type" text not null constraint bsb_pick_lists_document_type_check check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "document_id" text not null constraint bsb_pick_lists_document_id_check check (length("document_id") >= 1 and length("document_id") <= 200),
+  "status" text not null default 'open' constraint bsb_pick_lists_status_check check ("status" in ('open', 'picked', 'cancelled')),
   "assignee_id" uuid,
   -- The tasks block's work item for the picker, when it is installed.
   "task_id" uuid,
@@ -151,24 +52,23 @@ create table if not exists "better_supabase"."pick_lists" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "wave_id") references "better_supabase"."pick_waves" ("tenant_id", "id") on delete cascade,
-  check (("status" = 'picked') = ("picked_at" is not null))
+  constraint bsb_pick_lists_check check (("status" = 'picked') = ("picked_at" is not null))
 );
-create index if not exists "pick_lists_wave_idx" on "better_supabase"."pick_lists" ("tenant_id", "wave_id");
-create index if not exists "pick_lists_document_idx" on "better_supabase"."pick_lists" ("tenant_id", "document_type", "document_id");
-create index if not exists "pick_lists_assignee_idx" on "better_supabase"."pick_lists" ("tenant_id", "assignee_id", "status");
-create index if not exists "pick_lists_location_idx" on "better_supabase"."pick_lists" ("location_id");
+create index "pick_lists_wave_idx" on "better_supabase"."pick_lists" ("tenant_id", "wave_id");
+create index "pick_lists_document_idx" on "better_supabase"."pick_lists" ("tenant_id", "document_type", "document_id");
+create index "pick_lists_assignee_idx" on "better_supabase"."pick_lists" ("tenant_id", "assignee_id", "status");
+create index "pick_lists_location_idx" on "better_supabase"."pick_lists" ("location_id");
 alter table "better_supabase"."pick_lists" enable row level security;
 revoke all on "better_supabase"."pick_lists" from public, anon, authenticated;
 grant select on "better_supabase"."pick_lists" to authenticated;
 grant all on "better_supabase"."pick_lists" to service_role;
-drop policy if exists pick_lists_read on "better_supabase"."pick_lists";
-create policy pick_lists_read on "better_supabase"."pick_lists"
+create policy bsb_pick_lists_read on "better_supabase"."pick_lists"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
 -- One allocation to pick. bin_id and lot_id are where to find the stock, set
 -- from the stock levels when the line is made and by the picker when picked.
-create table if not exists "better_supabase"."pick_lines" (
+create table "better_supabase"."pick_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pick_list_id" uuid not null,
@@ -177,39 +77,38 @@ create table if not exists "better_supabase"."pick_lines" (
   "bin_id" uuid,
   "lot_id" uuid,
   "serials" text[],
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
-  "route_position" integer check ("route_position" > 0),
-  "picked" numeric(20, 6) not null default 0 check ("picked" >= 0 and "picked" <= "quantity"),
-  "status" text not null default 'open' check ("status" in ('open', 'picked', 'short', 'cancelled')),
+  "quantity" numeric(20, 6) not null constraint bsb_pick_lines_quantity_check check ("quantity" > 0),
+  "route_position" integer constraint bsb_pick_lines_route_position_check check ("route_position" > 0),
+  "picked" numeric(20, 6) not null default 0 constraint bsb_pick_lines_check check ("picked" >= 0 and "picked" <= "quantity"),
+  "status" text not null default 'open' constraint bsb_pick_lines_status_check check ("status" in ('open', 'picked', 'short', 'cancelled')),
   "picked_at" timestamptz,
   "picked_by" uuid,
   foreign key ("tenant_id", "pick_list_id") references "better_supabase"."pick_lists" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "pick_lines_parent_idx" on "better_supabase"."pick_lines" ("tenant_id", "pick_list_id");
-create index if not exists "pick_lines_allocation_idx" on "better_supabase"."pick_lines" ("allocation_id");
-create index if not exists "pick_lines_variant_idx" on "better_supabase"."pick_lines" ("variant_id");
+create index "pick_lines_parent_idx" on "better_supabase"."pick_lines" ("tenant_id", "pick_list_id");
+create index "pick_lines_allocation_idx" on "better_supabase"."pick_lines" ("allocation_id");
+create index "pick_lines_variant_idx" on "better_supabase"."pick_lines" ("variant_id");
 -- An allocation is on one open pick line at a time.
-create unique index if not exists "pick_lines_open_key" on "better_supabase"."pick_lines" ("allocation_id") where "status" = 'open';
+create unique index "pick_lines_open_key" on "better_supabase"."pick_lines" ("allocation_id") where "status" = 'open';
 alter table "better_supabase"."pick_lines" enable row level security;
 revoke all on "better_supabase"."pick_lines" from public, anon, authenticated;
 grant select on "better_supabase"."pick_lines" to authenticated;
 grant all on "better_supabase"."pick_lines" to service_role;
-drop policy if exists pick_lines_read on "better_supabase"."pick_lines";
-create policy pick_lines_read on "better_supabase"."pick_lines"
+create policy bsb_pick_lines_read on "better_supabase"."pick_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
 -- A cycle count schedule: every_days days a count of the location opens, of
 -- all its stock or of variant_ids only. A posted count whose variance stays
 -- under variance_limit_pct of what the books held posts without a review.
-create table if not exists "better_supabase"."count_plans" (
+create table "better_supabase"."count_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null constraint bsb_count_plans_name_check check (length("name") >= 1 and length("name") <= 200),
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "every_days" integer not null check ("every_days" between 1 and 3660),
+  "every_days" integer not null constraint bsb_count_plans_every_days_check check ("every_days" >= 1 and "every_days" <= 3660),
   "variant_ids" uuid[],
-  "variance_limit_pct" numeric(6, 2) not null default 5 check ("variance_limit_pct" >= 0),
+  "variance_limit_pct" numeric(6, 2) not null default 5 constraint bsb_count_plans_variance_limit_pct_check check ("variance_limit_pct" >= 0),
   "next_run_on" date not null default current_date,
   "last_run_at" timestamptz,
   "last_count_id" uuid,
@@ -217,52 +116,50 @@ create table if not exists "better_supabase"."count_plans" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "count_plans_due_idx" on "better_supabase"."count_plans" ("tenant_id", "next_run_on") where "active";
-create index if not exists "count_plans_location_idx" on "better_supabase"."count_plans" ("location_id");
+create index "count_plans_due_idx" on "better_supabase"."count_plans" ("tenant_id", "next_run_on") where "active";
+create index "count_plans_location_idx" on "better_supabase"."count_plans" ("location_id");
 alter table "better_supabase"."count_plans" enable row level security;
 revoke all on "better_supabase"."count_plans" from public, anon, authenticated;
 grant select on "better_supabase"."count_plans" to authenticated;
 grant all on "better_supabase"."count_plans" to service_role;
-drop policy if exists count_plans_read on "better_supabase"."count_plans";
-create policy count_plans_read on "better_supabase"."count_plans"
+create policy bsb_count_plans_read on "better_supabase"."count_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
 -- Where a receipt's stock goes: the bin to suggest for a variant (or for any
 -- variant), first by priority, up to max_quantity of that variant in the bin.
-create table if not exists "better_supabase"."putaway_rules" (
+create table "better_supabase"."putaway_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "bin_id" uuid not null references "better_supabase"."stock_bins" ("id") on delete cascade,
   "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade,
-  "priority" integer not null default 100 check ("priority" between 0 and 10000),
-  "max_quantity" numeric(20, 6) check ("max_quantity" > 0),
+  "priority" integer not null default 100 constraint bsb_putaway_rules_priority_check check ("priority" >= 0 and "priority" <= 10000),
+  "max_quantity" numeric(20, 6) constraint bsb_putaway_rules_max_quantity_check check ("max_quantity" > 0),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "putaway_rules_lookup_idx" on "better_supabase"."putaway_rules" ("tenant_id", "location_id", "variant_id", "priority") where "active";
-create index if not exists "putaway_rules_bin_idx" on "better_supabase"."putaway_rules" ("bin_id");
-create index if not exists "putaway_rules_location_idx" on "better_supabase"."putaway_rules" ("location_id");
-create index if not exists "putaway_rules_variant_idx" on "better_supabase"."putaway_rules" ("variant_id");
+create index "putaway_rules_lookup_idx" on "better_supabase"."putaway_rules" ("tenant_id", "location_id", "variant_id", "priority") where "active";
+create index "putaway_rules_bin_idx" on "better_supabase"."putaway_rules" ("bin_id");
+create index "putaway_rules_location_idx" on "better_supabase"."putaway_rules" ("location_id");
+create index "putaway_rules_variant_idx" on "better_supabase"."putaway_rules" ("variant_id");
 alter table "better_supabase"."putaway_rules" enable row level security;
 revoke all on "better_supabase"."putaway_rules" from public, anon, authenticated;
 grant select on "better_supabase"."putaway_rules" to authenticated;
 grant all on "better_supabase"."putaway_rules" to service_role;
-drop policy if exists putaway_rules_read on "better_supabase"."putaway_rules";
-create policy putaway_rules_read on "better_supabase"."putaway_rules"
+create policy bsb_putaway_rules_read on "better_supabase"."putaway_rules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
 -- How far a bin is from the dispatch area (walk_rank, lowest is closest) and
 -- how much it holds, in the same unit as variant_sizes.size.
-create table if not exists "better_supabase"."bin_slots" (
+create table "better_supabase"."bin_slots" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "bin_id" uuid not null unique references "better_supabase"."stock_bins" ("id") on delete cascade,
-  "walk_rank" integer not null default 0 check ("walk_rank" between 0 and 100000),
-  "capacity" numeric(20, 6) check ("capacity" > 0),
+  "walk_rank" integer not null default 0 constraint bsb_bin_slots_walk_rank_check check ("walk_rank" >= 0 and "walk_rank" <= 100000),
+  "capacity" numeric(20, 6) constraint bsb_bin_slots_capacity_check check ("capacity" > 0),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
@@ -270,18 +167,17 @@ alter table "better_supabase"."bin_slots" enable row level security;
 revoke all on "better_supabase"."bin_slots" from public, anon, authenticated;
 grant select on "better_supabase"."bin_slots" to authenticated;
 grant all on "better_supabase"."bin_slots" to service_role;
-drop policy if exists bin_slots_read on "better_supabase"."bin_slots";
-create policy bin_slots_read on "better_supabase"."bin_slots"
+create policy bsb_bin_slots_read on "better_supabase"."bin_slots"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
 -- The space one unit of a variant takes in a bin; a variant without a row
 -- takes 1.
-create table if not exists "better_supabase"."variant_sizes" (
+create table "better_supabase"."variant_sizes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null unique references "better_supabase"."product_variants" ("id") on delete cascade,
-  "size" numeric(20, 6) not null check ("size" > 0),
+  "size" numeric(20, 6) not null constraint bsb_variant_sizes_size_check check ("size" > 0),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
@@ -289,8 +185,7 @@ alter table "better_supabase"."variant_sizes" enable row level security;
 revoke all on "better_supabase"."variant_sizes" from public, anon, authenticated;
 grant select on "better_supabase"."variant_sizes" to authenticated;
 grant all on "better_supabase"."variant_sizes" to service_role;
-drop policy if exists variant_sizes_read on "better_supabase"."variant_sizes";
-create policy variant_sizes_read on "better_supabase"."variant_sizes"
+create policy bsb_variant_sizes_read on "better_supabase"."variant_sizes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
@@ -1674,178 +1569,118 @@ grant execute on function "better_supabase"."set_pick_route"(uuid, uuid[]) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
-    create function better_supabase.member_workspace_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."pick_waves";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pick_waves";
 create policy bsb_tenant_scope_select on "better_supabase"."pick_waves" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pick_waves";
 create policy bsb_tenant_scope_insert on "better_supabase"."pick_waves" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pick_waves";
 create policy bsb_tenant_scope_update on "better_supabase"."pick_waves" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pick_waves";
 create policy bsb_tenant_scope_delete on "better_supabase"."pick_waves" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pick_lists";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pick_lists";
 create policy bsb_tenant_scope_select on "better_supabase"."pick_lists" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pick_lists";
 create policy bsb_tenant_scope_insert on "better_supabase"."pick_lists" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pick_lists";
 create policy bsb_tenant_scope_update on "better_supabase"."pick_lists" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pick_lists";
 create policy bsb_tenant_scope_delete on "better_supabase"."pick_lists" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pick_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pick_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."pick_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pick_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."pick_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pick_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."pick_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pick_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."pick_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."count_plans";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."count_plans";
 create policy bsb_tenant_scope_select on "better_supabase"."count_plans" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."count_plans";
 create policy bsb_tenant_scope_insert on "better_supabase"."count_plans" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."count_plans";
 create policy bsb_tenant_scope_update on "better_supabase"."count_plans" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."count_plans";
 create policy bsb_tenant_scope_delete on "better_supabase"."count_plans" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."putaway_rules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."putaway_rules";
 create policy bsb_tenant_scope_select on "better_supabase"."putaway_rules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."putaway_rules";
 create policy bsb_tenant_scope_insert on "better_supabase"."putaway_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."putaway_rules";
 create policy bsb_tenant_scope_update on "better_supabase"."putaway_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."putaway_rules";
 create policy bsb_tenant_scope_delete on "better_supabase"."putaway_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."bin_slots";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."bin_slots";
 create policy bsb_tenant_scope_select on "better_supabase"."bin_slots" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bin_slots";
 create policy bsb_tenant_scope_insert on "better_supabase"."bin_slots" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."bin_slots";
 create policy bsb_tenant_scope_update on "better_supabase"."bin_slots" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bin_slots";
 create policy bsb_tenant_scope_delete on "better_supabase"."bin_slots" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."variant_sizes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."variant_sizes";
 create policy bsb_tenant_scope_select on "better_supabase"."variant_sizes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."variant_sizes";
 create policy bsb_tenant_scope_insert on "better_supabase"."variant_sizes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."variant_sizes";
 create policy bsb_tenant_scope_update on "better_supabase"."variant_sizes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."variant_sizes";
 create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse

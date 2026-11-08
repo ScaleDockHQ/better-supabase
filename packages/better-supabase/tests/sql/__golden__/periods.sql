@@ -1,85 +1,34 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:29fa4a572566e150b9060f2d8501d6f5d9952cbf9a83a942b27bb9d3cf0ce646
+-- @bsb-hash sha256:02af6c54fec7900430af253578dfa0f12e535fdcf4a5d9b0a087da35ff026d11
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Periods: one table of dated ranges per kind with a status, a lookup by date
 -- and a close protocol. Blocks add kinds through contributions; closing asks
 -- each kind's blockers first and runs its on-close step in the same transaction.
 -- Kinds installed now: none.
-create table if not exists "better_supabase"."periods" (
+create table "better_supabase"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "kind" text not null constraint bsb_periods_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'locked', 'closed')),
+  "status" text not null default 'open' constraint bsb_periods_status_check check ("status" in ('open', 'locked', 'closed')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "kind", "starts_on")
 );
-create index if not exists "periods_range_idx" on "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
+create index "periods_range_idx" on "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
 alter table "better_supabase"."periods" enable row level security;
 revoke all on "better_supabase"."periods" from public, anon, authenticated;
 grant select on "better_supabase"."periods" to authenticated;
 grant all on "better_supabase"."periods" to service_role;
-drop policy if exists periods_read on "better_supabase"."periods";
-create policy periods_read on "better_supabase"."periods"
+create policy bsb_periods_read on "better_supabase"."periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')));
 
@@ -339,52 +288,22 @@ grant execute on function "better_supabase"."list_periods"(uuid, jsonb) to authe
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."periods";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."periods";
 create policy bsb_tenant_scope_select on "better_supabase"."periods" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."periods";
 create policy bsb_tenant_scope_insert on "better_supabase"."periods" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."periods";
 create policy bsb_tenant_scope_update on "better_supabase"."periods" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."periods";
 create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
@@ -403,85 +322,34 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:5067cfc630661acc1f7e791c06672dde58fd83a2f75fe3730627a1c574f8e87d
+-- @bsb-hash sha256:1659b8e851a178103a29f58ca43c77bd03211019aa4eb22c1b37fca546da4fb8
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Periods: one table of dated ranges per kind with a status, a lookup by date
 -- and a close protocol. Blocks add kinds through contributions; closing asks
 -- each kind's blockers first and runs its on-close step in the same transaction.
 -- Kinds installed now: leave_year, fiscal_period, commission_period.
-create table if not exists "better_supabase"."periods" (
+create table "better_supabase"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "kind" text not null constraint bsb_periods_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'locked', 'closed')),
+  "status" text not null default 'open' constraint bsb_periods_status_check check ("status" in ('open', 'locked', 'closed')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "kind", "starts_on")
 );
-create index if not exists "periods_range_idx" on "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
+create index "periods_range_idx" on "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
 alter table "better_supabase"."periods" enable row level security;
 revoke all on "better_supabase"."periods" from public, anon, authenticated;
 grant select on "better_supabase"."periods" to authenticated;
 grant all on "better_supabase"."periods" to service_role;
-drop policy if exists periods_read on "better_supabase"."periods";
-create policy periods_read on "better_supabase"."periods"
+create policy bsb_periods_read on "better_supabase"."periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')));
 
@@ -813,59 +681,25 @@ grant execute on function "better_supabase"."list_periods"(uuid, jsonb) to authe
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."periods";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."periods";
 create policy bsb_tenant_scope_select on "better_supabase"."periods" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."periods";
 create policy bsb_tenant_scope_insert on "better_supabase"."periods" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."periods";
 create policy bsb_tenant_scope_update on "better_supabase"."periods" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."periods";
 create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.periods', target_type => 'period', event_prefix => 'period', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.periods deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"period","event_prefix":"period"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
@@ -884,61 +718,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:96780beb6af7f76bcc27e7fb1174ca51b1beca2fc0951db9a5a7cda6958f2033
+-- @bsb-hash sha256:60c42d70e91192920ffc63819fc4ae670f1c036ea9765d38380bb41aa3bd8b79
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."periods";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."periods";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."periods";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."periods";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -948,26 +732,25 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- and a close protocol. Blocks add kinds through contributions; closing asks
 -- each kind's blockers first and runs its on-close step in the same transaction.
 -- Kinds installed now: none.
-create table if not exists "app_private"."periods" (
+create table "app_private"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "kind" text not null constraint bsb_periods_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'locked', 'closed')),
+  "status" text not null default 'open' constraint bsb_periods_status_check check ("status" in ('open', 'locked', 'closed')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "kind", "starts_on")
 );
-create index if not exists "periods_range_idx" on "app_private"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
+create index "periods_range_idx" on "app_private"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
 alter table "app_private"."periods" enable row level security;
 revoke all on "app_private"."periods" from public, anon, authenticated;
 grant select on "app_private"."periods" to authenticated;
 grant all on "app_private"."periods" to service_role;
-drop policy if exists periods_read on "app_private"."periods";
-create policy periods_read on "app_private"."periods"
+create policy bsb_periods_read on "app_private"."periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')));
 
@@ -1227,52 +1010,22 @@ grant execute on function "app_private"."list_periods"(uuid, jsonb) to authentic
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."periods";
-drop policy if exists bsb_tenant_scope_select on "app_private"."periods";
 create policy bsb_tenant_scope_select on "app_private"."periods" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."periods";
 create policy bsb_tenant_scope_insert on "app_private"."periods" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."periods";
 create policy bsb_tenant_scope_update on "app_private"."periods" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."periods";
 create policy bsb_tenant_scope_delete on "app_private"."periods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
@@ -1291,85 +1044,34 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:bc8bfa4839d6b441235f205264b35caaab61f59235b6e29ca60cf6b0db584ca1
+-- @bsb-hash sha256:91cbd8b218c9bb40a8c3e6a5e8a3618e04e315d335b206aa8868473cedd47d98
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Periods: one table of dated ranges per kind with a status, a lookup by date
 -- and a close protocol. Blocks add kinds through contributions; closing asks
 -- each kind's blockers first and runs its on-close step in the same transaction.
 -- Kinds installed now: none.
-create table if not exists "better_supabase"."periods" (
+create table "better_supabase"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "kind" text not null constraint bsb_periods_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'locked', 'closed')),
+  "status" text not null default 'open' constraint bsb_periods_status_check check ("status" in ('open', 'locked', 'closed')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "kind", "starts_on")
 );
-create index if not exists "periods_range_idx" on "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
+create index "periods_range_idx" on "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
 alter table "better_supabase"."periods" enable row level security;
 revoke all on "better_supabase"."periods" from public, anon, authenticated;
 grant select on "better_supabase"."periods" to authenticated;
 grant all on "better_supabase"."periods" to service_role;
-drop policy if exists periods_read on "better_supabase"."periods";
-create policy periods_read on "better_supabase"."periods"
+create policy bsb_periods_read on "better_supabase"."periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')));
 
@@ -1629,36 +1331,19 @@ grant execute on function "better_supabase"."list_periods"(uuid, jsonb) to authe
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."periods";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."periods";
 create policy bsb_tenant_scope_select on "better_supabase"."periods" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."periods";
 create policy bsb_tenant_scope_insert on "better_supabase"."periods" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."periods";
 create policy bsb_tenant_scope_update on "better_supabase"."periods" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."periods";
 create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1666,25 +1351,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrict
 -- blocks.periods.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."create_period"(tenant uuid, kind text, starts_on date, ends_on date)
 returns jsonb
@@ -1761,19 +1427,6 @@ as $$ select "better_supabase"."list_periods"($1, $2) $$;
 revoke execute on function "api"."list_periods"(uuid, jsonb) from public, anon;
 grant execute on function "api"."list_periods"(uuid, jsonb) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block-data periods
@@ -1791,61 +1444,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:33aba9e5355a1361625c107bbe1935bb8f99f529ce5bcded05d4c4fb7ca1ca53
+-- @bsb-hash sha256:a21ac90635d2289339258d783d761d0dcc0af8e860d9f8a318bde3194d5ce46f
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Periods: one table of dated ranges per kind with a status, a lookup by date
 -- and a close protocol. Blocks add kinds through contributions; closing asks
 -- each kind's blockers first and runs its on-close step in the same transaction.
@@ -1853,10 +1456,10 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.periods is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."periods" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."periods" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."periods" add column if not exists "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."periods" add column if not exists "kind" text constraint bsb_periods_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
 alter table "better_supabase"."periods" add column if not exists "starts_on" date;
 alter table "better_supabase"."periods" add column if not exists "ends_on" date;
-alter table "better_supabase"."periods" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'locked', 'closed'));
+alter table "better_supabase"."periods" add column if not exists "status" text not null default 'open' constraint bsb_periods_status_check check ("status" in ('open', 'locked', 'closed'));
 alter table "better_supabase"."periods" add column if not exists "closed_at" timestamptz;
 alter table "better_supabase"."periods" add column if not exists "closed_by" uuid;
 alter table "better_supabase"."periods" add column if not exists "created_at" timestamptz not null default now();
@@ -1865,7 +1468,6 @@ create index if not exists "periods_range_idx" on "better_supabase"."periods" ("
 alter table "better_supabase"."periods" enable row level security;
 grant select on "better_supabase"."periods" to authenticated;
 grant all on "better_supabase"."periods" to service_role;
-drop policy if exists bsb_periods_select on "better_supabase"."periods";
 create policy bsb_periods_select on "better_supabase"."periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')));
@@ -2126,52 +1728,22 @@ grant execute on function "better_supabase"."list_periods"(uuid, jsonb) to authe
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."periods";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."periods";
 create policy bsb_tenant_scope_select on "better_supabase"."periods" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."periods";
 create policy bsb_tenant_scope_insert on "better_supabase"."periods" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."periods";
 create policy bsb_tenant_scope_update on "better_supabase"."periods" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."periods";
 create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
@@ -2190,85 +1762,34 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:0bc75bb927e1fe177166cd0a5f062e558cede976ba383cce26a6b15d3d99418e
+-- @bsb-hash sha256:a745e0355eb8c629c274a31e8807999abd4dc5e025ffa23ad57331d387f76c09
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Periods: one table of dated ranges per kind with a status, a lookup by date
 -- and a close protocol. Blocks add kinds through contributions; closing asks
 -- each kind's blockers first and runs its on-close step in the same transaction.
 -- Kinds installed now: none.
-create table if not exists "better_supabase"."periods" (
+create table "better_supabase"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "kind" text not null constraint bsb_periods_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'locked', 'closed')),
+  "status" text not null default 'open' constraint bsb_periods_status_check check ("status" in ('open', 'locked', 'closed')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_periods_check check ("ends_on" >= "starts_on"),
   unique ("org_id", "kind", "starts_on")
 );
-create index if not exists "periods_range_idx" on "better_supabase"."periods" ("org_id", "kind", "starts_on", "ends_on");
+create index "periods_range_idx" on "better_supabase"."periods" ("org_id", "kind", "starts_on", "ends_on");
 alter table "better_supabase"."periods" enable row level security;
 revoke all on "better_supabase"."periods" from public, anon, authenticated;
 grant select on "better_supabase"."periods" to authenticated;
 grant all on "better_supabase"."periods" to service_role;
-drop policy if exists periods_read on "better_supabase"."periods";
-create policy periods_read on "better_supabase"."periods"
+create policy bsb_periods_read on "better_supabase"."periods"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('periods.read')));
 
@@ -2528,52 +2049,22 @@ grant execute on function "better_supabase"."list_periods"(uuid, jsonb) to authe
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."periods";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."periods";
 create policy bsb_tenant_scope_select on "better_supabase"."periods" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('periods.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."periods";
 create policy bsb_tenant_scope_insert on "better_supabase"."periods" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."periods";
 create policy bsb_tenant_scope_update on "better_supabase"."periods" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."periods";
 create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
 -- better-supabase module: periods

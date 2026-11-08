@@ -9,10 +9,10 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import { lockTable, schemaPreamble } from "../shared.ts";
 import { courseAuthoringFunctions } from "./courses-authoring.ts";
 import { courseLearningFunctions } from "./courses-learning.ts";
-import { COURSE_KEYS, courseEnrollments } from "./courses-sql.ts";
+import { courseEnrollments } from "./courses-sql.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const COURSE_PAYLOAD = ["organizationId", "id", "key", "status"] as const;
@@ -73,7 +73,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["extraColumns"],
+  options: [],
   tables: {
     courses: {
       name: "courses",
@@ -206,7 +206,6 @@ function courseTables(ctx: BlockSqlContext): string {
   const read = ctx.permission("read", keys.read);
   const enroll = ctx.permission("enroll", keys.enroll);
   const manage = ctx.permission("manage", keys.manage);
-  const extras = ctx.extraColumns("courses", COURSE_KEYS);
 
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
@@ -255,7 +254,7 @@ function courseTables(ctx: BlockSqlContext): string {
   ${c("title")} text not null check (length(${c("title")}) between 1 and 200),${optional("courses", "summary", (x) => `${x} text check (${x} is null or length(${x}) <= 2000)`)}
   ${c("status")} text not null default 'draft' check (${c("status")} in ('draft', 'published', 'archived')),${optional("courses", "certificate", (x) => `${x} boolean not null default true`)}${optional("courses", "validForMonths", validFor)}${optional("courses", "createdBy", (x) => `${x} uuid`)}${optional("courses", "createdAt", (x) => `${x} timestamptz not null default now()`)}${optional("courses", "updatedAt", (x) => `${x} timestamptz not null default now()`)}
   unique (${c("tenant")}, ${c("key")})
-);${key("courses", "key_key", `${c("tenant")}, ${c("key")}`)}${added("courses", "validForMonths", validFor)}${addExtraColumns(courses, extras)}
+);${key("courses", "key_key", `${c("tenant")}, ${c("key")}`)}${added("courses", "validForMonths", validFor)}
 
 create table if not exists ${modules} (
   ${m("id")} uuid primary key default gen_random_uuid(),

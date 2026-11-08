@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
 import { PARTITION_VARIABLES, dropExpiredPartitions, fail } from "../shared.ts";
+import { addressSql } from "./notifications-address.ts";
 import { itemJson } from "./notifications-items.ts";
 import { claimSuppression } from "./notifications-suppressions.ts";
 import {
@@ -157,7 +158,7 @@ begin${lostLease}
     'channel', l.${d("channel")},
     'attempts', ${retries ? `l.${d("attempts")}` : "1"},
     'user_id', rc.${r("user")},
-    'email', u.email,
+    'email', ${addressSql(ctx, `rc.${r("user")}`, `l.${d("channel")}`, "u.email")},
     'locale', ${locale.value},
     'notification', ${itemJson(n)}${suppression.field}
   )), '[]') into claimed

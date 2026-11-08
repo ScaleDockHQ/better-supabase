@@ -143,9 +143,11 @@ describe("appTables SQL", () => {
       );
     }
 
-    expect(file!.contents).toContain(
-      "create or replace function better_supabase.actor_may_write()",
-    );
+    expect(
+      renderBlocks([], { scope: "user", appTables: TABLES }).find(
+        (each) => each.module === "prelude",
+      )!.contents,
+    ).toContain("create or replace function better_supabase.actor_may_write()");
   });
 
   it("renders nothing without app tables", () => {
@@ -327,8 +329,7 @@ describe("appTables SQL", () => {
     const [schema, test] = render(BLOCKS, { appTables: FORMATS });
 
     expect(schema?.contents).toContain(
-      `alter table "public"."contacts" drop constraint if exists "contacts_email_check";
-alter table "public"."contacts" add constraint "contacts_email_check" check ("email" ~* '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$');`,
+      `alter table "public"."contacts" add constraint "contacts_email_check" check ("email" ~* '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$');`,
     );
     expect(schema?.contents).toContain(
       `check ("stage" in ('lead', 'won', 'it''s lost'))`,
@@ -392,8 +393,7 @@ alter table "public"."contacts" add constraint "contacts_email_check" check ("em
       `create unique index if not exists "projects_organization_id_id_key" on "public"."projects" ("organization_id", id);`,
     );
     expect(schema?.contents).toContain(
-      `alter table "public"."tasks" drop constraint if exists "tasks_project_id_fkey";
-alter table "public"."tasks" add constraint "tasks_project_id_fkey" foreign key ("organization_id", "project_id") references "public"."projects" ("organization_id", id) on delete cascade;`,
+      `alter table "public"."tasks" add constraint "tasks_project_id_fkey" foreign key ("organization_id", "project_id") references "public"."projects" ("organization_id", id) on delete cascade;`,
     );
     expect(schema?.contents).toContain(
       `foreign key ("organization_id", "parent_id") references "public"."folders" ("organization_id", id) on delete set null ("parent_id");`,
@@ -656,9 +656,6 @@ describe("appTables SQL errors", () => {
       const schema = schemaOf(BLOCKS, { ...OWN, appTables: { invoices: {} } });
 
       for (const command of ["select", "insert", "update", "delete"]) {
-        expect(schema).toContain(
-          `drop policy if exists bsb_invoices_${command} on "public"."invoices";`,
-        );
         expect(schema).not.toContain(`"invoices_${command}"`);
       }
 
@@ -786,7 +783,7 @@ grant select, insert, update, delete on "public"."invoices" to authenticated;`,
   });
 
   it("renders app_table_set for the bulk action over subject tables", () => {
-    const schema = render([...BLOCKS, "permissions", "bulk"], {
+    const schema = render([...BLOCKS, "permissions", "bulk-actions"], {
       appTables: {
         tasks: {
           columns: {

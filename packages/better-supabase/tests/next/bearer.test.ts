@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createNext } from "../../src/next/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -30,7 +30,7 @@ const signer = await createTestSigner();
 const sub = "6f1c2c1e-5d0a-4d9e-9a51-6b1f0e7c2a10";
 const client = "5f0e4d3c-2b1a-4098-8776-655443322110";
 
-const bsb = createNext(defineSupabase(schema), {
+const bsb = createNext(createSupabase(schema), {
   env,
   auth: { jwks: signer.jwks },
   cacheTags: false,

@@ -5,7 +5,7 @@ import type { Result } from "../../src/core/result.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createFunding } from "../../src/blocks/funding/index.ts";
-import { createTimeTracking } from "../../src/blocks/time-tracking/index.ts";
+import { createTimeEntries } from "../../src/blocks/time-entries/index.ts";
 import { money } from "../../src/commerce/money.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
@@ -29,7 +29,7 @@ const MODULES = [
   "outbox",
   "notifications",
   "approvals",
-  "time-tracking",
+  "time-entries",
   "numbering",
   "invoices",
   "contacts",
@@ -112,7 +112,7 @@ describe.skipIf(!live)("funding", () => {
 
       expect(award).toMatchObject({ status: "active", subject, units: 2 });
 
-      const time = createTimeTracking({
+      const time = createTimeEntries({
         transport: sqlTransport(s.sql),
         tenant: org,
       });

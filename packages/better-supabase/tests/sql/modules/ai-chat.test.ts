@@ -8,6 +8,7 @@ import {
   renderBlocks,
 } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("ai-chat", { modules })!;
@@ -36,9 +37,7 @@ describe("ai-chat module", () => {
       "ai_model_catalog",
       "ai_moderation_events",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}" (`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}" (`);
     }
 
     expect(sql).toContain('primary key ("chat_id", "id")');
@@ -84,12 +83,6 @@ describe("ai-chat module", () => {
     }
   });
 
-  it("drops the claim's earlier signature so one overload remains", () => {
-    expect(body()).toContain(
-      'drop function if exists "better_supabase"."claim_ai_chat_stream"(uuid, text, text, text, text);',
-    );
-  });
-
   it("keeps durable runs, run steps and harness sessions", () => {
     const sql = body();
     expect(sql).toContain('"external_run_id" text');
@@ -115,10 +108,8 @@ describe("ai-chat module", () => {
 
   it("keeps every sandbox, a harness session's included, in ai_sandboxes", () => {
     const sql = body();
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."ai_sandboxes" (',
-    );
-    expect(sql).toMatch(/"harness_id" text check/);
+    expect(sql).toContain('create table "better_supabase"."ai_sandboxes" (');
+    expect(unnamedChecks(sql)).toMatch(/"harness_id" text check/);
     expect(sql).not.toMatch(/ai_harness_sessions" \([^;]*"sandbox_id"/);
     expect(sql).toContain("default 600");
 
@@ -203,7 +194,7 @@ describe("ai-chat module", () => {
     expect(sql).toContain("'chat:' || chat::text");
     expect(sql).toContain("interval '2 hours'");
     expect(sql).toContain("interval '1 minute'");
-    expect(sql).toContain('"organization_id" bigint not null');
+    expect(sql).toContain('"tenant_id" bigint not null');
     expect(() =>
       body({ "ai-chat": { options: { topic: "Bad Topic" } } }),
     ).toThrow(/options.topic/);
@@ -224,7 +215,6 @@ describe("ai-chat module", () => {
 
 describe("ai-chat tool approvals with the provider's approver templates", () => {
   const withProvider = (
-    distinctApprover?: boolean,
     isApprover?: string,
     model: "provider" | "roles" = "provider",
   ) =>
@@ -237,24 +227,18 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
         functions: {
           idsWith: "authz.ids_with({permission}, {scope})",
           isPlatform: "authz.is_platform({permission})",
-          // oxlint-disable-next-line typescript/no-deprecated -- the deprecated template still works.
-          canApprove: "authz.can_approve({tool}, {tenant})",
           ...(isApprover === undefined ? {} : { isApprover }),
         },
-        ...(distinctApprover === undefined
-          ? {}
-          : { approvals: { distinctApprover } }),
       },
     })!;
 
   it("asks isApprover with kind ai-tool and the tool name, never the requester", () => {
     const sql = withProvider(
-      false,
       "authz.is_approver({kind}, {subject}, {tenant}, '{scope}')",
     );
 
     expect(sql).toContain(
-      `v_row."owner_id" is distinct from (select auth.uid()) and coalesce((authz.is_approver('ai-tool', v_row."tool", (select c."organization_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id"), 'organization')), false)`,
+      `v_row."owner_id" is distinct from (select auth.uid()) and coalesce((authz.is_approver('ai-tool', v_row."tool", (select c."tenant_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id"), 'organization')), false)`,
     );
     expect(sql).not.toContain("can_approve");
     expect(sql).toContain(
@@ -264,7 +248,6 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
 
   it("ignores the provider outside the provider access model", () => {
     const sql = withProvider(
-      true,
       "authz.is_approver({kind}, {subject}, {tenant})",
       "roles",
     );
@@ -273,20 +256,11 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
     expect(sql).not.toContain("can_approve");
   });
 
-  it("lets the owner decide without canApprove", () => {
+  it("lets the owner decide without isApprover", () => {
     const sql = body();
     const decide = sql.slice(sql.indexOf("decide_ai_tool_approval"));
     expect(decide).toContain("= (select auth.uid())");
     expect(decide).not.toContain("can_approve");
-  });
-
-  it("asks canApprove, and keeps the requester out with distinctApprover", () => {
-    const shared = withProvider();
-    expect(shared).toMatch(/coalesce\(\(authz\.can_approve\(v_row\."tool"/);
-    expect(shared).not.toContain("is distinct from (select auth.uid())");
-    expect(withProvider(true)).toMatch(
-      /is distinct from \(select auth\.uid\(\)\) and coalesce\(\(authz\.can_approve/,
-    );
   });
 
   it("records token usage on the usage block's meters", () => {

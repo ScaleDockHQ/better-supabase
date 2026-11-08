@@ -66,6 +66,44 @@ const PUBLIC = {
 const ACTOR = { type: "user", id: "u1" } as const;
 
 describe("quote rows", () => {
+  it("reads an open-ended line with its unit and discount kind", async () => {
+    const t = transport({
+      create_quote: () => ({
+        ...ROW,
+        lines: [
+          {
+            description: "Hosting",
+            quantity: 1,
+            unitAmount: "10",
+            periods: null,
+            unit: "month",
+            discountKind: "fixed",
+          },
+          {
+            description: "Setup",
+            quantity: 1,
+            unitAmount: "10",
+            periods: 1,
+            discountKind: "half",
+          },
+        ],
+      }),
+    });
+
+    const quote = await createQuotes({ transport: t })
+      .create({ organizationId: "o", input: { title: "Rollout" } })
+      .orThrow();
+
+    expect(quote.lines[0]).toMatchObject({
+      openEnded: true,
+      unit: "month",
+      discountKind: "fixed",
+    });
+    expect(quote.lines[0]).not.toHaveProperty("periods");
+    expect(quote.lines[1]).not.toHaveProperty("openEnded");
+    expect(quote.lines[1]).not.toHaveProperty("discountKind");
+  });
+
   it("reads periods, tax lines without a rate and the unpublished flag", async () => {
     const t = transport({
       create_quote: () => ({
@@ -224,7 +262,7 @@ describe("quote writes", () => {
         company_id: "c1",
         contact_type: "contact",
         contact_id: "p1",
-        owner_user_id: "u1",
+        owner_id: "u1",
         terms: "Net 30",
         note: "Careful",
         deposit_bps: 1000,

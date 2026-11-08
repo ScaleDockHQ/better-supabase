@@ -7,6 +7,7 @@ import { getExtracted } from "next-intl/server";
 
 import { Badge } from "@/components/reui/badge";
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 export async function WorkOrderStatusBadge({
   status,
 }: {
@@ -47,6 +48,7 @@ export async function WorkOrderStatusBadge({
   }
 }
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 export async function WorkOrderPriorityBadge({
   priority,
 }: {

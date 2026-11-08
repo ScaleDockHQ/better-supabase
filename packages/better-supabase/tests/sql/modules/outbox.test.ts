@@ -18,9 +18,7 @@ const overApp = (modules: AnyBlocksConfig) =>
 describe("outbox module", () => {
   it("owns its tables and keeps the functions for the service role", () => {
     const sql = body({});
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."outbox_events" (',
-    );
+    expect(sql).toContain('create table "better_supabase"."outbox_events" (');
     expect(sql).toContain('"xid" xid8 not null default pg_current_xact_id()');
     expect(sql).toContain("nulls not distinct");
     expect(sql).toContain('"xid" < pg_snapshot_xmin(pg_current_snapshot())');
@@ -51,15 +49,13 @@ describe("outbox module", () => {
       'create table if not exists "public"."domain_events"',
     );
     expect(sql).toContain("coalesce(source, 'domain')");
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."outbox_consumers"',
-    );
+    expect(sql).toContain('create table "better_supabase"."outbox_consumers"');
     expect(sql).toContain('insert into "public"."domain_events" ("kind"');
     expect(sql).toContain("tenant::uuid");
     expect(sql).toContain("now() - '2 seconds'::interval");
     expect(sql).toContain('returning "id"::text into found_id');
     expect(sql).toContain('where e."seq" > c."cursor_position"');
-    expect(sql).not.toContain('add column if not exists "xid"');
+    expect(sql).not.toContain('add column "xid"');
     expect(sql).not.toContain('where e."key"');
     expect(sql).toContain("to service_role, authenticated;");
   });
@@ -71,7 +67,7 @@ describe("outbox module", () => {
       '"position" bigint generated always as identity unique',
     );
     expect(sql).toContain(
-      'create index if not exists outbox_events_xid_idx on "better_supabase"."outbox_events" ("xid", "position");',
+      'create index outbox_events_xid_idx on "better_supabase"."outbox_events" ("xid", "position");',
     );
     expect(sql).toContain('("cursor_xid", "cursor_position") = (');
     expect(sql).toContain(
@@ -186,9 +182,7 @@ describe("outbox partitioned", () => {
     const plain = body({});
     expect(plain).not.toContain("partition by range");
     expect(plain).not.toContain("expired_partitions");
-    expect(plain).toContain(
-      "create unique index if not exists outbox_events_key_idx",
-    );
+    expect(plain).toContain("create unique index outbox_events_key_idx");
   });
 
   it("revokes the row trigger function from the API roles", () => {

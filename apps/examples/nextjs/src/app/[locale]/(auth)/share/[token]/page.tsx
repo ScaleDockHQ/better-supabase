@@ -10,7 +10,9 @@ export default function SharePage({
 }: PageProps<"/[locale]/share/[token]">) {
   return (
     <Suspense fallback={<SharedCustomerCardSkeleton />}>
-      <SharedCustomerCard params={params} />
+      {params.then(({ token }) => (
+        <SharedCustomerCard token={token} />
+      ))}
     </Suspense>
   );
 }

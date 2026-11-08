@@ -58,7 +58,7 @@ function readPolicy(ctx: BlockSqlContext, names: Names, table: string): string {
       roles: ["authenticated"],
       using: `${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)})`,
     }),
-    { drop: true, target: t },
+    { target: t },
   );
 }
 

@@ -4,7 +4,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
-import type { Islands, IslandScope } from "../islands-queries";
+import type { IslandScope } from "../islands-cache";
+import type { Islands } from "../islands-queries";
 
 import { evictMyIslands } from "../islands-actions";
 import { getIslandsIn } from "../islands-queries";

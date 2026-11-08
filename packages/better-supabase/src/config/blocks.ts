@@ -96,9 +96,6 @@ export type EntitiesConfig<Names extends BlockSqlNameSet = AnyModuleNames> =
           readonly [E in keyof Names["entities"]]?:
             | string
             | EntityConfig<Names["entities"][E]>;
-        } & {
-          /** @deprecated Use the entity's new key. Removed in 0.48. */
-          readonly [E in Names["formerKeys"]]?: string | EntityConfig;
         });
 
 /**

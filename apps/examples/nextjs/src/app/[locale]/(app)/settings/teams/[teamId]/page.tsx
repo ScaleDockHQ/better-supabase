@@ -31,7 +31,9 @@ export default function TeamPage({
       </Link>
       <Suspense fallback={<TeamDetailSkeleton />}>
         <PermissionGate permission="teams.read">
-          <TeamDetail params={params} />
+          {params.then(({ teamId }) => (
+            <TeamDetail teamId={teamId} />
+          ))}
         </PermissionGate>
       </Suspense>
     </div>

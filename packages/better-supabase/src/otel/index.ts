@@ -95,7 +95,7 @@ function systemOf(executor: Executor): string {
  * recorded; `db.query.summary` is `SELECT customers`.
  *
  * ```ts
- * const betterSupabase = defineSupabase(schema).use(otel());
+ * const betterSupabase = createSupabase(schema).use(otel());
  * ```
  */
 export function otel(options: OtelOptions = {}): Plugin<"otel"> {

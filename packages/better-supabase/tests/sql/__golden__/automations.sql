@@ -1,88 +1,22 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:b5725bc2f917bb8a361406d32d092b6bc4ac77fd397e8cde6ded8c12ef73df71
+-- @bsb-hash sha256:f5b7f368285a816a60e98fc1024fa96d2f2a603119a6b74e893b5dfa02b7c8e9
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
-create table if not exists "better_supabase"."automations" (
+create table "better_supabase"."automations" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
+  "tenant_id" uuid not null,
+  "subject_type" text not null constraint bsb_automations_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automations_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automations_description_check check (length("description") <= 2000),
   "conditions" jsonb not null,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automations_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default false,
   "stop_processing" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -92,11 +26,11 @@ create table if not exists "better_supabase"."automations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "automations_trigger_idx" on "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "rank");
-create index if not exists "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
-create index if not exists "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
-alter table "better_supabase"."automations" add column if not exists "default_key" text;
-create unique index if not exists "automations_default_key_idx" on "better_supabase"."automations" ("organization_id", "default_key") where "default_key" is not null;
+create index "automations_trigger_idx" on "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "rank");
+create index "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
+create index "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."automations" add column "default_key" text;
+create unique index "automations_default_key_idx" on "better_supabase"."automations" ("tenant_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."automations" enable row level security;
 revoke all on "better_supabase"."automations" from public, anon, authenticated;
 grant all on "better_supabase"."automations" to service_role;
@@ -104,15 +38,15 @@ grant all on "better_supabase"."automations" to service_role;
 -- The automations blocks ship (defineBlock automations). Each organization
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists "better_supabase"."automation_defaults" (
-  "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
+create table "better_supabase"."automation_defaults" (
+  "key" text primary key constraint bsb_automation_defaults_key_check check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_automation_defaults_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automation_defaults_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automation_defaults_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automation_defaults_description_check check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automation_defaults_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -121,10 +55,10 @@ revoke all on "better_supabase"."automation_defaults" from public, anon, authent
 grant all on "better_supabase"."automation_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
-create table if not exists "better_supabase"."automation_versions" (
+create table "better_supabase"."automation_versions" (
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "name" text not null,
   "conditions" jsonb not null,
   "actions" jsonb not null,
@@ -132,16 +66,16 @@ create table if not exists "better_supabase"."automation_versions" (
   "saved_at" timestamptz not null default now(),
   primary key ("rule_id", "version")
 );
-create index if not exists "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("organization_id");
+create index "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("tenant_id");
 alter table "better_supabase"."automation_versions" enable row level security;
 revoke all on "better_supabase"."automation_versions" from public, anon, authenticated;
 grant all on "better_supabase"."automation_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
 -- truth of every condition and group.
-create table if not exists "better_supabase"."automation_evaluations" (
+create table "better_supabase"."automation_evaluations" (
   "id" bigint generated always as identity primary key,
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
   "subject_type" text not null,
@@ -149,25 +83,25 @@ create table if not exists "better_supabase"."automation_evaluations" (
   "trigger" text not null,
   "matched" boolean not null,
   "results" jsonb not null default '{}'::jsonb,
-  "mode" text not null default 'live' check ("mode" in ('live', 'test')),
+  "mode" text not null default 'live' constraint bsb_automation_evaluations_mode_check check ("mode" in ('live', 'test')),
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
-create index if not exists "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("organization_id", "evaluated_at" desc);
+create index "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
+create index "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("tenant_id", "evaluated_at" desc);
 alter table "better_supabase"."automation_evaluations" enable row level security;
 revoke all on "better_supabase"."automation_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
-create table if not exists "better_supabase"."automation_fields" (
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+create table "better_supabase"."automation_fields" (
+  "subject_type" text not null constraint bsb_automation_fields_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "field_id" text not null constraint bsb_automation_fields_field_id_check check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
   "description" text,
-  "type" text not null check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
-  "path" text not null check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+  "type" text not null constraint bsb_automation_fields_type_check check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
+  "path" text not null constraint bsb_automation_fields_path_check check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "column_type" text not null,
   "nullable" boolean not null default true,
   "options" jsonb,
@@ -175,7 +109,7 @@ create table if not exists "better_supabase"."automation_fields" (
   "position" integer not null default 0,
   "updated_at" timestamptz not null default now(),
   primary key ("subject_type", "field_id"),
-  check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
+  constraint bsb_automation_fields_check check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "better_supabase"."automation_fields" enable row level security;
 revoke all on "better_supabase"."automation_fields" from public, anon, authenticated;
@@ -732,7 +666,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."organization_id" = save_rule.tenant for update;
+    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."tenant_id" = save_rule.tenant for update;
     if v_old."id" is null then
       raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
@@ -787,19 +721,19 @@ begin
     end if;
   end;
   if v_old."id" is null then
-    insert into "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
+    insert into "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
     values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
       case
-    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
     returning * into v_row;
   elsif v_old."trigger" = v_trigger and v_old."name" = v_name
     and v_old."description" is not distinct from v_description
     and v_old."conditions" = v_conditions and v_old."actions" = v_actions
     and v_old."enabled" = v_enabled and v_old."stop_processing" = v_stop then
-    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
+    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."tenant_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
   else
     update "better_supabase"."automations" x set
       "trigger" = v_trigger,
@@ -815,8 +749,8 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  insert into "better_supabase"."automation_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
-  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  insert into "better_supabase"."automation_versions" ("rule_id", "version", "tenant_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."tenant_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
   if v_old."id" is null then
     null;
@@ -836,7 +770,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -853,9 +787,9 @@ begin
   end if;
   perform "better_supabase"."install_default_rules"(rules_list.tenant);
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
     from "better_supabase"."automations" x
-    where x."organization_id" = rules_list.tenant
+    where x."tenant_id" = rules_list.tenant
       and (rules_list.subject_type is null or x."subject_type" = rules_list.subject_type)
       and (rules_list.trigger is null or x."trigger" = rules_list.trigger)
       and (rules_list.enabled is null or x."enabled" = rules_list.enabled)
@@ -875,10 +809,10 @@ declare
   v_row "better_supabase"."automations";
 begin
   select * into v_row from "better_supabase"."automations" x where x."id" = rule_get.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -893,7 +827,7 @@ as $$
 declare
   v_tenant uuid;
 begin
-  select x."organization_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_versions_list.id;
+  select x."tenant_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_versions_list.id;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'automations.read'), false)) then
     return '[]'::jsonb;
   end if;
@@ -922,14 +856,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = set_rule_enabled.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false)) then
     raise exception 'Publishing rules needs the publish permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_row."enabled" = coalesce(set_rule_enabled.enabled, false) then
-    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
   end if;
   update "better_supabase"."automations" x set "enabled" = coalesce(set_rule_enabled.enabled, false), "updated_by" = auth.uid(), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
@@ -938,7 +872,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -956,10 +890,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = rank_rule.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.write'), false) end)) then
     raise exception 'You need % to move this rule', case when v_row."enabled" then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if rank_rule.rank is null or rank_rule.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
@@ -967,7 +901,7 @@ begin
   end if;
   update "better_supabase"."automations" x set "rank" = rank_rule.rank, "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -986,7 +920,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = remove_rule.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.manage'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.manage'), false)) then
     return false;
   end if;
   if v_row."default_key" is not null then
@@ -1035,13 +969,13 @@ begin
   v_fields := "better_supabase"."rule_field_map"(matching_rules.subject_type);
   for v_rule in
     select * from "better_supabase"."automations" x
-    where x."organization_id" = matching_rules.tenant and x."subject_type" = matching_rules.subject_type
+    where x."tenant_id" = matching_rules.tenant and x."subject_type" = matching_rules.subject_type
       and x."trigger" = matching_rules.trigger and x."enabled"
     order by x."rank" collate "C"
   loop
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", matching_rules.subject, v_fields, coalesce(matching_rules.time_zone, 'UTC'), now());
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."tenant_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -1074,17 +1008,17 @@ begin
   if coalesce(record_rule_evaluation.mode, 'live') = 'live' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records live evaluations' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."organization_id", 'automations.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."tenant_id", 'automations.write'), false)) then
     raise exception 'Testing rules needs the edit permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
-  insert into "better_supabase"."automation_evaluations" ("organization_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
-  values (v_rule."organization_id", v_rule."id", v_rule."version", v_rule."subject_type", record_rule_evaluation.subject_id, v_rule."trigger",
+  insert into "better_supabase"."automation_evaluations" ("tenant_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
+  values (v_rule."tenant_id", v_rule."id", v_rule."version", v_rule."subject_type", record_rule_evaluation.subject_id, v_rule."trigger",
     coalesce(record_rule_evaluation.matched, false), coalesce(record_rule_evaluation.results, '{}'::jsonb), coalesce(record_rule_evaluation.mode, 'live'), auth.uid())
   returning * into v_row;
   if v_row."mode" = 'live' and v_row."matched" then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id"::text, 'organizationId', v_row."organization_id", 'ruleId', v_row."rule_id", 'version', v_row."version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'trigger', v_row."trigger", 'matched', v_row."matched", 'results', v_row."results", 'mode', v_row."mode", 'evaluatedBy', v_row."evaluated_by", 'evaluatedAt', v_row."evaluated_at");
+  return jsonb_build_object('id', v_row."id"::text, 'organizationId', v_row."tenant_id", 'ruleId', v_row."rule_id", 'version', v_row."version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'trigger', v_row."trigger", 'matched', v_row."matched", 'results', v_row."results", 'mode', v_row."mode", 'evaluatedBy', v_row."evaluated_by", 'evaluatedAt', v_row."evaluated_at");
 end;
 $$;
 
@@ -1110,7 +1044,7 @@ begin
   v_fields := "better_supabase"."rule_field_map"(run_rules.subject_type);
   for v_rule in
     select * from "better_supabase"."automations" x
-    where x."organization_id" = run_rules.tenant
+    where x."tenant_id" = run_rules.tenant
       and (run_rules.subject_type is null or x."subject_type" = run_rules.subject_type)
       and x."trigger" = run_rules.trigger and x."enabled"
     order by x."rank" collate "C"
@@ -1121,7 +1055,7 @@ begin
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", run_rules.subject, v_fields, coalesce(run_rules.time_zone, 'UTC'), now());
     perform "better_supabase"."record_rule_evaluation"(v_rule."id", run_rules.subject_id, (v_result ->> 'matched')::boolean, v_result -> 'results', 'live');
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."tenant_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -1140,11 +1074,11 @@ as $$
 declare
   v_count integer;
 begin
-  insert into "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
+  insert into "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
   select install_default_rules.tenant, x."subject_type", x."trigger", x."name", x."description", x."conditions", x."actions", x."enabled", x."key", null, null
   from "better_supabase"."automation_defaults" x
   where not exists (
-    select 1 from "better_supabase"."automations" y where y."organization_id" = install_default_rules.tenant and y."default_key" = x."key"
+    select 1 from "better_supabase"."automations" y where y."tenant_id" = install_default_rules.tenant and y."default_key" = x."key"
   )
   on conflict do nothing;
   get diagnostics v_count = row_count;
@@ -1169,14 +1103,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = reset_default_rule.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
   select * into v_default from "better_supabase"."automation_defaults" x where x."key" = v_row."default_key";
   if v_default."key" is null then
     raise exception 'No block ships this rule' using errcode = '22023', hint = 'AUTOMATION_NOT_DEFAULT';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.write'), false) end)) then
     raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   update "better_supabase"."automations" x set
@@ -1192,11 +1126,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  insert into "better_supabase"."automation_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
-  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  insert into "better_supabase"."automation_versions" ("rule_id", "version", "tenant_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."tenant_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -1211,12 +1145,12 @@ as $$
 declare
   v_tenant uuid;
 begin
-  select x."organization_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_evaluations_list.rule;
+  select x."tenant_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_evaluations_list.rule;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'automations.read'), false)) then
     return '[]'::jsonb;
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', y."id"::text, 'organizationId', y."organization_id", 'ruleId', y."rule_id", 'version', y."version", 'subjectType', y."subject_type", 'subjectId', y."subject_id", 'trigger', y."trigger", 'matched', y."matched", 'results', y."results", 'mode', y."mode", 'evaluatedBy', y."evaluated_by", 'evaluatedAt', y."evaluated_at") order by y."evaluated_at" desc, y."id" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', y."id"::text, 'organizationId', y."tenant_id", 'ruleId', y."rule_id", 'version', y."version", 'subjectType', y."subject_type", 'subjectId', y."subject_id", 'trigger', y."trigger", 'matched', y."matched", 'results', y."results", 'mode', y."mode", 'evaluatedBy', y."evaluated_by", 'evaluatedAt', y."evaluated_at") order by y."evaluated_at" desc, y."id" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."automation_evaluations" x
       where x."rule_id" = rule_evaluations_list.rule
@@ -1287,230 +1221,14 @@ grant execute on function "better_supabase"."run_rules"(uuid, text, text, text, 
 revoke execute on function "better_supabase"."install_default_rules"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."install_default_rules"(uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:75ffe1c16d5d668dcbd89b982e6431e9d51a6ed68d0ada90ff43db63399d41f5
+-- @bsb-hash sha256:72f65e29bd899329dc93590f2a8a8b8b1eebc558ce6675ce1623394c33a949ee
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "better_supabase"."automations" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
-
-update "better_supabase"."automation_defaults" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('automations', 2, 'managed')
@@ -1520,88 +1238,22 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:b90ce0a052a1d881ffff661597f020882e2afccfe629d7647901886b3b42bd19
+-- @bsb-hash sha256:40692dd7f68062c641ce6a6ed9ef1d3e4f2b3502612cd423bdc05e6c69f81ec5
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
-create table if not exists "better_supabase"."automations" (
+create table "better_supabase"."automations" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
+  "tenant_id" uuid not null,
+  "subject_type" text not null constraint bsb_automations_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automations_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automations_description_check check (length("description") <= 2000),
   "conditions" jsonb not null,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automations_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default false,
   "stop_processing" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -1611,11 +1263,11 @@ create table if not exists "better_supabase"."automations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "automations_trigger_idx" on "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "rank");
-create index if not exists "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
-create index if not exists "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
-alter table "better_supabase"."automations" add column if not exists "default_key" text;
-create unique index if not exists "automations_default_key_idx" on "better_supabase"."automations" ("organization_id", "default_key") where "default_key" is not null;
+create index "automations_trigger_idx" on "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "rank");
+create index "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
+create index "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."automations" add column "default_key" text;
+create unique index "automations_default_key_idx" on "better_supabase"."automations" ("tenant_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."automations" enable row level security;
 revoke all on "better_supabase"."automations" from public, anon, authenticated;
 grant all on "better_supabase"."automations" to service_role;
@@ -1623,15 +1275,15 @@ grant all on "better_supabase"."automations" to service_role;
 -- The automations blocks ship (defineBlock automations). Each organization
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists "better_supabase"."automation_defaults" (
-  "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
+create table "better_supabase"."automation_defaults" (
+  "key" text primary key constraint bsb_automation_defaults_key_check check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_automation_defaults_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automation_defaults_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automation_defaults_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automation_defaults_description_check check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automation_defaults_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -1640,10 +1292,10 @@ revoke all on "better_supabase"."automation_defaults" from public, anon, authent
 grant all on "better_supabase"."automation_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
-create table if not exists "better_supabase"."automation_versions" (
+create table "better_supabase"."automation_versions" (
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "name" text not null,
   "conditions" jsonb not null,
   "actions" jsonb not null,
@@ -1651,16 +1303,16 @@ create table if not exists "better_supabase"."automation_versions" (
   "saved_at" timestamptz not null default now(),
   primary key ("rule_id", "version")
 );
-create index if not exists "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("organization_id");
+create index "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("tenant_id");
 alter table "better_supabase"."automation_versions" enable row level security;
 revoke all on "better_supabase"."automation_versions" from public, anon, authenticated;
 grant all on "better_supabase"."automation_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
 -- truth of every condition and group.
-create table if not exists "better_supabase"."automation_evaluations" (
+create table "better_supabase"."automation_evaluations" (
   "id" bigint generated always as identity primary key,
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
   "subject_type" text not null,
@@ -1668,25 +1320,25 @@ create table if not exists "better_supabase"."automation_evaluations" (
   "trigger" text not null,
   "matched" boolean not null,
   "results" jsonb not null default '{}'::jsonb,
-  "mode" text not null default 'live' check ("mode" in ('live', 'test')),
+  "mode" text not null default 'live' constraint bsb_automation_evaluations_mode_check check ("mode" in ('live', 'test')),
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
-create index if not exists "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("organization_id", "evaluated_at" desc);
+create index "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
+create index "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("tenant_id", "evaluated_at" desc);
 alter table "better_supabase"."automation_evaluations" enable row level security;
 revoke all on "better_supabase"."automation_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
-create table if not exists "better_supabase"."automation_fields" (
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+create table "better_supabase"."automation_fields" (
+  "subject_type" text not null constraint bsb_automation_fields_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "field_id" text not null constraint bsb_automation_fields_field_id_check check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
   "description" text,
-  "type" text not null check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
-  "path" text not null check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+  "type" text not null constraint bsb_automation_fields_type_check check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
+  "path" text not null constraint bsb_automation_fields_path_check check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "column_type" text not null,
   "nullable" boolean not null default true,
   "options" jsonb,
@@ -1694,7 +1346,7 @@ create table if not exists "better_supabase"."automation_fields" (
   "position" integer not null default 0,
   "updated_at" timestamptz not null default now(),
   primary key ("subject_type", "field_id"),
-  check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
+  constraint bsb_automation_fields_check check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "better_supabase"."automation_fields" enable row level security;
 revoke all on "better_supabase"."automation_fields" from public, anon, authenticated;
@@ -2251,7 +1903,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."organization_id" = save_rule.tenant for update;
+    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."tenant_id" = save_rule.tenant for update;
     if v_old."id" is null then
       raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
@@ -2306,19 +1958,19 @@ begin
     end if;
   end;
   if v_old."id" is null then
-    insert into "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
+    insert into "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
     values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
       case
-    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
     returning * into v_row;
   elsif v_old."trigger" = v_trigger and v_old."name" = v_name
     and v_old."description" is not distinct from v_description
     and v_old."conditions" = v_conditions and v_old."actions" = v_actions
     and v_old."enabled" = v_enabled and v_old."stop_processing" = v_stop then
-    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
+    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."tenant_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
   else
     update "better_supabase"."automations" x set
       "trigger" = v_trigger,
@@ -2334,56 +1986,56 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  insert into "better_supabase"."automation_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
-  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  insert into "better_supabase"."automation_versions" ("rule_id", "version", "tenant_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."tenant_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
   if v_old."id" is null then
-    perform "better_supabase".emit_event('automation.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/automations');
+    perform "better_supabase".emit_event('automation.created', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/automations');
   perform better_supabase.audit_event(
     event_type => 'automation.created',
     category => 'configuration',
     target_type => 'rule',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
     actor_id => auth.uid()
   );
   else
-    perform "better_supabase".emit_event('automation.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/automations');
+    perform "better_supabase".emit_event('automation.updated', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/automations');
   perform better_supabase.audit_event(
     event_type => 'automation.updated',
     category => 'configuration',
     target_type => 'rule',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
     actor_id => auth.uid()
   );
   end if;
   if v_row."enabled" and not coalesce(v_old."enabled", false) then
-    perform "better_supabase".emit_event('automation.enabled', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/automations');
+    perform "better_supabase".emit_event('automation.enabled', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/automations');
   perform better_supabase.audit_event(
     event_type => 'automation.enabled',
     category => 'configuration',
     target_type => 'rule',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
     actor_id => auth.uid()
   );
   elsif not v_row."enabled" and coalesce(v_old."enabled", false) then
-    perform "better_supabase".emit_event('automation.disabled', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/automations');
+    perform "better_supabase".emit_event('automation.disabled', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/automations');
   perform better_supabase.audit_event(
     event_type => 'automation.disabled',
     category => 'configuration',
     target_type => 'rule',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
     actor_id => auth.uid()
   );
   end if;
@@ -2395,7 +2047,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -2412,9 +2064,9 @@ begin
   end if;
   perform "better_supabase"."install_default_rules"(rules_list.tenant);
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
     from "better_supabase"."automations" x
-    where x."organization_id" = rules_list.tenant
+    where x."tenant_id" = rules_list.tenant
       and (rules_list.subject_type is null or x."subject_type" = rules_list.subject_type)
       and (rules_list.trigger is null or x."trigger" = rules_list.trigger)
       and (rules_list.enabled is null or x."enabled" = rules_list.enabled)
@@ -2434,10 +2086,10 @@ declare
   v_row "better_supabase"."automations";
 begin
   select * into v_row from "better_supabase"."automations" x where x."id" = rule_get.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -2452,7 +2104,7 @@ as $$
 declare
   v_tenant uuid;
 begin
-  select x."organization_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_versions_list.id;
+  select x."tenant_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_versions_list.id;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'automations.read'), false)) then
     return '[]'::jsonb;
   end if;
@@ -2481,43 +2133,43 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = set_rule_enabled.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false)) then
     raise exception 'Publishing rules needs the publish permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_row."enabled" = coalesce(set_rule_enabled.enabled, false) then
-    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
   end if;
   update "better_supabase"."automations" x set "enabled" = coalesce(set_rule_enabled.enabled, false), "updated_by" = auth.uid(), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
   if v_row."enabled" then
-    perform "better_supabase".emit_event('automation.enabled', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/automations');
+    perform "better_supabase".emit_event('automation.enabled', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/automations');
   perform better_supabase.audit_event(
     event_type => 'automation.enabled',
     category => 'configuration',
     target_type => 'rule',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
     actor_id => auth.uid()
   );
   else
-    perform "better_supabase".emit_event('automation.disabled', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/automations');
+    perform "better_supabase".emit_event('automation.disabled', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/automations');
   perform better_supabase.audit_event(
     event_type => 'automation.disabled',
     category => 'configuration',
     target_type => 'rule',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
     actor_id => auth.uid()
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -2535,10 +2187,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = rank_rule.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.write'), false) end)) then
     raise exception 'You need % to move this rule', case when v_row."enabled" then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if rank_rule.rank is null or rank_rule.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
@@ -2546,7 +2198,7 @@ begin
   end if;
   update "better_supabase"."automations" x set "rank" = rank_rule.rank, "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -2565,7 +2217,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = remove_rule.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.manage'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.manage'), false)) then
     return false;
   end if;
   if v_row."default_key" is not null then
@@ -2580,15 +2232,15 @@ begin
     end if;
   end;
   delete from "better_supabase"."automations" x where x."id" = v_row."id";
-  perform "better_supabase".emit_event('automation.deleted', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/automations');
+  perform "better_supabase".emit_event('automation.deleted', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/automations');
   perform better_supabase.audit_event(
     event_type => 'automation.deleted',
     category => 'configuration',
     target_type => 'rule',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
     actor_id => auth.uid()
   );
   declare
@@ -2624,13 +2276,13 @@ begin
   v_fields := "better_supabase"."rule_field_map"(matching_rules.subject_type);
   for v_rule in
     select * from "better_supabase"."automations" x
-    where x."organization_id" = matching_rules.tenant and x."subject_type" = matching_rules.subject_type
+    where x."tenant_id" = matching_rules.tenant and x."subject_type" = matching_rules.subject_type
       and x."trigger" = matching_rules.trigger and x."enabled"
     order by x."rank" collate "C"
   loop
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", matching_rules.subject, v_fields, coalesce(matching_rules.time_zone, 'UTC'), now());
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."tenant_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -2663,17 +2315,17 @@ begin
   if coalesce(record_rule_evaluation.mode, 'live') = 'live' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records live evaluations' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."organization_id", 'automations.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."tenant_id", 'automations.write'), false)) then
     raise exception 'Testing rules needs the edit permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
-  insert into "better_supabase"."automation_evaluations" ("organization_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
-  values (v_rule."organization_id", v_rule."id", v_rule."version", v_rule."subject_type", record_rule_evaluation.subject_id, v_rule."trigger",
+  insert into "better_supabase"."automation_evaluations" ("tenant_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
+  values (v_rule."tenant_id", v_rule."id", v_rule."version", v_rule."subject_type", record_rule_evaluation.subject_id, v_rule."trigger",
     coalesce(record_rule_evaluation.matched, false), coalesce(record_rule_evaluation.results, '{}'::jsonb), coalesce(record_rule_evaluation.mode, 'live'), auth.uid())
   returning * into v_row;
   if v_row."mode" = 'live' and v_row."matched" then
-    perform "better_supabase".emit_event('automation.matched', jsonb_build_object('organizationId', v_rule."organization_id"::text, 'ruleId', v_rule."id"::text, 'version', v_rule."version", 'subjectType', v_rule."subject_type", 'subjectId', record_rule_evaluation.subject_id, 'trigger', v_rule."trigger"), 'rules/' || v_rule."id"::text, (v_rule."organization_id")::text, null, 'better-supabase/automations');
+    perform "better_supabase".emit_event('automation.matched', jsonb_build_object('organizationId', v_rule."tenant_id"::text, 'ruleId', v_rule."id"::text, 'version', v_rule."version", 'subjectType', v_rule."subject_type", 'subjectId', record_rule_evaluation.subject_id, 'trigger', v_rule."trigger"), 'rules/' || v_rule."id"::text, (v_rule."tenant_id")::text, null, 'better-supabase/automations');
   end if;
-  return jsonb_build_object('id', v_row."id"::text, 'organizationId', v_row."organization_id", 'ruleId', v_row."rule_id", 'version', v_row."version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'trigger', v_row."trigger", 'matched', v_row."matched", 'results', v_row."results", 'mode', v_row."mode", 'evaluatedBy', v_row."evaluated_by", 'evaluatedAt', v_row."evaluated_at");
+  return jsonb_build_object('id', v_row."id"::text, 'organizationId', v_row."tenant_id", 'ruleId', v_row."rule_id", 'version', v_row."version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'trigger', v_row."trigger", 'matched', v_row."matched", 'results', v_row."results", 'mode', v_row."mode", 'evaluatedBy', v_row."evaluated_by", 'evaluatedAt', v_row."evaluated_at");
 end;
 $$;
 
@@ -2699,7 +2351,7 @@ begin
   v_fields := "better_supabase"."rule_field_map"(run_rules.subject_type);
   for v_rule in
     select * from "better_supabase"."automations" x
-    where x."organization_id" = run_rules.tenant
+    where x."tenant_id" = run_rules.tenant
       and (run_rules.subject_type is null or x."subject_type" = run_rules.subject_type)
       and x."trigger" = run_rules.trigger and x."enabled"
     order by x."rank" collate "C"
@@ -2710,7 +2362,7 @@ begin
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", run_rules.subject, v_fields, coalesce(run_rules.time_zone, 'UTC'), now());
     perform "better_supabase"."record_rule_evaluation"(v_rule."id", run_rules.subject_id, (v_result ->> 'matched')::boolean, v_result -> 'results', 'live');
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."tenant_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -2729,11 +2381,11 @@ as $$
 declare
   v_count integer;
 begin
-  insert into "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
+  insert into "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
   select install_default_rules.tenant, x."subject_type", x."trigger", x."name", x."description", x."conditions", x."actions", x."enabled", x."key", null, null
   from "better_supabase"."automation_defaults" x
   where not exists (
-    select 1 from "better_supabase"."automations" y where y."organization_id" = install_default_rules.tenant and y."default_key" = x."key"
+    select 1 from "better_supabase"."automations" y where y."tenant_id" = install_default_rules.tenant and y."default_key" = x."key"
   )
   on conflict do nothing;
   get diagnostics v_count = row_count;
@@ -2758,14 +2410,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = reset_default_rule.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
   select * into v_default from "better_supabase"."automation_defaults" x where x."key" = v_row."default_key";
   if v_default."key" is null then
     raise exception 'No block ships this rule' using errcode = '22023', hint = 'AUTOMATION_NOT_DEFAULT';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.write'), false) end)) then
     raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   update "better_supabase"."automations" x set
@@ -2781,21 +2433,21 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  insert into "better_supabase"."automation_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
-  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  insert into "better_supabase"."automation_versions" ("rule_id", "version", "tenant_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."tenant_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
-  perform "better_supabase".emit_event('automation.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/automations');
+  perform "better_supabase".emit_event('automation.updated', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/automations');
   perform better_supabase.audit_event(
     event_type => 'automation.updated',
     category => 'configuration',
     target_type => 'rule',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
     actor_id => auth.uid()
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -2810,12 +2462,12 @@ as $$
 declare
   v_tenant uuid;
 begin
-  select x."organization_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_evaluations_list.rule;
+  select x."tenant_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_evaluations_list.rule;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'automations.read'), false)) then
     return '[]'::jsonb;
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', y."id"::text, 'organizationId', y."organization_id", 'ruleId', y."rule_id", 'version', y."version", 'subjectType', y."subject_type", 'subjectId', y."subject_id", 'trigger', y."trigger", 'matched', y."matched", 'results', y."results", 'mode', y."mode", 'evaluatedBy', y."evaluated_by", 'evaluatedAt', y."evaluated_at") order by y."evaluated_at" desc, y."id" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', y."id"::text, 'organizationId', y."tenant_id", 'ruleId', y."rule_id", 'version', y."version", 'subjectType', y."subject_type", 'subjectId', y."subject_id", 'trigger', y."trigger", 'matched', y."matched", 'results', y."results", 'mode', y."mode", 'evaluatedBy', y."evaluated_by", 'evaluatedAt', y."evaluated_at") order by y."evaluated_at" desc, y."id" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."automation_evaluations" x
       where x."rule_id" = rule_evaluations_list.rule
@@ -2887,236 +2539,16 @@ revoke execute on function "better_supabase"."install_default_rules"(uuid) from 
 grant execute on function "better_supabase"."install_default_rules"(uuid) to service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.automations', target_type => 'automation', event_prefix => 'automation', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.automations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"automation","event_prefix":"automation"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:75ffe1c16d5d668dcbd89b982e6431e9d51a6ed68d0ada90ff43db63399d41f5
+-- @bsb-hash sha256:72f65e29bd899329dc93590f2a8a8b8b1eebc558ce6675ce1623394c33a949ee
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "better_supabase"."automations" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
-
-update "better_supabase"."automation_defaults" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('automations', 2, 'managed')
@@ -3126,77 +2558,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:ac174d35d8ef65ebcbbb122a63241ea7efa39e2b235503a08a529eb8b29f7389
+-- @bsb-hash sha256:65125b90b6d1ea8bc976ee0619b28a08c2a476fc645a86a511ba62c4f5290309
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."automations";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."automations";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -3204,15 +2570,15 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
-create table if not exists "app_private"."automations" (
+create table "app_private"."automations" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
+  "tenant_id" uuid not null,
+  "subject_type" text not null constraint bsb_automations_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automations_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automations_description_check check (length("description") <= 2000),
   "conditions" jsonb not null,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automations_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default false,
   "stop_processing" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -3222,11 +2588,11 @@ create table if not exists "app_private"."automations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "automations_trigger_idx" on "app_private"."automations" ("organization_id", "subject_type", "trigger", "rank");
-create index if not exists "automations_created_by_idx" on "app_private"."automations" ("created_by") where "created_by" is not null;
-create index if not exists "automations_updated_by_idx" on "app_private"."automations" ("updated_by") where "updated_by" is not null;
-alter table "app_private"."automations" add column if not exists "default_key" text;
-create unique index if not exists "automations_default_key_idx" on "app_private"."automations" ("organization_id", "default_key") where "default_key" is not null;
+create index "automations_trigger_idx" on "app_private"."automations" ("tenant_id", "subject_type", "trigger", "rank");
+create index "automations_created_by_idx" on "app_private"."automations" ("created_by") where "created_by" is not null;
+create index "automations_updated_by_idx" on "app_private"."automations" ("updated_by") where "updated_by" is not null;
+alter table "app_private"."automations" add column "default_key" text;
+create unique index "automations_default_key_idx" on "app_private"."automations" ("tenant_id", "default_key") where "default_key" is not null;
 alter table "app_private"."automations" enable row level security;
 revoke all on "app_private"."automations" from public, anon, authenticated;
 grant all on "app_private"."automations" to service_role;
@@ -3234,15 +2600,15 @@ grant all on "app_private"."automations" to service_role;
 -- The automations blocks ship (defineBlock automations). Each organization
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists "app_private"."automation_defaults" (
-  "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
+create table "app_private"."automation_defaults" (
+  "key" text primary key constraint bsb_automation_defaults_key_check check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_automation_defaults_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automation_defaults_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automation_defaults_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automation_defaults_description_check check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automation_defaults_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -3251,10 +2617,10 @@ revoke all on "app_private"."automation_defaults" from public, anon, authenticat
 grant all on "app_private"."automation_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
-create table if not exists "app_private"."automation_versions" (
+create table "app_private"."automation_versions" (
   "rule_id" uuid not null references "app_private"."automations" ("id") on delete cascade,
   "version" integer not null,
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "name" text not null,
   "conditions" jsonb not null,
   "actions" jsonb not null,
@@ -3262,16 +2628,16 @@ create table if not exists "app_private"."automation_versions" (
   "saved_at" timestamptz not null default now(),
   primary key ("rule_id", "version")
 );
-create index if not exists "automation_versions_tenant_idx" on "app_private"."automation_versions" ("organization_id");
+create index "automation_versions_tenant_idx" on "app_private"."automation_versions" ("tenant_id");
 alter table "app_private"."automation_versions" enable row level security;
 revoke all on "app_private"."automation_versions" from public, anon, authenticated;
 grant all on "app_private"."automation_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
 -- truth of every condition and group.
-create table if not exists "app_private"."automation_evaluations" (
+create table "app_private"."automation_evaluations" (
   "id" bigint generated always as identity primary key,
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "rule_id" uuid not null references "app_private"."automations" ("id") on delete cascade,
   "version" integer not null,
   "subject_type" text not null,
@@ -3279,25 +2645,25 @@ create table if not exists "app_private"."automation_evaluations" (
   "trigger" text not null,
   "matched" boolean not null,
   "results" jsonb not null default '{}'::jsonb,
-  "mode" text not null default 'live' check ("mode" in ('live', 'test')),
+  "mode" text not null default 'live' constraint bsb_automation_evaluations_mode_check check ("mode" in ('live', 'test')),
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
-create index if not exists "automation_evaluations_rule_idx" on "app_private"."automation_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists "automation_evaluations_tenant_idx" on "app_private"."automation_evaluations" ("organization_id", "evaluated_at" desc);
+create index "automation_evaluations_rule_idx" on "app_private"."automation_evaluations" ("rule_id", "evaluated_at" desc);
+create index "automation_evaluations_tenant_idx" on "app_private"."automation_evaluations" ("tenant_id", "evaluated_at" desc);
 alter table "app_private"."automation_evaluations" enable row level security;
 revoke all on "app_private"."automation_evaluations" from public, anon, authenticated;
 grant all on "app_private"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
-create table if not exists "app_private"."automation_fields" (
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+create table "app_private"."automation_fields" (
+  "subject_type" text not null constraint bsb_automation_fields_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "field_id" text not null constraint bsb_automation_fields_field_id_check check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
   "description" text,
-  "type" text not null check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
-  "path" text not null check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+  "type" text not null constraint bsb_automation_fields_type_check check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
+  "path" text not null constraint bsb_automation_fields_path_check check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "column_type" text not null,
   "nullable" boolean not null default true,
   "options" jsonb,
@@ -3305,7 +2671,7 @@ create table if not exists "app_private"."automation_fields" (
   "position" integer not null default 0,
   "updated_at" timestamptz not null default now(),
   primary key ("subject_type", "field_id"),
-  check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
+  constraint bsb_automation_fields_check check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "app_private"."automation_fields" enable row level security;
 revoke all on "app_private"."automation_fields" from public, anon, authenticated;
@@ -3862,7 +3228,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "app_private"."automations" x where x."id" = v_id and x."organization_id" = save_rule.tenant for update;
+    select * into v_old from "app_private"."automations" x where x."id" = v_id and x."tenant_id" = save_rule.tenant for update;
     if v_old."id" is null then
       raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
@@ -3917,19 +3283,19 @@ begin
     end if;
   end;
   if v_old."id" is null then
-    insert into "app_private"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
+    insert into "app_private"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
     values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
       case
-    when (select max(x."rank" collate "C") from "app_private"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "app_private"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "app_private"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "app_private"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "app_private"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "app_private"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "app_private"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "app_private"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
     returning * into v_row;
   elsif v_old."trigger" = v_trigger and v_old."name" = v_name
     and v_old."description" is not distinct from v_description
     and v_old."conditions" = v_conditions and v_old."actions" = v_actions
     and v_old."enabled" = v_enabled and v_old."stop_processing" = v_stop then
-    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
+    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."tenant_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
   else
     update "app_private"."automations" x set
       "trigger" = v_trigger,
@@ -3945,8 +3311,8 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  insert into "app_private"."automation_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
-  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  insert into "app_private"."automation_versions" ("rule_id", "version", "tenant_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."tenant_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
   if v_old."id" is null then
     null;
@@ -3966,7 +3332,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -3983,9 +3349,9 @@ begin
   end if;
   perform "app_private"."install_default_rules"(rules_list.tenant);
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
     from "app_private"."automations" x
-    where x."organization_id" = rules_list.tenant
+    where x."tenant_id" = rules_list.tenant
       and (rules_list.subject_type is null or x."subject_type" = rules_list.subject_type)
       and (rules_list.trigger is null or x."trigger" = rules_list.trigger)
       and (rules_list.enabled is null or x."enabled" = rules_list.enabled)
@@ -4005,10 +3371,10 @@ declare
   v_row "app_private"."automations";
 begin
   select * into v_row from "app_private"."automations" x where x."id" = rule_get.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -4023,7 +3389,7 @@ as $$
 declare
   v_tenant uuid;
 begin
-  select x."organization_id" into v_tenant from "app_private"."automations" x where x."id" = rule_versions_list.id;
+  select x."tenant_id" into v_tenant from "app_private"."automations" x where x."id" = rule_versions_list.id;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'automations.read'), false)) then
     return '[]'::jsonb;
   end if;
@@ -4052,14 +3418,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."automations" x where x."id" = set_rule_enabled.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false)) then
     raise exception 'Publishing rules needs the publish permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_row."enabled" = coalesce(set_rule_enabled.enabled, false) then
-    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
   end if;
   update "app_private"."automations" x set "enabled" = coalesce(set_rule_enabled.enabled, false), "updated_by" = auth.uid(), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
@@ -4068,7 +3434,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -4086,10 +3452,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."automations" x where x."id" = rank_rule.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.write'), false) end)) then
     raise exception 'You need % to move this rule', case when v_row."enabled" then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if rank_rule.rank is null or rank_rule.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
@@ -4097,7 +3463,7 @@ begin
   end if;
   update "app_private"."automations" x set "rank" = rank_rule.rank, "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -4116,7 +3482,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."automations" x where x."id" = remove_rule.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.manage'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.manage'), false)) then
     return false;
   end if;
   if v_row."default_key" is not null then
@@ -4165,13 +3531,13 @@ begin
   v_fields := "app_private"."rule_field_map"(matching_rules.subject_type);
   for v_rule in
     select * from "app_private"."automations" x
-    where x."organization_id" = matching_rules.tenant and x."subject_type" = matching_rules.subject_type
+    where x."tenant_id" = matching_rules.tenant and x."subject_type" = matching_rules.subject_type
       and x."trigger" = matching_rules.trigger and x."enabled"
     order by x."rank" collate "C"
   loop
     v_result := "app_private"."rule_evaluate"(v_rule."conditions", matching_rules.subject, v_fields, coalesce(matching_rules.time_zone, 'UTC'), now());
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."tenant_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -4204,17 +3570,17 @@ begin
   if coalesce(record_rule_evaluation.mode, 'live') = 'live' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records live evaluations' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."organization_id", 'automations.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."tenant_id", 'automations.write'), false)) then
     raise exception 'Testing rules needs the edit permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
-  insert into "app_private"."automation_evaluations" ("organization_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
-  values (v_rule."organization_id", v_rule."id", v_rule."version", v_rule."subject_type", record_rule_evaluation.subject_id, v_rule."trigger",
+  insert into "app_private"."automation_evaluations" ("tenant_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
+  values (v_rule."tenant_id", v_rule."id", v_rule."version", v_rule."subject_type", record_rule_evaluation.subject_id, v_rule."trigger",
     coalesce(record_rule_evaluation.matched, false), coalesce(record_rule_evaluation.results, '{}'::jsonb), coalesce(record_rule_evaluation.mode, 'live'), auth.uid())
   returning * into v_row;
   if v_row."mode" = 'live' and v_row."matched" then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id"::text, 'organizationId', v_row."organization_id", 'ruleId', v_row."rule_id", 'version', v_row."version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'trigger', v_row."trigger", 'matched', v_row."matched", 'results', v_row."results", 'mode', v_row."mode", 'evaluatedBy', v_row."evaluated_by", 'evaluatedAt', v_row."evaluated_at");
+  return jsonb_build_object('id', v_row."id"::text, 'organizationId', v_row."tenant_id", 'ruleId', v_row."rule_id", 'version', v_row."version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'trigger', v_row."trigger", 'matched', v_row."matched", 'results', v_row."results", 'mode', v_row."mode", 'evaluatedBy', v_row."evaluated_by", 'evaluatedAt', v_row."evaluated_at");
 end;
 $$;
 
@@ -4240,7 +3606,7 @@ begin
   v_fields := "app_private"."rule_field_map"(run_rules.subject_type);
   for v_rule in
     select * from "app_private"."automations" x
-    where x."organization_id" = run_rules.tenant
+    where x."tenant_id" = run_rules.tenant
       and (run_rules.subject_type is null or x."subject_type" = run_rules.subject_type)
       and x."trigger" = run_rules.trigger and x."enabled"
     order by x."rank" collate "C"
@@ -4251,7 +3617,7 @@ begin
     v_result := "app_private"."rule_evaluate"(v_rule."conditions", run_rules.subject, v_fields, coalesce(run_rules.time_zone, 'UTC'), now());
     perform "app_private"."record_rule_evaluation"(v_rule."id", run_rules.subject_id, (v_result ->> 'matched')::boolean, v_result -> 'results', 'live');
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."tenant_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -4270,11 +3636,11 @@ as $$
 declare
   v_count integer;
 begin
-  insert into "app_private"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
+  insert into "app_private"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
   select install_default_rules.tenant, x."subject_type", x."trigger", x."name", x."description", x."conditions", x."actions", x."enabled", x."key", null, null
   from "app_private"."automation_defaults" x
   where not exists (
-    select 1 from "app_private"."automations" y where y."organization_id" = install_default_rules.tenant and y."default_key" = x."key"
+    select 1 from "app_private"."automations" y where y."tenant_id" = install_default_rules.tenant and y."default_key" = x."key"
   )
   on conflict do nothing;
   get diagnostics v_count = row_count;
@@ -4299,14 +3665,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."automations" x where x."id" = reset_default_rule.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
   select * into v_default from "app_private"."automation_defaults" x where x."key" = v_row."default_key";
   if v_default."key" is null then
     raise exception 'No block ships this rule' using errcode = '22023', hint = 'AUTOMATION_NOT_DEFAULT';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.write'), false) end)) then
     raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   update "app_private"."automations" x set
@@ -4322,11 +3688,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  insert into "app_private"."automation_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
-  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  insert into "app_private"."automation_versions" ("rule_id", "version", "tenant_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."tenant_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -4341,12 +3707,12 @@ as $$
 declare
   v_tenant uuid;
 begin
-  select x."organization_id" into v_tenant from "app_private"."automations" x where x."id" = rule_evaluations_list.rule;
+  select x."tenant_id" into v_tenant from "app_private"."automations" x where x."id" = rule_evaluations_list.rule;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'automations.read'), false)) then
     return '[]'::jsonb;
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', y."id"::text, 'organizationId', y."organization_id", 'ruleId', y."rule_id", 'version', y."version", 'subjectType', y."subject_type", 'subjectId', y."subject_id", 'trigger', y."trigger", 'matched', y."matched", 'results', y."results", 'mode', y."mode", 'evaluatedBy', y."evaluated_by", 'evaluatedAt', y."evaluated_at") order by y."evaluated_at" desc, y."id" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', y."id"::text, 'organizationId', y."tenant_id", 'ruleId', y."rule_id", 'version', y."version", 'subjectType', y."subject_type", 'subjectId', y."subject_id", 'trigger', y."trigger", 'matched', y."matched", 'results', y."results", 'mode', y."mode", 'evaluatedBy', y."evaluated_by", 'evaluatedAt', y."evaluated_at") order by y."evaluated_at" desc, y."id" desc), '[]'::jsonb)
     from (
       select * from "app_private"."automation_evaluations" x
       where x."rule_id" = rule_evaluations_list.rule
@@ -4417,230 +3783,14 @@ grant execute on function "app_private"."run_rules"(uuid, text, text, text, json
 revoke execute on function "app_private"."install_default_rules"(uuid) from public, anon, authenticated;
 grant execute on function "app_private"."install_default_rules"(uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:c2414a9870aa28594872354658898863a620cdf217dc56bb47504b65ecc3ef50
+-- @bsb-hash sha256:72f65e29bd899329dc93590f2a8a8b8b1eebc558ce6675ce1623394c33a949ee
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "app_private"."automations" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
-
-update "app_private"."automation_defaults" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('automations', 2, 'managed')
@@ -4650,88 +3800,22 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:9ac91beeb51fbf23319b0efa4ea5e7c802043780b410933e46d6cfb8c7a536b1
+-- @bsb-hash sha256:9754422089bdb769bd1477ee10594195aa96fcdeed4d4246ec6a639afa098e72
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
-create table if not exists "better_supabase"."automations" (
+create table "better_supabase"."automations" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
+  "tenant_id" uuid not null,
+  "subject_type" text not null constraint bsb_automations_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automations_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automations_description_check check (length("description") <= 2000),
   "conditions" jsonb not null,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automations_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default false,
   "stop_processing" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -4741,11 +3825,11 @@ create table if not exists "better_supabase"."automations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "automations_trigger_idx" on "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "rank");
-create index if not exists "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
-create index if not exists "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
-alter table "better_supabase"."automations" add column if not exists "default_key" text;
-create unique index if not exists "automations_default_key_idx" on "better_supabase"."automations" ("organization_id", "default_key") where "default_key" is not null;
+create index "automations_trigger_idx" on "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "rank");
+create index "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
+create index "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."automations" add column "default_key" text;
+create unique index "automations_default_key_idx" on "better_supabase"."automations" ("tenant_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."automations" enable row level security;
 revoke all on "better_supabase"."automations" from public, anon, authenticated;
 grant all on "better_supabase"."automations" to service_role;
@@ -4753,15 +3837,15 @@ grant all on "better_supabase"."automations" to service_role;
 -- The automations blocks ship (defineBlock automations). Each organization
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists "better_supabase"."automation_defaults" (
-  "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
+create table "better_supabase"."automation_defaults" (
+  "key" text primary key constraint bsb_automation_defaults_key_check check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_automation_defaults_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automation_defaults_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automation_defaults_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automation_defaults_description_check check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automation_defaults_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -4770,10 +3854,10 @@ revoke all on "better_supabase"."automation_defaults" from public, anon, authent
 grant all on "better_supabase"."automation_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
-create table if not exists "better_supabase"."automation_versions" (
+create table "better_supabase"."automation_versions" (
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "name" text not null,
   "conditions" jsonb not null,
   "actions" jsonb not null,
@@ -4781,16 +3865,16 @@ create table if not exists "better_supabase"."automation_versions" (
   "saved_at" timestamptz not null default now(),
   primary key ("rule_id", "version")
 );
-create index if not exists "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("organization_id");
+create index "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("tenant_id");
 alter table "better_supabase"."automation_versions" enable row level security;
 revoke all on "better_supabase"."automation_versions" from public, anon, authenticated;
 grant all on "better_supabase"."automation_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
 -- truth of every condition and group.
-create table if not exists "better_supabase"."automation_evaluations" (
+create table "better_supabase"."automation_evaluations" (
   "id" bigint generated always as identity primary key,
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
   "subject_type" text not null,
@@ -4798,25 +3882,25 @@ create table if not exists "better_supabase"."automation_evaluations" (
   "trigger" text not null,
   "matched" boolean not null,
   "results" jsonb not null default '{}'::jsonb,
-  "mode" text not null default 'live' check ("mode" in ('live', 'test')),
+  "mode" text not null default 'live' constraint bsb_automation_evaluations_mode_check check ("mode" in ('live', 'test')),
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
-create index if not exists "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("organization_id", "evaluated_at" desc);
+create index "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
+create index "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("tenant_id", "evaluated_at" desc);
 alter table "better_supabase"."automation_evaluations" enable row level security;
 revoke all on "better_supabase"."automation_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
-create table if not exists "better_supabase"."automation_fields" (
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+create table "better_supabase"."automation_fields" (
+  "subject_type" text not null constraint bsb_automation_fields_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "field_id" text not null constraint bsb_automation_fields_field_id_check check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
   "description" text,
-  "type" text not null check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
-  "path" text not null check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+  "type" text not null constraint bsb_automation_fields_type_check check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
+  "path" text not null constraint bsb_automation_fields_path_check check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "column_type" text not null,
   "nullable" boolean not null default true,
   "options" jsonb,
@@ -4824,7 +3908,7 @@ create table if not exists "better_supabase"."automation_fields" (
   "position" integer not null default 0,
   "updated_at" timestamptz not null default now(),
   primary key ("subject_type", "field_id"),
-  check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
+  constraint bsb_automation_fields_check check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "better_supabase"."automation_fields" enable row level security;
 revoke all on "better_supabase"."automation_fields" from public, anon, authenticated;
@@ -5381,7 +4465,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."organization_id" = save_rule.tenant for update;
+    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."tenant_id" = save_rule.tenant for update;
     if v_old."id" is null then
       raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
@@ -5436,19 +4520,19 @@ begin
     end if;
   end;
   if v_old."id" is null then
-    insert into "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
+    insert into "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
     values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
       case
-    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
     returning * into v_row;
   elsif v_old."trigger" = v_trigger and v_old."name" = v_name
     and v_old."description" is not distinct from v_description
     and v_old."conditions" = v_conditions and v_old."actions" = v_actions
     and v_old."enabled" = v_enabled and v_old."stop_processing" = v_stop then
-    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
+    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."tenant_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
   else
     update "better_supabase"."automations" x set
       "trigger" = v_trigger,
@@ -5464,8 +4548,8 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  insert into "better_supabase"."automation_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
-  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  insert into "better_supabase"."automation_versions" ("rule_id", "version", "tenant_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."tenant_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
   if v_old."id" is null then
     null;
@@ -5485,7 +4569,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -5502,9 +4586,9 @@ begin
   end if;
   perform "better_supabase"."install_default_rules"(rules_list.tenant);
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
     from "better_supabase"."automations" x
-    where x."organization_id" = rules_list.tenant
+    where x."tenant_id" = rules_list.tenant
       and (rules_list.subject_type is null or x."subject_type" = rules_list.subject_type)
       and (rules_list.trigger is null or x."trigger" = rules_list.trigger)
       and (rules_list.enabled is null or x."enabled" = rules_list.enabled)
@@ -5524,10 +4608,10 @@ declare
   v_row "better_supabase"."automations";
 begin
   select * into v_row from "better_supabase"."automations" x where x."id" = rule_get.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -5542,7 +4626,7 @@ as $$
 declare
   v_tenant uuid;
 begin
-  select x."organization_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_versions_list.id;
+  select x."tenant_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_versions_list.id;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'automations.read'), false)) then
     return '[]'::jsonb;
   end if;
@@ -5571,14 +4655,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = set_rule_enabled.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false)) then
     raise exception 'Publishing rules needs the publish permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_row."enabled" = coalesce(set_rule_enabled.enabled, false) then
-    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
   end if;
   update "better_supabase"."automations" x set "enabled" = coalesce(set_rule_enabled.enabled, false), "updated_by" = auth.uid(), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
@@ -5587,7 +4671,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -5605,10 +4689,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = rank_rule.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.write'), false) end)) then
     raise exception 'You need % to move this rule', case when v_row."enabled" then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if rank_rule.rank is null or rank_rule.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
@@ -5616,7 +4700,7 @@ begin
   end if;
   update "better_supabase"."automations" x set "rank" = rank_rule.rank, "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -5635,7 +4719,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = remove_rule.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.manage'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.manage'), false)) then
     return false;
   end if;
   if v_row."default_key" is not null then
@@ -5684,13 +4768,13 @@ begin
   v_fields := "better_supabase"."rule_field_map"(matching_rules.subject_type);
   for v_rule in
     select * from "better_supabase"."automations" x
-    where x."organization_id" = matching_rules.tenant and x."subject_type" = matching_rules.subject_type
+    where x."tenant_id" = matching_rules.tenant and x."subject_type" = matching_rules.subject_type
       and x."trigger" = matching_rules.trigger and x."enabled"
     order by x."rank" collate "C"
   loop
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", matching_rules.subject, v_fields, coalesce(matching_rules.time_zone, 'UTC'), now());
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."tenant_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -5723,17 +4807,17 @@ begin
   if coalesce(record_rule_evaluation.mode, 'live') = 'live' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records live evaluations' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."organization_id", 'automations.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."tenant_id", 'automations.write'), false)) then
     raise exception 'Testing rules needs the edit permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
-  insert into "better_supabase"."automation_evaluations" ("organization_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
-  values (v_rule."organization_id", v_rule."id", v_rule."version", v_rule."subject_type", record_rule_evaluation.subject_id, v_rule."trigger",
+  insert into "better_supabase"."automation_evaluations" ("tenant_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
+  values (v_rule."tenant_id", v_rule."id", v_rule."version", v_rule."subject_type", record_rule_evaluation.subject_id, v_rule."trigger",
     coalesce(record_rule_evaluation.matched, false), coalesce(record_rule_evaluation.results, '{}'::jsonb), coalesce(record_rule_evaluation.mode, 'live'), auth.uid())
   returning * into v_row;
   if v_row."mode" = 'live' and v_row."matched" then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id"::text, 'organizationId', v_row."organization_id", 'ruleId', v_row."rule_id", 'version', v_row."version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'trigger', v_row."trigger", 'matched', v_row."matched", 'results', v_row."results", 'mode', v_row."mode", 'evaluatedBy', v_row."evaluated_by", 'evaluatedAt', v_row."evaluated_at");
+  return jsonb_build_object('id', v_row."id"::text, 'organizationId', v_row."tenant_id", 'ruleId', v_row."rule_id", 'version', v_row."version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'trigger', v_row."trigger", 'matched', v_row."matched", 'results', v_row."results", 'mode', v_row."mode", 'evaluatedBy', v_row."evaluated_by", 'evaluatedAt', v_row."evaluated_at");
 end;
 $$;
 
@@ -5759,7 +4843,7 @@ begin
   v_fields := "better_supabase"."rule_field_map"(run_rules.subject_type);
   for v_rule in
     select * from "better_supabase"."automations" x
-    where x."organization_id" = run_rules.tenant
+    where x."tenant_id" = run_rules.tenant
       and (run_rules.subject_type is null or x."subject_type" = run_rules.subject_type)
       and x."trigger" = run_rules.trigger and x."enabled"
     order by x."rank" collate "C"
@@ -5770,7 +4854,7 @@ begin
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", run_rules.subject, v_fields, coalesce(run_rules.time_zone, 'UTC'), now());
     perform "better_supabase"."record_rule_evaluation"(v_rule."id", run_rules.subject_id, (v_result ->> 'matched')::boolean, v_result -> 'results', 'live');
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."tenant_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -5789,11 +4873,11 @@ as $$
 declare
   v_count integer;
 begin
-  insert into "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
+  insert into "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
   select install_default_rules.tenant, x."subject_type", x."trigger", x."name", x."description", x."conditions", x."actions", x."enabled", x."key", null, null
   from "better_supabase"."automation_defaults" x
   where not exists (
-    select 1 from "better_supabase"."automations" y where y."organization_id" = install_default_rules.tenant and y."default_key" = x."key"
+    select 1 from "better_supabase"."automations" y where y."tenant_id" = install_default_rules.tenant and y."default_key" = x."key"
   )
   on conflict do nothing;
   get diagnostics v_count = row_count;
@@ -5818,14 +4902,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = reset_default_rule.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
   select * into v_default from "better_supabase"."automation_defaults" x where x."key" = v_row."default_key";
   if v_default."key" is null then
     raise exception 'No block ships this rule' using errcode = '22023', hint = 'AUTOMATION_NOT_DEFAULT';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.write'), false) end)) then
     raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   update "better_supabase"."automations" x set
@@ -5841,11 +4925,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  insert into "better_supabase"."automation_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
-  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  insert into "better_supabase"."automation_versions" ("rule_id", "version", "tenant_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."tenant_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -5860,12 +4944,12 @@ as $$
 declare
   v_tenant uuid;
 begin
-  select x."organization_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_evaluations_list.rule;
+  select x."tenant_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_evaluations_list.rule;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'automations.read'), false)) then
     return '[]'::jsonb;
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', y."id"::text, 'organizationId', y."organization_id", 'ruleId', y."rule_id", 'version', y."version", 'subjectType', y."subject_type", 'subjectId', y."subject_id", 'trigger', y."trigger", 'matched', y."matched", 'results', y."results", 'mode', y."mode", 'evaluatedBy', y."evaluated_by", 'evaluatedAt', y."evaluated_at") order by y."evaluated_at" desc, y."id" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', y."id"::text, 'organizationId', y."tenant_id", 'ruleId', y."rule_id", 'version', y."version", 'subjectType', y."subject_type", 'subjectId', y."subject_id", 'trigger', y."trigger", 'matched', y."matched", 'results', y."results", 'mode', y."mode", 'evaluatedBy', y."evaluated_by", 'evaluatedAt', y."evaluated_at") order by y."evaluated_at" desc, y."id" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."automation_evaluations" x
       where x."rule_id" = rule_evaluations_list.rule
@@ -5939,25 +5023,6 @@ grant execute on function "better_supabase"."install_default_rules"(uuid) to ser
 -- blocks.automations.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."rule_text"(value jsonb)
 returns text
@@ -6239,230 +5304,14 @@ as $$ select "better_supabase"."install_default_rules"($1) $$;
 revoke execute on function "api"."install_default_rules"(uuid) from public, anon, authenticated;
 grant execute on function "api"."install_default_rules"(uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:75ffe1c16d5d668dcbd89b982e6431e9d51a6ed68d0ada90ff43db63399d41f5
+-- @bsb-hash sha256:72f65e29bd899329dc93590f2a8a8b8b1eebc558ce6675ce1623394c33a949ee
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "better_supabase"."automations" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
-
-update "better_supabase"."automation_defaults" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('automations', 2, 'managed')
@@ -6472,104 +5321,22 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:98bc8f9625faf858ef3c59375d3e32785eeb4346345728739d1f27e4712543fc
+-- @bsb-hash sha256:ca012d9d41c6f529f8feba5788f1b6322c74bc8699f9cf1991e59c303684e8c4
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
 -- better_supabase.automations is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."automations" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."automations" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."automations" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."automations" add column if not exists "trigger" text check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$');
-alter table "better_supabase"."automations" add column if not exists "name" text check (length("name") between 1 and 200);
-alter table "better_supabase"."automations" add column if not exists "description" text check (length("description") <= 2000);
+alter table "better_supabase"."automations" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."automations" add column if not exists "subject_type" text constraint bsb_automations_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."automations" add column if not exists "trigger" text constraint bsb_automations_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$');
+alter table "better_supabase"."automations" add column if not exists "name" text constraint bsb_automations_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."automations" add column if not exists "description" text constraint bsb_automations_description_check check (length("description") <= 2000);
 alter table "better_supabase"."automations" add column if not exists "conditions" jsonb;
-alter table "better_supabase"."automations" add column if not exists "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array');
+alter table "better_supabase"."automations" add column if not exists "actions" jsonb not null default '[]'::jsonb constraint bsb_automations_actions_check check (jsonb_typeof("actions") = 'array');
 alter table "better_supabase"."automations" add column if not exists "enabled" boolean not null default false;
 alter table "better_supabase"."automations" add column if not exists "stop_processing" boolean not null default false;
 alter table "better_supabase"."automations" add column if not exists "rank" text collate "C" not null default 'V';
@@ -6578,11 +5345,11 @@ alter table "better_supabase"."automations" add column if not exists "created_by
 alter table "better_supabase"."automations" add column if not exists "updated_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."automations" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."automations" add column if not exists "updated_at" timestamptz not null default now();
-create index if not exists "automations_trigger_idx" on "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "rank");
+create index if not exists "automations_trigger_idx" on "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "rank");
 create index if not exists "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
 create index if not exists "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
 alter table "better_supabase"."automations" add column if not exists "default_key" text;
-create unique index if not exists "automations_default_key_idx" on "better_supabase"."automations" ("organization_id", "default_key") where "default_key" is not null;
+create unique index if not exists "automations_default_key_idx" on "better_supabase"."automations" ("tenant_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."automations" enable row level security;
 grant all on "better_supabase"."automations" to service_role;
 
@@ -6590,14 +5357,14 @@ grant all on "better_supabase"."automations" to service_role;
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
 -- better_supabase.automation_defaults is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."automation_defaults" add column if not exists "key" text check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$');
+alter table "better_supabase"."automation_defaults" add column if not exists "key" text constraint bsb_automation_defaults_key_check check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$');
 alter table "better_supabase"."automation_defaults" add column if not exists "block" text;
-alter table "better_supabase"."automation_defaults" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."automation_defaults" add column if not exists "trigger" text check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$');
-alter table "better_supabase"."automation_defaults" add column if not exists "name" text check (length("name") between 1 and 200);
-alter table "better_supabase"."automation_defaults" add column if not exists "description" text check (length("description") <= 2000);
+alter table "better_supabase"."automation_defaults" add column if not exists "subject_type" text constraint bsb_automation_defaults_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."automation_defaults" add column if not exists "trigger" text constraint bsb_automation_defaults_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$');
+alter table "better_supabase"."automation_defaults" add column if not exists "name" text constraint bsb_automation_defaults_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."automation_defaults" add column if not exists "description" text constraint bsb_automation_defaults_description_check check (length("description") <= 2000);
 alter table "better_supabase"."automation_defaults" add column if not exists "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb;
-alter table "better_supabase"."automation_defaults" add column if not exists "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array');
+alter table "better_supabase"."automation_defaults" add column if not exists "actions" jsonb not null default '[]'::jsonb constraint bsb_automation_defaults_actions_check check (jsonb_typeof("actions") = 'array');
 alter table "better_supabase"."automation_defaults" add column if not exists "enabled" boolean not null default true;
 alter table "better_supabase"."automation_defaults" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_automation_defaults_key_key" on "better_supabase"."automation_defaults" ("key");
@@ -6608,13 +5375,13 @@ grant all on "better_supabase"."automation_defaults" to service_role;
 -- better_supabase.automation_versions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."automation_versions" add column if not exists "rule_id" uuid references "better_supabase"."automations" ("id") on delete cascade;
 alter table "better_supabase"."automation_versions" add column if not exists "version" integer;
-alter table "better_supabase"."automation_versions" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."automation_versions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."automation_versions" add column if not exists "name" text;
 alter table "better_supabase"."automation_versions" add column if not exists "conditions" jsonb;
 alter table "better_supabase"."automation_versions" add column if not exists "actions" jsonb;
 alter table "better_supabase"."automation_versions" add column if not exists "saved_by" uuid;
 alter table "better_supabase"."automation_versions" add column if not exists "saved_at" timestamptz not null default now();
-create index if not exists "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("organization_id");
+create index if not exists "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("tenant_id");
 create unique index if not exists "bsb_automation_versions_version_key" on "better_supabase"."automation_versions" ("rule_id", "version");
 alter table "better_supabase"."automation_versions" enable row level security;
 grant all on "better_supabase"."automation_versions" to service_role;
@@ -6623,7 +5390,7 @@ grant all on "better_supabase"."automation_versions" to service_role;
 -- truth of every condition and group.
 -- better_supabase.automation_evaluations is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."automation_evaluations" add column if not exists "id" bigint generated always as identity;
-alter table "better_supabase"."automation_evaluations" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."automation_evaluations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."automation_evaluations" add column if not exists "rule_id" uuid references "better_supabase"."automations" ("id") on delete cascade;
 alter table "better_supabase"."automation_evaluations" add column if not exists "version" integer;
 alter table "better_supabase"."automation_evaluations" add column if not exists "subject_type" text;
@@ -6631,23 +5398,23 @@ alter table "better_supabase"."automation_evaluations" add column if not exists 
 alter table "better_supabase"."automation_evaluations" add column if not exists "trigger" text;
 alter table "better_supabase"."automation_evaluations" add column if not exists "matched" boolean;
 alter table "better_supabase"."automation_evaluations" add column if not exists "results" jsonb not null default '{}'::jsonb;
-alter table "better_supabase"."automation_evaluations" add column if not exists "mode" text not null default 'live' check ("mode" in ('live', 'test'));
+alter table "better_supabase"."automation_evaluations" add column if not exists "mode" text not null default 'live' constraint bsb_automation_evaluations_mode_check check ("mode" in ('live', 'test'));
 alter table "better_supabase"."automation_evaluations" add column if not exists "evaluated_by" uuid;
 alter table "better_supabase"."automation_evaluations" add column if not exists "evaluated_at" timestamptz not null default now();
 create index if not exists "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("organization_id", "evaluated_at" desc);
+create index if not exists "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("tenant_id", "evaluated_at" desc);
 alter table "better_supabase"."automation_evaluations" enable row level security;
 grant all on "better_supabase"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
 -- better_supabase.automation_fields is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."automation_fields" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."automation_fields" add column if not exists "field_id" text check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$');
+alter table "better_supabase"."automation_fields" add column if not exists "subject_type" text constraint bsb_automation_fields_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."automation_fields" add column if not exists "field_id" text constraint bsb_automation_fields_field_id_check check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$');
 alter table "better_supabase"."automation_fields" add column if not exists "label" text;
 alter table "better_supabase"."automation_fields" add column if not exists "description" text;
-alter table "better_supabase"."automation_fields" add column if not exists "type" text check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean'));
-alter table "better_supabase"."automation_fields" add column if not exists "path" text check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$');
+alter table "better_supabase"."automation_fields" add column if not exists "type" text constraint bsb_automation_fields_type_check check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean'));
+alter table "better_supabase"."automation_fields" add column if not exists "path" text constraint bsb_automation_fields_path_check check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$');
 alter table "better_supabase"."automation_fields" add column if not exists "column_type" text;
 alter table "better_supabase"."automation_fields" add column if not exists "nullable" boolean not null default true;
 alter table "better_supabase"."automation_fields" add column if not exists "options" jsonb;
@@ -7209,7 +5976,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."organization_id" = save_rule.tenant for update;
+    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."tenant_id" = save_rule.tenant for update;
     if v_old."id" is null then
       raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
@@ -7264,19 +6031,19 @@ begin
     end if;
   end;
   if v_old."id" is null then
-    insert into "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
+    insert into "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
     values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
       case
-    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."organization_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
     returning * into v_row;
   elsif v_old."trigger" = v_trigger and v_old."name" = v_name
     and v_old."description" is not distinct from v_description
     and v_old."conditions" = v_conditions and v_old."actions" = v_actions
     and v_old."enabled" = v_enabled and v_old."stop_processing" = v_stop then
-    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
+    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."tenant_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
   else
     update "better_supabase"."automations" x set
       "trigger" = v_trigger,
@@ -7292,8 +6059,8 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  insert into "better_supabase"."automation_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
-  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  insert into "better_supabase"."automation_versions" ("rule_id", "version", "tenant_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."tenant_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
   if v_old."id" is null then
     null;
@@ -7313,7 +6080,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -7330,9 +6097,9 @@ begin
   end if;
   perform "better_supabase"."install_default_rules"(rules_list.tenant);
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
     from "better_supabase"."automations" x
-    where x."organization_id" = rules_list.tenant
+    where x."tenant_id" = rules_list.tenant
       and (rules_list.subject_type is null or x."subject_type" = rules_list.subject_type)
       and (rules_list.trigger is null or x."trigger" = rules_list.trigger)
       and (rules_list.enabled is null or x."enabled" = rules_list.enabled)
@@ -7352,10 +6119,10 @@ declare
   v_row "better_supabase"."automations";
 begin
   select * into v_row from "better_supabase"."automations" x where x."id" = rule_get.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -7370,7 +6137,7 @@ as $$
 declare
   v_tenant uuid;
 begin
-  select x."organization_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_versions_list.id;
+  select x."tenant_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_versions_list.id;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'automations.read'), false)) then
     return '[]'::jsonb;
   end if;
@@ -7399,14 +6166,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = set_rule_enabled.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false)) then
     raise exception 'Publishing rules needs the publish permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_row."enabled" = coalesce(set_rule_enabled.enabled, false) then
-    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
   end if;
   update "better_supabase"."automations" x set "enabled" = coalesce(set_rule_enabled.enabled, false), "updated_by" = auth.uid(), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
@@ -7415,7 +6182,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -7433,10 +6200,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = rank_rule.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.write'), false) end)) then
     raise exception 'You need % to move this rule', case when v_row."enabled" then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if rank_rule.rank is null or rank_rule.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
@@ -7444,7 +6211,7 @@ begin
   end if;
   update "better_supabase"."automations" x set "rank" = rank_rule.rank, "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -7463,7 +6230,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = remove_rule.id;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.manage'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.manage'), false)) then
     return false;
   end if;
   if v_row."default_key" is not null then
@@ -7512,13 +6279,13 @@ begin
   v_fields := "better_supabase"."rule_field_map"(matching_rules.subject_type);
   for v_rule in
     select * from "better_supabase"."automations" x
-    where x."organization_id" = matching_rules.tenant and x."subject_type" = matching_rules.subject_type
+    where x."tenant_id" = matching_rules.tenant and x."subject_type" = matching_rules.subject_type
       and x."trigger" = matching_rules.trigger and x."enabled"
     order by x."rank" collate "C"
   loop
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", matching_rules.subject, v_fields, coalesce(matching_rules.time_zone, 'UTC'), now());
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."tenant_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -7551,17 +6318,17 @@ begin
   if coalesce(record_rule_evaluation.mode, 'live') = 'live' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records live evaluations' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."organization_id", 'automations.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."tenant_id", 'automations.write'), false)) then
     raise exception 'Testing rules needs the edit permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
-  insert into "better_supabase"."automation_evaluations" ("organization_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
-  values (v_rule."organization_id", v_rule."id", v_rule."version", v_rule."subject_type", record_rule_evaluation.subject_id, v_rule."trigger",
+  insert into "better_supabase"."automation_evaluations" ("tenant_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
+  values (v_rule."tenant_id", v_rule."id", v_rule."version", v_rule."subject_type", record_rule_evaluation.subject_id, v_rule."trigger",
     coalesce(record_rule_evaluation.matched, false), coalesce(record_rule_evaluation.results, '{}'::jsonb), better_supabase.as_column_type(coalesce(record_rule_evaluation.mode, 'live'), (null::"better_supabase"."automation_evaluations")."mode"), auth.uid())
   returning * into v_row;
   if v_row."mode" = 'live' and v_row."matched" then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id"::text, 'organizationId', v_row."organization_id", 'ruleId', v_row."rule_id", 'version', v_row."version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'trigger', v_row."trigger", 'matched', v_row."matched", 'results', v_row."results", 'mode', v_row."mode", 'evaluatedBy', v_row."evaluated_by", 'evaluatedAt', v_row."evaluated_at");
+  return jsonb_build_object('id', v_row."id"::text, 'organizationId', v_row."tenant_id", 'ruleId', v_row."rule_id", 'version', v_row."version", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'trigger', v_row."trigger", 'matched', v_row."matched", 'results', v_row."results", 'mode', v_row."mode", 'evaluatedBy', v_row."evaluated_by", 'evaluatedAt', v_row."evaluated_at");
 end;
 $$;
 
@@ -7587,7 +6354,7 @@ begin
   v_fields := "better_supabase"."rule_field_map"(run_rules.subject_type);
   for v_rule in
     select * from "better_supabase"."automations" x
-    where x."organization_id" = run_rules.tenant
+    where x."tenant_id" = run_rules.tenant
       and (run_rules.subject_type is null or x."subject_type" = run_rules.subject_type)
       and x."trigger" = run_rules.trigger and x."enabled"
     order by x."rank" collate "C"
@@ -7598,7 +6365,7 @@ begin
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", run_rules.subject, v_fields, coalesce(run_rules.time_zone, 'UTC'), now());
     perform "better_supabase"."record_rule_evaluation"(v_rule."id", run_rules.subject_id, (v_result ->> 'matched')::boolean, v_result -> 'results', 'live');
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."tenant_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -7617,11 +6384,11 @@ as $$
 declare
   v_count integer;
 begin
-  insert into "better_supabase"."automations" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
+  insert into "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
   select install_default_rules.tenant, x."subject_type", x."trigger", x."name", x."description", x."conditions", x."actions", x."enabled", x."key", null, null
   from "better_supabase"."automation_defaults" x
   where not exists (
-    select 1 from "better_supabase"."automations" y where y."organization_id" = install_default_rules.tenant and y."default_key" = x."key"
+    select 1 from "better_supabase"."automations" y where y."tenant_id" = install_default_rules.tenant and y."default_key" = x."key"
   )
   on conflict do nothing;
   get diagnostics v_count = row_count;
@@ -7646,14 +6413,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."automations" x where x."id" = reset_default_rule.id for update;
-  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
   select * into v_default from "better_supabase"."automation_defaults" x where x."key" = v_row."default_key";
   if v_default."key" is null then
     raise exception 'No block ships this rule' using errcode = '22023', hint = 'AUTOMATION_NOT_DEFAULT';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.write'), false) end)) then
     raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   update "better_supabase"."automations" x set
@@ -7669,11 +6436,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  insert into "better_supabase"."automation_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
-  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  insert into "better_supabase"."automation_versions" ("rule_id", "version", "tenant_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."tenant_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -7688,12 +6455,12 @@ as $$
 declare
   v_tenant uuid;
 begin
-  select x."organization_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_evaluations_list.rule;
+  select x."tenant_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_evaluations_list.rule;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'automations.read'), false)) then
     return '[]'::jsonb;
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', y."id"::text, 'organizationId', y."organization_id", 'ruleId', y."rule_id", 'version', y."version", 'subjectType', y."subject_type", 'subjectId', y."subject_id", 'trigger', y."trigger", 'matched', y."matched", 'results', y."results", 'mode', y."mode", 'evaluatedBy', y."evaluated_by", 'evaluatedAt', y."evaluated_at") order by y."evaluated_at" desc, y."id" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', y."id"::text, 'organizationId', y."tenant_id", 'ruleId', y."rule_id", 'version', y."version", 'subjectType', y."subject_type", 'subjectId', y."subject_id", 'trigger', y."trigger", 'matched', y."matched", 'results', y."results", 'mode', y."mode", 'evaluatedBy', y."evaluated_by", 'evaluatedAt', y."evaluated_at") order by y."evaluated_at" desc, y."id" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."automation_evaluations" x
       where x."rule_id" = rule_evaluations_list.rule
@@ -7764,230 +6531,14 @@ grant execute on function "better_supabase"."run_rules"(uuid, text, text, text, 
 revoke execute on function "better_supabase"."install_default_rules"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."install_default_rules"(uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:75ffe1c16d5d668dcbd89b982e6431e9d51a6ed68d0ada90ff43db63399d41f5
+-- @bsb-hash sha256:72f65e29bd899329dc93590f2a8a8b8b1eebc558ce6675ce1623394c33a949ee
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "better_supabase"."automations" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
-
-update "better_supabase"."automation_defaults" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('automations', 2, 'managed')
@@ -7997,88 +6548,22 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:36fcecc39a41568bd20400616eb188e6901ad5ac94b14e65718b17068b63ed9e
+-- @bsb-hash sha256:ea82514627ed2830950748878cd8eeec0384059a4be47b82b98e424741a62a52
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_evaluations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
-create table if not exists "better_supabase"."automations" (
+create table "better_supabase"."automations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_automations_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automations_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automations_description_check check (length("description") <= 2000),
   "conditions" jsonb not null,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automations_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default false,
   "stop_processing" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -8088,11 +6573,11 @@ create table if not exists "better_supabase"."automations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "automations_trigger_idx" on "better_supabase"."automations" ("org_id", "subject_type", "trigger", "rank");
-create index if not exists "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
-create index if not exists "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
-alter table "better_supabase"."automations" add column if not exists "default_key" text;
-create unique index if not exists "automations_default_key_idx" on "better_supabase"."automations" ("org_id", "default_key") where "default_key" is not null;
+create index "automations_trigger_idx" on "better_supabase"."automations" ("org_id", "subject_type", "trigger", "rank");
+create index "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
+create index "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."automations" add column "default_key" text;
+create unique index "automations_default_key_idx" on "better_supabase"."automations" ("org_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."automations" enable row level security;
 revoke all on "better_supabase"."automations" from public, anon, authenticated;
 grant all on "better_supabase"."automations" to service_role;
@@ -8100,15 +6585,15 @@ grant all on "better_supabase"."automations" to service_role;
 -- The automations blocks ship (defineBlock automations). Each organization
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists "better_supabase"."automation_defaults" (
-  "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
+create table "better_supabase"."automation_defaults" (
+  "key" text primary key constraint bsb_automation_defaults_key_check check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "description" text check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_automation_defaults_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automation_defaults_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automation_defaults_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automation_defaults_description_check check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automation_defaults_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -8117,7 +6602,7 @@ revoke all on "better_supabase"."automation_defaults" from public, anon, authent
 grant all on "better_supabase"."automation_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
-create table if not exists "better_supabase"."automation_versions" (
+create table "better_supabase"."automation_versions" (
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
   "org_id" uuid not null,
@@ -8128,14 +6613,14 @@ create table if not exists "better_supabase"."automation_versions" (
   "saved_at" timestamptz not null default now(),
   primary key ("rule_id", "version")
 );
-create index if not exists "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("org_id");
+create index "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("org_id");
 alter table "better_supabase"."automation_versions" enable row level security;
 revoke all on "better_supabase"."automation_versions" from public, anon, authenticated;
 grant all on "better_supabase"."automation_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
 -- truth of every condition and group.
-create table if not exists "better_supabase"."automation_evaluations" (
+create table "better_supabase"."automation_evaluations" (
   "id" bigint generated always as identity primary key,
   "org_id" uuid not null,
   "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
@@ -8145,25 +6630,25 @@ create table if not exists "better_supabase"."automation_evaluations" (
   "trigger" text not null,
   "matched" boolean not null,
   "results" jsonb not null default '{}'::jsonb,
-  "mode" text not null default 'live' check ("mode" in ('live', 'test')),
+  "mode" text not null default 'live' constraint bsb_automation_evaluations_mode_check check ("mode" in ('live', 'test')),
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
-create index if not exists "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("org_id", "evaluated_at" desc);
+create index "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
+create index "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("org_id", "evaluated_at" desc);
 alter table "better_supabase"."automation_evaluations" enable row level security;
 revoke all on "better_supabase"."automation_evaluations" from public, anon, authenticated;
 grant all on "better_supabase"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
-create table if not exists "better_supabase"."automation_fields" (
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+create table "better_supabase"."automation_fields" (
+  "subject_type" text not null constraint bsb_automation_fields_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "field_id" text not null constraint bsb_automation_fields_field_id_check check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
   "description" text,
-  "type" text not null check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
-  "path" text not null check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+  "type" text not null constraint bsb_automation_fields_type_check check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
+  "path" text not null constraint bsb_automation_fields_path_check check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "column_type" text not null,
   "nullable" boolean not null default true,
   "options" jsonb,
@@ -8171,7 +6656,7 @@ create table if not exists "better_supabase"."automation_fields" (
   "position" integer not null default 0,
   "updated_at" timestamptz not null default now(),
   primary key ("subject_type", "field_id"),
-  check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
+  constraint bsb_automation_fields_check check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "better_supabase"."automation_fields" enable row level security;
 revoke all on "better_supabase"."automation_fields" from public, anon, authenticated;
@@ -9283,230 +7768,14 @@ grant execute on function "better_supabase"."run_rules"(uuid, text, text, text, 
 revoke execute on function "better_supabase"."install_default_rules"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."install_default_rules"(uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:75ffe1c16d5d668dcbd89b982e6431e9d51a6ed68d0ada90ff43db63399d41f5
+-- @bsb-hash sha256:72f65e29bd899329dc93590f2a8a8b8b1eebc558ce6675ce1623394c33a949ee
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "better_supabase"."automations" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
-
-update "better_supabase"."automation_defaults" t set "trigger" = m.next_type
-from (values
-  ('access.ended', 'access_request.ended'),
-  ('access.request_approved', 'access_request.approved'),
-  ('access.requested', 'access_request.requested'),
-  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
-  ('approval_policy.removed', 'approval_policy.deleted'),
-  ('compliance_policy.acknowledged', 'acknowledgement.created'),
-  ('credential.set', 'credential.updated'),
-  ('custom_field.deleted', 'field_definition.deleted'),
-  ('drive.node_created', 'drive_node.created'),
-  ('drive.node_document_saved', 'drive_node.document_saved'),
-  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
-  ('drive.node_hold_placed', 'drive_node.hold_placed'),
-  ('drive.node_hold_released', 'drive_node.hold_released'),
-  ('drive.node_locked', 'drive_node.locked'),
-  ('drive.node_moved', 'drive_node.moved'),
-  ('drive.node_obsoleted', 'drive_node.obsoleted'),
-  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
-  ('drive.node_purged', 'drive_node.purged'),
-  ('drive.node_released', 'drive_node.released'),
-  ('drive.node_renamed', 'drive_node.renamed'),
-  ('drive.node_review_requested', 'drive_node.review_requested'),
-  ('drive.node_reviewed', 'drive_node.reviewed'),
-  ('drive.node_shared', 'drive_node.shared'),
-  ('drive.node_submitted', 'drive_node.submitted'),
-  ('drive.node_unlocked', 'drive_node.unlocked'),
-  ('drive.node_unshared', 'drive_node.unshared'),
-  ('engagement.amended', 'activity.amended'),
-  ('engagement.completed', 'activity.completed'),
-  ('engagement.deleted', 'activity.deleted'),
-  ('engagement.error_marked', 'activity.error_marked'),
-  ('engagement.logged', 'activity.logged'),
-  ('engagement.recorded', 'activity.recorded'),
-  ('engagement.summarized', 'activity.summarized'),
-  ('engagement.transcribed', 'activity.transcribed'),
-  ('engagement.updated', 'activity.updated'),
-  ('flag.override_set', 'flag.override_changed'),
-  ('forecast.snapshotted', 'forecast_snapshot.created'),
-  ('hostname.primary_set', 'hostname.primary_changed'),
-  ('hostname.removed', 'hostname.deleted'),
-  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
-  ('job.closed', 'job_opening.closed'),
-  ('job.opened', 'job_opening.opened'),
-  ('leave.adjusted', 'leave_balance.adjusted'),
-  ('leave.approved', 'leave_request.approved'),
-  ('leave.cancelled', 'leave_request.cancelled'),
-  ('leave.rejected', 'leave_request.rejected'),
-  ('leave.requested', 'leave_request.requested'),
-  ('leave.split', 'leave_request.split'),
-  ('leave.updated', 'leave_request.updated'),
-  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
-  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
-  ('obligation.status_changed', 'contract_obligation.status_changed'),
-  ('organization.domain_added', 'sso_domain.created'),
-  ('organization.domain_removed', 'sso_domain.deleted'),
-  ('organization.domain_updated', 'sso_domain.updated'),
-  ('organization.domain_verified', 'sso_domain.verified'),
-  ('policy.acknowledged', 'acknowledgement.created'),
-  ('policy.published', 'compliance_policy.published'),
-  ('postmortem.published', 'incident_postmortem.published'),
-  ('rule.disabled', 'automation.disabled'),
-  ('rule.enabled', 'automation.enabled'),
-  ('rule.matched', 'automation.matched'),
-  ('rule.removed', 'automation.deleted'),
-  ('segment.removed', 'segment.deleted'),
-  ('sequence_enrollment.completed', 'enrollment.completed'),
-  ('sequence_enrollment.created', 'enrollment.created'),
-  ('sequence_enrollment.exited', 'enrollment.cancelled'),
-  ('sequence_enrollment.paused', 'enrollment.paused'),
-  ('sequence_enrollment.resumed', 'enrollment.resumed'),
-  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
-  ('signature.cancelled', 'signature_request.cancelled'),
-  ('signature.completed', 'signature_request.completed'),
-  ('signature.declined', 'signature_request.declined'),
-  ('signature.requested', 'signature_request.requested'),
-  ('signature.signed', 'signature_request.signed'),
-  ('support.denied', 'support_session.denied'),
-  ('support.ended', 'support_session.ended'),
-  ('support.started', 'support_session.started'),
-  ('time.invoiced', 'time_entry.invoiced'),
-  ('variant.created', 'product_variant.created'),
-  ('variant.deleted', 'product_variant.deleted'),
-  ('variant.updated', 'product_variant.updated'),
-  ('waitlist.approved', 'waitlist_entry.approved'),
-  ('waitlist.rejected', 'waitlist_entry.rejected'),
-  ('webhook.delivered', 'webhook_endpoint.delivered'),
-  ('webhook.disabled', 'webhook_endpoint.disabled'),
-  ('webhook.failed', 'webhook_endpoint.failed'),
-  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
-  ('work_item.archived', 'task.archived'),
-  ('work_item.assigned', 'task.assigned'),
-  ('work_item.closed', 'task.closed'),
-  ('work_item.created', 'task.created'),
-  ('work_item.deleted', 'task.deleted'),
-  ('work_item.reopened', 'task.reopened'),
-  ('work_item.updated', 'task.updated'),
-  ('workflow.published', 'workflow_definition.published')
-) as m(old_type, next_type)
-where t."trigger" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('automations', 2, 'managed')

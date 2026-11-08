@@ -44,22 +44,22 @@ lists the fields in a fixed order.
 
 Every field has a default, so a preset sets only what differs.
 
-| Field          | Values                                                                                         | Default        | What it sets                                                                                                                          |
-| -------------- | ---------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `framework`    | `next`, `vite`, `tanstack-start`, `expo`, `sveltekit`, `nuxt`, `hono`, `astro`, `react-router` | `next`         | the glue Create shows                                                                                                                 |
-| `platforms`    | `web`, `native`, `both`                                                                        | `web`          | the glue Create shows; `native` needs `expo`                                                                                          |
-| `casing`       | `snake`, `camel`                                                                               | `snake`        | `casing`                                                                                                                              |
-| `idType`       | `uuid`, `text`, `bigint`, `integer`                                                            | `uuid`         | `blocks.permissions.idType`                                                                                                           |
-| `scope`        | `tenant`, `user`, `none`                                                                       | `tenant`       | `database.sql.owner`; under `user` or `none`, blocks that need tenants can't install, and the rest need neither `tenant` nor `access` |
-| `tenantName`   | `organization`, `workspace`, `team`                                                            | `organization` | `blocks.memberships.names.organization`; a block whose tables or columns the name would take over can't install                       |
-| `access`       | `roles`, `catalog`, `provider`, `custom`                                                       | `roles`        | `blocks.permissions.model`                                                                                                            |
-| `api`          | `none`, `api`                                                                                  | `none`         | `database.sql.api`                                                                                                                    |
-| `integrations` | `next`, `hono`, `orpc`, `edge`, `expo`, `mcp`, `client`, `react` (any number)                  | none           | `integrations`                                                                                                                        |
+| Field        | Values                                                                                         | Default        | What it sets                                                                                                                          |
+| ------------ | ---------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `framework`  | `next`, `vite`, `tanstack-start`, `expo`, `sveltekit`, `nuxt`, `hono`, `astro`, `react-router` | `next`         | the glue Create shows                                                                                                                 |
+| `platforms`  | `web`, `native`, `both`                                                                        | `web`          | the glue Create shows; `native` needs `expo`                                                                                          |
+| `casing`     | `snake`, `camel`                                                                               | `snake`        | `casing`                                                                                                                              |
+| `idType`     | `uuid`, `text`, `bigint`, `integer`                                                            | `uuid`         | `blocks.permissions.idType`                                                                                                           |
+| `scope`      | `tenant`, `user`, `none`                                                                       | `tenant`       | `database.sql.owner`; under `user` or `none`, blocks that need tenants can't install, and the rest need neither `tenant` nor `access` |
+| `tenantName` | `organization`, `workspace`, `team`                                                            | `organization` | `blocks.memberships.names.organization`; a block whose tables or columns the name would take over can't install                       |
+| `access`     | `roles`, `catalog`, `provider`, `custom`                                                       | `roles`        | `blocks.permissions.model`                                                                                                            |
+| `api`        | `none`, `api`                                                                                  | `none`         | `database.sql.api`                                                                                                                    |
+| `adapters`   | `next`, `hono`, `orpc`, `edge`, `expo`, `mcp`, `client`, `react` (any number)                  | none           | `integrations`                                                                                                                        |
 
 ## Designs
 
 A design is plain JSON: the preset, the [app tables](/docs/repository/tables),
-extra columns on block tables and where each table sits on the Create canvas.
+the seeds and where each table sits on the Create canvas.
 It rides on a Create URL as `?design=`, compressed:
 
 ```ts
@@ -76,7 +76,6 @@ const resolved = resolvePreset(namedPreset("crm"));
 
 const design = {
   appTables: { projects: { columns: { name: { type: "text" } } } },
-  extraColumns: { organizations: { tier: "text" } },
   positions: { "public.projects": [120, 40] },
 };
 
@@ -163,7 +162,7 @@ design file into a design with its preset inside.
 
 `decodeDesign` and `designOf` reject what isn't a design: an unknown key, a
 table that `tables` wouldn't accept, a column type outside a plain SQL
-type, a block with no table for extra columns, or a code that inflates past
+type, or a code that inflates past
 256 KB. `encodeDesign` throws a `DesignParseError` for an invalid design, and a
 `DesignTooLongError` (a `DesignParseError` with the code's `length`) when a valid
 design would pass `MAX_DESIGN_CODE_LENGTH` (6000 characters); write a
@@ -214,23 +213,20 @@ issue in `issues` is the same three keys as plain JSON. `path` is a
 such as `/appTables/tasks/columns/title/type`, or its nearest parent when
 the key is missing. The codes are stable; the messages may change.
 
-| Code                  | What it means                                                      |
-| --------------------- | ------------------------------------------------------------------ |
-| `invalid_design`      | a value has the wrong type, such as a design that isn't an object  |
-| `unknown_key`         | a key a design or design file doesn't have                         |
-| `unsupported_format`  | `version` is newer than this release reads                         |
-| `too_large`           | more tables, extra columns or positions than a design may hold     |
-| `unknown_block`       | `extraColumns` names a block that doesn't exist                    |
-| `no_extra_columns`    | `extraColumns` names a block that takes no extra columns           |
-| `block_not_installed` | `extraColumns` names a block the preset doesn't install            |
-| `invalid_name`        | a column or table name that isn't a lower snake identifier         |
-| `invalid_type`        | an extra column whose type isn't a SQL type                        |
-| `invalid_position`    | a canvas position that isn't two finite numbers                    |
-| `invalid_app_table`   | an app table that `tables` rejects                                 |
-| `invalid_code`        | a design code that is malformed, damaged or too long to read       |
-| `too_long`            | a valid design whose code is too long for a URL                    |
-| `invalid_file`        | a design file that isn't JSON or lacks its keys                    |
-| `invalid_preset`      | a preset that isn't a preset name or object, or a file without one |
+| Code                 | What it means                                                      |
+| -------------------- | ------------------------------------------------------------------ |
+| `invalid_design`     | a value has the wrong type, such as a design that isn't an object  |
+| `unknown_key`        | a key a design or design file doesn't have                         |
+| `unsupported_format` | `version` is newer than this release reads                         |
+| `too_large`          | more tables or positions than a design may hold                    |
+| `invalid_name`       | a column or table name that isn't a lower snake identifier         |
+| `invalid_type`       | a column whose type isn't a SQL type                               |
+| `invalid_position`   | a canvas position that isn't two finite numbers                    |
+| `invalid_app_table`  | an app table that `tables` rejects                                 |
+| `invalid_code`       | a design code that is malformed, damaged or too long to read       |
+| `too_long`           | a valid design whose code is too long for a URL                    |
+| `invalid_file`       | a design file that isn't JSON or lacks its keys                    |
+| `invalid_preset`     | a preset that isn't a preset name or object, or a file without one |
 
 ### Design files
 
@@ -250,8 +246,7 @@ const source = designFileSource(resolvePreset(defaultPreset()), design);
 // {
 //   "version": 7,
 //   "preset": "saas",
-//   "appTables": { ... },
-//   "extraColumns": { ... }
+//   "appTables": { ... }
 // }
 
 const { preset, design: read } = readDesignFile(source);
@@ -296,17 +291,17 @@ const changes = diffAppTables(
 The AI instructions for a design are at `/create/prompt.md?design=<code>`,
 or `/create/prompt.md?preset=<name>` for a named preset.
 
-| Function               | What it does                                                                                          |
-| ---------------------- | ----------------------------------------------------------------------------------------------------- |
-| `designConfig`         | the preset's config with the design merged in; throws for extra columns on a block it doesn't install |
-| `createUrl`            | the `/create` URL for a preset and design; throws `DesignTooLongError` past the URL limit             |
-| `presetAndDesignOf`    | the preset and design a name, a `/create` URL or a design code holds                                  |
-| `parseDesign`          | checks the shape of a design object and drops its empty parts; throws a `DesignParseError`            |
-| `designSchema`         | `parseDesign` as a Standard Schema (v1)                                                               |
-| `safeParseDesign`      | `parseDesign` without the throw: `{ ok: true, design }` or `{ ok: false, issues }`                    |
-| `designFileSource`     | the design file: the design JSON with its preset                                                      |
-| `safeDesignFileSource` | `designFileSource` without the throw: `{ ok: true, source }` or `{ ok: false, issues }`               |
-| `readDesignFile`       | the preset and design from a design file; throws a `DesignParseError` for anything else               |
+| Function               | What it does                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| `designConfig`         | the preset's config with the design's app tables and seeds merged in                       |
+| `createUrl`            | the `/create` URL for a preset and design; throws `DesignTooLongError` past the URL limit  |
+| `presetAndDesignOf`    | the preset and design a name, a `/create` URL or a design code holds                       |
+| `parseDesign`          | checks the shape of a design object and drops its empty parts; throws a `DesignParseError` |
+| `designSchema`         | `parseDesign` as a Standard Schema (v1)                                                    |
+| `safeParseDesign`      | `parseDesign` without the throw: `{ ok: true, design }` or `{ ok: false, issues }`         |
+| `designFileSource`     | the design file: the design JSON with its preset                                           |
+| `safeDesignFileSource` | `designFileSource` without the throw: `{ ok: true, source }` or `{ ok: false, issues }`    |
+| `readDesignFile`       | the preset and design from a design file; throws a `DesignParseError` for anything else    |
 
 ### The default preset
 

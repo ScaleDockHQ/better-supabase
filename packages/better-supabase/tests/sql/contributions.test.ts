@@ -30,7 +30,7 @@ const count = (text: string, part: string): number =>
 describe("block contributions", () => {
   it("adds a consumer's request type to approvals", () => {
     const approvals = sqlOf(
-      render({ approvals: {}, "time-tracking": {} }),
+      render({ approvals: {}, "time-entries": {} }),
       "approvals",
     );
 
@@ -44,27 +44,27 @@ describe("block contributions", () => {
 
   it("keeps a renamed instance out unless its uses names the target", () => {
     const files = render({
-      bulk: {},
+      "bulk-actions": {},
       tags: {},
       labels: { block: "tags", entities: { tag: "label" } },
     });
 
-    expect(count(sqlOf(files, "bulk"), "when 'tags.set' then")).toBe(1);
+    expect(count(sqlOf(files, "bulk-actions"), "when 'tags.set' then")).toBe(1);
   });
 
   it("sends a renamed instance to the instance its uses names", () => {
     const files = render({
-      bulk: {},
-      rowActions: { block: "bulk" },
+      "bulk-actions": {},
+      rowActions: { block: "bulk-actions" },
       tags: {},
       labels: {
         block: "tags",
         entities: { tag: "label" },
-        uses: { bulk: "rowActions" },
+        uses: { "bulk-actions": "rowActions" },
       },
     });
 
-    const bulk = sqlOf(files, "bulk");
+    const bulk = sqlOf(files, "bulk-actions");
     const row = sqlOf(files, "rowActions");
 
     expect(bulk).toContain("when 'tags.set' then");
@@ -145,10 +145,10 @@ describe("block contributions", () => {
     expect(() =>
       render({
         approvals: {},
-        "time-tracking": {},
+        "time-entries": {},
         overtime: {
-          block: "time-tracking",
-          entities: { entry: "shift" },
+          block: "time-entries",
+          entities: { time_entry: "shift" },
           uses: { approvals: "approvals" },
         },
       }),

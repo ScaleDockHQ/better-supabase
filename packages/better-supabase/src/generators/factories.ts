@@ -6,7 +6,8 @@ import type {
   GeneratorTable,
 } from "../config/index.ts";
 
-import { HEADER, siblingPath } from "./shared.ts";
+import { VERSION } from "../core/version.ts";
+import { HEADER, relativeImport, siblingPath } from "./kit.ts";
 
 export interface FactoriesGeneratorOptions {
   /**
@@ -360,7 +361,15 @@ function tableLines(table: GeneratorTable, plan: readonly FactoryColumn[]) {
  */
 export function factories(options: FactoriesGeneratorOptions = {}): Generator {
   return {
-    apiVersion: 1,
+    apiVersion: 2,
+    version: VERSION,
+    options,
+    pure: true,
+    workerSafe: true,
+    module: {
+      specifier: "better-supabase/generators/factories",
+      export: "factories",
+    },
     name: "factories",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =
@@ -419,8 +428,7 @@ export function factories(options: FactoriesGeneratorOptions = {}): Generator {
       );
 
       const runtime =
-        options.testingImport ??
-        `${input.runtimeImport ?? "better-supabase"}/testing`;
+        options.testingImport ?? `${input.imports.runtime}/testing`;
 
       const usesPath = lines.some((line) =>
         line.value.includes("factoryPath("),
@@ -442,7 +450,7 @@ export function factories(options: FactoriesGeneratorOptions = {}): Generator {
         `import type { Factory } from ${JSON.stringify(runtime)};`,
         `import { ${["defineFactory", ...(usesPath ? ["factoryPath"] : []), ...(usesTime ? ["factoryTime"] : [])].join(", ")} } from ${JSON.stringify(runtime)};`,
         "",
-        `import type { InsertOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
+        `import type { InsertOf } from ${JSON.stringify(relativeImport(path, input.config.output))};`,
         ...lines.flatMap((line) => [
           "",
           `const ${local(line.key)}: ${line.type} = ${line.value};`,

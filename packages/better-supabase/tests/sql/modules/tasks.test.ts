@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const body = (
   module: string,
@@ -13,6 +13,20 @@ const body = (
     .join("\n");
 
 describe("tasks module", () => {
+  it("leaves out the lock when the app maps locked to null", () => {
+    const kept = body("tasks");
+    expect(kept).toContain('"locked" boolean not null default false');
+    expect(kept).toContain("TASK_LOCKED");
+
+    const left = body("tasks", {
+      modules: { tasks: { columns: { items: { locked: null } } } },
+    });
+
+    expect(left).not.toContain('"locked"');
+    expect(left).not.toContain("TASK_LOCKED");
+    expect(left).toContain("'locked', null");
+  });
+
   it("binds work items to pipelines per team with Linear's categories", () => {
     const pipelines = body("pipelines", {}, ["tasks"]);
     expect(pipelines).toContain(
@@ -60,7 +74,7 @@ describe("tasks module", () => {
     ).toContain("cardinality(v_users) > 1");
     expect(body("tasks")).not.toContain("TASK_ASSIGNEES_LIMIT");
     expect(body("tasks", {}, ["notifications"])).toContain(
-      "'type', 'work_item.assigned'",
+      "'type', 'task.assigned'",
     );
     expect(
       body(
@@ -69,7 +83,7 @@ describe("tasks module", () => {
           modules: {
             numbering: {
               options: {
-                entities: { work_item: { period: "none", format: "ENG-{n}" } },
+                entities: { task: { period: "none", format: "ENG-{n}" } },
               },
             },
           },
@@ -85,7 +99,7 @@ describe("tasks module", () => {
             numbering: {
               options: {
                 entities: {
-                  work_item: {
+                  task: {
                     period: "format",
                     format: "ENG-{n}",
                     formatFrom: { column: "public.organizations.task_format" },

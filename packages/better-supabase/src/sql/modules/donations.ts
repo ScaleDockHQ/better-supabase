@@ -13,7 +13,7 @@ import {
   accountingSourcesSql,
 } from "../accounting-sources-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { donationAccountingSources } from "./donations-accounting.ts";
@@ -88,7 +88,7 @@ const NAMES: BlockSqlNames = {
     donation_receipt: { table: "receipts", singular: "donation_receipt" },
   },
   events: EVENTS,
-  options: ["extraColumns"],
+  options: [],
   tables: {
     funds: {
       name: "donation_funds",
@@ -321,7 +321,7 @@ create table if not exists ${donations} (
   ${d("updatedAt")} timestamptz not null default now(),
   foreign key (${d("tenant")}, ${d("fund")}) references ${funds} (${f("tenant")}, ${f("id")}) on delete restrict,
   unique (${d("pledge")}, ${d("periodStart")})
-);${appUniqueIndex(ctx, "donations", ["pledge", "periodStart"])}${addExtraColumns(donations, ctx.extraColumns("donations", GIFT_RESERVED))}
+);${appUniqueIndex(ctx, "donations", ["pledge", "periodStart"])}
 create index if not exists ${index("donations", "tenant_idx")} on ${donations} (${d("tenant")}, ${d("receivedOn")} desc);
 create index if not exists ${index("donations", "donor_idx")} on ${donations} (${d("tenant")}, ${d("donorType")}, ${d("donorId")}, ${d("receivedOn")});
 create index if not exists ${index("donations", "fund_idx")} on ${donations} (${d("tenant")}, ${d("fund")}) where ${d("fund")} is not null;

@@ -146,7 +146,7 @@ export async function runSeedDefaults(
     config,
     env,
     dbUrl,
-    args.stack ?? env.BSB_STACK,
+    args.stack ?? env.BETTER_SUPABASE_STACK,
   );
 
   if (!isLocalDatabaseUrl(url)) {
@@ -344,7 +344,7 @@ export async function runSeedSample(
     config,
     env,
     dbUrl,
-    args.stack ?? env.BSB_STACK,
+    args.stack ?? env.BETTER_SUPABASE_STACK,
   );
 
   if (!isLocalDatabaseUrl(url)) {

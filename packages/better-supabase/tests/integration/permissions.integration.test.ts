@@ -63,7 +63,7 @@ async function inTransaction<T>(
       await client.query(setup);
     }
 
-    for (const file of renderBlocks(names, layout)) {
+    for (const file of renderBlocks(names, { ...layout, rerunnable: true })) {
       await client.query(file.contents);
     }
 

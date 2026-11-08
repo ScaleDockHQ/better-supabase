@@ -10,12 +10,12 @@ import type {
 } from "../../src/server/server-types.ts";
 import type { BucketClient, StorageApi } from "../../src/storage/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createServer } from "../../src/server/server.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const bsb = createServer(defineSupabase(schema));
+const bsb = createServer(createSupabase(schema));
 
 type Server =
   typeof bsb extends BetterServer<infer M, infer F, infer E>
@@ -33,7 +33,7 @@ describe("createServer forContext", () => {
   });
 
   it("takes claimsFor with sync or async claims", () => {
-    createServer(defineSupabase(schema), {
+    createServer(createSupabase(schema), {
       claimsFor: (userId, context) => {
         expectTypeOf(userId).toEqualTypeOf<string>();
         expectTypeOf(context.tenant).toEqualTypeOf<string | undefined>();
@@ -41,7 +41,7 @@ describe("createServer forContext", () => {
         return { organization_ids: [context.tenant] };
       },
     });
-    createServer(defineSupabase(schema), {
+    createServer(createSupabase(schema), {
       claimsFor: async () => ({ user_role: "admin" }),
     });
   });
@@ -62,7 +62,7 @@ describe("storage on the context", () => {
 describe("buckets on the server db", () => {
   it("carries $buckets into db, sql, admin and $with", () => {
     const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
-    const server = createServer(defineSupabase(schema).buckets({ logos }));
+    const server = createServer(createSupabase(schema).buckets({ logos }));
 
     type Logos = BucketClient<"{userId}/logo.webp", "logos">;
 
@@ -78,7 +78,7 @@ describe("buckets on the server db", () => {
 
 describe("auth admin on the server db", () => {
   it("types $authAdmin on admin() and nowhere else", () => {
-    const server = createServer(defineSupabase(schema));
+    const server = createServer(createSupabase(schema));
 
     expectTypeOf(server.admin().$authAdmin).toEqualTypeOf<
       SupabaseClient["auth"]["admin"]

@@ -58,7 +58,7 @@ describe("solid", () => {
 
 describe("svelte", () => {
   it("types the bound client", () => {
-    const bsb = svelte.getBetterSupabase<Client>();
+    const bsb = svelte.betterSupabase<Client>();
     expectTypeOf(bsb.db).toEqualTypeOf<Client["db"]>();
     expectTypeOf(bsb.queries).toEqualTypeOf<Client["queries"]>();
     expectTypeOf(bsb.auth.current).toEqualTypeOf<AuthSnapshot>();

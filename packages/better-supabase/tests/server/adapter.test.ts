@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { OrpcRequestContext } from "../../src/orpc/index.ts";
 
 import { writeSession } from "../../src/auth/session.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err } from "../../src/core/result.ts";
 import { createEdge } from "../../src/edge/index.ts";
@@ -38,7 +38,7 @@ const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
 describe("handle", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const server = createServer(betterSupabase, {
     env,
@@ -218,7 +218,7 @@ describe("handle", () => {
 
 describe("ctx.cookies", () => {
   it("lists the primary pin after a write, for cookie-jar frameworks", async () => {
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       readUrl: "https://replica.test",
     });
@@ -237,7 +237,7 @@ describe("ctx.cookies", () => {
 
 describe("flushEvents", () => {
   it("calls waitUntil only while sends are pending", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     const waitUntil = vi.fn();
     flushEvents(betterSupabase, waitUntil);
     expect(waitUntil).not.toHaveBeenCalled();
@@ -251,7 +251,7 @@ describe("flushEvents", () => {
 
 describe("withFlush", () => {
   it("flushes after the run, also when it throws", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     const waitUntil = vi.fn();
     betterSupabase.events.track(Promise.resolve());
     await expect(withFlush(betterSupabase, waitUntil, () => 7)).resolves.toBe(
@@ -270,7 +270,7 @@ describe("withFlush", () => {
 });
 
 describe("resolveToken", () => {
-  const server = createServer(defineSupabase(schema), {
+  const server = createServer(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
   });
@@ -284,7 +284,7 @@ describe("resolveToken", () => {
 });
 
 describe("testAdapter", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   it("passes for createEdge", async () => {
     await testAdapter("edge", {

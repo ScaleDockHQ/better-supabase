@@ -1,90 +1,39 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:3085c01879c866ed23e5a31f2e360f21bf2b1013a80e26c27a780661bce9a5d6
+-- @bsb-hash sha256:a93afb29f2d9de8430509916187c9c8ae05663b58bc3ab286339b8936df8f9ee
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."access_requests" (
+create table "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null check (length("role") between 1 and 200),
+  "role" text not null constraint bsb_access_requests_role_check check (length("role") >= 1 and length("role") <= 200),
   "previous_role" text,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "duration" interval check ("duration" is null or "duration" > interval '0'),
+  "reason" text constraint bsb_access_requests_reason_check check ("reason" is null or length("reason") <= 2000),
+  "duration" interval constraint bsb_access_requests_duration_check check ("duration" is null or "duration" > interval '0'),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete cascade,
   "granted_at" timestamptz,
   "expires_at" timestamptz,
   "ended_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
-create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
-create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
+create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
+create index "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
+create index "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
-drop policy if exists access_requests_read on "better_supabase"."access_requests";
-create policy access_requests_read on "better_supabase"."access_requests"
+create policy bsb_access_requests_read on "better_supabase"."access_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
-drop function if exists "better_supabase"."request_access"(uuid, text, text, interval, jsonb);
+
 create or replace function "better_supabase"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
 language plpgsql
@@ -358,52 +307,22 @@ grant execute on function "better_supabase"."list_access_requests"(uuid, text, b
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."access_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."access_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."access_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."access_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
@@ -422,130 +341,52 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:cdffcb907511684499f1e675a733eb4849dc9dcd59587571564f664db0d5e32c
+-- @bsb-hash sha256:a4c830c45747b38d31165db6492c18d399015f905ee1b6da46a7d13e0e281d8a
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."access_requests" (
+create table "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text check (length("role") between 1 and 200),
-  "target" text not null default 'role' check ("target" in ('role', 'record')),
-  "subject_type" text check (length("subject_type") between 1 and 200),
-  "subject_id" text check (length("subject_id") between 1 and 200),
-  "action" text check (length("action") between 1 and 200),
+  "role" text constraint bsb_access_requests_role_check check (length("role") >= 1 and length("role") <= 200),
+  "target" text not null default 'role' constraint bsb_access_requests_target_check check ("target" in ('role', 'record')),
+  "subject_type" text constraint bsb_access_requests_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 200),
+  "subject_id" text constraint bsb_access_requests_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "action" text constraint bsb_access_requests_action_check check (length("action") >= 1 and length("action") <= 200),
   "emergency" boolean not null default false,
   "member_id" uuid,
-  "review_verdict" text check ("review_verdict" in ('justified', 'unjustified')),
-  "review_note" text check (length("review_note") <= 2000),
+  "review_verdict" text constraint bsb_access_requests_review_verdict_check check ("review_verdict" in ('justified', 'unjustified')),
+  "review_note" text constraint bsb_access_requests_review_note_check check (length("review_note") <= 2000),
   "reviewed_by" uuid,
   "reviewed_at" timestamptz,
   "previous_role" text,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "duration" interval check ("duration" is null or "duration" > interval '0'),
+  "reason" text constraint bsb_access_requests_reason_check check ("reason" is null or length("reason") <= 2000),
+  "duration" interval constraint bsb_access_requests_duration_check check ("duration" is null or "duration" > interval '0'),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete cascade,
   "granted_at" timestamptz,
   "expires_at" timestamptz,
   "ended_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
-create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
-create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
+create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
+create index "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
+create index "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" alter column "role" drop not null;
-alter table "better_supabase"."access_requests" add column if not exists "target" text not null default 'role' check ("target" in ('role', 'record'));
-alter table "better_supabase"."access_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 200);
-alter table "better_supabase"."access_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
-alter table "better_supabase"."access_requests" add column if not exists "action" text check (length("action") between 1 and 200);
-alter table "better_supabase"."access_requests" add column if not exists "emergency" boolean not null default false;
-alter table "better_supabase"."access_requests" add column if not exists "member_id" uuid;
-alter table "better_supabase"."access_requests" add column if not exists "review_verdict" text check ("review_verdict" in ('justified', 'unjustified'));
-alter table "better_supabase"."access_requests" add column if not exists "review_note" text check (length("review_note") <= 2000);
-alter table "better_supabase"."access_requests" add column if not exists "reviewed_by" uuid;
-alter table "better_supabase"."access_requests" add column if not exists "reviewed_at" timestamptz;
-create index if not exists "access_requests_subject_idx" on "better_supabase"."access_requests" ("subject_type", "subject_id", "user_id") where "subject_type" is not null;
-create index if not exists "access_requests_emergency_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc) where "emergency";
+create index "access_requests_subject_idx" on "better_supabase"."access_requests" ("subject_type", "subject_id", "user_id") where "subject_type" is not null;
+create index "access_requests_emergency_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc) where "emergency";
 alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
-drop policy if exists access_requests_read on "better_supabase"."access_requests";
-create policy access_requests_read on "better_supabase"."access_requests"
+create policy bsb_access_requests_read on "better_supabase"."access_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
-drop function if exists "better_supabase"."request_access"(uuid, text, text, interval, jsonb);
+
 create or replace function "better_supabase"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
 language plpgsql
@@ -1166,59 +1007,25 @@ grant execute on function "better_supabase"."list_record_access_requests"(text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."access_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."access_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."access_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."access_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.access_requests', target_type => 'access_request', event_prefix => 'access_request', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.access_requests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"access_request","event_prefix":"access_request"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
@@ -1237,95 +1044,44 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:1218223c7dc862e1e60f43c3d56c016b0391198fa1dd80b1da3b810d9c0f5780
+-- @bsb-hash sha256:8a022b382f4770ac415e02cc9d60970c0ecbb239d5726f23a2d1b44a10b6cbd2
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."access_requests";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."access_requests";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."access_requests";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."access_requests";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."access_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."access_requests" (
+create table "app_private"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null check (length("role") between 1 and 200),
+  "role" text not null constraint bsb_access_requests_role_check check (length("role") >= 1 and length("role") <= 200),
   "previous_role" text,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "duration" interval check ("duration" is null or "duration" > interval '0'),
+  "reason" text constraint bsb_access_requests_reason_check check ("reason" is null or length("reason") <= 2000),
+  "duration" interval constraint bsb_access_requests_duration_check check ("duration" is null or "duration" > interval '0'),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete cascade,
   "granted_at" timestamptz,
   "expires_at" timestamptz,
   "ended_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "access_requests_tenant_idx" on "app_private"."access_requests" ("tenant_id", "created_at" desc);
-create index if not exists "access_requests_approval_idx" on "app_private"."access_requests" ("approval_id") where "approval_id" is not null;
-create index if not exists "access_requests_expiry_idx" on "app_private"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
+create index "access_requests_tenant_idx" on "app_private"."access_requests" ("tenant_id", "created_at" desc);
+create index "access_requests_approval_idx" on "app_private"."access_requests" ("approval_id") where "approval_id" is not null;
+create index "access_requests_expiry_idx" on "app_private"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "app_private"."access_requests" enable row level security;
 revoke all on "app_private"."access_requests" from public, anon, authenticated;
 grant select on "app_private"."access_requests" to authenticated;
 grant all on "app_private"."access_requests" to service_role;
-drop policy if exists access_requests_read on "app_private"."access_requests";
-create policy access_requests_read on "app_private"."access_requests"
+create policy bsb_access_requests_read on "app_private"."access_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
-drop function if exists "app_private"."request_access"(uuid, text, text, interval, jsonb);
+
 create or replace function "app_private"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
 language plpgsql
@@ -1599,52 +1355,22 @@ grant execute on function "app_private"."list_access_requests"(uuid, text, boole
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."access_requests";
-drop policy if exists bsb_tenant_scope_select on "app_private"."access_requests";
 create policy bsb_tenant_scope_select on "app_private"."access_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."access_requests";
 create policy bsb_tenant_scope_insert on "app_private"."access_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."access_requests";
 create policy bsb_tenant_scope_update on "app_private"."access_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."access_requests";
 create policy bsb_tenant_scope_delete on "app_private"."access_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
@@ -1663,90 +1389,39 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:1a40052f30a85c8eae72e5fbcf3e73e7a4955ca4b3893626a4e36e2f23917f5b
+-- @bsb-hash sha256:5233d84386648497aef62053c9ee761e3a4c446580a1024ad6efdfc3d5ac7620
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."access_requests" (
+create table "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null check (length("role") between 1 and 200),
+  "role" text not null constraint bsb_access_requests_role_check check (length("role") >= 1 and length("role") <= 200),
   "previous_role" text,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "duration" interval check ("duration" is null or "duration" > interval '0'),
+  "reason" text constraint bsb_access_requests_reason_check check ("reason" is null or length("reason") <= 2000),
+  "duration" interval constraint bsb_access_requests_duration_check check ("duration" is null or "duration" > interval '0'),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete cascade,
   "granted_at" timestamptz,
   "expires_at" timestamptz,
   "ended_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
-create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
-create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
+create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
+create index "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
+create index "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
-drop policy if exists access_requests_read on "better_supabase"."access_requests";
-create policy access_requests_read on "better_supabase"."access_requests"
+create policy bsb_access_requests_read on "better_supabase"."access_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
-drop function if exists "better_supabase"."request_access"(uuid, text, text, interval, jsonb);
+
 create or replace function "better_supabase"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
 language plpgsql
@@ -2020,36 +1695,19 @@ grant execute on function "better_supabase"."list_access_requests"(uuid, text, b
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."access_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."access_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."access_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."access_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -2057,27 +1715,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."access_requests" as 
 -- blocks.access-requests.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."request_access"(uuid, text, text, interval, jsonb);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
@@ -2126,19 +1763,6 @@ as $$ select "better_supabase"."list_access_requests"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."list_access_requests"(uuid, text, boolean, integer, timestamptz) from public, anon;
 grant execute on function "api"."list_access_requests"(uuid, text, boolean, integer, timestamptz) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block-data access-requests
@@ -2156,69 +1780,19 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:6b4b8041436bf2c588a9755c5b095a31feab2b0968e897491dccae2b5e63bde3
+-- @bsb-hash sha256:4b8b0fad390e495fba3bcf13a7d9b96207452924adf290a36e49ea82ed5a5e41
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.access_requests is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."access_requests" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."access_requests" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."access_requests" add column if not exists "user_id" uuid;
-alter table "better_supabase"."access_requests" add column if not exists "role" text check (length("role") between 1 and 200);
+alter table "better_supabase"."access_requests" add column if not exists "role" text constraint bsb_access_requests_role_check check (length("role") >= 1 and length("role") <= 200);
 alter table "better_supabase"."access_requests" add column if not exists "previous_role" text;
-alter table "better_supabase"."access_requests" add column if not exists "reason" text check ("reason" is null or length("reason") <= 2000);
-alter table "better_supabase"."access_requests" add column if not exists "duration" interval check ("duration" is null or "duration" > interval '0');
+alter table "better_supabase"."access_requests" add column if not exists "reason" text constraint bsb_access_requests_reason_check check ("reason" is null or length("reason") <= 2000);
+alter table "better_supabase"."access_requests" add column if not exists "duration" interval constraint bsb_access_requests_duration_check check ("duration" is null or "duration" > interval '0');
 alter table "better_supabase"."access_requests" add column if not exists "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete cascade;
 alter table "better_supabase"."access_requests" add column if not exists "granted_at" timestamptz;
 alter table "better_supabase"."access_requests" add column if not exists "expires_at" timestamptz;
@@ -2230,14 +1804,13 @@ create index if not exists "access_requests_expiry_idx" on "better_supabase"."ac
 alter table "better_supabase"."access_requests" enable row level security;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
-drop policy if exists bsb_access_requests_select on "better_supabase"."access_requests";
 create policy bsb_access_requests_select on "better_supabase"."access_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
-drop function if exists "better_supabase"."request_access"(uuid, text, text, interval, jsonb);
+
 create or replace function "better_supabase"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
 language plpgsql
@@ -2511,52 +2084,22 @@ grant execute on function "better_supabase"."list_access_requests"(uuid, text, b
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."access_requests" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."access_requests" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."access_requests" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."access_requests" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
@@ -2575,90 +2118,39 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:28874bdc6c2bcb9efe3e8c38c132e47eb4cfcd270138a824049ae9a30e494045
+-- @bsb-hash sha256:b996d23bfd3c8980db8abcb7a908463c2f9317ccc3bd803c57b7fa3c15dcd0d8
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."access_requests" (
+create table "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null check (length("role") between 1 and 200),
+  "role" text not null constraint bsb_access_requests_role_check check (length("role") >= 1 and length("role") <= 200),
   "previous_role" text,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "duration" interval check ("duration" is null or "duration" > interval '0'),
+  "reason" text constraint bsb_access_requests_reason_check check ("reason" is null or length("reason") <= 2000),
+  "duration" interval constraint bsb_access_requests_duration_check check ("duration" is null or "duration" > interval '0'),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete cascade,
   "granted_at" timestamptz,
   "expires_at" timestamptz,
   "ended_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "access_requests_tenant_idx" on "better_supabase"."access_requests" ("org_id", "created_at" desc);
-create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
-create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
+create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("org_id", "created_at" desc);
+create index "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
+create index "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
-drop policy if exists access_requests_read on "better_supabase"."access_requests";
-create policy access_requests_read on "better_supabase"."access_requests"
+create policy bsb_access_requests_read on "better_supabase"."access_requests"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;
 -- the final approval calls grant_access_request.
-drop function if exists "better_supabase"."request_access"(uuid, text, text, interval, jsonb);
+
 create or replace function "better_supabase"."request_access"(tenant uuid, role text, reason text default null, duration interval default null)
 returns jsonb
 language plpgsql
@@ -2932,52 +2424,22 @@ grant execute on function "better_supabase"."list_access_requests"(uuid, text, b
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."access_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_select on "better_supabase"."access_requests" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."access_requests" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_update on "better_supabase"."access_requests" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."access_requests";
 create policy bsb_tenant_scope_delete on "better_supabase"."access_requests" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests

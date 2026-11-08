@@ -6,7 +6,6 @@ import type {
   AppTablesConfig,
 } from "../config/types/app-tables.ts";
 import type { SeedConfig, SeedSampleSize } from "../config/types/database.ts";
-import type { PresetCatalog } from "./catalog-types.ts";
 import type { Preset } from "./fields.ts";
 import type { PresetName } from "./presets.ts";
 import type { ConfigSourceKeys } from "./render.ts";
@@ -15,8 +14,6 @@ import type { PresetSpec } from "./spec.ts";
 
 import { appTablesOf } from "../config/app-tables.ts";
 import { asBlocksConfig } from "../config/blocks.ts";
-import { isSqlType } from "../config/sql-type.ts";
-import { PRESET_CATALOG } from "./catalog.generated.ts";
 import { presetConfig, presetOf } from "./config.ts";
 import { defaultPreset } from "./presets.ts";
 import { configSource } from "./render.ts";
@@ -36,13 +33,6 @@ export interface CreateDesign {
   readonly preset?: PresetName | PresetSpec;
   /** `config.appTables`. */
   readonly appTables?: Readonly<Record<string, AppTableConfig>>;
-  /**
-   * `blocks.<module>.options.extraColumns`: column name to SQL type, per
-   * module.
-   */
-  readonly extraColumns?: Readonly<
-    Record<string, Readonly<Record<string, string>>>
-  >;
   /** Canvas positions by `schema.table`, as `[x, y]`; the config ignores them. */
   readonly positions?: Readonly<Record<string, readonly [number, number]>>;
   /**
@@ -189,12 +179,6 @@ export type DesignErrorCode =
   | "unsupported_format"
   /** More tables, extra columns or positions than a design may hold. */
   | "too_large"
-  /** `extraColumns` names a block that doesn't exist. */
-  | "unknown_block"
-  /** `extraColumns` names a block that takes no extra columns. */
-  | "no_extra_columns"
-  /** `extraColumns` names a block the preset doesn't install. */
-  | "block_not_installed"
   /** A column or table name that isn't a lower snake identifier. */
   | "invalid_name"
   /** An extra column whose type isn't a SQL type. */
@@ -286,12 +270,10 @@ export class DesignTooLongError extends DesignParseError {
 const MAX_DESIGN_BYTES = 256 * 1024;
 
 const MAX_TABLES = 100;
-const MAX_EXTRA_COLUMNS = 64;
 const MAX_POSITIONS = 1000;
 const MAX_COORDINATE = 1_000_000;
 
 const DESIGN_CODE = /^0[A-Za-z0-9_-]+$/;
-const COLUMN = /^[a-z_][a-z0-9_]{0,62}$/;
 const QUALIFIED = /^[a-z_][a-z0-9_]{0,62}\.[a-z_][a-z0-9_]{0,62}$/;
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -300,85 +282,6 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
 /** Whether `value` has the shape of a design code. It may still fail to decode. */
 export function isDesignCode(value: string): boolean {
   return value.length <= MAX_DESIGN_CODE_LENGTH && DESIGN_CODE.test(value);
-}
-
-function extraColumnsOf(
-  value: unknown,
-  catalog: PresetCatalog,
-): CreateDesign["extraColumns"] {
-  if (!isRecord(value)) {
-    throw new DesignParseError(
-      "invalid_design",
-      "/extraColumns",
-      "design.extraColumns must be an object",
-    );
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).map(([module, columns]) => {
-      const at = `design.extraColumns.${module}`;
-      const path = jsonPointer("extraColumns", module);
-      const block = catalog.blocks.find((each) => each.name === module);
-
-      if (block === undefined) {
-        throw new DesignParseError(
-          "unknown_block",
-          path,
-          `${at}: "${module}" is not a block`,
-        );
-      }
-
-      if (block.extraColumns === undefined) {
-        throw new DesignParseError(
-          "no_extra_columns",
-          path,
-          `${at}: the ${module} block takes no extra columns`,
-        );
-      }
-
-      if (!isRecord(columns)) {
-        throw new DesignParseError(
-          "invalid_design",
-          path,
-          `${at} must be an object of column name to SQL type`,
-        );
-      }
-
-      const entries = Object.entries(columns);
-
-      if (entries.length > MAX_EXTRA_COLUMNS) {
-        throw new DesignParseError(
-          "too_large",
-          path,
-          `${at} has ${String(entries.length)} columns; the most is ${String(MAX_EXTRA_COLUMNS)}`,
-        );
-      }
-
-      const checked: Record<string, string> = {};
-
-      for (const [name, type] of entries) {
-        if (!COLUMN.test(name)) {
-          throw new DesignParseError(
-            "invalid_name",
-            jsonPointer("extraColumns", module, name),
-            `${at}: "${name}" is not a valid column name`,
-          );
-        }
-
-        if (typeof type !== "string" || !isSqlType(type)) {
-          throw new DesignParseError(
-            "invalid_type",
-            jsonPointer("extraColumns", module, name),
-            `${at}.${name} must be a SQL type such as "text not null default ''"`,
-          );
-        }
-
-        checked[name] = type;
-      }
-
-      return [module, checked];
-    }),
-  );
 }
 
 function coordinate(value: unknown): value is number {
@@ -609,10 +512,7 @@ function presetKeyOf(value: unknown): PresetName | PresetSpec {
   }
 }
 
-function designOfValue(
-  value: unknown,
-  catalog: PresetCatalog = PRESET_CATALOG,
-): CreateDesign {
+function designOfValue(value: unknown): CreateDesign {
   if (!isRecord(value)) {
     throw new DesignParseError(
       "invalid_design",
@@ -625,7 +525,6 @@ function designOfValue(
     (name) =>
       name !== "preset" &&
       name !== "appTables" &&
-      name !== "extraColumns" &&
       name !== "positions" &&
       name !== "seeds" &&
       name !== "version",
@@ -635,7 +534,7 @@ function designOfValue(
     throw new DesignParseError(
       "unknown_key",
       jsonPointer(unknownKey),
-      `design: unknown key "${unknownKey}"; a design has preset, appTables, extraColumns, positions and seeds`,
+      `design: unknown key "${unknownKey}"; a design has preset, appTables, positions and seeds`,
     );
   }
 
@@ -677,11 +576,6 @@ function designOfValue(
     );
   }
 
-  const extraColumns =
-    value["extraColumns"] === undefined
-      ? {}
-      : (extraColumnsOf(value["extraColumns"], catalog) ?? {});
-
   const positions =
     value["positions"] === undefined
       ? {}
@@ -690,16 +584,9 @@ function designOfValue(
   const seeds =
     value["seeds"] === undefined ? undefined : seedsOf(value["seeds"]);
 
-  const filled = Object.fromEntries(
-    Object.entries(extraColumns).filter(
-      ([, columns]) => Object.keys(columns).length > 0,
-    ),
-  );
-
   return {
     ...(preset === undefined ? {} : { preset }),
     ...(Object.keys(appTables).length === 0 ? {} : { appTables }),
-    ...(Object.keys(filled).length === 0 ? {} : { extraColumns: filled }),
     ...(Object.keys(positions).length === 0 ? {} : { positions }),
     ...(seeds === undefined ? {} : { seeds }),
   };
@@ -1027,9 +914,8 @@ export async function presetAndDesignOf(
 }
 
 /**
- * The config keys a preset with a design sets: `presetConfig`, with each
- * block's `options.extraColumns` and `appTables`. Throws a `DesignParseError`
- * when the design adds columns to a block the preset doesn't install.
+ * The config keys a preset with a design sets: `presetConfig`, with the
+ * design's `appTables` and seeds.
  */
 export function designConfig(
   resolved: ResolvedPreset,
@@ -1043,23 +929,6 @@ export function designConfig(
   const blocks: Record<string, BlockConfig | AccessBlockConfig | undefined> = {
     ...base.blocks,
   };
-
-  for (const [module, columns] of Object.entries(design.extraColumns ?? {})) {
-    const entry = blocks[module];
-
-    if (entry === undefined) {
-      throw new DesignParseError(
-        "block_not_installed",
-        jsonPointer("extraColumns", module),
-        `design.extraColumns.${module}: the preset doesn't install the ${module} block`,
-      );
-    }
-
-    blocks[module] = {
-      ...entry,
-      options: { ...entry.options, extraColumns: columns },
-    };
-  }
 
   const appTables =
     design.appTables === undefined
@@ -1247,7 +1116,7 @@ export function readDesignFile(text: string): {
     throw new DesignParseError(
       "invalid_file",
       "/design",
-      "design file: this is a 0.14 design file with a preset code. Run `better-supabase codemod 0.15` to convert it.",
+      "design file: this is a 0.14 design file with a preset code. Upgrade to 0.53 with that release first.",
     );
   }
 

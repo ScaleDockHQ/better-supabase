@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { TanStackStartServerArgs } from "../bridges/tanstack-start.ts";
+import type { TanStackStartServerOptions } from "../bridges/tanstack-start.ts";
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
@@ -21,11 +21,11 @@ import type { BetterServer } from "../server/server-types.ts";
 
 import { around } from "../bridges/shared.ts";
 import { tanStackStartServer } from "../bridges/tanstack-start.ts";
+import { adapterBase } from "../server/adapter-base.ts";
 import { withFlush } from "../server/adapter.ts";
 import { frameworkEntry, localsOf } from "../server/framework.ts";
 import { requireCaller, runAction } from "../server/kit.ts";
 import { refusalResponse } from "../server/refusal.ts";
-import { defaultExpose } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export interface TanStackStartOptions extends FrameworkOptions {
@@ -34,7 +34,7 @@ export interface TanStackStartOptions extends FrameworkOptions {
 }
 
 /** What a server function handler receives. */
-export interface TanStackStartHandlerArgs<Data, Context> {
+export interface TanStackStartHandlerOptions<Data, Context> {
   readonly data: Data;
   readonly context: Context;
 }
@@ -62,7 +62,7 @@ export interface BetterTanStackStart<
    * ```
    */
   readonly middleware: <Result extends object>(
-    args: TanStackStartServerArgs<FrameworkLocals<M, F, E, C, P, B>, Result>,
+    args: TanStackStartServerOptions<FrameworkLocals<M, F, E, C, P, B>, Result>,
   ) => Promise<Result>;
   /**
    * The caller in a server function or route handler, or a thrown refusal: a
@@ -98,7 +98,7 @@ export interface BetterTanStackStart<
       ctx: FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>,
     ) => T,
   ): <Data>(
-    args: TanStackStartHandlerArgs<Data, FrameworkLocals<M, F, E, C, P, B>>,
+    args: TanStackStartHandlerOptions<Data, FrameworkLocals<M, F, E, C, P, B>>,
   ) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
 }
 
@@ -120,7 +120,7 @@ export function createTanStackStart<
   options: TanStackStartOptions & { readonly authorizer?: A } = {},
 ): BetterTanStackStart<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
-  const expose = options.exposeErrors ?? defaultExpose();
+  const { expose } = adapterBase(server, options);
   const requests = new WeakMap<object, Request>();
 
   type Locals = FrameworkLocals<M, F, E, C, P, B>;

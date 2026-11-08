@@ -66,7 +66,7 @@ select ok(
   'a grant is active'
 );
 select ok(
-  (select valid_until between now() + interval '11 months' and now() + interval '13 months'
+  (select expires_at between now() + interval '11 months' and now() + interval '13 months'
    from better_supabase.consents where id = (select id from ids where name = 'first')),
   'a grant lasts the purpose''s valid_months'
 );

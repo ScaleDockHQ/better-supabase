@@ -145,9 +145,9 @@ export interface SlaOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the policy's extra columns
-   * (`blocks.sla.options.extraColumns`), keyed by database name. It types and
-   * parses them on `savePolicy`, and validates them before the write.
+   * A Standard Schema for the policy's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on `savePolicy`, and validates them before the write.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Sla<FieldsOf<S>>>>;

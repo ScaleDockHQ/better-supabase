@@ -42,10 +42,9 @@ export interface FlagsOptions<
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * A Standard Schema for the flag's extra columns
-   * (`blocks['flags'].options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on `list` and `upsert`, and validates them on
-   * `upsert`.
+   * A Standard Schema for the flag's extra columns (the columns your schema
+   * files add), keyed by column name. It types and parses `fields` on `list`
+   * and `upsert`, and validates them on `upsert`.
    */
   readonly fields?: S;
   /**
@@ -102,7 +101,10 @@ export interface FlagSaveOptions {
 /** A flag as staff manage it: its definition and its extra columns. */
 export type FlagRecord<F extends object = Record<never, never>> =
   FlagDefinition & {
-    /** The extra columns (`options.extraColumns`), by column name. */
+    /**
+     * The extra columns (the columns the app's schema files add), by column
+     * name.
+     */
     readonly fields: Readonly<Record<string, unknown>> & F;
   };
 

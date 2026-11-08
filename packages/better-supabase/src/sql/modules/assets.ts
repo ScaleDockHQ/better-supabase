@@ -338,7 +338,7 @@ create unique index if not exists ${name("assignments", "open_idx")} on ${assign
 create index if not exists ${name("assignments", "history_idx")} on ${assignments} (${g("asset")}, ${g("assignedAt")} desc);
 
 ${lockModuleTable(ctx, "locations", { read: true })}
-${renderPolicy(makePolicy({ table: locations, name: policyName("locations"), command: "select", roles: ["authenticated"], using: ctx.scope.check(l("tenant"), read) }), { drop: true, target: locations })}
+${renderPolicy(makePolicy({ table: locations, name: policyName("locations"), command: "select", roles: ["authenticated"], using: ctx.scope.check(l("tenant"), read) }), { target: locations })}
 ${lockModuleTable(ctx, "assets", { read: true })}
 ${renderPolicy(
   makePolicy({
@@ -349,10 +349,10 @@ ${renderPolicy(
     using: `${ctx.scope.check(s("tenant"), read)}
     or (${s("assigneeType")} = 'member' and ${s("assigneeId")} = (select auth.uid())::text)`,
   }),
-  { drop: true, target: assets },
+  { target: assets },
 )}
 ${lockModuleTable(ctx, "assignments", { read: true })}
-${renderPolicy(makePolicy({ table: assignments, name: policyName("assignments"), command: "select", roles: ["authenticated"], using: `${g("asset")} in (select y.${s("id")} from ${assets} y)` }), { drop: true, target: assignments })}
+${renderPolicy(makePolicy({ table: assignments, name: policyName("assignments"), command: "select", roles: ["authenticated"], using: `${g("asset")} in (select y.${s("id")} from ${assets} y)` }), { target: assignments })}
 
 -- A location's parent is in the same organization and never one of its own
 -- descendants, so the hierarchy stays a tree.

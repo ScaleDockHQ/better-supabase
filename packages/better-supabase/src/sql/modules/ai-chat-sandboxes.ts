@@ -3,13 +3,7 @@ import type { AiChatNames } from "./ai-chat.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import {
-  addExtraColumns,
-  raise,
-  serviceGrant,
-  userGrant,
-  revokeTable,
-} from "../shared.ts";
+import { raise, serviceGrant, userGrant, revokeTable } from "../shared.ts";
 import {
   appKey,
   asText,
@@ -99,12 +93,12 @@ create index if not exists ai_sandboxes_open_idx on ${sandboxes} (${s.lastUsedAt
 create index if not exists ai_sandboxes_chat_idx on ${sandboxes} (${s.chat});
 create index if not exists ai_sandboxes_harness_idx on ${sandboxes} (${s.chat}, ${s.harness}) where ${s.harness} is not null;
 create index if not exists ai_sandboxes_tenant_idx on ${sandboxes} (${s.tenant});
-create index if not exists ai_sandboxes_user_idx on ${sandboxes} (${s.user});${names.tenantless && ctx.owns("sandboxes") ? `\nalter table ${sandboxes} alter column ${s.tenant} drop not null;` : ""}${addExtraColumns(sandboxes, names.extras.sandboxes)}
+create index if not exists ai_sandboxes_user_idx on ${sandboxes} (${s.user});${names.tenantless && ctx.owns("sandboxes") ? `\nalter table ${sandboxes} alter column ${s.tenant} drop not null;` : ""}
 alter table ${sandboxes} enable row level security;
 ${revokeTable(sandboxes)}
 grant select on ${sandboxes} to authenticated;
 grant all on ${sandboxes} to service_role;
-${renderPolicy(makePolicy({ table: sandboxes, name: "ai_sandboxes_read", command: "select", roles: ["authenticated"], using: `${s.user} = (select auth.uid()) or ${ctx.scope.check(s.tenant, perm.admin)}` }), { drop: true, target: sandboxes })}`;
+${renderPolicy(makePolicy({ table: sandboxes, name: "ai_sandboxes_read", command: "select", roles: ["authenticated"], using: `${s.user} = (select auth.uid()) or ${ctx.scope.check(s.tenant, perm.admin)}` }), { target: sandboxes })}`;
 }
 
 /** The running sandbox id of a harness session, as a SQL expression. */

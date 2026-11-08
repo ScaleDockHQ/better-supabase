@@ -21,6 +21,7 @@ import { generatorJsonSchema } from "../../src/cli/introspect/typegen.ts";
 import { buildManifest } from "../../src/cli/spec/diagnostics.ts";
 import { parseToml } from "../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../src/config/index.ts";
+import { resultDoc } from "./error-doc.ts";
 import { snapshotFixture as fixture } from "./fixtures/library.ts";
 
 type Schema = Readonly<Record<string, unknown>>;
@@ -178,8 +179,8 @@ describe("shipped JSON Schemas", () => {
     expect(files.toSorted((a, b) => a.localeCompare(b))).toEqual([
       "ai-message-v1.json",
       "ai-message-v2.json",
-      "cli-commands-v1.json",
-      "cli-result-v1.json",
+      "cli-commands-v2.json",
+      "cli-result-v2.json",
       "config-v1.json",
       "design-v1.json",
       "doctor-report-v1.json",
@@ -198,11 +199,11 @@ describe("shipped JSON Schemas", () => {
     const root = await run(["--help", "--json"]);
     expect(root.code).toBe(0);
     expect(
-      await errorsFor("cli-commands-v1.json", JSON.parse(root.stdout)),
+      await errorsFor("cli-commands-v2.json", JSON.parse(root.stdout)),
     ).toEqual([]);
 
     const gen = JSON.parse((await run(["gen", "--help", "--json"])).stdout);
-    expect(await errorsFor("cli-commands-v1.json", gen)).toEqual([]);
+    expect(await errorsFor("cli-commands-v2.json", gen)).toEqual([]);
     expect(
       gen.commands.map((command: { name: string }) => command.name),
     ).toEqual(["gen"]);
@@ -215,17 +216,17 @@ describe("shipped JSON Schemas", () => {
     [["skills", "list", "--json"], 0, "success"],
     [["blocks", "list", "--installed", "--json"], 0, "success"],
     [["blocks", "view", "--sql", "mfa", "--json"], 0, "success"],
-    [["blocks", "view", "--sql", "--json"], 3, "action_required"],
+    [["blocks", "view", "--sql", "--json"], 2, "action_required"],
     [["blocks", "view", "--sql", "nope", "--json"], 2, "error"],
     [["--json"], 2, "error"],
     [["blocks", "--json"], 2, "error"],
   ])("describe the result of %j", async (argv, code, status) => {
     const result = await run(argv);
-    const envelope = JSON.parse(result.stdout) as { status: string };
+    const envelope = resultDoc(result);
 
     expect(result.code).toBe(code);
     expect(envelope.status).toBe(status);
-    expect(await errorsFor("cli-result-v1.json", envelope)).toEqual([]);
+    expect(await errorsFor("cli-result-v2.json", envelope)).toEqual([]);
   });
 
   describe("in a project", () => {
@@ -263,8 +264,8 @@ describe("shipped JSON Schemas", () => {
 
     it.each([
       [["init", "--dry-run", "--yes"], 0, "success"],
-      [["init", "--force", "--agent", "yes"], 3, "action_required"],
-      [["init", "--cwd", "WORKSPACE", "--agent", "yes"], 3, "action_required"],
+      [["init", "--force", "--agent", "yes"], 2, "action_required"],
+      [["init", "--cwd", "WORKSPACE", "--agent", "yes"], 2, "action_required"],
       [["add", "mfa", "--dry-run"], 0, "success"],
       [["add", "--preset", "saas", "--dry-run"], 0, "success"],
       [["add", "--adopt", "audit", "--snapshot", "SNAPSHOT"], 1, "error"],
@@ -281,7 +282,7 @@ describe("shipped JSON Schemas", () => {
       [["doctor", "--snapshot", "SNAPSHOT"], 1, "error"],
       [["config"], 0, "success"],
       [["add", "mfa", "--dry-run"], 0, "success"],
-      [["codemod", "0.9", "--dry-run"], 0, "success"],
+      [["codemod", "naming", "--dry-run"], 0, "success"],
     ])("describe the result of %j", async (argv, code, status) => {
       const result = await run(
         [
@@ -295,19 +296,19 @@ describe("shipped JSON Schemas", () => {
         { cwd: dir },
       );
 
-      const envelope = JSON.parse(result.stdout) as { status: string };
+      const envelope = resultDoc(result);
 
       expect([result.code, envelope.status]).toEqual([code, status]);
-      expect(await errorsFor("cli-result-v1.json", envelope)).toEqual([]);
+      expect(await errorsFor("cli-result-v2.json", envelope)).toEqual([]);
     });
   });
 
-  it("list every CLI error code in the result schema", async () => {
-    const schema = (await load("cli-result-v1.json")) as {
-      $defs: { problem: { properties: { code: { enum: string[] } } } };
+  it("list every CLI error reason in the result schema", async () => {
+    const schema = (await load("cli-result-v2.json")) as {
+      $defs: { error: { properties: { reason: { enum: string[] } } } };
     };
 
-    expect(schema.$defs.problem.properties.code.enum).toEqual(CLI_ERROR_CODES);
+    expect(schema.$defs.error.properties.reason.enum).toEqual(CLI_ERROR_CODES);
   });
 
   it("describe the fixture snapshot", async () => {
@@ -405,7 +406,7 @@ describe("shipped JSON Schemas", () => {
       },
       gen: {
         casing: "camel",
-        output: "src/lib/supabase/generated.ts",
+        file: "src/lib/supabase/generated.ts",
         postgrestVersion: "13",
         tables: { audit_logs: { serviceRole: true } },
       },
@@ -417,11 +418,7 @@ describe("shipped JSON Schemas", () => {
           entry: "src/lib/api.ts",
           outputs: [
             { format: "openapi", version: "3.2", ui: "scalar" },
-            {
-              format: "asyncapi",
-              output: "asyncapi.yaml",
-              overlays: ["o.yaml"],
-            },
+            { format: "asyncapi", file: "asyncapi.yaml", overlays: ["o.yaml"] },
           ],
           failOn: "warning",
         },
@@ -441,10 +438,10 @@ describe("shipped JSON Schemas", () => {
     const config = {
       gen: { tasks: ["types", "sql", "spec"], watchInterval: 1000 },
       tooling: {
-        env: { output: ".env.development.local", prefix: "NEXT_PUBLIC_" },
-        doctor: { only: ["BS100"], format: "sarif", output: "doctor.sarif" },
+        env: { file: ".env.development.local", prefix: "NEXT_PUBLIC_" },
+        doctor: { only: ["BS100"], format: "sarif", file: "doctor.sarif" },
         skills: { agents: ["cursor"] },
-        keys: { output: "supabase/keys.json" },
+        keys: { file: "supabase/keys.json" },
       },
       adapters: ["next", "client"],
       api: { specs: { manifest: "spec-manifest.json" } },

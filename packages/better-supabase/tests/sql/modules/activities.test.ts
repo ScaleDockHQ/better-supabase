@@ -17,7 +17,7 @@ const sqlOf = (
     .map((file) => file.contents)
     .join("\n");
 
-describe("engagements module", () => {
+describe("activities module", () => {
   it("checks every subject's tenant and readability", () => {
     const sql = sqlOf();
     expect(sql).toContain(
@@ -25,12 +25,12 @@ describe("engagements module", () => {
     );
     expect(sql).not.toContain(`when 'note' then`);
     expect(sql).toContain("'{call,email,meeting,note,task}'::text[]");
-    expect(sql).not.toContain("engagement.assigned");
+    expect(sql).not.toContain("activity.assigned");
   });
 
   it("notifies an assigned owner with notifications installed", () => {
     expect(sqlOf({}, ["notifications"])).toContain(
-      "'type', 'engagement.assigned'",
+      "'type', 'activity.assigned'",
     );
   });
 
@@ -42,7 +42,7 @@ describe("engagements module", () => {
   });
 });
 
-describe("engagements module, layouts", () => {
+describe("activities module, layouts", () => {
   it("renders nothing in custom mode and refuses every subject without a registry", () => {
     expect(
       renderBlocks(["activities"], {
@@ -62,29 +62,27 @@ describe("engagements module, layouts", () => {
   });
 });
 
-describe("engagements module, recordings", () => {
+describe("activities module, recordings", () => {
   it("adds nothing by default", () => {
     const sql = sqlOf();
-    expect(sql).not.toContain("engagement_recordings");
+    expect(sql).not.toContain("activity_recordings");
     expect(sql).not.toContain("save_activity_notes");
   });
 
   it("stores recordings on ai-files with transcripts and notes", () => {
     const sql = sqlOf({ recordings: true });
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."engagement_recordings"',
+      'create table "better_supabase"."activity_recordings"',
     );
     expect(sql).toContain('references "better_supabase"."ai_files"');
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."engagement_transcript_segments"',
+      'create table "better_supabase"."activity_transcript_segments"',
     );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."engagement_notes"',
-    );
+    expect(sql).toContain('create table "better_supabase"."activity_notes"');
     expect(sql).toContain(
       'function "better_supabase"."attach_activity_recording"',
     );
-    expect(sql).not.toContain("engagements.transcribe:");
+    expect(sql).not.toContain("activities.transcribe:");
   });
 
   it("emits recording events with outbox installed", () => {
@@ -96,7 +94,7 @@ describe("engagements module, recordings", () => {
 
   it("queues a transcription with jobs installed", () => {
     expect(sqlOf({ recordings: true }, ["queue"])).toContain(
-      "'engagements.transcribe:' || v_recording::text",
+      "'activities.transcribe:' || v_recording::text",
     );
   });
 
@@ -130,7 +128,7 @@ describe("engagements module, recordings", () => {
   });
 });
 
-describe("engagements module, bookings", () => {
+describe("activities module, bookings", () => {
   const withBookings = (
     options: Record<string, unknown>,
     extra: readonly string[] = ["bookings"],
@@ -144,7 +142,7 @@ describe("engagements module, bookings", () => {
       .join("\n");
 
   it("logs no bookings unless the option is on", () => {
-    expect(withBookings({})).not.toContain("bsb_booking_engagement");
+    expect(withBookings({})).not.toContain("bsb_booking_activity");
   });
 
   it("needs the bookings block and the meeting type", () => {

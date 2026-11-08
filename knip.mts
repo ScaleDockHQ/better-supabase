@@ -25,7 +25,8 @@ const config: KnipConfig = {
   tags: ["-internal"],
   ignoreExportsUsedInFile: { interface: true, type: true },
   // Vendored maintainer skills (ADR 0004) carry their own scripts.
-  ignore: [".agents/**"],
+  // `init` output, compared byte for byte by the init fixture test.
+  ignore: [".agents/**", "tests/init-fixture/**"],
   // The Vercel CLI runs from the user's machine (`pnpm env:pull`). The MCP
   // configs run shadcn with `pnpm --dir apps/marketing`, which declares it.
   ignoreBinaries: ["vercel", "shadcn"],
@@ -114,12 +115,22 @@ const config: KnipConfig = {
         "tests/**/*.test-d.ts",
         // The composite actions are the runnable example the docs link to; no
         // page calls them yet.
-        "src/features/composites/composite-actions.ts",
+        "src/features/composites/composites-actions.ts",
         // The usage billing action is the example the usage docs link to.
-        "src/features/billing/usage-billing-actions.ts",
+        "src/features/billing/billing-actions.ts",
       ],
     },
-    "apps/examples/vite-react": browserExample,
+    "apps/examples/vite-react": {
+      ...browserExample,
+      // The generated layout writes one module per table, and the SPA imports the
+      // one table it reads (ADR 0262); the rest are the generator's output.
+      ignore: [
+        ...exampleIgnore,
+        "src/lib/supabase/generated-schema.ts",
+        "src/lib/supabase/generated.meta.js",
+        "src/lib/supabase/tables/**",
+      ],
+    },
     // eve loads the agent's files by path, and the World by package name
     // from agent/agent.ts.
     "apps/examples/eve": {
@@ -140,6 +151,8 @@ const config: KnipConfig = {
         ...exampleIgnore,
         "src/hooks/use-*.ts",
         "src/lib/supabase/records/**",
+        // Generated; it re-exports `permissions`, which the records import from `blocks/`.
+        "src/lib/supabase/blocks.config.ts",
         // `better-supabase gen` writes the PowerSync schema with one export per table.
         "powersync/schema.ts",
       ],
@@ -166,6 +179,16 @@ const config: KnipConfig = {
     "tests/types/ts-7.1": { entry: ["*.ts", "mapper/*.{ts,js}"] },
     // Modules ported from production apps; their exports are the app's API.
     "tests/validation-*": { entry: ["src/**/*.ts"] },
+    // The CLI loads the config file, not the tests.
+    "tests/validation-declarative": {
+      entry: ["src/**/*.ts", "better-supabase.config.ts"],
+    },
+    "tests/validation-lienlink": {
+      entry: ["src/**/*.ts", "better-supabase.config.ts"],
+    },
+    "tests/validation-single-tenant": {
+      entry: ["src/**/*.ts", "better-supabase.config.ts"],
+    },
   },
 };
 

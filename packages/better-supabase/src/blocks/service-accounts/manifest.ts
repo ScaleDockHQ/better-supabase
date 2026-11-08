@@ -3,7 +3,6 @@ import type { ServiceAccountsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { serviceAccountsEvents } from "./events.ts";
-import { serviceAccountsSqlOptions } from "./options.ts";
 import { createServiceAccounts } from "./service-accounts.ts";
 
 /** The `service-accounts` block's manifest (ADR 0029). */
@@ -14,7 +13,6 @@ export const serviceAccountsBlock: BlockOf<
 > = defineBlock({
   name: "service-accounts",
   sql: ["service-accounts"],
-  options: { "service-accounts": serviceAccountsSqlOptions },
   events: serviceAccountsEvents,
   create: createServiceAccounts,
   category: "developer",

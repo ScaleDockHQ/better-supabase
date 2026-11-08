@@ -1,81 +1,18 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:93999fe04089a36a8a2074e633bc652d78b7051d55feea1ed0079d5e97414d36
+-- @bsb-hash sha256:d98ea2972b51a015dc358aa3cd27853b059816d0ec5ac78550b63624d5c98521
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_stages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_stages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_lifecycles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."status_history" (
+create table "better_supabase"."status_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
   "from_status" text,
   "to_status" text not null,
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "actor_name" text,
   "actor_email" text,
   "ip_address" inet,
@@ -83,13 +20,12 @@ create table if not exists "better_supabase"."status_history" (
   "reason" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
+create index status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
 alter table "better_supabase"."status_history" enable row level security;
 revoke all on "better_supabase"."status_history" from public, anon, authenticated;
 grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
-drop policy if exists status_history_read on "better_supabase"."status_history";
-create policy status_history_read on "better_supabase"."status_history"
+create policy bsb_status_history_read on "better_supabase"."status_history"
   for select to authenticated
   using (case "better_supabase"."status_history"."subject_type"
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
@@ -97,7 +33,7 @@ create policy status_history_read on "better_supabase"."status_history"
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
       else false
     end);
-create table if not exists "better_supabase"."status_stages" (
+create table "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -108,13 +44,12 @@ create table if not exists "better_supabase"."status_stages" (
   "cleared_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index if not exists status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
+create index status_stages_subject_idx on "better_supabase"."status_stages" ("subject_type", "subject_id");
 alter table "better_supabase"."status_stages" enable row level security;
 revoke all on "better_supabase"."status_stages" from public, anon, authenticated;
 grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
-drop policy if exists status_stages_read on "better_supabase"."status_stages";
-create policy status_stages_read on "better_supabase"."status_stages"
+create policy bsb_status_stages_read on "better_supabase"."status_stages"
   for select to authenticated
   using (case "better_supabase"."status_stages"."subject_type"
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
@@ -122,7 +57,7 @@ create policy status_stages_read on "better_supabase"."status_stages"
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
       else false
     end);
-create table if not exists "better_supabase"."subject_lifecycles" (
+create table "better_supabase"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -130,20 +65,19 @@ create table if not exists "better_supabase"."subject_lifecycles" (
   "version" integer not null default 1,
   "flags" text[] not null default '{}',
   "paused_at" timestamptz,
-  "paused_until" timestamptz,
+  "pause_expires_at" timestamptz,
   "pause_reason" text,
-  "paused_by_user_id" uuid,
+  "paused_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id")
 );
-create index if not exists subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
+create index subject_lifecycles_paused_idx on "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type") where "paused_at" is not null;
 alter table "better_supabase"."subject_lifecycles" enable row level security;
 revoke all on "better_supabase"."subject_lifecycles" from public, anon, authenticated;
 grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
-drop policy if exists subject_lifecycles_read on "better_supabase"."subject_lifecycles";
-create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
+create policy bsb_subject_lifecycles_read on "better_supabase"."subject_lifecycles"
   for select to authenticated
   using (case "better_supabase"."subject_lifecycles"."subject_type"
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
@@ -153,8 +87,8 @@ create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles"
     end);
 
 -- The workflow-editor version a workflow machine's record follows.
-alter table "better_supabase"."subject_lifecycles" add column if not exists "workflow_version_id" uuid references "better_supabase"."workflow_versions" ("id") on delete set null;
-create index if not exists "subject_lifecycles_workflow_version_idx" on "better_supabase"."subject_lifecycles" ("workflow_version_id");
+alter table "better_supabase"."subject_lifecycles" add column "workflow_version_id" uuid references "better_supabase"."workflow_versions" ("id") on delete set null;
+create index "subject_lifecycles_workflow_version_idx" on "better_supabase"."subject_lifecycles" ("workflow_version_id");
 
 -- A workflow version's graph as a machine: { initial, order, transitions }.
 -- Stages are the nodes with a string config.stage, in graph order; a path
@@ -244,7 +178,7 @@ begin
     -- An import run (ADR 0141) may insert a row in any status: one synthetic
     -- imported history row stands for how it got there, and no event fires.
     if better_supabase.import_run() is not null and new."state" is not null then
-      insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
+      insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
         values (new."tenant_id", 'work_item', new."id"::text, null::text, new."state"::text, coalesce(auth.uid(), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'id', '')::uuid), 'imported', nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
     end if;
     
@@ -257,14 +191,13 @@ begin
   if not (case old."state"::text when 'triage' then new."state"::text = any ('{backlog,unstarted,started,completed,canceled}'::text[]) when 'backlog' then new."state"::text = any ('{triage,unstarted,started,completed,canceled}'::text[]) when 'unstarted' then new."state"::text = any ('{triage,backlog,started,completed,canceled}'::text[]) when 'started' then new."state"::text = any ('{triage,backlog,unstarted,completed,canceled}'::text[]) when 'completed' then new."state"::text = any ('{triage,backlog,unstarted,started,canceled}'::text[]) when 'canceled' then new."state"::text = any ('{triage,backlog,unstarted,started,completed}'::text[]) else false end) then
     raise exception 'that status change is not allowed' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
   end if;
-  insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
+  insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
         values (new."tenant_id", 'work_item', new."id"::text, old."state"::text, new."state"::text, coalesce(auth.uid(), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'id', '')::uuid), nullif(current_setting('better_supabase.transition_reason', true), ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
   
   perform "better_supabase".emit_event('status.changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'work_item', 'subjectId', new."id"::text, 'from', old."state"::text, 'to', new."state"::text, 'reason', nullif(current_setting('better_supabase.transition_reason', true), '')), 'statuses/work_item/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/state-machine');
   return new;
 end;
 $$;
-drop trigger if exists bsb_transition_work_item on "better_supabase"."work_items";
 create trigger bsb_transition_work_item before insert or update of "state" on "better_supabase"."work_items"
 for each row execute function better_supabase.bsb_transition_work_item();
 
@@ -320,18 +253,18 @@ begin
           if (v_op ->> 'until') is not null and (v_op ->> 'until')::timestamptz <= now() then
             raise exception 'a pause must end in the future' using errcode = '22023', hint = 'STATE_PAUSE_INVALID';
           end if;
-          insert into "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type", "subject_id", "version", "paused_at", "paused_until", "pause_reason", "paused_by_user_id")
+          insert into "better_supabase"."subject_lifecycles" ("tenant_id", "subject_type", "subject_id", "version", "paused_at", "pause_expires_at", "pause_reason", "paused_by")
           values (new."organization_id", 'change_request', new."id"::text, 1, now(), (v_op ->> 'until')::timestamptz, nullif(v_op ->> 'reason', ''), auth.uid())
           on conflict ("subject_type", "subject_id") do update set
             "paused_at" = excluded."paused_at",
-            "paused_until" = excluded."paused_until",
+            "pause_expires_at" = excluded."pause_expires_at",
             "pause_reason" = excluded."pause_reason",
-            "paused_by_user_id" = excluded."paused_by_user_id",
+            "paused_by" = excluded."paused_by",
             "updated_at" = now();
           perform set_config('better_supabase.lifecycle_changed', '1', true);
           perform "better_supabase".emit_event('status.paused', jsonb_build_object('organizationId', new."organization_id"::text, 'subjectType', 'change_request', 'subjectId', new."id"::text, 'until', v_op ->> 'until', 'reason', nullif(v_op ->> 'reason', '')), 'statuses/change_request/' || new."id"::text, (new."organization_id"::text)::text, null, 'better-supabase/state-machine');
         when 'resume' then
-          update "better_supabase"."subject_lifecycles" set "paused_at" = null, "paused_until" = null, "pause_reason" = null, "paused_by_user_id" = null, "updated_at" = now()
+          update "better_supabase"."subject_lifecycles" set "paused_at" = null, "pause_expires_at" = null, "pause_reason" = null, "paused_by" = null, "updated_at" = now()
           where "subject_type" = 'change_request' and "subject_id" = new."id"::text and "paused_at" is not null;
           if found then
             perform set_config('better_supabase.lifecycle_changed', '1', true);
@@ -386,23 +319,22 @@ begin
   if not coalesce((v_graph -> 'transitions' -> old."status"::text) ? new."status"::text, false) then
     raise exception 'that status change is not allowed' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
   end if;
-  select "paused_until", "paused_at" is not null into v_until, v_paused from "better_supabase"."subject_lifecycles" where "subject_type" = 'change_request' and "subject_id" = new."id"::text;
+  select "pause_expires_at", "paused_at" is not null into v_until, v_paused from "better_supabase"."subject_lifecycles" where "subject_type" = 'change_request' and "subject_id" = new."id"::text;
   if coalesce(v_paused, false) then
     if v_until is null or v_until > now() then
       raise exception 'the record is paused; resume it first' using errcode = '55000', hint = 'STATE_PAUSED';
     end if;
-    update "better_supabase"."subject_lifecycles" set "paused_at" = null, "paused_until" = null, "pause_reason" = null, "paused_by_user_id" = null, "updated_at" = now()
+    update "better_supabase"."subject_lifecycles" set "paused_at" = null, "pause_expires_at" = null, "pause_reason" = null, "paused_by" = null, "updated_at" = now()
     where "subject_type" = 'change_request' and "subject_id" = new."id"::text;
     perform "better_supabase".emit_event('status.resumed', jsonb_build_object('organizationId', new."organization_id"::text, 'subjectType', 'change_request', 'subjectId', new."id"::text), 'statuses/change_request/' || new."id"::text, (new."organization_id"::text)::text, null, 'better-supabase/state-machine');
   end if;
-  insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
+  insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
         values (new."organization_id", 'change_request', new."id"::text, old."status"::text, new."status"::text, coalesce(auth.uid(), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'id', '')::uuid), nullif(current_setting('better_supabase.transition_reason', true), ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
   
   perform "better_supabase".emit_event('status.changed', jsonb_build_object('organizationId', new."organization_id"::text, 'subjectType', 'change_request', 'subjectId', new."id"::text, 'from', old."status"::text, 'to', new."status"::text, 'reason', nullif(current_setting('better_supabase.transition_reason', true), '')), 'statuses/change_request/' || new."id"::text, (new."organization_id"::text)::text, null, 'better-supabase/state-machine');
   return new;
 end;
 $$;
-drop trigger if exists bsb_transition_change_request on "public"."change_requests";
 create trigger bsb_transition_change_request before insert or update of "status" on "public"."change_requests"
 for each row execute function better_supabase.bsb_transition_change_request();
 
@@ -418,7 +350,7 @@ begin
     -- An import run (ADR 0141) may insert a row in any status: one synthetic
     -- imported history row stands for how it got there, and no event fires.
     if better_supabase.import_run() is not null and new."document_status" is not null then
-      insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
+      insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
         values (new."tenant_id", 'drive_node', new."id"::text, null::text, new."document_status"::text, coalesce(auth.uid(), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'id', '')::uuid), 'imported', nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
     end if;
     
@@ -444,18 +376,15 @@ begin
     ) then
     raise exception 'that status change needs an approved request' using errcode = '42501', hint = 'STATE_APPROVAL_REQUIRED';
   end if;
-  insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
+  insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
         values (new."tenant_id", 'drive_node', new."id"::text, old."document_status"::text, new."document_status"::text, coalesce(auth.uid(), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'id', '')::uuid), nullif(current_setting('better_supabase.transition_reason', true), ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
   
   perform "better_supabase".emit_event('status.changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', new."id"::text, 'from', old."document_status"::text, 'to', new."document_status"::text, 'reason', nullif(current_setting('better_supabase.transition_reason', true), '')), 'statuses/drive_node/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/state-machine');
   return new;
 end;
 $$;
-drop trigger if exists bsb_transition_drive_node on "better_supabase"."drive_nodes";
 create trigger bsb_transition_drive_node before insert or update of "document_status" on "better_supabase"."drive_nodes"
 for each row execute function better_supabase.bsb_transition_drive_node();
-
-drop function if exists "better_supabase"."transition"(text, text, text, text);
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor
@@ -676,7 +605,7 @@ begin
       end if;
       select * into v_life from "better_supabase"."subject_lifecycles" x
       where x."subject_type" = 'change_request' and x."subject_id" = status_state.subject_id;
-      v_paused := v_life."paused_at" is not null and (v_life."paused_until" is null or v_life."paused_until" > now());
+      v_paused := v_life."paused_at" is not null and (v_life."pause_expires_at" is null or v_life."pause_expires_at" > now());
       v_order := coalesce(array(select jsonb_array_elements_text("better_supabase"."lifecycle_graph"(v_life."workflow_version_id") -> 'order')), '{}'::text[]);
       v_step := array_position(v_order, v_status);
       return jsonb_build_object(
@@ -684,7 +613,7 @@ begin
         'status', v_status, 'order', to_jsonb(v_order), 'step', v_step, 'steps', nullif(cardinality(v_order), 0), 'progress', case when v_step is null then null when cardinality(v_order) = 1 then 1 else round((v_step - 1)::numeric / (cardinality(v_order) - 1), 4) end,
         'version', v_life."version", 'flags', to_jsonb(coalesce(v_life."flags", '{}')),
         'paused', v_paused, 'pausedAt', case when v_paused then v_life."paused_at" end,
-        'pausedUntil', case when v_paused then v_life."paused_until" end,
+        'pausedUntil', case when v_paused then v_life."pause_expires_at" end,
         'pauseReason', case when v_paused then v_life."pause_reason" end, 'workflow', 'change-requests', 'workflowVersionId', v_life."workflow_version_id");
     when 'drive_node' then
       select s."document_status"::text, s."tenant_id"::text into v_status, v_tenant
@@ -726,7 +655,7 @@ begin
           'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
           'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
         from (select h."id"::text as id, h."from_status" as from_status, h."to_status" as to_status,
-          h."actor_user_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
+          h."actor_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
         from "better_supabase"."status_history" h
         where h."subject_type" = 'work_item'
           and h."subject_id" = list_status_history.subject_id
@@ -744,7 +673,7 @@ begin
           'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
           'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
         from (select h."id"::text as id, h."from_status" as from_status, h."to_status" as to_status,
-          h."actor_user_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
+          h."actor_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
         from "better_supabase"."status_history" h
         where h."subject_type" = 'change_request'
           and h."subject_id" = list_status_history.subject_id
@@ -762,7 +691,7 @@ begin
           'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
           'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
         from (select h."id"::text as id, h."from_status" as from_status, h."to_status" as to_status,
-          h."actor_user_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
+          h."actor_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
         from "better_supabase"."status_history" h
         where h."subject_type" = 'drive_node'
           and h."subject_id" = list_status_history.subject_id
@@ -815,20 +744,6 @@ grant execute on function "better_supabase"."list_status_stages"(text, text) to 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_history";
 create policy bsb_tenant_scope_select on "better_supabase"."status_history" as restrictive
   for select to public
   using (
@@ -840,21 +755,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."status_history" as r
       else false
     end)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."status_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_history";
 create policy bsb_tenant_scope_update on "better_supabase"."status_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_history";
 create policy bsb_tenant_scope_delete on "better_supabase"."status_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_stages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_select on "better_supabase"."status_stages" as restrictive
   for select to public
   using (
@@ -866,21 +776,16 @@ create policy bsb_tenant_scope_select on "better_supabase"."status_stages" as re
       else false
     end)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_insert on "better_supabase"."status_stages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_update on "better_supabase"."status_stages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_stages";
 create policy bsb_tenant_scope_delete on "better_supabase"."status_stages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."subject_lifecycles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_select on "better_supabase"."subject_lifecycles" as restrictive
   for select to public
   using (
@@ -892,16 +797,13 @@ create policy bsb_tenant_scope_select on "better_supabase"."subject_lifecycles" 
       else false
     end)
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_update on "better_supabase"."subject_lifecycles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles";
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_lifecycles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -911,29 +813,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."lifecycle_graph"(uuid);
 
-drop function if exists "api"."transition"(text, text, text, text);
-
-create or replace function "api"."as_column_type"(value text, target anyelement)
-returns anyelement
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."as_column_type"($1, $2) $$;
-revoke execute on function "api"."as_column_type"(text, anyelement) from public;
-grant execute on function "api"."as_column_type"(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function "api"."import_run"()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."import_run"() $$;
-revoke execute on function "api"."import_run"() from public;
-grant execute on function "api"."import_run"() to anon, authenticated, service_role;
 
 create or replace function "api"."transition"(subject_type text, subject_id text, to_status text, reason text default null, actor jsonb default null)
 returns boolean
@@ -999,16 +879,3 @@ set search_path = ''
 as $$ select "better_supabase"."list_status_stages"($1, $2) $$;
 revoke execute on function "api"."list_status_stages"(text, text) from public, anon;
 grant execute on function "api"."list_status_stages"(text, text) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

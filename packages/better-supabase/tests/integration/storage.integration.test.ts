@@ -6,7 +6,7 @@ import { err, ok } from "../../src/core/result.ts";
 import { createImageLoader } from "../../src/next/image/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
-import { stackDbUrl, stackUrl } from "./stack-env.ts";
+import { stackDbUrl, stackUrl, storageReachable } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
@@ -24,17 +24,7 @@ const OTHER = "00000000-0000-4000-8000-000000000002";
 const USER = "00000000-0000-4000-8000-0000000000ff";
 const CUSTOMER = `c${String(Date.now())}`;
 
-async function reachable(): Promise<boolean> {
-  try {
-    const response = await fetch(`${url}/storage/v1/status`, {
-      signal: AbortSignal.timeout(1000),
-    });
-
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
+const reachable = (): Promise<boolean> => storageReachable(url);
 
 const live = await reachable();
 

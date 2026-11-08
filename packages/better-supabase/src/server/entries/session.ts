@@ -16,7 +16,7 @@ import { isDocumentLoad, refreshFor } from "../request-kind.ts";
 import { callOf } from "./core.ts";
 
 function checkFor(
-  policy: SessionEntryConfig["verifySession"],
+  policy: SessionEntryOptions["verifySession"],
   request: Request,
 ): boolean {
   if (policy === undefined || typeof policy === "boolean") {
@@ -26,7 +26,7 @@ function checkFor(
   return policy === "document" ? isDocumentLoad(request) : policy(request);
 }
 
-export interface SessionEntryConfig {
+export interface SessionEntryOptions {
   /**
    * Refresh an expired cookie session and send the new cookies on the response.
    * Only where cookies can be written once per request (a proxy, a framework
@@ -167,7 +167,7 @@ export function withSession<
   B,
 >(
   core: ServerCore<M, F, E, C, P, B>,
-  config: SessionEntryConfig = {},
+  config: SessionEntryOptions = {},
 ): SingleKeyEntry<"session", Record<never, never>, AuthResolution<C, P>> {
   return defineMiddleware<
     "session",

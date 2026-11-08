@@ -64,7 +64,10 @@ describe.skipIf(!live)("outbox", () => {
     try {
       await client.query("begin");
 
-      for (const file of renderBlocks(["outbox"], layout)) {
+      for (const file of renderBlocks(["outbox"], {
+        ...layout,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 

@@ -7,13 +7,18 @@ import { PRESET_CATALOG } from "../../preset/index.ts";
 import { importPath } from "../core/io.ts";
 import { hasPermissionConstants } from "./block-names.ts";
 import {
+  blockConfigEntries,
   blockConfigModulePath,
   blockConfigPath,
+  blockPermissionsPath,
+  blockModulesOn,
+  blockSliceName,
+  blockSlicesPath,
   generatorBlocks,
 } from "./blocks.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import { docComment, importStatement, sortImports } from "./layout.ts";
-import { q } from "./shared.ts";
+import { prop, q } from "./shared.ts";
 
 type RecordsConfig = Pick<
   ResolvedConfig,
@@ -22,7 +27,8 @@ type RecordsConfig = Pick<
   | "blockNames"
   | "buckets"
   | "casing"
-  | "recordTypes"
+  | "gen"
+  | "records"
   | "instances"
   | "output"
   | "sql"
@@ -146,15 +152,30 @@ function recordFile(
   extras: {
     readonly access: string | undefined;
     readonly permissions: boolean;
+    /** The instances with a slice, with `gen.blockModules`. */
+    readonly slices?: ReadonlySet<string>;
   },
 ): GeneratedFile {
   const generated = importPath(path, blockConfigPath(config));
   const configModule = importPath(path, blockConfigModulePath(config));
 
-  const fromGenerated = [
-    ...(extras.permissions ? ["permissions"] : []),
-    ...blocks.filter((block) => block.from === undefined).map((b) => b.local),
-  ].toSorted((a, b) => a.localeCompare(b));
+  // `permissions` comes from the config module, which holds plain data: the
+  // generated one imports every installed block, and a record file loads in
+  // the browser.
+  const split = blockModulesOn(config.gen);
+
+  const instances = split
+    ? blocks.filter((block) => extras.slices?.has(block.name))
+    : [];
+
+  const fromConfig = split
+    ? []
+    : ["blockConfig", ...(extras.permissions ? ["permissions"] : [])];
+
+  const fromGenerated = blocks
+    .filter((block) => block.from === undefined)
+    .map((b) => b.local)
+    .toSorted((a, b) => a.localeCompare(b));
 
   const imports = sortImports([
     'import { defineRecordType } from "better-supabase/records";',
@@ -175,7 +196,23 @@ function recordFile(
       "",
       ...imports,
       "",
-      ...importStatement(["blockConfig"], configModule),
+      ...(split
+        ? [
+            ...(instances.length === 0
+              ? []
+              : importStatement(
+                  instances
+                    .map((block) => blockSliceName(block.name))
+                    .toSorted((a, b) => a.localeCompare(b)),
+                  importPath(path, blockSlicesPath(config)),
+                )),
+            ...(extras.permissions
+              ? [
+                  `import { permissions } from ${q(importPath(path, blockPermissionsPath(config)))};`,
+                ]
+              : []),
+          ]
+        : importStatement(fromConfig, configModule)),
       ...(fromGenerated.length === 0
         ? []
         : importStatement(fromGenerated, generated)),
@@ -192,7 +229,16 @@ function recordFile(
           : `    ${block.key}: ${block.local},`,
       ),
       "  },",
-      "  config: blockConfig,",
+      ...(split
+        ? [
+            "  config: {",
+            ...instances.map(
+              (block) =>
+                `    ${prop(block.name)}: ${blockSliceName(block.name)},`,
+            ),
+            "  },",
+          ]
+        : ["  config: blockConfig,"]),
       ...(extras.permissions ? ["  permissions,"] : []),
       ...(extras.access === undefined ? [] : ["  access: permissionsBlock,"]),
       "});",
@@ -205,10 +251,10 @@ function recordFile(
  * `records/` next to the main module: one `records/<type>.ts` per record type
  * that an installed block binds to, and an index. Record types the binding
  * blocks and the blocks they require register themselves (a comment's message,
- * an attachment) get none. Empty with `recordTypes: false`.
+ * an attachment) get none. Empty with `records: false`.
  */
 export function emitRecords(config: RecordsConfig): GeneratedFile[] {
-  if (!config.recordTypes || config.blockNames.length === 0) {
+  if (!config.records || config.blockNames.length === 0) {
     return [];
   }
 
@@ -231,6 +277,9 @@ export function emitRecords(config: RecordsConfig): GeneratedFile[] {
   const extras = {
     access: installed.has("permissions") ? access?.subpath : undefined,
     permissions: hasPermissionConstants(config),
+    ...(blockModulesOn(config.gen)
+      ? { slices: new Set(Object.keys(blockConfigEntries(config))) }
+      : {}),
   };
 
   const dir = posix.join(posix.dirname(config.output), "records");

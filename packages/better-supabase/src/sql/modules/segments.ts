@@ -170,8 +170,8 @@ create table if not exists ${t("members")} (
   }
 create index if not exists ${ctx.naming.rename("segment_members_subject_idx")} on ${t("members")} (${m("tenant")}, ${m("subjectId")});
 ${lockTable(t("members"), { read: true })}
-${renderPolicy(makePolicy({ table: t("segments"), name: policy("segments"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), n.read) }), { drop: true, target: t("segments") })}
-${renderPolicy(makePolicy({ table: t("members"), name: policy("members"), command: "select", roles: ["authenticated"], using: ctx.scope.check(m("tenant"), n.read) }), { drop: true, target: t("members") })}
+${renderPolicy(makePolicy({ table: t("segments"), name: policy("segments"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), n.read) }), { target: t("segments") })}
+${renderPolicy(makePolicy({ table: t("members"), name: policy("members"), command: "select", roles: ["authenticated"], using: ctx.scope.check(m("tenant"), n.read) }), { target: t("members") })}
 `;
 }
 

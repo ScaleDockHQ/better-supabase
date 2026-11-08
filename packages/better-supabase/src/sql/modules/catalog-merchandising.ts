@@ -43,7 +43,7 @@ function variantPriceFunctions(ctx: BlockSqlContext, names: Names): string {
   return `
 -- Sets a variant's price, in minor units of its product's currency, in the
 -- variant's price column.
-create or replace function ${fn("set_price")}(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+create or replace function ${fn("set_price")}(variant uuid, currency text, amount text, compare_at text, price_list uuid, starts_at timestamptz, expires_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -74,7 +74,7 @@ begin
   if set_price.price_list is not null then
     ${fail("CATALOG_PRICE_LIST_NOT_FOUND", "this catalog has no price lists", "P0002")}
   end if;
-  if set_price.valid_from is not null or set_price.valid_until is not null then
+  if set_price.starts_at is not null or set_price.expires_at is not null then
     ${fail("CATALOG_VALIDITY_INVALID", "this catalog has no validity windows", "22023")}
   end if;
   ${ctx.hook("before_price_set", [
@@ -237,7 +237,7 @@ ${userGrant(`${fn("delete_price_list")}(uuid)`)}
 -- Sets a variant's price in a currency, in minor units, for a price list
 -- (null for the base price) and a validity window. The same window is
 -- updated in place; a window that overlaps another price is refused.
-create or replace function ${fn("set_price")}(variant uuid, currency text, amount text, compare_at text, price_list uuid, valid_from timestamptz, valid_until timestamptz)
+create or replace function ${fn("set_price")}(variant uuid, currency text, amount text, compare_at text, price_list uuid, starts_at timestamptz, expires_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -264,8 +264,8 @@ begin
   if set_price.compare_at is not null and (v_compare is null or v_compare <= v_amount) then
     ${fail("CATALOG_COMPARE_AT_INVALID", "the compare-at amount must be above the amount", "22023")}
   end if;
-  if set_price.valid_until is not null and set_price.valid_until <= coalesce(set_price.valid_from, '-infinity'::timestamptz) then
-    ${fail("CATALOG_VALIDITY_INVALID", "valid_until must be after valid_from", "22023")}
+  if set_price.expires_at is not null and set_price.expires_at <= coalesce(set_price.starts_at, '-infinity'::timestamptz) then
+    ${fail("CATALOG_VALIDITY_INVALID", "expires_at must be after starts_at", "22023")}
   end if;
 ${
   lists
@@ -284,7 +284,7 @@ ${
   }${
     validity
       ? ""
-      : `  if set_price.valid_from is not null or set_price.valid_until is not null then
+      : `  if set_price.starts_at is not null or set_price.expires_at is not null then
     ${fail("CATALOG_VALIDITY_INVALID", "this catalog has no validity windows", "22023")}
   end if;
 `
@@ -305,7 +305,7 @@ ${
   where x.${pr("variant")} = set_price.variant and x.${pr("currency")} = set_price.currency and ${listMatch("x", "set_price.price_list")}${
     validity
       ? `
-    and x.${pr("validFrom")} is not distinct from set_price.valid_from and x.${pr("validUntil")} is not distinct from set_price.valid_until`
+    and x.${pr("validFrom")} is not distinct from set_price.starts_at and x.${pr("validUntil")} is not distinct from set_price.expires_at`
       : ""
   };
 ${
@@ -314,7 +314,7 @@ ${
     select 1 from ${prices} x
     where x.${pr("variant")} = set_price.variant and x.${pr("currency")} = set_price.currency and ${listMatch("x", "set_price.price_list")}
       and x.${pr("id")} is distinct from v_id
-      and ${range(`x.${pr("validFrom")}`, `x.${pr("validUntil")}`)} && ${range("set_price.valid_from", "set_price.valid_until")}
+      and ${range(`x.${pr("validFrom")}`, `x.${pr("validUntil")}`)} && ${range("set_price.starts_at", "set_price.expires_at")}
   ) then
     ${fail("CATALOG_PRICE_OVERLAP", "another price of this variant, currency and list covers part of this window", "23P01")}
   end if;
@@ -322,7 +322,7 @@ ${
     : ""
 }  if v_id is null then
     insert into ${prices} (${pr("tenant")}, ${pr("variant")}, ${pr("currency")}, ${pr("amount")}${lists ? `, ${pr("priceList")}` : ""}${compare ? `, ${pr("compareAt")}` : ""}${validity ? `, ${pr("validFrom")}, ${pr("validUntil")}` : ""})
-    values (v_tenant, set_price.variant, set_price.currency, v_amount${lists ? ", set_price.price_list" : ""}${compare ? ", v_compare" : ""}${validity ? ", set_price.valid_from, set_price.valid_until" : ""})
+    values (v_tenant, set_price.variant, set_price.currency, v_amount${lists ? ", set_price.price_list" : ""}${compare ? ", v_compare" : ""}${validity ? ", set_price.starts_at, set_price.expires_at" : ""})
     returning ${pr("id")} into v_id;
   else
     update ${prices} x set ${pr("amount")} = v_amount${compare ? `, ${pr("compareAt")} = v_compare` : ""}, ${pr("updatedAt")} = now()
@@ -484,7 +484,7 @@ ${userGrant(`${fn("set_product_categories")}(uuid, uuid[])`)}
   return `
 -- Creates a category (category null) or updates one, under parent (null
 -- for the top level). A new category goes after its siblings. fields: the
--- extra columns (options.categoryExtraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 ${extraArg.drop(fn("save_category"), categoryArgs)}
 create or replace function ${fn("save_category")}(tenant ${ctx.idType}, category uuid, parent uuid, name text, slug text, description text${extraArg.param})
 returns jsonb

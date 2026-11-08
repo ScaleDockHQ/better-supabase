@@ -1,5 +1,6 @@
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { CLIENT_BARREL_RULES } from "./client-barrels.ts";
 import { lineOf } from "./shared.ts";
 
 /** The `next.config` file names Next.js loads, in its order. */
@@ -191,4 +192,5 @@ export const NEXT_CACHE_RULES: readonly Rule[] = [
       "A function with `\"use cache: private\"` calls `bsb.admin()` or `createAdminClient`. The service role ignores the user's policies, so the cached result is not the user's data. Read as the user, or move the admin read out of the scope.",
     check: adminInPrivateScope,
   },
+  ...CLIENT_BARREL_RULES,
 ];

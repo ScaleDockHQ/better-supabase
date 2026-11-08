@@ -1,86 +1,35 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:a1138be4b6e481ba59ec3c88cc7a1aa541ddd3f039d7072df97637fd6f1c2fd7
+-- @bsb-hash sha256:1ac9840b0047e517628581a52c02b913ad2fd9b535a03ae5bf0b20dc517c9741
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Enrichment: what a provider returned for a company or a person, one result
 -- per provider, and the empty columns a match filled.
-create table if not exists "better_supabase"."enrichments" (
+create table "better_supabase"."enrichments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "company_id" uuid references "better_supabase"."companies" ("id") on delete cascade,
   "person_id" uuid references "better_supabase"."people" ("id") on delete cascade,
-  "provider" text not null check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "status" text not null check ("status" in ('matched', 'not_found')),
-  "data" jsonb not null default '{}'::jsonb check (jsonb_typeof("data") = 'object'),
+  "provider" text not null constraint bsb_enrichments_provider_check check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "status" text not null constraint bsb_enrichments_status_check check ("status" in ('matched', 'not_found')),
+  "data" jsonb not null default '{}'::jsonb constraint bsb_enrichments_data_check check (jsonb_typeof("data") = 'object'),
   "filled" text[] not null default '{}',
   "fetched_at" timestamptz not null default now(),
   "requested_by" uuid references auth.users (id) on delete set null,
-  check (num_nonnulls("company_id", "person_id") = 1),
+  constraint bsb_enrichments_check check (num_nonnulls("company_id", "person_id") = 1),
   constraint enrichments_company_provider_key unique ("company_id", "provider"),
   constraint enrichments_person_provider_key unique ("person_id", "provider")
 );
-create index if not exists enrichments_tenant_idx on "better_supabase"."enrichments" ("tenant_id", "fetched_at");
-create index if not exists enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
+create index enrichments_tenant_idx on "better_supabase"."enrichments" ("tenant_id", "fetched_at");
+create index enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."enrichments" enable row level security;
 revoke all on "better_supabase"."enrichments" from public, anon, authenticated;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
-drop policy if exists enrichments_read on "better_supabase"."enrichments";
-create policy enrichments_read on "better_supabase"."enrichments"
+create policy bsb_enrichments_read on "better_supabase"."enrichments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
@@ -317,52 +266,22 @@ grant execute on function "better_supabase"."enrichment_due"(text, integer, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_select on "better_supabase"."enrichments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrichments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_update on "better_supabase"."enrichments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
@@ -381,86 +300,35 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:2058757d30335f6e44d5e20717db25d4ae72f1b374ac1adb35d2b1a8dad0d415
+-- @bsb-hash sha256:6ecd7b10bd5308d248c90fe9e4b8eac801af9f6928969619cfbe8772586d0998
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Enrichment: what a provider returned for a company or a person, one result
 -- per provider, and the empty columns a match filled.
-create table if not exists "better_supabase"."enrichments" (
+create table "better_supabase"."enrichments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "company_id" uuid references "better_supabase"."companies" ("id") on delete cascade,
   "person_id" uuid references "better_supabase"."people" ("id") on delete cascade,
-  "provider" text not null check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "status" text not null check ("status" in ('matched', 'not_found')),
-  "data" jsonb not null default '{}'::jsonb check (jsonb_typeof("data") = 'object'),
+  "provider" text not null constraint bsb_enrichments_provider_check check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "status" text not null constraint bsb_enrichments_status_check check ("status" in ('matched', 'not_found')),
+  "data" jsonb not null default '{}'::jsonb constraint bsb_enrichments_data_check check (jsonb_typeof("data") = 'object'),
   "filled" text[] not null default '{}',
   "fetched_at" timestamptz not null default now(),
   "requested_by" uuid references auth.users (id) on delete set null,
-  check (num_nonnulls("company_id", "person_id") = 1),
+  constraint bsb_enrichments_check check (num_nonnulls("company_id", "person_id") = 1),
   constraint enrichments_company_provider_key unique ("company_id", "provider"),
   constraint enrichments_person_provider_key unique ("person_id", "provider")
 );
-create index if not exists enrichments_tenant_idx on "better_supabase"."enrichments" ("tenant_id", "fetched_at");
-create index if not exists enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
+create index enrichments_tenant_idx on "better_supabase"."enrichments" ("tenant_id", "fetched_at");
+create index enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."enrichments" enable row level security;
 revoke all on "better_supabase"."enrichments" from public, anon, authenticated;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
-drop policy if exists enrichments_read on "better_supabase"."enrichments";
-create policy enrichments_read on "better_supabase"."enrichments"
+create policy bsb_enrichments_read on "better_supabase"."enrichments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
@@ -697,59 +565,25 @@ grant execute on function "better_supabase"."enrichment_due"(text, integer, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_select on "better_supabase"."enrichments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrichments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_update on "better_supabase"."enrichments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.enrichments', target_type => 'enrichment', event_prefix => 'enrichment', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrichments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrichment","event_prefix":"enrichment"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
@@ -768,61 +602,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:996ed9f1fcbb4ca15472f2e69e1bf8b9cbefa4bf0cf32b0584ba93e6a6665e73
+-- @bsb-hash sha256:ec3d78b183c3a2a69ab6f39f9b86d3d7fff26012f56f1fb10b0be7398a4d182d
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."enrichments";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."enrichments";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."enrichments";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."enrichments";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."enrichments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -830,29 +614,28 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Enrichment: what a provider returned for a company or a person, one result
 -- per provider, and the empty columns a match filled.
-create table if not exists "app_private"."enrichments" (
+create table "app_private"."enrichments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "company_id" uuid references "better_supabase"."companies" ("id") on delete cascade,
   "person_id" uuid references "better_supabase"."people" ("id") on delete cascade,
-  "provider" text not null check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "status" text not null check ("status" in ('matched', 'not_found')),
-  "data" jsonb not null default '{}'::jsonb check (jsonb_typeof("data") = 'object'),
+  "provider" text not null constraint bsb_enrichments_provider_check check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "status" text not null constraint bsb_enrichments_status_check check ("status" in ('matched', 'not_found')),
+  "data" jsonb not null default '{}'::jsonb constraint bsb_enrichments_data_check check (jsonb_typeof("data") = 'object'),
   "filled" text[] not null default '{}',
   "fetched_at" timestamptz not null default now(),
   "requested_by" uuid references auth.users (id) on delete set null,
-  check (num_nonnulls("company_id", "person_id") = 1),
+  constraint bsb_enrichments_check check (num_nonnulls("company_id", "person_id") = 1),
   constraint enrichments_company_provider_key unique ("company_id", "provider"),
   constraint enrichments_person_provider_key unique ("person_id", "provider")
 );
-create index if not exists enrichments_tenant_idx on "app_private"."enrichments" ("tenant_id", "fetched_at");
-create index if not exists enrichments_requested_by_idx on "app_private"."enrichments" ("requested_by") where "requested_by" is not null;
+create index enrichments_tenant_idx on "app_private"."enrichments" ("tenant_id", "fetched_at");
+create index enrichments_requested_by_idx on "app_private"."enrichments" ("requested_by") where "requested_by" is not null;
 alter table "app_private"."enrichments" enable row level security;
 revoke all on "app_private"."enrichments" from public, anon, authenticated;
 grant select on "app_private"."enrichments" to authenticated;
 grant all on "app_private"."enrichments" to service_role;
-drop policy if exists enrichments_read on "app_private"."enrichments";
-create policy enrichments_read on "app_private"."enrichments"
+create policy bsb_enrichments_read on "app_private"."enrichments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
@@ -1089,52 +872,22 @@ grant execute on function "app_private"."enrichment_due"(text, integer, interval
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."enrichments";
-drop policy if exists bsb_tenant_scope_select on "app_private"."enrichments";
 create policy bsb_tenant_scope_select on "app_private"."enrichments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."enrichments";
 create policy bsb_tenant_scope_insert on "app_private"."enrichments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."enrichments";
 create policy bsb_tenant_scope_update on "app_private"."enrichments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."enrichments";
 create policy bsb_tenant_scope_delete on "app_private"."enrichments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
@@ -1153,86 +906,35 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:382a95138e7e0aad6ab338371cde9bb8670c50ce6fa9534a8138ef0e9dc2c652
+-- @bsb-hash sha256:6cd8f385b7fad73b45dce4b92c462e4bb5217b7638f10ecf79304c1d01b5bc1d
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Enrichment: what a provider returned for a company or a person, one result
 -- per provider, and the empty columns a match filled.
-create table if not exists "better_supabase"."enrichments" (
+create table "better_supabase"."enrichments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "company_id" uuid references "better_supabase"."companies" ("id") on delete cascade,
   "person_id" uuid references "better_supabase"."people" ("id") on delete cascade,
-  "provider" text not null check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "status" text not null check ("status" in ('matched', 'not_found')),
-  "data" jsonb not null default '{}'::jsonb check (jsonb_typeof("data") = 'object'),
+  "provider" text not null constraint bsb_enrichments_provider_check check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "status" text not null constraint bsb_enrichments_status_check check ("status" in ('matched', 'not_found')),
+  "data" jsonb not null default '{}'::jsonb constraint bsb_enrichments_data_check check (jsonb_typeof("data") = 'object'),
   "filled" text[] not null default '{}',
   "fetched_at" timestamptz not null default now(),
   "requested_by" uuid references auth.users (id) on delete set null,
-  check (num_nonnulls("company_id", "person_id") = 1),
+  constraint bsb_enrichments_check check (num_nonnulls("company_id", "person_id") = 1),
   constraint enrichments_company_provider_key unique ("company_id", "provider"),
   constraint enrichments_person_provider_key unique ("person_id", "provider")
 );
-create index if not exists enrichments_tenant_idx on "better_supabase"."enrichments" ("tenant_id", "fetched_at");
-create index if not exists enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
+create index enrichments_tenant_idx on "better_supabase"."enrichments" ("tenant_id", "fetched_at");
+create index enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."enrichments" enable row level security;
 revoke all on "better_supabase"."enrichments" from public, anon, authenticated;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
-drop policy if exists enrichments_read on "better_supabase"."enrichments";
-create policy enrichments_read on "better_supabase"."enrichments"
+create policy bsb_enrichments_read on "better_supabase"."enrichments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
@@ -1469,36 +1171,19 @@ grant execute on function "better_supabase"."enrichment_due"(text, integer, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_select on "better_supabase"."enrichments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrichments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_update on "better_supabase"."enrichments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1506,25 +1191,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as rest
 -- blocks.enrichment.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."enrichment_target"(subject_type text, subject_id uuid)
 returns jsonb
@@ -1565,19 +1231,6 @@ as $$ select "better_supabase"."enrichment_due"($1, $2, $3, $4) $$;
 revoke execute on function "api"."enrichment_due"(text, integer, interval, text) from public, anon, authenticated;
 grant execute on function "api"."enrichment_due"(text, integer, interval, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block-data enrichment
@@ -1595,77 +1248,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:e0d2270a3660f191a56f8cf6a8ff54f80f310ddc1ee29acada087807ecc1d1ef
+-- @bsb-hash sha256:a1c240df44621da18658aed19bc81639c52fe2c2cb720a1488181fb5ae5e8aaa
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Enrichment: what a provider returned for a company or a person, one result
 -- per provider, and the empty columns a match filled.
 -- better_supabase.enrichments is the app's table: this block adds only the columns it needs.
@@ -1673,9 +1260,9 @@ alter table "better_supabase"."enrichments" add column if not exists "id" uuid d
 alter table "better_supabase"."enrichments" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."enrichments" add column if not exists "company_id" uuid references "better_supabase"."companies" ("id") on delete cascade;
 alter table "better_supabase"."enrichments" add column if not exists "person_id" uuid references "better_supabase"."people" ("id") on delete cascade;
-alter table "better_supabase"."enrichments" add column if not exists "provider" text check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."enrichments" add column if not exists "status" text check ("status" in ('matched', 'not_found'));
-alter table "better_supabase"."enrichments" add column if not exists "data" jsonb not null default '{}'::jsonb check (jsonb_typeof("data") = 'object');
+alter table "better_supabase"."enrichments" add column if not exists "provider" text constraint bsb_enrichments_provider_check check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."enrichments" add column if not exists "status" text constraint bsb_enrichments_status_check check ("status" in ('matched', 'not_found'));
+alter table "better_supabase"."enrichments" add column if not exists "data" jsonb not null default '{}'::jsonb constraint bsb_enrichments_data_check check (jsonb_typeof("data") = 'object');
 alter table "better_supabase"."enrichments" add column if not exists "filled" text[] not null default '{}';
 alter table "better_supabase"."enrichments" add column if not exists "fetched_at" timestamptz not null default now();
 alter table "better_supabase"."enrichments" add column if not exists "requested_by" uuid references auth.users (id) on delete set null;
@@ -1686,7 +1273,6 @@ create unique index if not exists "bsb_enrichments_person_provider_key" on "bett
 alter table "better_supabase"."enrichments" enable row level security;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
-drop policy if exists bsb_enrichments_select on "better_supabase"."enrichments";
 create policy bsb_enrichments_select on "better_supabase"."enrichments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
@@ -1925,52 +1511,22 @@ grant execute on function "better_supabase"."enrichment_due"(text, integer, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_select on "better_supabase"."enrichments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrichments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_update on "better_supabase"."enrichments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
@@ -1989,86 +1545,35 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:886b7b5b722ecc653ebaa4d303d12c824b2cdecf19e25feabc13b7e407579fa9
+-- @bsb-hash sha256:1b3bf17abf9fc82594d82812a8841fdc32804ce9f090f0c79046e12bb308bdca
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Enrichment: what a provider returned for a company or a person, one result
 -- per provider, and the empty columns a match filled.
-create table if not exists "better_supabase"."enrichments" (
+create table "better_supabase"."enrichments" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "company_id" uuid references "better_supabase"."companies" ("id") on delete cascade,
   "person_id" uuid references "better_supabase"."people" ("id") on delete cascade,
-  "provider" text not null check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "status" text not null check ("status" in ('matched', 'not_found')),
-  "data" jsonb not null default '{}'::jsonb check (jsonb_typeof("data") = 'object'),
+  "provider" text not null constraint bsb_enrichments_provider_check check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "status" text not null constraint bsb_enrichments_status_check check ("status" in ('matched', 'not_found')),
+  "data" jsonb not null default '{}'::jsonb constraint bsb_enrichments_data_check check (jsonb_typeof("data") = 'object'),
   "filled" text[] not null default '{}',
   "fetched_at" timestamptz not null default now(),
   "requested_by" uuid references auth.users (id) on delete set null,
-  check (num_nonnulls("company_id", "person_id") = 1),
+  constraint bsb_enrichments_check check (num_nonnulls("company_id", "person_id") = 1),
   constraint enrichments_company_provider_key unique ("company_id", "provider"),
   constraint enrichments_person_provider_key unique ("person_id", "provider")
 );
-create index if not exists enrichments_tenant_idx on "better_supabase"."enrichments" ("org_id", "fetched_at");
-create index if not exists enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
+create index enrichments_tenant_idx on "better_supabase"."enrichments" ("org_id", "fetched_at");
+create index enrichments_requested_by_idx on "better_supabase"."enrichments" ("requested_by") where "requested_by" is not null;
 alter table "better_supabase"."enrichments" enable row level security;
 revoke all on "better_supabase"."enrichments" from public, anon, authenticated;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
-drop policy if exists enrichments_read on "better_supabase"."enrichments";
-create policy enrichments_read on "better_supabase"."enrichments"
+create policy bsb_enrichments_read on "better_supabase"."enrichments"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 
@@ -2305,52 +1810,22 @@ grant execute on function "better_supabase"."enrichment_due"(text, integer, inte
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."enrichments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_select on "better_supabase"."enrichments" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('enrichment.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_insert on "better_supabase"."enrichments" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_update on "better_supabase"."enrichments" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."enrichments";
 create policy bsb_tenant_scope_delete on "better_supabase"."enrichments" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment

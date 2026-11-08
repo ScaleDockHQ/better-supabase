@@ -140,7 +140,7 @@ export function createBlockQuery<
   });
 }
 
-const BLOCK_KEY = "bsb";
+export const BLOCK_KEY = "bsb";
 
 function engineQuery<T>(
   engine: DataEngine,

@@ -57,6 +57,7 @@ import type { SupportStartRequest } from "../server/support.ts";
 import type { DbBudget } from "./collector.ts";
 import type { RecordAt, RecordServer } from "./record.ts";
 import type { NextResourceRoutes, NextResourcesOptions } from "./resources.ts";
+import type { GateUser } from "./user.ts";
 
 export interface NextOptions extends ServerOptions {
   /**
@@ -196,7 +197,7 @@ export type BoundOutput<Bd> = Bd extends BoundSchema
   : readonly [];
 
 /** The arguments of the returned action: bound ones first, then the input. */
-export type BoundArgs<
+export type BoundOptions<
   Bd,
   S extends StandardSchemaV1 | undefined,
 > = Bd extends BoundSchema
@@ -253,7 +254,7 @@ export interface ActionOptions<
  * input as the only argument, so `args` is required when the method takes
  * anything else.
  */
-export type BlockActionArgs<S, A, Ctx> = [ActionParsed<S>] extends A
+export type BlockActionParams<S, A, Ctx> = [ActionParsed<S>] extends A
   ? { readonly args?: (input: ActionParsed<S>, ctx: Ctx) => A }
   : { readonly args: (input: ActionParsed<S>, ctx: Ctx) => A };
 
@@ -331,7 +332,7 @@ export interface ContextualNext<
       bound: BoundOutput<Bd>,
     ) => Promise<T> | T,
   ) => (
-    ...args: BoundArgs<Bd, S>
+    ...args: BoundOptions<Bd, S>
   ) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
 }
 
@@ -415,6 +416,20 @@ export interface BetterNext<
   cached(
     options?: CachedOptions<Extract<keyof M, string>>,
   ): Promise<CachedContext<M, F, E, C, P, B, D>>;
+  /**
+   * The signed-in user as plain data (`id`, `email`, `name`, `organizationId`),
+   * never the token or the session, or `null` for anyone else. Call it inside a
+   * `"use cache: private"` function: it sets `cacheLife({ stale: 300 })` and
+   * the session tags like `bsb.cached()`, so the user rides in the App Shell.
+   *
+   * ```ts
+   * export async function getUser() {
+   *   "use cache: private";
+   *   return bsb.user();
+   * }
+   * ```
+   */
+  user(): Promise<GateUser | null>;
   /**
    * Parks the request's verified session until the response is sent and returns
    * its serializable handle. Pass the handle to a `'use cache: private'`
@@ -590,7 +605,7 @@ export interface BetterNext<
       bound: BoundOutput<Bd>,
     ) => Promise<T> | T,
   ): (
-    ...args: BoundArgs<Bd, S>
+    ...args: BoundOptions<Bd, S>
   ) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
   /**
    * A server action that calls one block method as the caller, with the same
@@ -624,7 +639,7 @@ export interface BetterNext<
        * tagged with them, such as `reads.deals.board.tables`.
        */
       readonly invalidates?: readonly string[];
-    } & BlockActionArgs<
+    } & BlockActionParams<
         S,
         BlockArgsOf<Cl, K & BlockMethodName<Cl>>,
         ServerContext<M, F, E, C, P, B, D> & AuthorizedContext<C, P, R>
@@ -958,6 +973,14 @@ export interface SupportStarted {
  */
 export type CacheScope = "private" | "remote";
 
+/**
+ * The render stage a `bsb.cached()` or `bsb.bootstrap()` read waits for:
+ * `"prefetch"` awaits `prefetch()` and `"navigation"` awaits `navigation()`
+ * from `next/cache`, so the read leaves the App Shell and, for `"navigation"`,
+ * the runtime prefetch too.
+ */
+export type CachedStage = "prefetch" | "navigation";
+
 /** `cacheLife` for a `bsb.cached()` or `bsb.bootstrap()` entry. */
 export interface CachedLife {
   /**
@@ -1033,9 +1056,19 @@ export interface RemoteOptions<
 interface CachedEntryOptions<T extends string = string> {
   /**
    * `cacheLife` for the entry. Pass a permission snapshot's lifetime as `stale`
-   * so the entry goes stale with the snapshot too.
+   * so the entry goes stale with the snapshot too. `"max"` is `{ stale: 300,
+   * revalidate: 2592000, expire: 31536000 }`, the profile of Next.js's
+   * `cacheLife("max")`, for reads every write invalidates with `updateTag`; the
+   * token cap of `capToToken` still applies.
    */
-  readonly life?: CachedLife;
+  readonly life?: CachedLife | "max";
+  /**
+   * Waits for a render stage before the entry's context resolves. It runs in
+   * the calling component, never inside the `"use cache"` scope, where the
+   * gates throw. Without Cache Components and Partial Prefetching it does
+   * nothing and logs once in development.
+   */
+  readonly stage?: CachedStage;
   /** More tags for the entry, e.g. `snapshotTag(sub)` or `organization:<id>`. */
   readonly tags?: readonly string[];
   /**

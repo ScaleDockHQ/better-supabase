@@ -22,7 +22,7 @@ insert into ids values ('a', (better_supabase.create_legal_entity('00000000-0000
 insert into ids values ('b', (better_supabase.create_legal_entity('00000000-0000-4000-8000-000000000001', 'ADM-B', 'Administration B B.V.') ->> 'id')::uuid);
 
 select set_config(
-  'bsb.run',
+  'better_supabase.run',
   (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'erp-admins',
     '{"scopeAliases":[{"scope":"B","of":"A","entities":["payment_term","invoice","credit_note"]}]}'::jsonb) ->> 'id'),
   true
@@ -31,7 +31,7 @@ select set_config(
 reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
 
 -- The cloned history, as administration A holds it.
 create function pg_temp.history(scope text, entity uuid) returns jsonb language sql as $$
@@ -48,26 +48,26 @@ create function pg_temp.history(scope text, entity uuid) returns jsonb language 
 $$;
 
 select is(
-  (select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'payment_term',
+  (select better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'payment_term',
     '[{"key":"N30","scope":"A","data":{"code":"N30","name":"Net 30","days":30}}]'::jsonb) ->> 'inserted'),
   '1',
   'administration A brings its payment terms'
 );
 select is(
-  (select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'payment_term',
+  (select better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'payment_term',
     '[{"key":"N30","scope":"B","data":{"code":"N30","name":"Net 30","days":30}}]'::jsonb) ->> 'unchanged'),
   '1',
   'the cloned payment terms of B are the same record'
 );
 
 select is(
-  (select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice',
+  (select better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'invoice',
     pg_temp.history('A', (select id from ids where name = 'a'))) ->> 'inserted'),
   '3',
   'administration A inserts its three invoices'
 );
 select is(
-  (select (better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice',
+  (select (better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'invoice',
     pg_temp.history('B', (select id from ids where name = 'a'))) - 'errors' - 'dryRun' - 'warnings')),
   '{"inserted":0,"updated":0,"unchanged":3,"conflicted":0}'::jsonb,
   'the cloned history of B is unchanged, so nothing is written twice'
@@ -80,7 +80,7 @@ select is(
 
 -- B's own documents carry B's legal entity and their own numbers.
 select is(
-  (select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice',
+  (select better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'invoice',
     jsonb_build_array(jsonb_build_object('key', 'inv-b-1', 'scope', 'B', 'data', jsonb_build_object(
       'number', 'INV-B-0101', 'status', 'issued', 'issuedOn', '2025-04-01', 'dueOn', '2025-05-01', 'currency', 'EUR',
       'legalEntityId', (select id from ids where name = 'b'),
@@ -101,7 +101,7 @@ select is(
   'the cloned payment term exists once'
 );
 select is(
-  (select jsonb_agg(m.key order by m.key) from jsonb_to_recordset(better_supabase.import_resolve(current_setting('bsb.run')::uuid, 'invoice',
+  (select jsonb_agg(m.key order by m.key) from jsonb_to_recordset(better_supabase.import_resolve(current_setting('better_supabase.run')::uuid, 'invoice',
     '[{"key":"inv-2","scope":"B"},{"key":"inv-2","scope":"A"}]'::jsonb)) as m(key text, "subjectId" text)
    having count(distinct m."subjectId") = 1),
   '["inv-2", "inv-2"]'::jsonb,
@@ -110,7 +110,7 @@ select is(
 
 -- Numbers are unique per legal entity: both entities hold INV-0001 of their own series.
 select is(
-  (select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice',
+  (select better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'invoice',
     jsonb_build_array(jsonb_build_object('key', 'inv-b-same', 'scope', 'B', 'data', jsonb_build_object(
       'number', 'INV-0001', 'status', 'issued', 'issuedOn', '2025-04-02', 'dueOn', '2025-05-02', 'currency', 'EUR',
       'legalEntityId', (select id from ids where name = 'b'),
@@ -119,12 +119,12 @@ select is(
   'the second legal entity can hold the same number as the first'
 );
 
-select better_supabase.finish_import_run(current_setting('bsb.run')::uuid);
+select better_supabase.finish_import_run(current_setting('better_supabase.run')::uuid);
 
 select is(
   (select jsonb_build_array(
-    better_supabase.get_import_run(current_setting('bsb.run')::uuid) -> 'counts' -> 'invoice' ->> 'inserted',
-    better_supabase.get_import_run(current_setting('bsb.run')::uuid) -> 'counts' -> 'invoice' ->> 'unchanged')),
+    better_supabase.get_import_run(current_setting('better_supabase.run')::uuid) -> 'counts' -> 'invoice' ->> 'inserted',
+    better_supabase.get_import_run(current_setting('better_supabase.run')::uuid) -> 'counts' -> 'invoice' ->> 'unchanged')),
   '["5", "3"]'::jsonb,
   'the run reports five inserted invoices and three unchanged'
 );

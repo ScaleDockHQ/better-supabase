@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { RecordFormResult } from "../../src/records/index.ts";
 
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
-import { workItemInputSchema } from "../../src/blocks/tasks/schemas.ts";
+import { taskInputSchema } from "../../src/blocks/tasks/schemas.ts";
 import { providedTemporal, provideTemporal } from "../../src/core/temporal.ts";
 import { recordForm } from "../../src/records/index.ts";
 
@@ -103,7 +103,7 @@ describe("recordForm", () => {
   });
 
   it("picks and labels fields and appends the tenant's custom fields", () => {
-    const form = recordForm(workItemInputSchema, {
+    const form = recordForm(taskInputSchema, {
       fields: ["title", "dueAt"],
       labels: { title: "Summary", region: "Area" },
       customFields: [
@@ -137,7 +137,7 @@ describe("recordForm", () => {
   });
 
   it("validates with the schema and splits the input from the custom values", async () => {
-    const form = recordForm(workItemInputSchema, {
+    const form = recordForm(taskInputSchema, {
       fields: ["title", "priority", "dueAt"],
       customFields: [
         { key: "region", label: "Region", type: "option", required: true },
@@ -172,7 +172,7 @@ describe("recordForm", () => {
   });
 
   it("reports schema issues and missing required custom fields by key", async () => {
-    const form = recordForm(workItemInputSchema, {
+    const form = recordForm(taskInputSchema, {
       fields: ["title", "priority"],
       customFields: [
         { key: "region", label: "Region", type: "option", required: true },

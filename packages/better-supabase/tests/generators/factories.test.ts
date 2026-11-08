@@ -80,6 +80,22 @@ describe("factories generator", () => {
     expect(checkBounds("total", ["CHECK ((subtotal >= 0))"])).toEqual({});
   });
 
+  it("tightens exclusive and repeated bounds and flips a leading number", () => {
+    expect(checkBounds("n", ["CHECK (n > 0)", "CHECK (n >= 5)"])).toEqual({
+      min: 5,
+    });
+    expect(checkBounds("n", ["CHECK (n < 10)", "CHECK (n <= 20)"])).toEqual({
+      max: 9,
+    });
+    expect(checkBounds("n", ["CHECK (10 > n)", "CHECK (2 <= n)"])).toEqual({
+      min: 2,
+      max: 9,
+    });
+    expect(
+      checkBounds("t", ["CHECK (length(t) > 2)", "CHECK (char_length(t) < 9)"]),
+    ).toEqual({ minLength: 3, maxLength: 8 });
+  });
+
   it("names block entities, bounds numbers and refuses unknown tables", () => {
     const column = (
       app: string,
@@ -98,7 +114,7 @@ describe("factories generator", () => {
 
     const input = {
       config: { output: "/app/src/db.ts" },
-      importPath: () => "./db.ts",
+      imports: { runtime: "better-supabase" },
       introspection: {
         tables: [{ schema: "app", name: "work_items" }],
         columns: [],

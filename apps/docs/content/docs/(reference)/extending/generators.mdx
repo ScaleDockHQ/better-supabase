@@ -1,0 +1,140 @@
+---
+title: Generators
+description: Write a codegen plugin with the public generator kit, the apiVersion 2 contract and testGeneratorPlugin.
+---
+
+A generator writes files from the schema model when you run `better-supabase gen`.
+The first-party generators (`zod`, `valibot`, `jsonSchema`, `standardSchema`,
+`factories` and `nuqs`) use only what this page lists, so a package you publish
+can do everything they do.
+
+## The contract
+
+```ts title="better-supabase.generators.ts"
+import {
+  defineGenerator,
+  fieldsFor,
+  HEADER,
+  relativeImport,
+  siblingPath,
+  tableEntries,
+} from "better-supabase/generators";
+
+export function tableNames(options: { output?: string } = {}) {
+  return defineGenerator({
+    name: "table-names",
+    version: "1.0.0",
+    options,
+    pure: true,
+    workerSafe: true,
+    generate: (input) => {
+      const path =
+        options.output ?? siblingPath(input.config.output, "names.ts");
+
+      const names = tableEntries(input).map(
+        ([key]) => `  ${JSON.stringify(key)},`,
+      );
+
+      return [
+        {
+          path,
+          contents: [
+            HEADER,
+            `import type { RowOf } from ${JSON.stringify(relativeImport(path, input.config.output))};`,
+            "export const tables = [",
+            ...names,
+            "] as const;",
+            "",
+          ].join("\n"),
+        },
+      ];
+    },
+  });
+}
+```
+
+| Field        | Meaning                                                                                                                |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `apiVersion` | `2`. `defineGenerator` sets it. A generator at another version fails in `gen` with the change that broke it.           |
+| `name`       | Unique in the config; it names the files in errors.                                                                    |
+| `version`    | Your generator's version, part of the cache key.                                                                       |
+| `options`    | The options you built it with, as JSON data. Part of the cache key.                                                    |
+| `pure`       | `generate` depends only on its input and `options`. `gen` caches the files. Without it the generator runs every pass.  |
+| `workerSafe` | `generate` uses no closure from the config file, so it can run on a worker thread when `module` says where to load it. |
+| `module`     | `{ specifier, export }`: the module a worker imports and the export that takes `options` and returns the generator.    |
+| `provides`   | What `gen` consumes from the output. `["validators"]` means the first file exports `validators`.                       |
+
+The input is plain, frozen data: `meta`, `introspection`, `extras`, `model`,
+`config` (`output`, `databaseTypesOutput`, `casing`, `json`) and `imports.runtime`.
+No function and no provider object crosses the boundary, so
+`structuredClone(input)` gives a generator the same files.
+
+## Worker threads
+
+`gen` runs the generators that are not cached and declare both `workerSafe` and
+`module` on worker threads, up to four, when two or more qualify and the schema
+has 1500 tables or more. Each worker gets the input once, imports your module
+(`specifier` is a package name or a `file:` URL), calls its `export` with
+`options` and runs `generate`. The files are merged in the order of the
+`generators` list, so the output is the same bytes a single thread writes, and
+the first failing generator in that order is the one `gen` reports. If a worker
+cannot start, `gen` runs the generators on the main thread.
+
+Below that size the six built-in generators take 33 to 49 ms together on 380
+tables, less than starting workers costs, so they stay on the main thread.
+
+```ts
+export function tableNames(options: { output?: string } = {}) {
+  return defineGenerator({
+    name: "table-names",
+    version: "1.0.0",
+    options,
+    pure: true,
+    workerSafe: true,
+    module: { specifier: "@acme/table-names", export: "tableNames" },
+    generate: (input) => [],
+  });
+}
+```
+
+`testGeneratorPlugin` imports `module`, builds the generator again from
+`options` and checks that it has the same name and version and writes the same
+files.
+
+Two generators that provide the same capability are an error. When you configure
+several validator generators, set `validators: false` on all but one (the built-in
+ones take that option).
+
+## The kit
+
+`better-supabase/generators` is a runtime entry with no Node built-ins. It
+exports `defineGenerator`, `GENERATOR_API_VERSION`, `relativeImport`, and the
+helpers the built-in generators share:
+
+| Helper                                                       | What it does                                                       |
+| ------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `tableEntries(input)`                                        | The tables to generate for, sorted by key                          |
+| `fieldsFor(input, table, variant)`                           | The planned fields of a table's Row, Insert or Update shape        |
+| `extraSchemas(input)`                                        | Function arguments, results and block inputs as schemas            |
+| `tableDocs`, `fieldDocs`, `parseComment`, `parseCheckBounds` | Titles, descriptions and bounds read from SQL comments             |
+| `HEADER`, `siblingPath`, `propertyKey`, `schemaName`         | The file header and naming helpers for the TypeScript writers      |
+| `parseImport`, `relativeImport`                              | Import specifiers for `json` overrides and between generated files |
+
+The kit follows the library's version. A change to a helper's signature is a
+breaking change with a changeset, like any public export.
+
+## Test it
+
+```ts
+import { testGeneratorPlugin } from "better-supabase/testing";
+import { schema } from "./src/lib/supabase/generated.ts";
+import { tableNames } from "./better-supabase.generators.ts";
+
+await testGeneratorPlugin(tableNames(), { meta: schema.meta });
+```
+
+It checks the declaration, relative unique paths, deterministic output, that
+the input is not mutated, that a `structuredClone` of the input gives the same
+files, and that the files survive the JSON round trip of the cache. The
+[`tests/validation-plugins`](https://github.com/ScaleDockHQ/better-supabase/tree/main/tests/validation-plugins)
+project is a runnable example.

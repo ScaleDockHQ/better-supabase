@@ -1,4 +1,3 @@
-/* oxlint-disable eslint/max-lines -- the template column on a subject adds one line past the limit. 1 finding. */
 import type {
   BlockMode,
   AnyBlocksConfig,
@@ -25,23 +24,23 @@ import { resolveBlock } from "../config/blocks.ts";
 import { instancePrefix } from "../config/instances.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { composeNames } from "../core/entity-naming.ts";
-import { configuredAction } from "../core/renames.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { tableOwnership } from "./app-owned.ts";
 import { liveStatement } from "./audit-actions.ts";
 import { defaultRuleRow, shipsEnabled } from "./default-rule-row.ts";
-import { checkedExtraColumns } from "./extra-columns.ts";
+import { resolveExtraColumns } from "./extra-columns.ts";
 import {
   checkInstanceEntities,
   instanceArea,
   instanceEntityNames,
 } from "./instance-area.ts";
+import { unknownOptionMessage } from "./legacy-options.ts";
+import { resourcePermissionKey } from "./permission-key.ts";
 import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
 import { logsSubjectReads } from "./subject-registry.ts";
-import { columnRenamer, tableBase } from "./table-renames.ts";
-import { blockColumnName } from "./tenant-column.ts";
+import { blockColumnName, checkTenantEntry } from "./tenant-column.ts";
 import { checkedValueMaps, valueMethods } from "./value-maps.ts";
 
 export { NOTHING };
@@ -164,7 +163,7 @@ export interface BlockSqlEntitySubject {
 
 /**
  * A noun the module names its tables, functions, events, permissions and hooks
- * after (`work_item`), renamed through `blocks.<name>.entities`.
+ * after, renamed through `blocks.<name>.entities`.
  */
 export interface BlockSqlEntitySpec {
   /** The logical table that holds the entity; global entities may have none. */
@@ -173,10 +172,10 @@ export interface BlockSqlEntitySpec {
   /** Defaults to the English plural of `singular`. */
   readonly plural?: string;
   /**
-   * The singular before 0.47 (`work_item` for `task`); tables and events keep
-   * it.
+   * The plural is also the block's name, so its `<plural>.` permission and
+   * automation keys keep their names when the entity is renamed.
    */
-  readonly formerly?: string;
+  readonly keyed?: boolean;
   /** The entity `entities: "<noun>"` renames. */
   readonly primary?: boolean;
   /** Renamed in every module, not only this one (the tenant). */
@@ -349,11 +348,6 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
    */
   blockNaming(): EntityNames;
   /**
-   * Every configured block's event type renames as one (`eventNaming`), for the
-   * stored event types.
-   */
-  blockEventNaming(): EntityNames;
-  /**
    * The entity renames of each block installed under another name, such as
    * `tickets` from `tasks`, for the permission keys each instance adds.
    */
@@ -408,6 +402,14 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   permission(action: string, fallback: string): string;
   /** The permission key for a module action. */
   permissionKey(action: string, fallback: string): string;
+  /**
+   * The layout is the migrations workflow, which applies each statement over an
+   * installed database. A schema diff handles the same changes, so a module
+   * writes a repair for an older install only when this is true.
+   */
+  readonly rerunnable: boolean;
+  /** The wildcard grants the authorization provider honours (ADR 0372). */
+  readonly wildcards: "all" | "prefix" | "none";
   /** A trigger name with the module's prefix, quoted. */
   trigger(name: string): string;
   /** Whether `module` is installed alongside this one. */
@@ -423,15 +425,13 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   /** A declared module option as configured, for object-shaped options. */
   option(name: string): unknown;
   /**
-   * `options.extraColumns` (column name to SQL type), checked: names are
-   * lower-case identifiers, types are SQL types, and no name shadows one of
-   * `table`'s mapped columns or a key in `reserved`, the stable keys the
-   * module's read functions return next to them.
+   * The columns an app schema file adds to `table`, read as fields. Names that
+   * shadow one of `table`'s mapped columns or a key in `reserved`, the stable
+   * keys the module's read functions return next to them, are skipped.
    */
   extraColumns(
     table: string,
     reserved?: readonly string[],
-    name?: string,
   ): readonly ExtraColumn[];
   /**
    * PL/pgSQL that calls the app's hook function when it exists, with `[type,
@@ -558,7 +558,10 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   staff(permission: string): string;
 }
 
-/** A column from `options.extraColumns`. */
+/**
+ * A column the block reads and writes as a field: one from the columns your
+ * schema files add, or one an app file adds to the table (`app`).
+ */
 export interface ExtraColumn {
   /** The column name, as reads return it. */
   readonly name: string;
@@ -566,6 +569,8 @@ export interface ExtraColumn {
   readonly ident: string;
   /** Its SQL type, such as `text not null default 'en'`. */
   readonly type: string;
+  /** The app's schema file adds the column, so the block doesn't. */
+  readonly app?: true;
 }
 
 export interface BlockSqlContextSource {
@@ -613,8 +618,18 @@ export interface BlockSqlContextSource {
   ) => readonly Contributor<K>[];
   /** `layout.ownTables`: the app's tables, as `schema.table`. */
   readonly ownTables?: Readonly<Record<string, string>>;
+  /** `layout.permissionCatalog`: the permission keys the provider lists. */
+  readonly permissionCatalog?: readonly string[];
+  /** The layout applies statements in file order (`layout.rerunnable`). */
+  readonly rerunnable?: boolean;
+  /** The wildcard grants the provider honours (ADR 0372); unset is `all`. */
+  readonly permissionWildcards?: "all" | "prefix" | "none";
   /** `layout.ownViews`: the entries of `ownTables` that are views. */
   readonly ownViews?: Readonly<Record<string, OwnView>>;
+  /** `layout.appColumns`: the columns the app's files add to tables. */
+  readonly appColumns?: Readonly<
+    Record<string, readonly { readonly name: string; readonly type: string }[]>
+  >;
 }
 
 /** An installed instance that adds to a generic block. */
@@ -739,9 +754,7 @@ export function createModuleContext(
     }
 
     if (!declared.has(key)) {
-      throw new TypeError(
-        `${where}.options: unknown option "${key}". Options: ${[...declared].join(", ") || "none"}`,
-      );
+      throw new TypeError(unknownOptionMessage(where, key, declared));
     }
   }
 
@@ -805,16 +818,21 @@ export function createModuleContext(
 
   // A name the instance's entity renames leave unchanged would clash with
   // the module's other instances, so it takes the instance's prefix.
-  const legacy = (name: string): string => resolved.functionNouns.rename(name);
-
   const scoped = (written: string, original: string): string =>
-    prefix === undefined ||
-    entityNaming.rename(legacy(original)) !== legacy(original)
+    prefix === undefined || entityNaming.rename(original) !== original
       ? written
       : `${prefix}_${written}`;
 
   const permissionKey = (action: string, fallback: string): string =>
-    configuredAction(config.permissions, module, action) ?? ownKey(fallback);
+    config.permissions[action] ??
+    resourcePermissionKey(
+      ownKey(fallback),
+      action,
+      Object.values(names.entities ?? {}).find((entity) => entity.primary)
+        ?.singular,
+      source.permissionCatalog,
+      ownKey,
+    );
 
   const ownKey = (key: string): string =>
     instanceArea(
@@ -836,14 +854,10 @@ export function createModuleContext(
   const applied = new Map<string, string>();
 
   const fnName = (name: string): string => {
-    const renamed = naming.rename(legacy(name));
-    requested.add(name).add(renamed).add(resolved.formerName(name));
+    const renamed = naming.rename(name);
+    requested.add(name).add(renamed);
 
-    const written =
-      renames[name] ??
-      renames[resolved.formerName(name)] ??
-      renames[renamed] ??
-      scoped(renamed, name);
+    const written = renames[name] ?? renames[renamed] ?? scoped(renamed, name);
 
     if (written !== name) {
       applied.set(name, written);
@@ -868,11 +882,7 @@ export function createModuleContext(
     }
 
     const parts = splitTable(
-      mapped ??
-        scoped(
-          naming.rename(tableBase(resolved, logical, table.name)),
-          table.name,
-        ),
+      mapped ?? scoped(naming.rename(table.name), table.name),
       config.schema,
     );
 
@@ -899,13 +909,20 @@ export function createModuleContext(
 
     const mapped = config.columns[table]?.[logical];
 
+    checkTenantEntry(
+      `${where}.columns.${table}`,
+      logical,
+      mapped,
+      tenantColumn,
+    );
+
     return mapped === undefined
       ? blockColumnName(
           { module, table },
           known.columns,
           known.columns[logical]!,
           tenantColumn,
-          columnRenamer(resolved, names.migrations, table, logical),
+          (name) => resolved.naming.rename(name),
         )
       : mapped;
   };
@@ -954,18 +971,14 @@ export function createModuleContext(
   const schema = sqlIdent(config.schema);
 
   const hookTarget = (written: string): string => {
-    const name = names.hooks?.find(
-      (hook) => hook === written || resolved.formerName(hook) === written,
-    );
+    const name = names.hooks?.find((hook) => hook === written);
 
     if (name === undefined) {
       throw new TypeError(`Module "${module}" declares no hook "${written}"`);
     }
 
     const parts = splitTable(
-      config.hooks.functions[name] ??
-        config.hooks.functions[resolved.formerName(name)] ??
-        scoped(entityNaming.rename(legacy(name)), name),
+      config.hooks.functions[name] ?? scoped(entityNaming.rename(name), name),
       config.hooks.schema,
     );
 
@@ -1228,17 +1241,6 @@ export function createModuleContext(
             : [resolveNames(name, known, modules).entityNaming];
         }),
       ),
-    blockEventNaming: () =>
-      composeNames(
-        ...Object.entries(modules).flatMap(([name, block]) => {
-          const known =
-            block?.entities === undefined ? undefined : namesOf(name);
-
-          return known === undefined
-            ? []
-            : [resolveNames(name, known, modules).eventNaming];
-        }),
-      ),
     contributions: (block) =>
       (shared.contributors?.(block) ?? [])
         .filter((contributor) => contributor.instance === instance)
@@ -1298,10 +1300,11 @@ export function createModuleContext(
       return config.tables[table] !== null;
     },
     permissionKey,
+    wildcards: source.permissionWildcards ?? "all",
+    rerunnable: source.rerunnable === true,
     permission: (action, fallback) =>
       sqlString(permissionKey(action, fallback)),
-    trigger: (name) =>
-      sqlIdent(`bsb_${scoped(naming.rename(legacy(name)), name)}`),
+    trigger: (name) => sqlIdent(`bsb_${scoped(naming.rename(name), name)}`),
     installed(name) {
       declares(name);
 
@@ -1336,33 +1339,15 @@ export function createModuleContext(
 
       return value;
     },
-    extraColumns(table, reserved = [], key = "extraColumns") {
-      const value = option(key);
-
-      if (value === undefined) {
-        return [];
-      }
-
-      const at = `${where}.options.${key}`;
-
-      if (typeof value !== "object" || value === null || Array.isArray(value)) {
-        throw new TypeError(`${at} must be an object`);
-      }
-
-      const known = names.tables[table];
-
-      if (!known) {
-        throw new TypeError(`Module "${module}" has no table "${table}"`);
-      }
-
-      const taken = new Set([
-        ...reserved,
-        ...Object.keys(known.columns)
-          .filter((logical) => !known.yieldsToExtra?.includes(logical))
-          .flatMap((logical) => column(table, logical) ?? []),
-      ]);
-
-      return checkedExtraColumns(at, value, taken);
+    extraColumns(table, reserved = []) {
+      return resolveExtraColumns({
+        known: names.tables[table],
+        table,
+        reserved,
+        column,
+        tableName,
+        source,
+      });
     },
     hook(name, args) {
       const target = hookTarget(name);

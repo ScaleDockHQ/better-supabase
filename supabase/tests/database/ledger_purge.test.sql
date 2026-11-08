@@ -40,7 +40,7 @@ select throws_ok(
   'the purge setting alone does not open the ledger without a due deletion'
 );
 
-insert into better_supabase.organization_deletions (organization_id, purge_after)
+insert into better_supabase.organization_deletions (tenant_id, purge_at)
 values ('00000000-0000-4000-8000-000000000001', now() - interval '1 minute');
 
 select throws_ok(

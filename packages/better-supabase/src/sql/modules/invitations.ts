@@ -10,7 +10,6 @@ import type { InviteTable } from "./invitations-tables.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   memberAddedRecord,
   organizationMissing,
@@ -105,7 +104,6 @@ const NAMES: BlockSqlNames = {
     "tokenBytes",
     "tokenStorage",
     "validFor",
-    "extraColumns",
     "defaultRole",
     "onAccept",
   ],
@@ -114,11 +112,7 @@ const NAMES: BlockSqlNames = {
       name: "invitations",
       app: {},
       lifecycle: { tenant: "tenant", omit: ["tokenHash"] },
-      columns: {
-        ...PLATFORM_COLUMNS,
-        tenant: "organization_id",
-        prefill: "prefill",
-      },
+      columns: { ...PLATFORM_COLUMNS, tenant: "tenant_id", prefill: "prefill" },
       optional: [
         "invitedBy",
         "createdAt",
@@ -187,7 +181,7 @@ create table if not exists ${t.table} (
 );
 alter table ${t.table} alter column ${c("tenant")} set not null;
 alter table ${t.table} alter column ${c("role")} drop default;
-${add("invitedBy", "uuid references auth.users (id) on delete set null")}${add("createdAt", "timestamptz not null default now()")}${add("acceptedBy", "uuid references auth.users (id) on delete set null")}${add("declinedAt", "timestamptz")}${add("revokedAt", "timestamptz")}${add("prefill", "jsonb not null default '{}'")}${addExtraColumns(t.table, t.extras).trimStart()}${t.extras.length === 0 ? "" : "\n"}${onAcceptColumns(ctx, t)}
+${add("invitedBy", "uuid references auth.users (id) on delete set null")}${add("createdAt", "timestamptz not null default now()")}${add("acceptedBy", "uuid references auth.users (id) on delete set null")}${add("declinedAt", "timestamptz")}${add("revokedAt", "timestamptz")}${add("prefill", "jsonb not null default '{}'")}${onAcceptColumns(ctx, t)}
 drop index if exists ${sqlIdent(ctx.tableName("invitations").schema)}.invitations_open_idx;
 create unique index if not exists invitations_open_email_idx
   on ${t.table} (${c("tenant")}, lower(${c("email")})) where ${where};
@@ -214,8 +208,7 @@ end;
 $$;
 revoke execute on function ${ctx.fn("invitation_tenant_ids")}() from public, anon;
 grant execute on function ${ctx.fn("invitation_tenant_ids")}() to authenticated, service_role;
-${renderPolicy(makePolicy({ table: t.table, name: "bsb_invitations_read", command: "select", roles: ["authenticated"], using: `${c("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}())` }), { drop: true, target: t.table })}
-`;
+${sharesTable(ctx) ? "" : `${renderPolicy(makePolicy({ table: t.table, name: "bsb_invitations_read", command: "select", roles: ["authenticated"], using: `${c("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}())` }), { target: t.table })}\n`}`;
 }
 
 function platformTableSql(ctx: BlockSqlContext): string {
@@ -284,13 +277,12 @@ function platformReadPolicy(ctx: BlockSqlContext, p: InviteTable): string {
   const readable = `(select ${ctx.fn("platform_invitations_readable")}())`;
 
   if (!sharesTable(ctx)) {
-    return `${renderPolicy(makePolicy({ table: p.table, name: "bsb_platform_invitations_read", command: "select", roles: ["authenticated"], using: readable }), { drop: true, target: p.table })}
+    return `${renderPolicy(makePolicy({ table: p.table, name: "bsb_platform_invitations_read", command: "select", roles: ["authenticated"], using: readable }), { target: p.table })}
 `;
   }
 
   return `-- Tenant and platform invitations share ${p.table}, so one policy reads both.
-drop policy if exists bsb_platform_invitations_read on ${p.table};
-${renderPolicy(makePolicy({ table: p.table, name: "bsb_invitations_read", command: "select", roles: ["authenticated"], using: `${tenantTable(ctx).col("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}()) or ${readable}` }), { drop: true, target: p.table })}
+${renderPolicy(makePolicy({ table: p.table, name: "bsb_invitations_read", command: "select", roles: ["authenticated"], using: `${tenantTable(ctx).col("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}()) or ${readable}` }), { target: p.table })}
 `;
 }
 

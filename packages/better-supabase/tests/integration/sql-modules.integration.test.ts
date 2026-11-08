@@ -29,7 +29,7 @@ import {
 import { createVercelMarketplace } from "../../src/blocks/vercel-marketplace/index.ts";
 import { signWebhook } from "../../src/blocks/webhooks/index.ts";
 import { rpcTransport, sqlTransport } from "../../src/core/block-transport.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { mapDbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
@@ -38,6 +38,7 @@ import { defineSchema } from "../../src/schema/define.ts";
 import { withBlock } from "../../src/server/entries/block.ts";
 import { apiWrappers } from "../../src/sql/api-schema.ts";
 import { auditRegistrations } from "../../src/sql/audit-registrations.ts";
+import { rerunnableDdl } from "../../src/sql/pipeline/static.ts";
 import { compileReadSet } from "../../src/sql/read-sets.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { moduleBody, renderBlocks } from "../../src/sql/render.ts";
@@ -61,6 +62,16 @@ const FIXTURE_SEARCH = new URL(
   "../../../../supabase/schemas/_better_supabase/900_better_supabase_070_search.sql",
   import.meta.url,
 );
+
+/** The fixture's declarative file, as a rerun over the objects the stack holds. */
+function rerunFixture(sql: string): string {
+  return rerunnableDdl(
+    sql
+      .replaceAll(/^create table /gm, "create table if not exists ")
+      .replaceAll(/^create (unique )?index /gm, "create $1index if not exists ")
+      .replaceAll(/^create function /gm, "create or replace function "),
+  );
+}
 
 const ACME = "00000000-0000-4000-8000-000000000001";
 
@@ -170,15 +181,35 @@ async function installSchemaModules(pool: Pool): Promise<void> {
     // which can't hold the seed's team members; `pnpm supabase:reset` brings
     // them back.
     await client.query("delete from better_supabase.team_members");
+    await client.query("delete from better_supabase.invitations");
+    // The render creates these policies inside do blocks, which a rerun can't
+    // drop first.
+    await client.query(`do $$
+declare
+  p record;
+begin
+  for p in select schemaname, tablename, policyname from pg_policies
+    where (schemaname, tablename) in (('realtime', 'messages'), ('storage', 'objects'))
+      and left(policyname, 4) = 'bsb_'
+  loop
+    execute format('drop policy %I on %I.%I', p.policyname, p.schemaname, p.tablename);
+  end loop;
+end;
+$$`);
 
-    for (const file of renderBlocks(names)) {
+    // The stack already holds the declarative schemas, so the render has to
+    // be rerunnable.
+    for (const file of renderBlocks(names, {
+      rerunnable: true,
+      modules: { audit: { options: { readPolicy: true } } },
+    })) {
       if (file.kind !== "test") {
         await client.query(file.contents);
       }
     }
 
     // The default search render has no subjects, and the fixture's customers trigger needs its own.
-    await client.query(readFileSync(FIXTURE_SEARCH, "utf-8"));
+    await client.query(rerunFixture(readFileSync(FIXTURE_SEARCH, "utf-8")));
     await client.query(FIXTURE_TENANT_SQL);
     await client.query("commit");
   } catch (error) {
@@ -346,7 +377,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     try {
       await client.query("begin");
-      const [file] = renderBlocks(["rls-guard"]);
+
+      const file = renderBlocks(["rls-guard"], { rerunnable: true }).find(
+        (entry) => entry.module === "rls-guard",
+      );
+
       await client.query(file!.contents);
       await client.query(file!.contents);
       await client.query(`
@@ -508,7 +543,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         create function public.${name}_count() returns integer language sql as $$ select 1 $$;`,
       );
 
-      const [file] = renderBlocks(["grants"], {
+      const file = renderBlocks(["grants"], {
+        rerunnable: true,
         grants: [
           { table: name, role: "anon", privileges: ["select"] },
           {
@@ -523,7 +559,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
             roles: ["authenticated", "service_role"],
           },
         ],
-      });
+      }).find((entry) => entry.module === "grants");
 
       await pool.query(file!.contents);
       const allowed = await read();
@@ -610,25 +646,22 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       op: string;
       changed: string[] | null;
       actor_id: string;
-      organization_id: string;
+      tenant_id: string;
     }>(
-      `select op, changed, actor_id, organization_id from better_supabase.audit_events
+      `select op, changed, actor_id, tenant_id from better_supabase.audit_events
        where table_name = $1 and record_id = $2 order by id`,
       [table, row!.id],
     );
 
     expect(log.rows).toEqual([
-      { op: "insert", changed: null, actor_id: user, organization_id: ACME },
-      {
-        op: "update",
-        changed: ["name"],
-        actor_id: user,
-        organization_id: ACME,
-      },
+      { op: "insert", changed: null, actor_id: user, tenant_id: ACME },
+      { op: "update", changed: ["name"], actor_id: user, tenant_id: ACME },
     ]);
+    // The fixture's audit read policy stays, so a member of another tenant reads
+    // no entry; the default render grants no read at all.
     await expect(
       as.queryRaw("select * from better_supabase.audit_events limit 1"),
-    ).rejects.toMatchObject({ code: "42501" });
+    ).resolves.toEqual([]);
   });
 
   it("lets only service_role execute acting_member()", async () => {
@@ -689,7 +722,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const plain = `bsb_block_plain_${RUN}`;
     const uuid = { type: "uuid", nullable: true, hasDefault: false } as const;
 
-    const stamped = defineSupabase(
+    const stamped = createSupabase(
       defineSchema<PlainModels>({
         version: 1,
         casing: "camel",
@@ -902,7 +935,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
 
       const invitationId = await pool.query<{ id: string }>(
-        "select id from better_supabase.invitations where organization_id = $1 and accepted_at is not null",
+        "select id from better_supabase.invitations where tenant_id = $1 and accepted_at is not null",
         [organization],
       );
 
@@ -1177,14 +1210,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          insert into public.${name} values (1);`,
       );
 
-      const [file] = renderBlocks(["sessions"], {
+      const file = renderBlocks(["sessions"], {
+        rerunnable: true,
         modules: {
           sessions: {
             options: { policies: true, exclude: ["public.other_*"] },
           },
         },
         declaredTables: [`public.${name}`, "public.other_table"],
-      });
+      }).find((entry) => entry.module === "sessions");
 
       expect(file!.contents).not.toContain("other_table");
       await pool.query(file!.contents);
@@ -1229,9 +1263,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          grant execute on function ${fn}(jsonb) to authenticated;`,
       );
 
-      const [file] = renderBlocks(["sessions"], {
+      const file = renderBlocks(["sessions"], {
+        rerunnable: true,
         modules: { sessions: { options: { bootstrap: { [name]: fn } } } },
-      });
+      }).find((entry) => entry.module === "sessions");
 
       await pool.query(file!.contents);
 
@@ -1315,13 +1350,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          grant execute on function ${fn}(jsonb) to authenticated;`,
       );
 
-      const [file] = renderBlocks(["sessions"], {
+      const file = renderBlocks(["sessions"], {
+        rerunnable: true,
         modules: {
           sessions: {
             options: { authzVersions: true, bootstrap: { [name]: fn } },
           },
         },
-      });
+      }).find((entry) => entry.module === "sessions");
 
       await pool.query(file!.contents);
       await pool.query(
@@ -1406,6 +1442,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const ownsStripe = existing[0].t === null;
 
     const module = renderBlocks(["entitlements"], {
+      rerunnable: true,
       entitlements: { table: billing, column: "customer_id", key: "org_id" },
     }).find((file) => file.module === "entitlements");
 
@@ -1567,6 +1604,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       `);
 
       const module = renderBlocks(["entitlements"], {
+        rerunnable: true,
         entitlements: {
           key: "id",
           source: {
@@ -1593,6 +1631,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query(module.contents);
 
       const usage = renderBlocks(["entitlements", "usage"], {
+        rerunnable: true,
         entitlements: {
           key: "id",
           source: {
@@ -1635,6 +1674,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(rows[0]!.claims).toEqual({ [organization]: ["exports"] });
 
       const compact = renderBlocks(["entitlements"], {
+        rerunnable: true,
         entitlements: {
           key: "id",
           source: "custom",
@@ -1730,6 +1770,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       await client.query(
         renderBlocks(["entitlements"], {
+          rerunnable: true,
           entitlements: { key: "id", source },
         }).find(
           (file) => file.module === "entitlements" && file.kind === "schema",
@@ -1754,6 +1795,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(await as(outsider, "file_history_days")).toBeNull();
       await client.query(
         renderBlocks(["entitlements"], {
+          rerunnable: true,
           entitlements: {
             key: "id",
             source: {
@@ -1834,11 +1876,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     } as const;
 
     const module = renderBlocks(["entitlements"], {
+      rerunnable: true,
       entitlements,
       entitlementsProvider,
     });
 
     expect(module.map((file) => [file.module, file.kind])).toEqual([
+      ["prelude", "schema"],
       ["entitlements", "schema"],
       ["entitlements", "data"],
     ]);
@@ -1892,7 +1936,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         insert into stripe.active_entitlements (id, customer, lookup_key) values
           ('ent_pd_a_${RUN}', '${customer}', 'exports');
       `);
-      await pool.query(module[0]!.contents);
+      await pool.query(
+        module.find(
+          (file) => file.module === "entitlements" && file.kind === "schema",
+        )!.contents,
+      );
 
       // As supabase_auth_admin calls it from the hook: no auth.uid().
       const features = async (sub: string) =>
@@ -1930,7 +1978,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     } finally {
       // Put back the tenant-mode functions the other suites expect.
       await pool.query(
-        renderBlocks(["entitlements"], { entitlements }).find(
+        renderBlocks(["entitlements"], { rerunnable: true, entitlements }).find(
           (file) => file.module === "entitlements",
         )!.contents,
       );
@@ -1958,6 +2006,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const other = "00000000-0000-4000-8000-0000000000a2";
 
     const sql = moduleBody("permissions", {
+      rerunnable: true,
       modules: { permissions: { model: "provider" } },
       accessProvider: {
         name: "test",
@@ -2069,9 +2118,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         grant execute on all functions in schema ${pd} to authenticated;
         insert into auth.users (id, instance_id, aud, role, email)
         values ('${me}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'scope-${RUN}@example.com');`);
-      await client.query(moduleBody("permissions", layout)!);
-      await client.query(moduleBody("subjects", layout)!);
-      await client.query(moduleBody("messaging", layout)!);
+      await client.query(
+        moduleBody("permissions", { ...layout, rerunnable: true })!,
+      );
+      await client.query(
+        moduleBody("subjects", { ...layout, rerunnable: true })!,
+      );
+      await client.query(
+        moduleBody("messaging", { ...layout, rerunnable: true })!,
+      );
       await client.query(
         `with conversation as (
            insert into better_supabase.conversations (tenant_id, kind, access, subject_type, subject_id)
@@ -2402,6 +2457,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     await check(`block_${RUN}_debounce`);
     await pool.query(
       moduleBody("queue", {
+        rerunnable: true,
         modules: {
           queue: { options: { backend: "table", scheduler: "drain" } },
         },
@@ -2415,7 +2471,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_messages where queue = $1",
         [`block_${RUN}_debounce_table`],
       );
-      await pool.query(SQL_MODULES["queue"]!.sql);
+      await pool.query(moduleBody("queue", { rerunnable: true })!);
     }
   });
 
@@ -2464,7 +2520,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       ["queue", "idempotency"]
         .map((module) =>
           apiWrappers(
-            moduleBody(module)!,
+            moduleBody(module, { rerunnable: true })!,
             "better_supabase",
             { schema: api },
             module,
@@ -2555,6 +2611,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const api = `bsb_api_${RUN}_limits`;
 
     const file = renderBlocks(["rate-limit"], {
+      rerunnable: true,
       modules: {
         "rate-limit": { api: { schema: api, functions: ["check_rate_limit"] } },
       },
@@ -2598,6 +2655,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const name = `bsb-module-table-${RUN}`;
     await pool.query(
       moduleBody("queue", {
+        rerunnable: true,
         modules: {
           queue: { options: { backend: "table", scheduler: "drain" } },
         },
@@ -2758,7 +2816,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_messages where queue like $1",
         [`${queue}%`],
       );
-      await pool.query(SQL_MODULES["queue"]!.sql);
+      await pool.query(moduleBody("queue", { rerunnable: true })!);
     }
   });
 
@@ -2766,6 +2824,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const queue = `block_${RUN}_ext`;
     await pool.query(
       moduleBody("queue", {
+        rerunnable: true,
         modules: {
           queue: { options: { backend: "table", scheduler: "drain" } },
         },
@@ -2873,7 +2932,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_schedules where job_name like $1",
         [`ext-${RUN}:%`],
       );
-      await pool.query(SQL_MODULES["queue"]!.sql);
+      await pool.query(moduleBody("queue", { rerunnable: true })!);
     }
   });
 
@@ -2882,6 +2941,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const prefix = `ensure-${RUN}:`;
     await pool.query(
       moduleBody("queue", {
+        rerunnable: true,
         modules: {
           queue: { options: { backend: "table", scheduler: "drain" } },
         },
@@ -2956,7 +3016,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_schedules where job_name like $1",
         [`${prefix}%`],
       );
-      await pool.query(SQL_MODULES["queue"]!.sql);
+      await pool.query(moduleBody("queue", { rerunnable: true })!);
     }
   });
 
@@ -2965,6 +3025,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const name = `sqlsched-${RUN}`;
     await pool.query(
       moduleBody("queue", {
+        rerunnable: true,
         modules: {
           queue: { options: { backend: "table", scheduler: "drain" } },
         },
@@ -3022,7 +3083,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_schedules where job_name = $1",
         [name],
       );
-      await pool.query(SQL_MODULES["queue"]!.sql);
+      await pool.query(moduleBody("queue", { rerunnable: true })!);
     }
   });
 
@@ -3032,6 +3093,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const fn = `public.bs_${RUN}_schedule_reminder`;
     await pool.query(
       moduleBody("queue", {
+        rerunnable: true,
         modules: {
           queue: { options: { backend: "table", scheduler: "drain" } },
         },
@@ -3151,7 +3213,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_schedules where job_name = $1",
         [`reminder:${RUN}`],
       );
-      await pool.query(SQL_MODULES["queue"]!.sql);
+      await pool.query(moduleBody("queue", { rerunnable: true })!);
     }
   });
 
@@ -3216,6 +3278,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     await check(`block_${RUN}_health`);
     await pool.query(
       moduleBody("queue", {
+        rerunnable: true,
         modules: { queue: { options: { backend: "table" } } },
       })!,
     );
@@ -3227,7 +3290,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "delete from better_supabase.job_messages where queue = $1",
         [`block_${RUN}_health_table`],
       );
-      await pool.query(SQL_MODULES["queue"]!.sql);
+      await pool.query(moduleBody("queue", { rerunnable: true })!);
     }
   });
 
@@ -3300,7 +3363,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       ).state,
     ).toBe("running");
     await pool.query(
-      "update better_supabase.idempotency_keys set locked_until = now() - interval '1 second' where scope = $1 and key = 'takeover'",
+      "update better_supabase.idempotency_keys set lock_expires_at = now() - interval '1 second' where scope = $1 and key = 'takeover'",
       [RUN],
     );
 
@@ -3354,7 +3417,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const lockOf = async () =>
       (
         await pool.query<{ left: number }>(
-          "select extract(epoch from locked_until - now())::integer as left from better_supabase.idempotency_keys where scope = $1 and key = 'extend'",
+          "select extract(epoch from lock_expires_at - now())::integer as left from better_supabase.idempotency_keys where scope = $1 and key = 'extend'",
           [RUN],
         )
       ).rows[0]?.left;
@@ -3364,7 +3427,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       .orThrow();
 
     await pool.query(
-      "update better_supabase.idempotency_keys set locked_until = now() + interval '2 seconds' where scope = $1 and key = 'extend'",
+      "update better_supabase.idempotency_keys set lock_expires_at = now() + interval '2 seconds' where scope = $1 and key = 'extend'",
       [RUN],
     );
     expect(
@@ -3380,7 +3443,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     ).toBe(false);
 
     await pool.query(
-      "update better_supabase.idempotency_keys set locked_until = now() - interval '1 second' where scope = $1 and key = 'extend'",
+      "update better_supabase.idempotency_keys set lock_expires_at = now() - interval '1 second' where scope = $1 and key = 'extend'",
       [RUN],
     );
     expect(
@@ -3715,7 +3778,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await inbox.store({ id: "m2", payload: {} }).orThrow();
       await pool.query(
         `update better_supabase.webhook_inbox
-         set status = 'processing', attempts = 2, locked_by = 'gone', locked_until = now() - interval '1 second'
+         set status = 'processing', attempts = 2, locked_by = 'gone', lock_expires_at = now() - interval '1 second'
          where source = $1 and message_id = 'm2'`,
         [source],
       );
@@ -3796,7 +3859,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       await started;
       await pool.query(
-        "update better_supabase.webhook_inbox set locked_until = now() - interval '1 second' where source = $1",
+        "update better_supabase.webhook_inbox set lock_expires_at = now() - interval '1 second' where source = $1",
         [source],
       );
       let releaseSecond!: () => void;
@@ -3955,7 +4018,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     `);
 
     const file = (tables: Parameters<typeof renderBlocks>[1]) =>
-      renderBlocks(["audit"], tables).find((entry) => entry.kind === "test")!;
+      renderBlocks(["audit"], { ...tables, rerunnable: true }).find(
+        (entry) => entry.kind === "test",
+      )!;
 
     const tap = async (contents: string): Promise<string[]> => {
       const client = await pool.connect();
@@ -4019,9 +4084,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         target_type: string;
         new_record: { api_key: string };
         changed: string[] | null;
-        organization_id: string;
+        tenant_id: string;
       }>(
-        `select event_type, category, target_type, new_record, changed, organization_id
+        `select event_type, category, target_type, new_record, changed, tenant_id
          from better_supabase.audit_events where table_name = $1 order by id`,
         [name],
       );
@@ -4035,7 +4100,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         target_type: "secret",
         new_record: { api_key: "[redacted]" },
         changed: ["api_key"],
-        organization_id: ACME,
+        tenant_id: ACME,
       });
 
       const event = (key: string) =>
@@ -4175,7 +4240,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query("begin");
       await client.query("drop event trigger bsb_audit_forget_dropped");
 
-      const data = renderBlocks(["audit"]).find(
+      const data = renderBlocks(["audit"], { rerunnable: true }).find(
         (file) => file.kind === "data",
       )!.contents;
 
@@ -4236,7 +4301,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       `);
       expect(await registered()).toBe(1);
 
-      const data = renderBlocks(["audit"]).find(
+      const data = renderBlocks(["audit"], { rerunnable: true }).find(
         (file) => file.kind === "data",
       )!.contents;
 
@@ -4263,6 +4328,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query("begin");
       await client.query(
         moduleBody("audit", {
+          rerunnable: true,
           modules: {
             audit: {
               options: {
@@ -4393,6 +4459,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query("begin");
       await client.query(
         moduleBody("audit", {
+          rerunnable: true,
           modules: { audit: { options: { restricted: true } } },
         })!,
       );
@@ -4514,6 +4581,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query("begin");
       await client.query(
         moduleBody("audit", {
+          rerunnable: true,
           modules: {
             audit: {
               options: {
@@ -4652,6 +4720,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       }
 
       for (const file of renderBlocks(["audit", "permissions"], {
+        rerunnable: true,
         modules: { audit: { options: { restricted: true, readPolicy: true } } },
       })) {
         if (file.kind === "schema" && file.module === "audit") {
@@ -4772,6 +4841,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const hook = "public.audit_retention";
     await pool.query(
       moduleBody("audit", {
+        rerunnable: true,
         modules: {
           audit: {
             options: {
@@ -4862,7 +4932,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(policy.rowCount).toBe(1);
 
       await pool.query(
-        `insert into better_supabase.audit_events (table_name, op, organization_id, occurred_at)
+        `insert into better_supabase.audit_events (table_name, op, tenant_id, occurred_at)
          values ($1, 'insert', $2, now() - interval '40 days'),
                 ($1, 'insert', $3, now() - interval '40 days')`,
         [`${name}_old`, ACME, other],
@@ -4879,12 +4949,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       expect(purged.rows[0]!.n).toBe(1);
 
-      const left = await pool.query<{ organization_id: string }>(
-        "select organization_id from better_supabase.audit_events where table_name = $1",
+      const left = await pool.query<{ tenant_id: string }>(
+        "select tenant_id from better_supabase.audit_events where table_name = $1",
         [`${name}_old`],
       );
 
-      expect(left.rows).toEqual([{ organization_id: other }]);
+      expect(left.rows).toEqual([{ tenant_id: other }]);
 
       await pool.query(`drop function ${hook}(uuid)`);
       await pool.query(
@@ -4910,7 +4980,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await pool.query(`drop function if exists ${hook}(uuid)`);
       await pool.query(`select better_supabase.unaudit('${name}')`);
       await pool.query(`drop table if exists ${name}`);
-      await pool.query(SQL_MODULES["audit"]!.sql);
+      await pool.query(moduleBody("audit", { rerunnable: true })!);
       await pool.query(deleteAudit("table_name like $1"), [`${name}%`]);
       await pool.query(
         "drop policy if exists bsb_audit_read on better_supabase.audit_events",
@@ -4928,7 +4998,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query("begin");
 
       const installed = await client.query<{ pass: string }>(
-        SQL_MODULES["pgtap"]!.sql,
+        moduleBody("pgtap", { rerunnable: true })!,
       );
 
       expect(JSON.stringify(installed)).toContain("ok 1");
@@ -4963,7 +5033,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         `select tests.rls_enabled('public') as result`,
       );
 
-      expect(fixed.rows[0]!.result).toMatch(/^ok/);
+      // Other files commit tables of their own to `public`, so only this
+      // test's table has to be gone from the failures.
+      expect(fixed.rows[0]!.result).not.toContain(`bsb_block_${RUN}`);
 
       await client.query("savepoint as_anon");
       await client.query("select tests.authenticate_as_anon()");
@@ -4989,7 +5061,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("asUser runs PostgREST and SQL as the same user", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const alice = await asUser(
       betterSupabase,
@@ -5012,7 +5084,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("read sets run as one GET and one transaction, under RLS", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const chrome = defineReadSet(
       betterSupabase,
@@ -5044,9 +5116,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       }),
     );
 
-    const [file] = renderBlocks(["read-sets"], {
+    const file = renderBlocks(["read-sets"], {
+      rerunnable: true,
       readSets: [await compileReadSet(chrome)],
-    });
+    }).find((entry) => entry.module === "read-sets");
 
     await pool.query(file!.contents);
     await pool.query(`notify pgrst, 'reload schema'`);
@@ -5114,7 +5187,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("read sets count the caller's own rows through auth.uid", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const mine = defineReadSet(
       betterSupabase,
@@ -5125,9 +5198,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       }),
     );
 
-    const [file] = renderBlocks(["read-sets"], {
+    const file = renderBlocks(["read-sets"], {
+      rerunnable: true,
       readSets: [await compileReadSet(mine)],
-    });
+    }).find((entry) => entry.module === "read-sets");
 
     const alice = "00000000-0000-4000-8000-0000000000a1";
     const bob = "00000000-0000-4000-8000-0000000000a2";
@@ -5174,7 +5248,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("db.$many batches ad-hoc specs in one SQL transaction", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const alice = await asUser(
       betterSupabase,
@@ -5230,7 +5304,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           },
         ],
       ]) {
-        const [module] = renderBlocks(["vector-search"], { vectorSearch });
+        const module = renderBlocks(["vector-search"], {
+          rerunnable: true,
+          vectorSearch,
+        }).find((entry) => entry.module === "vector-search");
+
         await fresh((client) => client.query(module!.contents));
       }
 
@@ -5298,7 +5376,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       flags: {},
     });
 
-    const betterSupabase = defineSupabase(
+    const betterSupabase = createSupabase(
       defineSchema<AnyModels>({
         version: 1,
         casing: "camel",
@@ -5321,9 +5399,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       `(103, '${mine}', 'c', '[0.9,0.1,0]')`,
     ];
 
-    const [module] = renderBlocks(["vector-search"], {
+    const module = renderBlocks(["vector-search"], {
+      rerunnable: true,
       vectorSearch: [{ table: name, column: "embedding", distance: "cosine" }],
-    });
+    }).find((entry) => entry.module === "vector-search");
 
     try {
       await pool.query(`
@@ -5413,7 +5492,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       hasDefault: false,
     });
 
-    const betterSupabase = defineSupabase(
+    const betterSupabase = createSupabase(
       defineSchema<AnyModels>({
         version: 1,
         casing: "camel",
@@ -5438,7 +5517,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       }),
     );
 
-    const [module] = renderBlocks(["vector-search"], {
+    const module = renderBlocks(["vector-search"], {
+      rerunnable: true,
       vectorSearch: [
         {
           table: name,
@@ -5450,7 +5530,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           prefilter: ["collection"],
         },
       ],
-    });
+    }).find((entry) => entry.module === "vector-search");
 
     try {
       await pool.query(`
@@ -5522,7 +5602,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const name = `bsb_pred_${RUN}`;
     const folders = `bsb_pred_folders_${RUN}`;
 
-    const [module] = renderBlocks(["vector-search"], {
+    const module = renderBlocks(["vector-search"], {
+      rerunnable: true,
       vectorSearch: [
         {
           table: name,
@@ -5535,7 +5616,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           order: "t.id desc",
         },
       ],
-    });
+    }).find((entry) => entry.module === "vector-search");
 
     try {
       await pool.query(`
@@ -5811,7 +5892,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect((await call("GET")).status).toBe(200);
 
       await pool.query(
-        `insert into better_supabase.rate_limits (scope, key, window_start, hits)
+        `insert into better_supabase.rate_limits (scope, key, window_started_at, hits)
          values ($1, 'expired', now() - interval '2 minutes', 1)`,
         [scope],
       );

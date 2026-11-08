@@ -74,7 +74,6 @@ export const LEAVE_NAMES: BlockSqlNames = {
     "policy",
     "workingDays",
     "allowNegative",
-    "extraColumns",
     "feed",
     "approvals",
     "owner",

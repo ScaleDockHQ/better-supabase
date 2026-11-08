@@ -76,6 +76,18 @@ export interface ResumeStreamOptions {
   /** The run's named stream (`getWritable({ namespace })`). */
   readonly namespace?: string;
   readonly headers?: HeadersInit;
+  /**
+   * Pipes the chunks through this transform before they reach the client, such
+   * as one that re-frames the workflow's bytes.
+   */
+  readonly transform?: TransformStream<Uint8Array, Uint8Array>;
+  /**
+   * Answers as `text/event-stream` (with `cache-control: no-cache,
+   * no-transform` and `x-accel-buffering: no`) instead of
+   * `application/octet-stream`. The chunks must already be SSE frames, or the
+   * `transform` makes them so.
+   */
+  readonly sse?: boolean;
 }
 
 /**
@@ -102,11 +114,26 @@ export async function resumeStreamResponse(
 
   headers.set(STREAM_TAIL_INDEX_HEADER, String(await stream.getTailIndex()));
 
-  if (!headers.has("content-type")) {
+  if (options.sse) {
+    if (!headers.has("content-type")) {
+      headers.set("content-type", "text/event-stream; charset=utf-8");
+    }
+
+    if (!headers.has("cache-control")) {
+      headers.set("cache-control", "no-cache, no-transform");
+    }
+
+    if (!headers.has("x-accel-buffering")) {
+      headers.set("x-accel-buffering", "no");
+    }
+  } else if (!headers.has("content-type")) {
     headers.set("content-type", "application/octet-stream");
   }
 
-  return new Response(stream, { headers });
+  return new Response(
+    options.transform ? stream.pipeThrough(options.transform) : stream,
+    { headers },
+  );
 }
 
 export type WebhookProvider = "stripe" | "standard-webhooks";

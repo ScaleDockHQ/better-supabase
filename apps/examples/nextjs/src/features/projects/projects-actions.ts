@@ -1,0 +1,466 @@
+"use server";
+
+import type {
+  ImportPreview,
+  ImportRowError,
+} from "better-supabase/blocks/imports";
+import type { ListQueryInput } from "better-supabase/list";
+
+import { dbError, err, ok, DbException } from "better-supabase";
+import {
+  appTableImport,
+  previewImport,
+  runImport,
+} from "better-supabase/blocks/imports";
+import { refresh } from "next/cache";
+import * as v from "valibot";
+
+import { importRunHooks } from "@/features/imports/import-run";
+import { refreshCaller } from "@/lib/refresh-caller";
+import { bsb } from "@/lib/supabase/server";
+
+import type { TaskStatus } from "./project-types";
+
+import { projectPage } from "./project-record";
+import {
+  PROJECT_HISTORY_FIELDS,
+  PROJECT_SUBJECT,
+  TASK_LIST,
+  TASK_SUBJECT,
+  TASK_VIEWS,
+  TaskStatusSchema,
+  TASK_IMPORT_FIELDS,
+} from "./project-types";
+
+const Id = v.pipe(v.string(), v.uuid());
+
+export const snapshotProjectVersions = projectPage.actions.versions.snapshot;
+
+/** An empty form field means no value. */
+const OptionalId = v.pipe(
+  v.optional(v.string(), ""),
+  v.transform((value) => (value === "" ? null : value)),
+  v.nullable(Id),
+);
+
+const OptionalDate = v.pipe(
+  v.optional(v.string(), ""),
+  v.transform((value) => (value === "" ? null : value)),
+  v.nullable(v.pipe(v.string(), v.isoDate())),
+);
+
+/** Creates a project; budget and currency keep their column defaults. */
+export const createProject = bsb.action(
+  {
+    input: v.object({
+      name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
+    }),
+    requireTenant: true,
+  },
+  async ({ name }, { tenant, db, auth }) => {
+    const created = await db.projects.create(
+      { name, organizationId: tenant },
+      { select: ["id"] },
+    );
+
+    if (!created.ok) {
+      return created;
+    }
+
+    await refreshCaller(auth);
+
+    return ok(created.data.id);
+  },
+);
+
+/**
+ * Creates a task from the record form. The table's policies keep the row in the
+ * caller's organization, and the composite foreign key keeps the project in it
+ * too.
+ */
+export const createTask = bsb.action(
+  {
+    input: v.pipe(
+      v.object({
+        title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
+        status: v.optional(TaskStatusSchema, "todo"),
+        projectId: Id,
+        assigneeId: OptionalId,
+        startsOn: OptionalDate,
+        dueOn: OptionalDate,
+      }),
+      v.check(
+        (task) =>
+          task.startsOn === null ||
+          task.dueOn === null ||
+          task.startsOn <= task.dueOn,
+        "The start date is after the due date.",
+      ),
+    ),
+    requireTenant: true,
+  },
+  async (task, { tenant, db, auth }) => {
+    const created = await db.tasks.create(
+      { ...task, organizationId: tenant },
+      { select: ["id"] },
+    );
+
+    if (!created.ok) {
+      return created;
+    }
+
+    await refreshCaller(auth);
+
+    return ok(created.data.id);
+  },
+);
+
+/**
+ * Moves a task between two cards, into a status column. `rank.move` writes the
+ * status and the new key in one statement, as the caller.
+ */
+export const moveTask = bsb.action(
+  {
+    input: v.object({
+      id: Id,
+      status: TaskStatusSchema,
+      previousId: v.nullable(Id),
+      nextId: v.nullable(Id),
+    }),
+    requireTenant: true,
+  },
+  async ({ id, status, previousId, nextId }, { db, auth }) => {
+    const moved = await db.rank.move({
+      subjectType: TASK_SUBJECT,
+      subjectId: id,
+      target: { previous: previousId, next: nextId, group: status },
+    });
+
+    await refreshCaller(auth);
+
+    return moved;
+  },
+);
+
+/** Sets the status of the selected tasks, or deletes them, in one statement. */
+export const runTaskBulkAction = bsb.action(
+  {
+    input: v.variant("kind", [
+      v.object({
+        kind: v.literal("status"),
+        ids: v.pipe(v.array(Id), v.minLength(1), v.maxLength(500)),
+        status: TaskStatusSchema,
+      }),
+      v.object({
+        kind: v.literal("delete"),
+        ids: v.pipe(v.array(Id), v.minLength(1), v.maxLength(500)),
+      }),
+    ]),
+    requireTenant: true,
+  },
+  async (input, { db, auth }) => {
+    const where = { id: { in: input.ids } };
+
+    const changed =
+      input.kind === "status"
+        ? await db.tasks.update({ where }, { status: input.status })
+        : await db.tasks.delete({ where });
+
+    if (!changed.ok) {
+      return changed;
+    }
+
+    await refreshCaller(auth);
+
+    return ok(changed.data);
+  },
+);
+
+/**
+ * Sets one field on the selected tasks. Each row runs as the caller, so the
+ * policies and column grants decide what changes, and a failing row leaves the
+ * others.
+ */
+export const setTaskField = bsb.action(
+  {
+    input: v.object({
+      ids: v.pipe(v.array(Id), v.minLength(1), v.maxLength(500)),
+      values: v.union([
+        v.object({ due_on: v.nullable(v.pipe(v.string(), v.isoDate())) }),
+        v.object({ assignee_id: v.nullable(Id) }),
+      ]),
+    }),
+    requireTenant: true,
+    permission: "bulk_actions.run",
+  },
+  async ({ ids, values }, { db, auth }) => {
+    const patch =
+      "due_on" in values
+        ? { dueOn: values.due_on }
+        : { assigneeId: values.assignee_id };
+
+    const results = await Promise.all(
+      ids.map((id) => db.tasks.update(id, patch)),
+    );
+
+    await refreshCaller(auth);
+
+    return ok(results.filter((result) => result.ok).length);
+  },
+);
+
+type TaskViewQuery = {
+  -readonly [
+    K in keyof ListQueryInput<string, "status" | "project">
+  ]: ListQueryInput<string, "status" | "project">[K];
+};
+
+/** Saves the current screen, search and filters as a named view. */
+export const saveTaskView = bsb.action(
+  {
+    input: v.object({
+      name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
+      view: v.picklist(TASK_VIEWS),
+      q: v.pipe(v.string(), v.trim(), v.maxLength(200)),
+      status: v.nullable(TaskStatusSchema),
+      projectId: v.nullable(Id),
+    }),
+    requireTenant: true,
+    permission: "saved_views.read",
+  },
+  async ({ name, view, q, status, projectId }, { tenant, db, auth }) => {
+    const query: TaskViewQuery = {};
+    const facets: Record<string, string[]> = {};
+
+    if (q !== "") {
+      query.q = q;
+    }
+
+    if (status !== null) {
+      facets["status"] = [status];
+    }
+
+    if (projectId !== null) {
+      facets["project"] = [projectId];
+    }
+
+    if (Object.keys(facets).length > 0) {
+      query.facets = facets;
+    }
+
+    const saved = await db.$blocks.savedViews.upsert({
+      organizationId: tenant,
+      list: TASK_LIST,
+      name,
+      kind: view,
+      state: { query },
+    });
+
+    if (!saved.ok) {
+      return saved;
+    }
+
+    await refreshCaller(auth);
+
+    return ok(saved.data.id);
+  },
+);
+
+export const deleteTaskView = bsb.action(
+  {
+    input: v.object({ id: Id }),
+    requireTenant: true,
+    permission: "saved_views.read",
+  },
+  async ({ id }, { db, auth }) => {
+    const deleted = await db.$blocks.savedViews.delete(id);
+
+    if (!deleted.ok) {
+      return deleted;
+    }
+
+    await refreshCaller(auth);
+
+    return ok(deleted.data);
+  },
+);
+
+/**
+ * Writes the chosen fields of a version back to the project and leaves the rest
+ * as they are (`versions.restoreFields`). The snapshot trigger already kept the
+ * current values, so the restore can be undone from the history.
+ */
+export const restoreProjectFields = bsb.action(
+  {
+    input: v.object({
+      projectId: Id,
+      versionId: Id,
+      fields: v.pipe(
+        v.array(v.picklist(PROJECT_HISTORY_FIELDS)),
+        v.minLength(1),
+      ),
+    }),
+    requireTenant: true,
+    permission: "versions.restore",
+  },
+  async ({ projectId, versionId, fields }, { db, auth }) => {
+    const { versions } = db;
+    const version = await versions.get(versionId);
+
+    if (!version.ok) {
+      return version;
+    }
+
+    if (
+      version.data.subject.type !== PROJECT_SUBJECT ||
+      version.data.subject.id !== projectId
+    ) {
+      return err(
+        dbError("not_found", "This version belongs to another record"),
+      );
+    }
+
+    const restored = await versions.restoreFields({ id: versionId, fields });
+
+    if (!restored.ok) {
+      return restored;
+    }
+
+    await refreshCaller(auth);
+
+    return ok(null);
+  },
+);
+
+// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
+export async function retryProjects() {
+  refresh();
+}
+
+const PREVIEW_ROWS = 20;
+
+/** An empty cell is a left-out value, so the column default applies. */
+const optionalCell = <const T extends v.GenericSchema<string, string>>(
+  schema: T,
+) =>
+  v.pipe(
+    v.optional(v.string(), ""),
+    v.trim(),
+    v.transform((cell) => (cell === "" ? undefined : cell)),
+    v.optional(schema),
+  );
+
+/** A task the import writes; a left-out field keeps its column default. */
+interface TaskInsert {
+  title: string;
+  projectId: string;
+  organizationId: string;
+  status?: TaskStatus;
+  dueOn?: string;
+}
+
+/** A CSV row as a task of the project the import runs in. */
+function taskRow(projectId: string, organizationId: string) {
+  return v.pipe(
+    v.object({
+      title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
+      status: optionalCell(TaskStatusSchema),
+      dueOn: optionalCell(v.pipe(v.string(), v.isoDate())),
+    }),
+    v.transform(({ title, status, dueOn }) => {
+      const task: TaskInsert = { title, projectId, organizationId };
+
+      if (status !== undefined) {
+        task.status = status;
+      }
+
+      if (dueOn !== undefined) {
+        task.dueOn = dueOn;
+      }
+
+      return task;
+    }),
+  );
+}
+
+type TaskImportRow = v.InferOutput<ReturnType<typeof taskRow>>;
+
+const Input = v.object({
+  projectId: v.pipe(v.string(), v.uuid()),
+  csv: v.pipe(v.string(), v.minLength(1), v.maxLength(500_000)),
+  mapping: v.record(v.string(), v.picklist(TASK_IMPORT_FIELDS)),
+});
+
+export interface TaskImportPreview extends ImportPreview {
+  readonly rows: readonly TaskImportRow[];
+  readonly errors: readonly ImportRowError[];
+}
+
+export interface TaskImportOutcome {
+  readonly status: "completed" | "failed";
+  readonly imported: number;
+  readonly errors: readonly ImportRowError[];
+}
+
+/**
+ * Validates the file and counts the tasks it creates, changes and leaves. A
+ * task with the same title in the project is the same task (the `(project_id,
+ * title)` unique set). Nothing is written.
+ */
+export const previewTaskImport = bsb.action(
+  { input: Input, requireTenant: true, permission: "imports.manage" },
+  async ({ projectId, csv, mapping }, { tenant, db }) => {
+    const definition = appTableImport({
+      table: "tasks",
+      columns: taskRow(projectId, tenant),
+      repository: db.tasks,
+      key: ["projectId", "title"],
+    });
+
+    const result = await previewImport(definition, csv, mapping);
+
+    return ok<TaskImportPreview>({
+      ...result.preview,
+      rows: result.rows.slice(0, PREVIEW_ROWS),
+      errors: result.errors,
+    });
+  },
+);
+
+/**
+ * Upserts the file's tasks into the project. An existing task keeps the fields
+ * it already has and gains the ones that were empty (`fill`).
+ */
+export const runTaskImport = bsb.action(
+  { input: Input, requireTenant: true, permission: "imports.manage" },
+  async ({ projectId, csv, mapping }, { tenant, db, auth }) => {
+    const definition = appTableImport({
+      table: "tasks",
+      columns: taskRow(projectId, tenant),
+      repository: db.tasks,
+      key: ["projectId", "title"],
+    });
+
+    const hooks = importRunHooks(db, tenant, "tasks", mapping);
+
+    try {
+      const result = await runImport(definition, csv, mapping, hooks);
+
+      await refreshCaller(auth);
+
+      return ok<TaskImportOutcome>({
+        status: result.status,
+        imported: result.imported,
+        errors: result.errors,
+      });
+    } catch (error) {
+      if (!(error instanceof DbException)) {
+        throw error;
+      }
+
+      await hooks.fail(error.message);
+
+      return err(error.error);
+    }
+  },
+);

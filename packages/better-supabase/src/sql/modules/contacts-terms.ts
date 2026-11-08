@@ -41,7 +41,7 @@ create table if not exists ${t("terms")} (
   unique (${x("tenant")}, ${x("code")})
 );${appUniqueIndex(ctx, "terms", ["tenant", "code"])}
 ${lockModuleTable(ctx, "terms", { read: true })}
-${renderPolicy(makePolicy({ table: t("terms"), name: `${ctx.tableName("terms").name}_read`, command: "select", roles: ["authenticated"], using: ctx.scope.check(x("tenant"), names.read) }), { drop: true, target: t("terms") })}
+${renderPolicy(makePolicy({ table: t("terms"), name: `${ctx.tableName("terms").name}_read`, command: "select", roles: ["authenticated"], using: ctx.scope.check(x("tenant"), names.read) }), { target: t("terms") })}
 `;
 }
 
@@ -72,7 +72,7 @@ create table if not exists ${t("deliveryPreferences")} (
 );${appUniqueIndex(ctx, "deliveryPreferences", ["tenant", "party", "documentType", "channel"])}
 create index if not exists ${ctx.naming.rename("document_delivery_preferences_party_idx")} on ${t("deliveryPreferences")} (${d("party")});
 ${lockModuleTable(ctx, "deliveryPreferences", { read: true })}
-${renderPolicy(makePolicy({ table: t("deliveryPreferences"), name: `${ctx.tableName("deliveryPreferences").name}_read`, command: "select", roles: ["authenticated"], using: ctx.scope.check(d("tenant"), names.read) }), { drop: true, target: t("deliveryPreferences") })}
+${renderPolicy(makePolicy({ table: t("deliveryPreferences"), name: `${ctx.tableName("deliveryPreferences").name}_read`, command: "select", roles: ["authenticated"], using: ctx.scope.check(d("tenant"), names.read) }), { target: t("deliveryPreferences") })}
 `;
 }
 

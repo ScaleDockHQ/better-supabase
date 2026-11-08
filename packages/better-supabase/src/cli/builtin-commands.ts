@@ -40,12 +40,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/backfill.ts").then((m) => m.dbBackfillCommand),
   ],
   [
-    "db prune-workflows",
+    "workflows prune",
     () =>
       import("./commands/prune-workflows.ts").then(
-        (m) => m.dbPruneWorkflowsCommand,
+        (m) => m.workflowsPruneCommand,
       ),
   ],
+  ["dev", () => import("./commands/dev.ts").then((m) => m.devCommand)],
   ["dev env", () => import("./commands/env.ts").then((m) => m.envCommand)],
   ["dev run", () => import("./commands/run.ts").then((m) => m.runCommand)],
   ["dev keys", () => import("./commands/keys.ts").then((m) => m.keysCommand)],
@@ -97,56 +98,49 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/skills.ts").then((m) => m.skillsInstallCommand),
   ],
   [
-    "codemod 0.4",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.4")),
+    "codemod naming",
+    () =>
+      import("./commands/codemod.ts").then((m) => m.codemodCommand("naming")),
   ],
   [
-    "codemod 0.5",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.5")),
+    "codemod extra-columns",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("extra-columns"),
+      ),
   ],
   [
-    "codemod 0.6",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.6")),
+    "codemod owned-columns",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("owned-columns"),
+      ),
   ],
   [
-    "codemod 0.9",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.9")),
+    "codemod config",
+    () =>
+      import("./commands/codemod.ts").then((m) => m.codemodCommand("config")),
   ],
   [
-    "codemod 0.11",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.11")),
+    "codemod table-modules",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("table-modules"),
+      ),
   ],
   [
-    "codemod 0.15",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.15")),
+    "codemod server-imports",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("server-imports"),
+      ),
   ],
   [
-    "codemod 0.29",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.29")),
-  ],
-  [
-    "codemod 0.32",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.32")),
-  ],
-  [
-    "codemod 0.35",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.35")),
-  ],
-  [
-    "codemod 0.37",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.37")),
-  ],
-  [
-    "codemod 0.46",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.46")),
-  ],
-  [
-    "codemod 0.47",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.47")),
-  ],
-  [
-    "codemod 0.53",
-    () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.53")),
+    "codemod generators",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("generators"),
+      ),
   ],
   [
     "codemod read-many",
@@ -158,6 +152,10 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
   [
     "completion",
     () => import("./commands/completion.ts").then((m) => m.completionCommand),
+  ],
+  [
+    "cache purge",
+    () => import("./commands/cache.ts").then((m) => m.cachePurgeCommand),
   ],
   ["config", () => import("./commands/config.ts").then((m) => m.configCommand)],
 ];

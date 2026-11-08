@@ -2,7 +2,7 @@
   "name": "@better-supabase/example-monorepo-runtime",
   "version": "0.0.0",
   "private": true,
-  "description": "The one package that owns defineSupabase, the generated client and the context types.",
+  "description": "The one package that owns createSupabase, the generated client and the context types.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

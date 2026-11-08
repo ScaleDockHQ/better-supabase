@@ -12,7 +12,7 @@ interface Reply {
     readonly tools: { name: string; annotations: { readOnlyHint: boolean } }[];
     readonly isError?: boolean;
     readonly content: unknown[];
-    readonly structuredContent: { error: { token: string } };
+    readonly structuredContent: { data: { digest: string } };
   };
   readonly error?: { readonly code: number };
 }
@@ -129,7 +129,7 @@ describe("better-supabase mcp", () => {
     ]);
   });
 
-  it("asks for consent before a write and runs it with the token", async () => {
+  it("asks for confirmation before a write and runs it with the digest", async () => {
     const run = fakeRun();
 
     const first = await session([call(1, "add", { blocks: ["tags"] })], {
@@ -142,24 +142,24 @@ describe("better-supabase mcp", () => {
     expect(refused.isError).toBe(true);
     expect(refused.structuredContent).toMatchObject({
       status: "action_required",
-      error: { code: "consent_required" },
+      reason: "confirmation_required",
     });
     expect(run).not.toHaveBeenCalled();
 
-    const token = refused.structuredContent.error.token;
+    const token = refused.structuredContent.data.digest;
 
     const wrong = await session(
-      [call(1, "add", { blocks: ["comments"], confirm: token })],
+      [call(1, "add", { blocks: ["comments"], effectsDigest: token })],
       { allowWrites: true, run },
     );
 
     expect(wrong.responses[0]?.result.isError).toBe(true);
     expect(run).not.toHaveBeenCalled();
 
-    await session([call(1, "add", { blocks: ["tags"], confirm: token })], {
-      allowWrites: true,
-      run,
-    });
+    await session(
+      [call(1, "add", { blocks: ["tags"], effectsDigest: token })],
+      { allowWrites: true, run },
+    );
 
     expect(run).toHaveBeenCalledWith(
       ["add", "tags", "--json", "--agent", "no"],
@@ -201,7 +201,7 @@ describe("better-supabase mcp", () => {
     ["add_preset", { preset: "crm" }, ["add", "--preset", "crm"]],
     ["add_preset", { preset: "crm" }, ["add", "--preset", "crm"]],
     ["remove", { blocks: ["tags"] }, ["remove", "tags"]],
-  ])("runs the write tool %s after consent", async (name, args, argv) => {
+  ])("runs the write tool %s after confirmation", async (name, args, argv) => {
     const run = fakeRun();
 
     const first = await session([call(1, name, args)], {
@@ -209,9 +209,9 @@ describe("better-supabase mcp", () => {
       run,
     });
 
-    const token = first.responses[0]!.result.structuredContent.error.token;
+    const token = first.responses[0]!.result.structuredContent.data.digest;
 
-    await session([call(1, name, { ...args, confirm: token })], {
+    await session([call(1, name, { ...args, effectsDigest: token })], {
       allowWrites: true,
       run,
     });

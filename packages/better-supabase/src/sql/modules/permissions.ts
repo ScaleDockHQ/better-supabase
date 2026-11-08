@@ -27,6 +27,7 @@ import {
   permissionClaimHook,
   sqlCompleteOnly,
 } from "./permissions-keys.ts";
+import { permissionMatches } from "./permissions-matches.ts";
 import {
   accessModel,
   roleScopeIs,
@@ -35,7 +36,6 @@ import {
 } from "./permissions-model.ts";
 import { operationsSql } from "./permissions-operations.ts";
 import { hasPlatformRoles } from "./permissions-platform.ts";
-import { catalogKeyRenames } from "./permissions-renames.ts";
 import {
   catalogRoleFunctions,
   rendersRoleFunctions,
@@ -233,26 +233,21 @@ ${
 create index if not exists platform_roles_role_idx on ${ctx.table("platformAssignments")} (${ctx.col("platformAssignments", "role")});`
     : ""
 }
-do $$
-declare
-  t text;
-begin
-  foreach t in array array[${[
-    "roles",
-    "permissions",
-    "rolePermissions",
-    "overrides",
-    "platformAssignments",
-  ]
-    .filter((table) => ctx.hasTable(table))
-    .map((table) => sqlString(ctx.table(table)))
-    .join(", ")}] loop
-    execute format('alter table %s enable row level security', t);
-    execute format('revoke all on %s from public, anon, authenticated', t);
-    execute format('grant all on %s to service_role', t);
-  end loop;
-end;
-$$;${catalogAudit(ctx)}${membershipRoleKey(ctx)}`;
+${[
+  "roles",
+  "permissions",
+  "rolePermissions",
+  "overrides",
+  "platformAssignments",
+]
+  .filter((table) => ctx.hasTable(table))
+  .map((table) => ctx.table(table))
+  .map(
+    (name) => `alter table ${name} enable row level security;
+revoke all on ${name} from public, anon, authenticated;
+grant all on ${name} to service_role;`,
+  )
+  .join("\n")}${catalogAudit(ctx)}${membershipRoleKey(ctx)}`;
 }
 
 /**
@@ -953,16 +948,7 @@ function accessSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 grant usage on schema better_supabase to supabase_auth_admin;
 ${defer ? "set check_function_bodies = off;" : ""}${disabledHelpers(ctx)}${defer ? "\nreset check_function_bodies;" : ""}
 
--- \`*\` grants every key and \`prefix.*\` every key under prefix.
-create or replace function better_supabase.permission_matches(granted text, wanted text)
-returns boolean
-language sql
-immutable
-set search_path = ''
-as $$
-  select granted = '*' or granted = wanted
-    or (right(granted, 2) = '.*' and starts_with(wanted, left(granted, -1)))
-$$;
+${permissionMatches(model === "provider" ? layout.accessProvider?.wildcards : undefined)}
 ${delegationSql(ctx, layout)}
 ${operationsSql(ctx, layout)}
 ${body}
@@ -1106,7 +1092,7 @@ export const ACCESS: BlockSqlDefinition = {
         app: {},
         lifecycle: { tenant: "tenant" },
         columns: {
-          tenant: "organization_id",
+          tenant: "tenant_id",
           role: "role_id",
           permission: "permission_id",
           granted: "granted",
@@ -1142,9 +1128,6 @@ export const ACCESS: BlockSqlDefinition = {
   ],
   unusedPermissions: (ctx) =>
     rendersRoleFunctions(ctx) ? [] : ["listRoles", "setOverride"],
-  data: (ctx) =>
-    [catalogRoles(ctx), catalogKeyRenames(ctx)]
-      .filter((part) => part !== "")
-      .join("\n\n"),
+  data: catalogRoles,
   build: accessSql,
 };

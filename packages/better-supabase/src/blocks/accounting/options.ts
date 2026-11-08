@@ -1,11 +1,10 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
 /** `blocks.accounting.options`. */
 export type AccountingSqlOptions = {
   /** Extra columns on `accounting_entries`, written through `fields`. */
-  readonly extraColumns?: ExtraColumns;
   /**
    * The chart `setup_accounting` creates for a new organization: `generic`
    * (default), a small chart with every account role mapped, or `none` for a
@@ -40,7 +39,6 @@ export type AccountingSqlOptions = {
 
 export const accountingSqlOptions: BlockOptionsSchema<AccountingSqlOptions> =
   blockOptions<AccountingSqlOptions>({
-    extraColumns: option.extraColumns(),
     chart: option.string<"generic" | "none">({ default: "generic" }),
     functionalCurrency: option.string({ default: "EUR" }),
     fiscalYearStartMonth: option.number({ default: 1 }),

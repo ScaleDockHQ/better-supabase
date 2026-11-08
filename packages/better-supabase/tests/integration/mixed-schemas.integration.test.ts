@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { DoctorArgs } from "../../src/cli/commands/doctor.ts";
+import type { DoctorValues } from "../../src/cli/commands/doctor.ts";
 import type { CommandResult } from "../../src/cli/core/io.ts";
 
 import {
@@ -34,6 +34,7 @@ const APP_FILES = [
 ];
 
 const BLOCK_FILES = [
+  "900_better_supabase_000_prelude.sql",
   "900_better_supabase_001_updated_at.sql",
   "900_better_supabase_004_memberships.sql",
   "900_better_supabase_019_permissions.sql",
@@ -59,7 +60,12 @@ $$;
 create or replace function auth.role() returns text language sql stable as $$
   select auth.jwt() ->> 'role'
 $$;
-grant usage on schema auth, extensions to anon, authenticated, service_role;
+create schema if not exists realtime;
+create schema if not exists storage;
+create table if not exists realtime.messages (id uuid primary key default gen_random_uuid(), extension text);
+create table if not exists storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text);
+create or replace function realtime.topic() returns text language sql stable as $$ select '' $$;
+grant usage on schema auth, extensions, realtime, storage to anon, authenticated, service_role;
 `;
 
 const ORG_A = "0a000000-0000-4000-8000-00000000000a";
@@ -99,7 +105,11 @@ describe("blocks over an app's own declarative schema, on the local stack", () =
   const config = () => resolveConfig(MIXED_SCHEMAS_CONFIG, root);
 
   const apply = async (file: string): Promise<void> => {
-    await db.query(await readFile(join(root, SCHEMAS, file), "utf-8"));
+    try {
+      await db.query(await readFile(join(root, SCHEMAS, file), "utf-8"));
+    } catch (error) {
+      throw new Error(`${file}: ${String(error)}`, { cause: error });
+    }
   };
 
   /**
@@ -127,7 +137,7 @@ describe("blocks over an app's own declarative schema, on the local stack", () =
   const doctor = (argv: string[]): Promise<CommandResult> =>
     runDoctor(
       config(),
-      parseCommandArgs(doctorCommand, argv) as DoctorArgs,
+      parseCommandArgs(doctorCommand, argv) as DoctorValues,
       {},
       { dbUrl: url },
     );
@@ -234,7 +244,7 @@ describe("blocks over an app's own declarative schema, on the local stack", () =
     expect(await readFile(join(root, INVOICES), "utf-8")).toBe(original);
   });
 
-  it("backfills the owner, then doctor --fix validates the check", async () => {
+  it("backfills the owner, then doctor --yes validates the check", async () => {
     expect(codes(await doctor(["--only", "BS236,BS238"]))).toEqual(["BS238"]);
 
     await expect(
@@ -258,7 +268,7 @@ describe("blocks over an app's own declarative schema, on the local stack", () =
     expect(filled.data).toMatchObject({ filled: 1, remaining: 0 });
 
     expect(codes(await doctor(["--only", "BS236,BS238"]))).toEqual(["BS236"]);
-    expect((await doctor(["--only", "BS236", "--fix"])).code).toBe(0);
+    expect((await doctor(["--only", "BS236", "--yes"])).code).toBe(0);
 
     const { rows } = await db.query<{ convalidated: boolean }>(
       "select convalidated from pg_constraint where conname = 'notes_organization_id_not_null'",

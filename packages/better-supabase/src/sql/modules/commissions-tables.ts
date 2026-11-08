@@ -53,7 +53,7 @@ export function commissionTables(k: CommissionSql): string {
             ? ctx.scope.check(tenant, k.read)
             : `${ctx.scope.check(tenant, k.read)} or ${own} = (select auth.uid())`,
       }),
-      { drop: true, target: ctx.table(table) },
+      { target: ctx.table(table) },
     );
 
   return `-- Commission plans (flat rate or marginal tiers), their assignments to sellers,

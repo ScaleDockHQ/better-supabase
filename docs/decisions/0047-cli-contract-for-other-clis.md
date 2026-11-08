@@ -1,6 +1,6 @@
 # 0047: Publish the CLI contract other CLIs follow
 
-- Status: accepted; extends 0045
+- Status: accepted; extends 0045; exit codes, consent and the envelope superseded by 0290
 - Date: 2026-10-19
 
 ## Context

@@ -53,7 +53,7 @@ describe("import paths", () => {
       contents: expect.stringContaining("from './generated';"),
     });
     expect(lib!.contents).toContain(
-      "export const betterSupabase = defineSupabase(schema);",
+      "export const betterSupabase = createSupabase(schema);",
     );
 
     const [, kept] = baseFiles(
@@ -76,7 +76,7 @@ describe("import paths", () => {
   it("keeps .ts in Edge Functions and pins the version in deno.json", () => {
     const files = TEMPLATES.edge.files(context({ srcDir: "." }));
     expect(contents(files, "supabase/functions/_shared/supabase.ts")).toContain(
-      "from '../../../src/generated/supabase.ts';",
+      "from '../../../src/generated/supabase-schema.ts';",
     );
     expect(
       JSON.parse(contents(files, "supabase/functions/api/deno.json")),
@@ -141,7 +141,7 @@ describe("import paths", () => {
       expect({
         path: file.path,
         legacy:
-          /\b(sb|next|browser|mcp)\s*=\s*(defineSupabase|create\w+)\(/.test(
+          /\b(sb|next|browser|mcp)\s*=\s*(createSupabase|create\w+)\(/.test(
             file.contents,
           ),
       }).toEqual({ path: file.path, legacy: false });

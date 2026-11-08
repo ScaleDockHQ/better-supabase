@@ -23,7 +23,9 @@ export default function TimePage({
         )}
       />
       <Suspense fallback={<TimesheetSkeleton />}>
-        <Timesheet searchParams={searchParams} />
+        {searchParams.then((query) => (
+          <Timesheet query={query} />
+        ))}
       </Suspense>
     </>
   );

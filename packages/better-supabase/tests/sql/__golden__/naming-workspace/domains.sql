@@ -1,81 +1,31 @@
 -- ==== schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:2d7e222a6c1c0ac279ff9f36bf95b2d72800b211044f16f878199efa71f17ed2
+-- @bsb-hash sha256:b19c56607be2e5c886d89087c0dc16adbe728d58110e963f4a4ce4b61e22cf30
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."hostnames";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."hostnames";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."hostnames";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."hostnames";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."hostnames";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Hostnames an organization serves its app on: its own domains, verified by a
 -- DNS TXT record _better-supabase.<hostname>, and subdomains of
 -- blocks.domains.options.platformDomain (unset), verified when added. One organization holds
 -- each verified hostname, and each organization has at most one primary.
-create table if not exists "better_supabase"."hostnames" (
+create table "better_supabase"."hostnames" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
-  "hostname" text not null check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
-  "kind" text not null default 'custom' check ("kind" in ('custom', 'subdomain')),
+  "hostname" text not null constraint bsb_hostnames_hostname_check check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
+  "kind" text not null default 'custom' constraint bsb_hostnames_kind_check check ("kind" in ('custom', 'subdomain')),
   "verification_token" text not null default replace(gen_random_uuid()::text, '-', ''),
   "verified_at" timestamptz,
   "is_primary" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("workspace_id", "hostname"),
-  check (not "is_primary" or "verified_at" is not null)
+  constraint bsb_hostnames_check check (not "is_primary" or "verified_at" is not null)
 );
-create unique index if not exists "hostnames_verified_idx" on "better_supabase"."hostnames" ("hostname") where "verified_at" is not null;
-create unique index if not exists "hostnames_primary_idx" on "better_supabase"."hostnames" ("workspace_id") where "is_primary";
-create index if not exists "hostnames_created_by_idx" on "better_supabase"."hostnames" ("created_by") where "created_by" is not null;
+create unique index "hostnames_verified_idx" on "better_supabase"."hostnames" ("hostname") where "verified_at" is not null;
+create unique index "hostnames_primary_idx" on "better_supabase"."hostnames" ("workspace_id") where "is_primary";
+create index "hostnames_created_by_idx" on "better_supabase"."hostnames" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."hostnames" enable row level security;
 revoke all on "better_supabase"."hostnames" from public, anon, authenticated;
 grant all on "better_supabase"."hostnames" to service_role;
@@ -285,19 +235,6 @@ grant execute on function "better_supabase"."verify_hostname"(uuid, uuid) to ser
 grant execute on function "better_supabase"."set_primary_hostname"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."remove_hostname"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."resolve_hostname"(text) to anon, authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_107_domains.sql
 -- better-supabase module: domains

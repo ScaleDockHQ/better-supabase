@@ -9,7 +9,7 @@ import {
   createFlagClient,
   flagContext,
 } from "../../../src/blocks/flags/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { withBetterSupabase } from "../../../src/server/composite.ts";
 import { createServer } from "../../../src/server/server.ts";
 import { createTestSigner } from "../../../src/testing/jwt.ts";
@@ -19,7 +19,7 @@ const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
-const server = createServer(defineSupabase(schema), {
+const server = createServer(createSupabase(schema), {
   env: {
     url: PROJECT_URL,
     publishableKey: "sb_publishable_test",

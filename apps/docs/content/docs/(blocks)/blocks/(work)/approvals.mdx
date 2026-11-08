@@ -47,7 +47,7 @@ const rows = useApprovals({ limit: 50 });
 
 ## Configure policies
 
-`options.policies` maps a subject type, then an action, to its steps. The subject type comes from [`config.subjects`](/docs/blocks/sql#subject-registry), which decides who can read the subject.
+`options.policies` maps a subject type, then an action, to its steps. The subject type comes from [`config.recordTypes`](/docs/blocks/sql#subject-registry), which decides who can read the subject.
 
 ```ts title="better-supabase.config.ts"
 blocks: {
@@ -103,7 +103,7 @@ Policies are fixed per subject type and action. To pick one by the record's valu
 
 A policy's `mode` says what an approval proves. `authorize`, the default, means someone other than the requester decided every step (unless `selfApproval` is on). `confirm` means the requester looked again: they may approve their own request, and their approval finishes it at once, whatever steps remain. Other approvers still decide the steps as usual. Use `confirm` for a deliberate second click before a risky action, and `authorize` when another person has to agree.
 
-`steps[].approvers.manager: true` lets the requester's manager decide the step, or the manager of the employee a request's policy names in `managerOf` (the [leave](/docs/blocks/leave), [time tracking](/docs/blocks/time-tracking) and [expenses](/docs/blocks/expenses) integrations set it to the request's employee). The manager comes from the [employees](/docs/blocks/employees) block: the requester's employee record names a manager, whose user decides while they are an active member of the organization and not offboarded. The offboarded check reads the employees block's `values.employees.status` mapping, so a manager whose row holds the app's mapped value (for example `ended`) decides nothing. A policy that names a manager needs the employees block in managed mode.
+`steps[].approvers.manager: true` lets the requester's manager decide the step, or the manager of the employee a request's policy names in `managerOf` (the [leave](/docs/blocks/leave), [time tracking](/docs/blocks/time-entries) and [expenses](/docs/blocks/expenses) integrations set it to the request's employee). The manager comes from the [employees](/docs/blocks/employees) block: the requester's employee record names a manager, whose user decides while they are an active member of the organization and not offboarded. The offboarded check reads the employees block's `values.employees.status` mapping, so a manager whose row holds the app's mapped value (for example `ended`) decides nothing. A policy that names a manager needs the employees block in managed mode.
 
 ## Tenant policies
 
@@ -288,7 +288,7 @@ With `run: { transition }`, the final approval calls `transition()` for the subj
 },
 ```
 
-With `run: { queue }`, the final approval enqueues a job with `requestId`, `organizationId`, `subjectType`, `subjectId`, `action` and the request's `payload`. Without `run`, check `isApproved(subject, action)` or handle `approval.approved`. [Access requests](/docs/blocks/access-requests) file their requests here with their own policy, and the final approval grants the role. [Time tracking](/docs/blocks/time-tracking) files submitted timesheets the same way, and the final approval locks the week.
+With `run: { queue }`, the final approval enqueues a job with `requestId`, `organizationId`, `subjectType`, `subjectId`, `action` and the request's `payload`. Without `run`, check `isApproved(subject, action)` or handle `approval.approved`. [Access requests](/docs/blocks/access-requests) file their requests here with their own policy, and the final approval grants the role. [Time tracking](/docs/blocks/time-entries) files submitted timesheets the same way, and the final approval locks the week.
 
 ## Tool calls and support sessions
 
@@ -421,7 +421,7 @@ approvals: {
 
 ## Your own fields
 
-`blocks.approvals.options.extraColumns` adds columns to the `approval_requests` table,
+Columns you add to `approval_requests` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createApprovals` a Standard Schema
 for them as `fields`: `request` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and every request read return them
@@ -435,7 +435,7 @@ const client = createApprovals({
 });
 ```
 
-`blocks.approvals.options.policyExtraColumns` adds columns to `approval_policies` the same way, such as a description. It needs `tenantPolicies`. `savePolicy` writes them from `fields`, where a key left out keeps its value, and `listPolicies` and `savePolicy` return them under `fields`.
+Columns you add to `approval_policies` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)): the same way, such as a description. It needs `tenantPolicies`. `savePolicy` writes them from `fields`, where a key left out keeps its value, and `listPolicies` and `savePolicy` return them under `fields`.
 
 ```ts
 await approvals

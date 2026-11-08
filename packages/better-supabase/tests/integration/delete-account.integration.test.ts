@@ -4,12 +4,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { MutationNotice } from "../../src/core/events.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { createServer } from "../../src/server/server.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
-import { stackDbUrl, stackUrl } from "./stack-env.ts";
+import { stackDbUrl, stackUrl, storageReachable } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
@@ -25,17 +25,7 @@ const secretKey =
 const RUN = String(Date.now());
 const ORG = "00000000-0000-4000-8000-000000000001";
 
-async function reachable(): Promise<boolean> {
-  try {
-    const response = await fetch(`${url}/storage/v1/status`, {
-      signal: AbortSignal.timeout(1000),
-    });
-
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
+const reachable = (): Promise<boolean> => storageReachable(url);
 
 const documents = defineBucket({
   id: "bsb-it-documents",
@@ -61,7 +51,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
 
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   const table = `bsb_del_${RUN}`;
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const server = createServer(betterSupabase, {
     env: {

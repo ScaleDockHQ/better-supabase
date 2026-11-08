@@ -24,10 +24,10 @@ export const CONFIG_GROUPS: Readonly<Record<string, readonly string[]>> = {
   ],
   auth: ["claims", "authorization", "entitlements"],
   gen: [
-    "output",
+    "file",
     "casing",
     "postgrestVersion",
-    "recordTypes",
+    "records",
     "hooks",
     "tables",
     "json",
@@ -37,14 +37,15 @@ export const CONFIG_GROUPS: Readonly<Record<string, readonly string[]>> = {
     "storagePaths",
     "functions",
     "generators",
+    "frameworks",
     "readSets",
   ],
-  api: ["openapi", "specs"],
+  api: ["specs"],
   tooling: ["doctor", "env", "keys", "skills"],
 };
 
 /** Top-level keys renamed by the regrouping: the grouped name, then the flat. */
-export const RENAMED_CONFIG_KEYS: Pairs = [["adapters", "integrations"]];
+export const RENAMED_CONFIG_KEYS: Pairs = [];
 
 /** Keys renamed inside `blocks.<name>`: the grouped name, then the flat. */
 export const RENAMED_BLOCK_KEYS: Pairs = [
@@ -112,7 +113,7 @@ function tenantOf(tenant: unknown, out: Entries): Entries {
   }
 
   if (Object.keys(rest).length > 0) {
-    patch["organization"] = rest;
+    patch["tenant"] = rest;
   }
 
   return patch;
@@ -121,8 +122,8 @@ function tenantOf(tenant: unknown, out: Entries): Entries {
 /**
  * The grouped config in the flat shape `resolveConfig` reads: every group's
  * keys at the top level, `adapters` under its flat name, `auth.tenant` as
- * `claims.tenant` and `organization`, and the renamed block and app table keys
- * under their flat names.
+ * `claims.tenant` and `tenant`, and the renamed block and app table keys under
+ * their flat names.
  */
 export function flattenConfig(config: BetterSupabaseConfig): FlatConfig {
   const source: Entries = { ...config };
@@ -185,8 +186,8 @@ const GROUP_OF = new Map<string, string>(
 const ENVIRONMENT_KEY = /^\$(?:development|production|test|ci)$/;
 
 /**
- * Moves `claims.tenant`, the flat `organization` and the 0.14 tenant plugin's
- * column to `auth.tenant`.
+ * Moves `claims.tenant`, the flat `tenant` and the 0.14 tenant plugin's column
+ * to `auth.tenant`.
  */
 function withTenant(out: Entries, groups: Record<string, Entries>): void {
   const auth = groups["auth"];
@@ -203,10 +204,10 @@ function withTenant(out: Entries, groups: Record<string, Entries>): void {
     }
   }
 
-  const flat = out["organization"];
+  const flat = out["tenant"];
 
   if (isObject(flat)) {
-    delete out["organization"];
+    delete out["tenant"];
 
     const next = { ...groups["auth"] };
     next["tenant"] = { ...objectOr(next["tenant"]), ...flat };

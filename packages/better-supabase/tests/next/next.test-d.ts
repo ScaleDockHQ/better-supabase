@@ -12,7 +12,7 @@ import type { Database } from "../fixtures/generated-camel.ts";
 
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { createClient } from "../../src/client/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { createNext } from "../../src/next/index.ts";
@@ -21,7 +21,7 @@ import { createServer } from "../../src/server/server.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const bsb = createNext(defineSupabase(schema));
+const bsb = createNext(createSupabase(schema));
 
 describe("next.session", () => {
   it("returns the serializable session union", () => {
@@ -53,7 +53,7 @@ const Claims = v.object({
 type Claims = v.InferOutput<typeof Claims>;
 
 describe("betterSupabase.claims(schema)", () => {
-  const betterSupabase = defineSupabase(schema)
+  const betterSupabase = createSupabase(schema)
     .claims(Claims)
     .use(membershipsExtension());
 
@@ -123,7 +123,7 @@ const Profile = v.object({ display_name: v.string() });
 type Profile = v.InferOutput<typeof Profile>;
 
 describe("betterSupabase.userMetadata(schema)", () => {
-  const betterSupabase = defineSupabase(schema)
+  const betterSupabase = createSupabase(schema)
     .claims(Claims)
     .userMetadata(Profile)
     .use(membershipsExtension());
@@ -144,7 +144,7 @@ describe("betterSupabase.userMetadata(schema)", () => {
   });
 
   it("keeps the profile through claims() and use() in either order", () => {
-    const later = defineSupabase(schema)
+    const later = createSupabase(schema)
       .userMetadata(Profile)
       .use(membershipsExtension())
       .claims(Claims);
@@ -284,7 +284,7 @@ describe("ActionInputOf", () => {
 
 describe("betterSupabase.buckets() in Next.js", () => {
   const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
-  const withBuckets = createNext(defineSupabase(schema).buckets({ logos }));
+  const withBuckets = createNext(createSupabase(schema).buckets({ logos }));
 
   type Logos = BucketClient<"{userId}/logo.webp", "logos">;
 

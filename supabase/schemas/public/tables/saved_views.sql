@@ -1,5 +1,5 @@
 -- Owned by you since `better-supabase migrate schema-first`.
-create table if not exists "public"."saved_views" (
+create table "public"."saved_views" (
   id uuid primary key default gen_random_uuid(),
   "user_id" uuid default auth.uid() references auth.users (id) on delete cascade,
   created_at timestamptz not null default now(),
@@ -34,7 +34,7 @@ drop policy if exists "saved_views_delete" on "public"."saved_views";
 
 create policy "saved_views_delete" on "public"."saved_views" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
-create index if not exists "saved_views_user_id_idx" on "public"."saved_views" ("user_id");
+create index "saved_views_user_id_idx" on "public"."saved_views" ("user_id");
 
 drop trigger if exists "bsb_updated_at" on "public"."saved_views";
 

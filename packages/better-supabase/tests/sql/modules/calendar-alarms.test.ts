@@ -15,7 +15,7 @@ describe("calendar alarms", () => {
     const sql = sqlOf();
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."calendar_event_alarms"',
+      'create table "better_supabase"."calendar_event_alarms"',
     );
     expect(sql).toContain("if v_item ? 'alarms' then");
     expect(sql).toContain(`'alarms', coalesce((select jsonb_agg(`);

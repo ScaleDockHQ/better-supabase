@@ -5,7 +5,7 @@ import { Pool } from "pg";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
-import { renderBlocks } from "../../src/sql/render.ts";
+import { renderBlocks } from "../sql/app-columns.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
 export const dbUrl: string = stackDbUrl();
@@ -87,6 +87,9 @@ export class BlockSession {
         if to_regclass('better_supabase.team_members') is not null then
           delete from better_supabase.team_members;
         end if;
+        if to_regclass('better_supabase.invitations') is not null then
+          delete from better_supabase.invitations;
+        end if;
         if to_regclass('better_supabase.work_items') is not null then
           drop trigger if exists bsb_pipeline_work_item on better_supabase.work_items;
           drop trigger if exists bsb_pipeline_status_work_item on better_supabase.work_items;
@@ -154,9 +157,42 @@ export class BlockSession {
 
     await flushDeferred(this.client);
 
-    for (const file of renderBlocks(names, layout)) {
+    // The fixture keys field values per legal entity; a render without legal
+    // entities upserts on the four-column key it creates on a new table.
+    await this.client.query(`do $$
+      begin
+        if to_regclass('better_supabase.bsb_field_values_entity_key_idx') is not null then
+          drop index better_supabase.bsb_field_values_entity_key_idx;
+          create unique index bsb_field_values_entity_key_idx on better_supabase.field_values (tenant_id, subject_type, subject_id, definition_id);
+        end if;
+      end
+    $$`);
+
+    // The stack already holds the declarative schemas, so the render reruns.
+    // The fixture keeps the audit read policy, which depends on the functions
+    // a render without it would drop.
+    const rerun: BlockSqlLayout = {
+      ...layout,
+      rerunnable: true,
+      modules: {
+        ...layout.modules,
+        audit: {
+          ...layout.modules?.["audit"],
+          options: { readPolicy: true, ...layout.modules?.["audit"]?.options },
+        },
+      },
+    };
+
+    for (const file of renderBlocks(names, rerun)) {
       if (file.kind !== "test") {
-        await this.client.query(file.contents);
+        // The stack keeps tables between installs, so a column an app file adds
+        // may exist already.
+        await this.client.query(
+          file.contents.replaceAll(
+            /^(alter table \S+ add column )"/gm,
+            '$1if not exists "',
+          ),
+        );
       }
     }
   }

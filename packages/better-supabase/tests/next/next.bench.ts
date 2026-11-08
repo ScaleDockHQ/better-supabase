@@ -3,7 +3,7 @@
  * `pnpm --filter better-supabase bench`.
  */
 import { clearKeyCaches } from "../../src/auth/resolve.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -18,7 +18,7 @@ const token = await signer.sign({
   sub: "11111111-1111-4111-8111-111111111111",
 });
 
-const server = createServer(defineSupabase(schema), {
+const server = createServer(createSupabase(schema), {
   env: {
     url: PROJECT_URL,
     publishableKey: "sb_publishable_test",

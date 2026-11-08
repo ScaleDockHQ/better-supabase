@@ -7,12 +7,12 @@ import type { AsyncResult } from "../../src/core/result.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
 
-const db = defineSupabase(schema)
+const db = createSupabase(schema)
   .use(updatedAtExtension())
   .use(trashExtension())
   .use(membershipsExtension())

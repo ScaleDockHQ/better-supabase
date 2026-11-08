@@ -4,7 +4,7 @@ import type { ConsentRequest } from "../../../src/cli/core/agent.ts";
 import type { PgQueryable } from "../../../src/cli/db.ts";
 
 import {
-  dbPruneWorkflowsCommand,
+  workflowsPruneCommand,
   parseAge,
   runPruneWorkflows,
 } from "../../../src/cli/commands/prune-workflows.ts";
@@ -57,8 +57,7 @@ function fakeDb(
   };
 }
 
-const args = (argv: string[]) =>
-  parseCommandArgs(dbPruneWorkflowsCommand, argv);
+const args = (argv: string[]) => parseCommandArgs(workflowsPruneCommand, argv);
 
 const config = resolveConfig({}, "/tmp/prune");
 

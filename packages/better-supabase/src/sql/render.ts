@@ -1,27 +1,10 @@
-import type { BlockMode } from "../config/blocks.ts";
-import type {
-  BlockSqlContext,
-  BlockSqlContractFunction,
-  BlockSqlIdType,
-} from "./context.ts";
-import type { EntityTable } from "./entity-clashes.ts";
+import type { BlockSqlContractFunction, BlockSqlIdType } from "./context.ts";
 import type { BlockSqlFile, BlockSqlLayout, BlockSql } from "./module-types.ts";
 
-import { tenantNameOf } from "../config/blocks.ts";
 import { CONFIG_DEFAULTS } from "../config/defaults.ts";
 import { instancePrefix } from "../config/instances.ts";
-import { sqlString } from "../core/template.ts";
-import { applyActorWriteGuards } from "./actor-guard.ts";
 import { apiWrappers } from "./api-schema.ts";
-import { canBeAppTable } from "./app-owned.ts";
-import { blockNamesOnAppTables } from "./app-table-names.ts";
 import { clientFunctions } from "./client-functions.ts";
-import { withColumnTypeFunction } from "./column-type.ts";
-import {
-  entityTableClash,
-  sharedTableClash,
-  tenantNameClashes,
-} from "./entity-clashes.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
 import {
   instanceRenames,
@@ -30,106 +13,46 @@ import {
   rendersOwnInstance,
 } from "./instance-names.ts";
 import { moduleExtensions } from "./introspect.ts";
-import { entitiesMarker, withBlockHash } from "./markers.ts";
+import { withBlockHash } from "./markers.ts";
 import { moduleContext, viewColumnsOf } from "./module-context.ts";
 import { blockSqlVersion } from "./module-types.ts";
 import { appTablesFiles } from "./modules/app-tables.ts";
 import { ownerSearchTriggers } from "./modules/search.ts";
-import {
-  overAppTables,
-  overAppViews,
-  withoutAppTableEdits,
-  withoutCoveredIndexes,
-  withoutUnmappedColumns,
-  withoutUnmappedTables,
-} from "./over-app-tables.ts";
+import { overAppTables } from "./over-app-tables.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
 import {
-  withoutAppTablePolicies,
-  withoutCoveredPolicies,
-} from "./policy-cover.ts";
+  dataFileHeader,
+  moduleHeader,
+  moduleRow,
+  testFileHeader,
+} from "./pipeline/assemble.ts";
+import {
+  checkEntityTables,
+  checkFunctionRenames,
+  checkTenantName,
+} from "./pipeline/checks.ts";
+import { renderModuleCached } from "./pipeline/module-cache.ts";
+import { preludeFile } from "./pipeline/prelude.ts";
+import {
+  guardBelowHeader,
+  moduleSql,
+  overApp,
+  renameQualifiers,
+} from "./pipeline/prepare.ts";
+import { appTableSet, ownTablesCreatedBy } from "./pipeline/resolve.ts";
+import { rerunnableDdl, staticDdl } from "./pipeline/static.ts";
+import { withUnscopedFile } from "./pipeline/unscoped.ts";
+import { withoutCoveredPolicies } from "./policy-cover.ts";
+import { bsbNames } from "./policy-names.ts";
 import {
   checkMigrationOptions,
   checkModules,
   resolveBlocks,
-  SQL_MODULES,
 } from "./registry.ts";
 import { rowAuditData } from "./row-audit.ts";
 import { rowRealtimeData } from "./row-realtime.ts";
-import { renderSeedDefaults, seedFunctionName } from "./seeds.ts";
-import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
-import { tableBase } from "./table-renames.ts";
-import { applyTenantScope } from "./tenant-scope.ts";
 import { deprecationWrappers } from "./upgrade.ts";
 import { assertViewColumns } from "./view-columns.ts";
-
-/**
- * `sql` with the parameter qualifiers of renamed functions renamed too:
- * PL/pgSQL and SQL functions name a parameter `fn.param`, so
- * `create_organization.name` follows `create_organization` to
- * `create_workspace.name`.
- */
-function renameQualifiers(sql: string, ctx: BlockSqlContext): string {
-  let out = sql;
-
-  for (const [from, to] of ctx.functionRenames()) {
-    out = out.replaceAll(
-      new RegExp(`(?<![\\w."$])${from}\\.(?=[a-z_])`, "g"),
-      `${to}.`,
-    );
-  }
-
-  return out;
-}
-
-/**
- * Guards a file's SQL under its header: the marker the CLI recognizes a managed
- * file by stays on the first lines, and the helper functions follow it.
- */
-function guardBelowHeader(contents: string, layout: BlockSqlLayout): string {
-  const split = contents.indexOf("\n\n");
-
-  if (split === -1) {
-    return applyActorWriteGuards(contents, layout);
-  }
-
-  return `${contents.slice(0, split)}\n${applyActorWriteGuards(contents.slice(split + 1), layout)}`;
-}
-
-function moduleSql(
-  module: BlockSql,
-  ctx: BlockSqlContext,
-  layout: BlockSqlLayout,
-) {
-  return withSubjectMergeFunction(
-    withColumnTypeFunction(
-      applyActorWriteGuards(
-        applyTenantScope(
-          `${module.build(ctx, layout)}${seedDefaultsSql(module, ctx)}`,
-          ctx,
-        ),
-        layout,
-      ),
-    ),
-  );
-}
-
-/** The module's declared tenant defaults as `seed_<module>_defaults`, if any. */
-export function seedDefaultsSql(
-  module: BlockSql,
-  ctx: BlockSqlContext,
-): string {
-  const tables = module.seeds?.defaults?.(ctx);
-
-  return tables === undefined || tables.length === 0
-    ? ""
-    : renderSeedDefaults(
-        module.name,
-        ctx.fn(seedFunctionName(module.name)),
-        ctx.idType,
-        tables,
-      );
-}
 
 /** A module's SQL for `layout`, without header; `undefined` in custom mode. */
 export function moduleBody(
@@ -148,110 +71,20 @@ export function moduleBody(
     modules.map((entry) => entry.name),
   );
 
-  return ctx.mode === "custom"
-    ? undefined
-    : withoutCoveredPolicies(
-        overApp(
-          renameQualifiers(moduleSql(module, ctx, layout), ctx),
-          ctx,
-          layout,
-        ),
-        layout.ownPolicies,
-      );
-}
+  if (ctx.mode === "custom") {
+    return undefined;
+  }
 
-/**
- * `sql` over the app's tables: their `create table` becomes the missing
- * columns, and what would change their data rules or access is left out.
- */
-function overApp(
-  sql: string,
-  ctx: BlockSqlContext,
-  layout: BlockSqlLayout,
-): string {
-  const appTables = appTableSet(ctx);
-  const appViews = appTableSet(ctx, ctx.appViews);
-
-  return withoutAppTablePolicies(
-    withoutCoveredIndexes(
-      withoutUnmappedColumns(
-        withoutUnmappedTables(
-          blockNamesOnAppTables(
-            withoutAppTableEdits(
-              overAppTables(
-                overAppViews(sql, appViews),
-                appTables,
-                layout.ownColumns,
-              ),
-              appTables,
-            ),
-            appTables,
-            layout.ownUpdatedAtTriggers,
-          ),
-          ctx.instance,
-        ),
-        ctx.instance,
-      ),
-      appTables,
-      layout.ownIndexes,
-    ),
-    ctx.config.ownTablePolicies === "app" ? appTables : new Set(),
+  const body = withoutCoveredPolicies(
+    overApp(renameQualifiers(moduleSql(module, ctx, layout), ctx), ctx, layout),
+    layout.ownPolicies,
   );
-}
 
-/** The app's tables a module runs over, as `schema.table`. */
-function appTableSet(
-  ctx: BlockSqlContext,
-  tables: readonly string[] = ctx.appOwned,
-): Set<string> {
-  return new Set(
-    ctx.manages
-      ? tables.map((table) => {
-          const parts = ctx.tableName(table);
-
-          return `${parts.schema}.${parts.name}`;
-        })
-      : [],
+  return bsbNames(
+    layout.rerunnable === true
+      ? rerunnableDdl(body)
+      : staticDdl(body, appTableSet(ctx)),
   );
-}
-
-/** The table `moduleRow` writes to, created by every schema module's file. */
-const BLOCKS_TABLE = `
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-`;
-
-/**
- * Records the module in `better_supabase.blocks`, which `upgrade` and doctor
- * read. An instance that installs it under another name records its block too.
- */
-function moduleRow(
-  module: BlockSql,
-  mode: BlockMode,
-  instance: string,
-): string {
-  const version = String(blockSqlVersion(module));
-
-  return instance === module.name
-    ? `insert into better_supabase.blocks (name, version, mode)
-values (${sqlString(module.name)}, ${version}, ${sqlString(mode)})
-on conflict (name) do update
-  set version = excluded.version, mode = excluded.mode, updated_at = now();`
-    : `alter table better_supabase.blocks add column if not exists block text;
-insert into better_supabase.blocks (name, block, version, mode)
-values (${sqlString(instance)}, ${sqlString(module.name)}, ${version}, ${sqlString(mode)})
-on conflict (name) do update
-  set block = excluded.block, version = excluded.version, mode = excluded.mode, updated_at = now();`;
 }
 
 /**
@@ -274,12 +107,19 @@ export function renderBlocks(
   const installed = modules.map((module) => module.name);
   checkEntityTables(modules, layout, installed);
 
+  const cachedFiles = (module: BlockSql, instance?: string): BlockSqlFile[] =>
+    renderModuleCached(
+      `${module.name}\u0000${instance ?? ""}`,
+      layout,
+      installed,
+      (tracked, trackedInstalled) =>
+        moduleFiles(module, tracked, trackedInstalled, instance),
+    );
+
   const files = modules.flatMap((module): BlockSqlFile[] => [
-    ...(rendersOwnInstance(module.name, layout)
-      ? moduleFiles(module, layout, installed)
-      : []),
+    ...(rendersOwnInstance(module.name, layout) ? cachedFiles(module) : []),
     ...renamedInstances(module.name, layout).flatMap((instance) =>
-      moduleFiles(module, layout, installed, instance.name),
+      cachedFiles(module, instance.name),
     ),
   ]);
 
@@ -287,11 +127,28 @@ export function renderBlocks(
   // read-only support or agent session can't write through them either.
   const appFiles = appTablesFiles(layout, installed).map((file) =>
     file.kind === "schema"
-      ? { ...file, contents: guardBelowHeader(file.contents, layout) }
+      ? {
+          ...file,
+          contents:
+            layout.rerunnable === true
+              ? rerunnableDdl(guardBelowHeader(file.contents, layout))
+              : staticDdl(guardBelowHeader(file.contents, layout), new Set(), {
+                  keepIfNotExists: true,
+                }),
+        }
       : file,
   );
 
-  return [...files, ...appFiles].map((file) => ({
+  const prelude = preludeFile(
+    layout,
+    installed,
+    [...files, ...appFiles].filter((file) => file.kind === "schema"),
+  );
+
+  return withUnscopedFile(
+    [...(prelude === undefined ? [] : [prelude]), ...files, ...appFiles],
+    layout,
+  ).map((file) => ({
     ...file,
     contents: withBlockHash(
       file.kind === "schema"
@@ -352,16 +209,13 @@ function moduleFiles(
     return overApp(renamed, ctx, layout);
   };
 
-  const title = `-- better-supabase module: ${ctx.instance}`;
-
-  const managed = [
-    "-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.",
-    "-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.",
-  ];
-
-  const entities = entitiesMarker(
-    ctx.instance,
-    Object.values(ctx.resolved.entities)
+  const header = moduleHeader({
+    instance: ctx.instance,
+    version: blockSqlVersion(module),
+    mode: ctx.mode,
+    description: module.description,
+    block: own ? undefined : module.name,
+    entities: Object.values(ctx.resolved.entities)
       .filter(
         (entity) =>
           !entity.global &&
@@ -369,15 +223,7 @@ function moduleFiles(
             entity.to.plural !== entity.from.plural),
       )
       .map((entity) => ({ key: entity.key, ...entity.to })),
-  );
-
-  const header = [
-    title,
-    `-- @bsb-block ${ctx.instance}@${String(blockSqlVersion(module))} ${ctx.mode}${own ? "" : ` ${module.name}`}`,
-    ...(entities === undefined ? [] : [entities]),
-    `-- ${module.description}`,
-    ...managed,
-  ].join("\n");
+  });
 
   const searchAt = installed.indexOf("search");
 
@@ -391,14 +237,28 @@ function moduleFiles(
   // `audit` has no `audit()` to call yet and registers from its data file.
   const auditAt = installed.indexOf("audit");
 
+  // A static trigger needs no function at apply time under a declarative
+  // diff; only the migrations workflow applies the statements in file order.
   const rowAuditBeforeSchema =
-    auditAt === -1 || installed.indexOf(module.name) < auditAt;
+    auditAt === -1 ||
+    (layout.rerunnable === true && installed.indexOf(module.name) < auditAt);
 
   const rowAuditSchema = rowAuditBeforeSchema
     ? ""
     : rowAuditData(ctx, layout, installed, true);
 
-  const extra = `${scoped(module.extras?.(ctx, layout) ?? "")}${searchTriggers === "" ? "" : `\n${searchTriggers}\n`}${rowAuditSchema === "" ? "" : `\n${rowAuditSchema}\n`}`;
+  // The same holds for the realtime triggers, which need `broadcast_changes`.
+  const realtimeAt = installed.indexOf("realtime-tables");
+
+  const rowRealtimeBeforeSchema =
+    realtimeAt === -1 ||
+    (layout.rerunnable === true && installed.indexOf(module.name) < realtimeAt);
+
+  const rowRealtimeSchema = rowRealtimeBeforeSchema
+    ? ""
+    : rowRealtimeData(ctx, installed, true);
+
+  const extra = `${scoped(module.extras?.(ctx, layout) ?? "")}${searchTriggers === "" ? "" : `\n${searchTriggers}\n`}${rowAuditSchema === "" ? "" : `\n${rowAuditSchema}\n`}${rowRealtimeSchema === "" ? "" : `\n${rowRealtimeSchema}\n`}`;
   const wrappers = renameIdentifiers(deprecationWrappers(module, ctx), renames);
   const body = scoped(moduleSql(module, ctx, layout).trim());
   module.contract?.(ctx);
@@ -415,6 +275,15 @@ function moduleFiles(
         clientFunctions(module.name).map((name) => renames.get(name) ?? name),
       )
     : "";
+
+  // The migrations workflow repeats every statement in each migration; the
+  // others read the files as declarative DDL.
+  // A rerun renames first, so the drop before each re-created policy and
+  // constraint names the object the statement creates.
+  const settled = (sql: string): string =>
+    layout.rerunnable === true
+      ? rerunnableDdl(bsbNames(sql))
+      : bsbNames(staticDdl(sql, appTableSet(ctx)));
 
   const file = (
     kind: BlockSqlFile["kind"],
@@ -447,19 +316,13 @@ function moduleFiles(
       .join("\n"),
     scoped(module.data?.(ctx, layout).trim() ?? ""),
     rowAuditBeforeSchema ? rowAuditData(ctx, layout, installed) : "",
-    rowRealtimeData(ctx, installed),
+    rowRealtimeBeforeSchema ? rowRealtimeData(ctx, installed) : "",
     moduleRow(module, ctx.mode, ctx.instance),
   ]
     .filter((part) => part !== "")
     .join("\n\n");
 
-  const dataHeader = [
-    title,
-    `-- @bsb-block-data ${ctx.instance}`,
-    "-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`",
-    "-- after the schema migration to put them in a migration.",
-    ...managed,
-  ].join("\n");
+  const dataHeader = dataFileHeader(ctx.instance);
 
   const testsDir = (layout.testsDir ?? CONFIG_DEFAULTS.sql.testsDir).replace(
     /\/$/,
@@ -468,11 +331,7 @@ function moduleFiles(
 
   const slug = instancePrefix(ctx.instance);
 
-  const testHeader = [
-    title,
-    `-- @bsb-block-test ${ctx.instance}`,
-    ...managed,
-  ].join("\n");
+  const testHeader = testFileHeader(ctx.instance);
 
   const tests = module.tests?.(ctx, layout) ?? [];
   checkFunctionRenames(ctx);
@@ -481,7 +340,7 @@ function moduleFiles(
     file(
       "schema",
       modulePath(module, layout, ctx.instance),
-      `${header}\n\n${body}\n${extra}${wrappers}${api}${BLOCKS_TABLE}`,
+      settled(`${header}\n\n${body}\n${extra}${wrappers}${api}`),
     ),
     file(
       "data",
@@ -496,134 +355,6 @@ function moduleFiles(
       ),
     ),
   ];
-}
-
-/**
- * Throws when `blocks.memberships.names.organization` gives a renamed table or
- * column a name a module already uses.
- */
-function checkTenantName(
-  modules: readonly BlockSql[],
-  layout: BlockSqlLayout,
-): void {
-  const tenant = tenantNameOf(layout.modules);
-
-  if (tenant === undefined) {
-    return;
-  }
-
-  for (const module of modules) {
-    const clashes = tenantNameClashes(module, tenant, SQL_MODULES);
-
-    if (clashes.length === 0) {
-      continue;
-    }
-
-    throw new TypeError(
-      `blocks.memberships.names.organization: "${tenant}" renames the tenant tables and columns to names the ${module.name} module already uses (${clashes.join(", ")}). Choose another name.`,
-    );
-  }
-}
-
-/**
- * The app's tables (`layout.ownTables`) that `module` names but can't run over
- * (no `app` in their spec, or `onlyWhenMapped` and unmapped), as
- * `schema.table`.
- */
-function ownTablesCreatedBy(
-  module: BlockSql,
-  ctx: BlockSqlContext,
-  layout: BlockSqlLayout,
-): ReadonlySet<string> {
-  const { ownTables } = layout;
-
-  if (!ctx.manages || ownTables === undefined) {
-    return new Set();
-  }
-
-  return new Set(
-    Object.entries(module.names?.tables ?? {})
-      .filter(
-        ([logical, spec]) =>
-          ctx.config.tables[logical] !== null &&
-          !canBeAppTable(spec, ctx.config.tables[logical]),
-      )
-      .map(([logical]) => {
-        const parts = ctx.tableName(logical);
-
-        return `${parts.schema}.${parts.name}`;
-      })
-      .filter((table) => Object.hasOwn(ownTables, table)),
-  );
-}
-
-/**
- * Throws when two installed blocks would create the same table: a
- * `blocks.<name>.tables` entry or a `blocks.<name>.entities` rename that gives
- * a block's table the name another block's table already has.
- */
-function checkEntityTables(
-  modules: readonly BlockSql[],
-  layout: BlockSqlLayout,
-  installed: readonly string[],
-): void {
-  const tables = modules.flatMap((module): EntityTable[] =>
-    [
-      ...(rendersOwnInstance(module.name, layout) ? [module.name] : []),
-      ...renamedInstances(module.name, layout).map(({ name }) => name),
-    ].flatMap((instance) => {
-      const ctx = moduleContext(
-        module.name,
-        layout,
-        installed,
-        instance === module.name ? undefined : instance,
-      );
-
-      if (!ctx.manages) {
-        return [];
-      }
-
-      return Object.entries(module.names?.tables ?? {})
-        .filter(
-          ([logical]) =>
-            ctx.config.tables[logical] !== null && ctx.owns(logical),
-        )
-        .map(([logical, spec]) => {
-          const { schema, name } = ctx.tableName(logical);
-
-          return {
-            module: instance,
-            logical,
-            schema,
-            name,
-            renamed:
-              ctx.resolved.entityNaming.rename(
-                tableBase(ctx.resolved, logical, spec.name),
-              ) !== spec.name,
-            mapped: ctx.config.tables[logical] !== undefined,
-          };
-        });
-    }),
-  );
-
-  const clash = entityTableClash(tables) ?? sharedTableClash(tables);
-
-  if (clash !== undefined) {
-    throw new TypeError(clash);
-  }
-}
-
-/** Throws on a `blocks.<name>.functions` key the module writes no function for. */
-function checkFunctionRenames(ctx: BlockSqlContext): void {
-  const unknown = ctx.unusedFunctions();
-
-  if (unknown.length === 0) {
-    return;
-  }
-
-  throw new TypeError(
-    `blocks.${ctx.module}.functions: the ${ctx.module} module writes no function ${unknown.map((name) => `"${name}"`).join(", ")}`,
-  );
 }
 
 export interface BlockSqlTopic {

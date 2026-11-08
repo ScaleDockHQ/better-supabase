@@ -32,7 +32,7 @@ export const RETENTION_TABLES: Readonly<Record<string, BlockSqlTableSpec>> = {
     name: "retention_policies",
     columns: {
       id: "id",
-      tenant: "organization_id",
+      tenant: "tenant_id",
       plan: "plan",
       kind: "kind",
       keep: "keep",
@@ -47,7 +47,7 @@ export const RETENTION_TABLES: Readonly<Record<string, BlockSqlTableSpec>> = {
     name: "legal_holds",
     columns: {
       id: "id",
-      tenant: "organization_id",
+      tenant: "tenant_id",
       kind: "kind",
       reason: "reason",
       placedBy: "placed_by",

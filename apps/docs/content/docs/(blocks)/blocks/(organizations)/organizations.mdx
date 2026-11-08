@@ -216,7 +216,7 @@ receives the invitation id, and `invited_by` is on the row).
 
 ### Your own fields and hooks
 
-Columns from `options.attributes` and `options.extraColumns` come back from
+Columns from `options.attributes` and the ones you add come back from
 `mine()` next to `id`, `name`, `slug` and `role`. Pass a Standard Schema for
 them as `fields` to type them, parse them on read and validate `create` and
 `update`, and `hooks` to refuse, rewrite or observe any method:
@@ -236,8 +236,7 @@ const [first] = await organizations.mine().orThrow();
 first?.plan; // "free" | "pro"
 ```
 
-Invitations take their own columns from
-`blocks.invitations.options.extraColumns`. `invite` writes them from
+Invitations take the columns you add to the invitations table. `invite` writes them from
 `fields`, every invitation the block returns carries them in `fields`, and
 `invitationFields` types and checks them:
 
@@ -343,7 +342,7 @@ const { state, actions } = useBlockController(createOrganizationsController, {
 ```svelte title="ActiveOrganization.svelte"
 <script lang="ts">
   import {
-    getBetterSupabase,
+    betterSupabase,
     useBlockController,
   } from "better-supabase/svelte";
   import {
@@ -352,7 +351,7 @@ const { state, actions } = useBlockController(createOrganizationsController, {
     rpcTransport,
   } from "better-supabase/blocks/organizations";
 
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const client = createOrganizations({ transport: rpcTransport(supabase) });
   const organizations = useBlockController(createOrganizationsController, {
     client,
@@ -438,7 +437,6 @@ them in the Next.js and Expo examples.
 | Option            | Default                             | What it does                                                                                                                                                                                                                                                          |
 | ----------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `attributes`      | `[]`                                | extra columns `create_organization` and `update_organization` accept; a missing key keeps the column default                                                                                                                                                          |
-| `extraColumns`    | none                                | column name to SQL type on a managed table, such as `{ plan: "text not null default 'free'" }`; added to the table and accepted like `attributes`, and both come back from `list_my_organizations` in `attributes jsonb`                                              |
 | `ownerRole`       | `owner`                             | the creator's role                                                                                                                                                                                                                                                    |
 | `formerOwnerRole` | `admin`                             | the previous owner's role after a transfer                                                                                                                                                                                                                            |
 | `deleteMode`      | `hard`                              | `soft` sets `deleted_at` and keeps the memberships; `lifecycle` schedules the deletion with the data-lifecycle module's `request_organization_deletion` (grace period, then the purge job); `none` writes no `delete_organization`, so no entry point deletes at once |
@@ -477,7 +475,6 @@ app already has, and doctor warns about it, BS314):
 | `requireConfirmedEmail` | `true`     | the user's address must be confirmed before accepting         |
 | `previewColumns`        | `["name"]` | the organization columns `invitation_preview` returns         |
 | `platformRoles`         | none       | the platform role table under the `provider` model            |
-| `extraColumns`          | none       | column name to SQL type on a managed invitations table        |
 | `defaultRole`           | `member`   | the role `invite_member` gives when the role is null          |
 | `onAccept`              | none       | `{ roles?, teams? }`: extra roles and teams granted on accept |
 

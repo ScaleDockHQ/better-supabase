@@ -45,7 +45,9 @@ export default function WorkPage({
           </ConnectivityFallback>
         }
       >
-        <WorkBoard searchParams={searchParams} />
+        {searchParams.then((query) => (
+          <WorkBoard query={query} />
+        ))}
       </Suspense>
     </>
   );

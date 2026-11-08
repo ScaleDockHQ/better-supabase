@@ -153,8 +153,8 @@ export const blockConfig = {
       },
       entities: [{
         from: {
-          singular: "work_item",
-          plural: "work_items",
+          singular: "task",
+          plural: "tasks",
         },
         to: {
           singular: "maintenance_request",
@@ -170,6 +170,7 @@ export const blockConfig = {
           singular: "maintenance_request",
           plural: "maintenance_requests",
         },
+        keyed: true,
       }],
     },
     block: "tasks",

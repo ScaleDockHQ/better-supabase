@@ -2,24 +2,15 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { getCarePlan } from "@/features/care-plans/care-plans-queries";
 import {
-  CarePlanEditor,
-  CarePlanEditorSkeleton,
-} from "@/features/care-plans/components/care-plan-editor";
+  CarePlanEditorSectionSkeleton,
+  CarePlanEditorSection,
+} from "@/features/care-plans/components/care-plan-editor-section";
 import {
-  CarePlanEvaluations,
-  CarePlanEvaluationsSkeleton,
-} from "@/features/care-plans/components/care-plan-evaluations";
+  CarePlanEvaluationsSectionSkeleton,
+  CarePlanEvaluationsSection,
+} from "@/features/care-plans/components/care-plan-evaluations-section";
 import { PermissionGate } from "@/features/user/components/permission-gate";
-
-async function Editor() {
-  return <CarePlanEditor state={await getCarePlan()} />;
-}
-
-async function Evaluations() {
-  return <CarePlanEvaluations state={await getCarePlan()} />;
-}
 
 export default function CarePlansPage() {
   const t = useExtracted("care-plans");
@@ -32,14 +23,14 @@ export default function CarePlansPage() {
           "A client's problems, goals and actions in the active plan, and what each goal evaluation found.",
         )}
       />
-      <Suspense fallback={<CarePlanEditorSkeleton />}>
+      <Suspense fallback={<CarePlanEditorSectionSkeleton />}>
         <PermissionGate permission="care_plans.read">
-          <Editor />
+          <CarePlanEditorSection />
         </PermissionGate>
       </Suspense>
-      <Suspense fallback={<CarePlanEvaluationsSkeleton />}>
+      <Suspense fallback={<CarePlanEvaluationsSectionSkeleton />}>
         <PermissionGate permission="care_plans.read">
-          <Evaluations />
+          <CarePlanEvaluationsSection />
         </PermissionGate>
       </Suspense>
     </>

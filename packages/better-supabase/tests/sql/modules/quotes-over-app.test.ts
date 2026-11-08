@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 
@@ -44,7 +44,7 @@ create table public.proposals (
   revision integer not null default 1,
   supersedes_id uuid references public.proposals (id) on delete set null,
   title text not null,
-  owner_user_id uuid,
+  owner_id uuid,
   currency char(3) not null,
   state public.proposal_state not null default 'draft',
   valid_until date,

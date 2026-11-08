@@ -89,7 +89,7 @@ const NAMES: BlockSqlNames = {
     field_definition: {
       table: "definitions",
       singular: "field_definition",
-      formerly: "field",
+      keyed: true,
       primary: true,
     },
   },
@@ -348,6 +348,24 @@ ${packColumns(ctx, definitions)}`
     : `not coalesce(d.${ctx.col("definitions", "sensitive")}, false)
         or ${ctx.scope.can(`v.${ctx.col("values", "tenant")}`, `coalesce(d.${ctx.col("definitions", "permission")}, ${sensitive})`)}`;
 
+  // Setting a value again replaces it (and seals it once, in the insert)
+  // instead of failing on the unique key of tenant, record and field, which
+  // gains the legal entity with per-entity values.
+  const definitionOn = !inline && ctx.has("values", "definition");
+  const upserts = definitionOn;
+
+  const valueWrite = subjectActionCheck(
+    ctx,
+    subjects,
+    { type: "v_type", id: "v_subject" },
+    ["fields"],
+  );
+
+  const sealed = (value: string, tenant: string, definition: string): string =>
+    encrypted === ""
+      ? value
+      : `case when exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = ${definition} and d.${ctx.col("definitions", "encrypted")}) then ${encryption?.fn("field_encrypt")}('tenant:' || ${tenant}::text, ${value}) else ${value} end`;
+
   return `${schemaPreamble(ctx)}
 ${inline ? "" : `${formatValidatorSql(ctx.schemaName, CUSTOM_FIELD_VALIDATORS)}\n`}-- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
@@ -469,7 +487,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $$${upserts ? "\n#variable_conflict use_column" : ""}
 declare
   v_id uuid;
 begin
@@ -495,7 +513,13 @@ begin
     encrypted === ""
       ? "set_field_value.value"
       : `case when exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = set_field_value.definition and d.${ctx.col("definitions", "encrypted")}) then ${encryption?.fn("field_encrypt")}('tenant:' || set_field_value.tenant::text, set_field_value.value) else set_field_value.value end`
-  }${perEntity ? ", set_field_value.legal_entity" : ""})
+  }${perEntity ? ", set_field_value.legal_entity" : ""})${
+    upserts
+      ? `
+  on conflict (${ctx.col("values", "tenant")}, ${ctx.col("values", "subjectType")}, ${ctx.col("values", "subjectId")}, ${ctx.col("values", "definition")}${perEntity ? `, (coalesce(${FIELD_VALUE_ENTITY_COLUMN}, '00000000-0000-0000-0000-000000000000'::uuid))` : ""})
+  do update set ${ctx.col("values", "valueText")} = excluded.${ctx.col("values", "valueText")}`
+      : ""
+  }
   returning ${ctx.col("values", "id")} into v_id;
   ${ctx.record({
     type: "field_value.set",
@@ -508,6 +532,96 @@ begin
 end;
 $$;
 ${userGrant(`${ctx.fn("set_field_value")}(${ctx.idType}, text, text, uuid, text${perEntity ? ", uuid" : ""})`)}
+
+-- Changes the value of one field value row. The row's subject and field stay.
+create or replace function ${ctx.fn("update_field_value")}(value_id uuid, value text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+  v_type text;
+  v_subject text;${definitionOn ? "\n  v_definition uuid;" : ""}
+begin
+  select v.${ctx.col("values", "tenant")}, v.${ctx.col("values", "subjectType")}, v.${ctx.col("values", "subjectId")}${definitionOn ? `, v.${ctx.col("values", "definition")}` : ""}
+  into v_tenant, v_type, v_subject${definitionOn ? ", v_definition" : ""}
+  from ${values} v where v.${ctx.col("values", "id")} = update_field_value.value_id;
+  if not found then
+    ${fail("FIELD_VALUE_NOT_FOUND", "field value not found", "P0002")}
+  end if;
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
+    ${fail("FIELD_FORBIDDEN", "not allowed to set custom fields")}
+  end if;${
+    valueWrite === undefined
+      ? ""
+      : `
+  if not ${valueWrite} then
+    ${fail("FIELD_SUBJECT_FORBIDDEN", "not allowed to set fields on this record")}
+  end if;`
+  }${
+    definitionOn
+      ? `
+  if exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = v_definition and not (${customFieldValueCheck(`d.${ctx.col("definitions", "type")}`, "update_field_value.value", ctx.schemaName)})) then
+    ${fail("FIELD_VALUE_INVALID", "the value doesn't match the field's format", "22023")}
+  end if;`
+      : ""
+  }
+  update ${values} set ${ctx.col("values", "valueText")} = ${sealed("update_field_value.value", "v_tenant", definitionOn ? "v_definition" : "null::uuid")}
+  where ${ctx.col("values", "id")} = update_field_value.value_id;
+  ${ctx.record({
+    type: "field_value.set",
+    payload: `jsonb_build_object('organizationId', v_tenant, 'id', update_field_value.value_id, 'subjectType', v_type, 'subjectId', v_subject)`,
+    subject: `'field-values/' || update_field_value.value_id::text`,
+    tenant: "v_tenant",
+    audit: false,
+  })}
+  return jsonb_build_object('id', update_field_value.value_id);
+end;
+$$;
+${userGrant(`${ctx.fn("update_field_value")}(uuid, text)`)}
+
+-- Removes one field value.
+create or replace function ${ctx.fn("delete_field_value")}(value_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+  v_type text;
+  v_subject text;
+begin
+  select v.${ctx.col("values", "tenant")}, v.${ctx.col("values", "subjectType")}, v.${ctx.col("values", "subjectId")}
+  into v_tenant, v_type, v_subject
+  from ${values} v where v.${ctx.col("values", "id")} = delete_field_value.value_id;
+  if not found then
+    ${fail("FIELD_VALUE_NOT_FOUND", "field value not found", "P0002")}
+  end if;
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
+    ${fail("FIELD_FORBIDDEN", "not allowed to delete this field value")}
+  end if;${
+    valueWrite === undefined
+      ? ""
+      : `
+  if not ${valueWrite} then
+    ${fail("FIELD_SUBJECT_FORBIDDEN", "not allowed to delete fields on this record")}
+  end if;`
+  }
+  delete from ${values} where ${ctx.col("values", "id")} = delete_field_value.value_id;
+  ${ctx.record({
+    type: "field_value.deleted",
+    payload: `jsonb_build_object('organizationId', v_tenant, 'id', delete_field_value.value_id, 'subjectType', v_type, 'subjectId', v_subject)`,
+    subject: `'field-values/' || delete_field_value.value_id::text`,
+    tenant: "v_tenant",
+    audit: false,
+  })}
+  return true;
+end;
+$$;
+${userGrant(`${ctx.fn("delete_field_value")}(uuid)`)}
 
 create or replace function ${ctx.fn("delete_field_definition")}(definition uuid)
 returns boolean
@@ -788,6 +902,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       ],
       returns: "jsonb",
     },
+    { name: "update_field_value", args: ["uuid", "text"], returns: "jsonb" },
+    { name: "delete_field_value", args: ["uuid"], returns: "boolean" },
     { name: "delete_field_definition", args: ["uuid"], returns: "boolean" },
     ...(ctx.text("layout", "normalized") === "inline"
       ? []

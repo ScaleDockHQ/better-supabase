@@ -1,97 +1,39 @@
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:3c90728a6ec675a4ae4c040c4901bf09f1e83a9452aa35a69e86adf56661feb8
+-- @bsb-hash sha256:f2bb238cd6f04fffd8d76af6999c0a28c90a5092a96bcfb761343aefe520c2da
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshots";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Forecasts: snapshots of the forecast call over time, with the deals each
 -- one counted, and what changed between two of them.
-create table if not exists "better_supabase"."forecast_snapshots" (
+create table "better_supabase"."forecast_snapshots" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pipeline_id" uuid references "better_supabase"."pipelines" ("id") on delete cascade,
   "period_start" date not null,
   "period_end" date not null,
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
-  "target" bigint check ("target" >= 0),
-  "totals" jsonb not null check (jsonb_typeof("totals") = 'object'),
+  "currency" text not null constraint bsb_forecast_snapshots_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "target" bigint constraint bsb_forecast_snapshots_target_check check ("target" >= 0),
+  "totals" jsonb not null constraint bsb_forecast_snapshots_totals_check check (jsonb_typeof("totals") = 'object'),
   "deal_count" integer not null default 0,
   "taken_by" uuid references auth.users (id) on delete set null,
   "taken_at" timestamptz not null default clock_timestamp(),
-  check ("period_end" >= "period_start")
+  constraint bsb_forecast_snapshots_check check ("period_end" >= "period_start")
 );
-create index if not exists forecast_snapshots_period_idx on "better_supabase"."forecast_snapshots" ("tenant_id", "period_start", "period_end", "taken_at" desc);
-create index if not exists forecast_snapshots_pipeline_idx on "better_supabase"."forecast_snapshots" ("pipeline_id") where "pipeline_id" is not null;
-create index if not exists forecast_snapshots_taken_by_idx on "better_supabase"."forecast_snapshots" ("taken_by") where "taken_by" is not null;
+create index forecast_snapshots_period_idx on "better_supabase"."forecast_snapshots" ("tenant_id", "period_start", "period_end", "taken_at" desc);
+create index forecast_snapshots_pipeline_idx on "better_supabase"."forecast_snapshots" ("pipeline_id") where "pipeline_id" is not null;
+create index forecast_snapshots_taken_by_idx on "better_supabase"."forecast_snapshots" ("taken_by") where "taken_by" is not null;
 alter table "better_supabase"."forecast_snapshots" enable row level security;
 revoke all on "better_supabase"."forecast_snapshots" from public, anon, authenticated;
 grant select on "better_supabase"."forecast_snapshots" to authenticated;
 grant all on "better_supabase"."forecast_snapshots" to service_role;
-create table if not exists "better_supabase"."forecast_snapshot_deals" (
+create table "better_supabase"."forecast_snapshot_deals" (
   "snapshot_id" uuid not null references "better_supabase"."forecast_snapshots" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "deal_id" uuid not null,
   "name" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "stage_id" uuid,
   "forecast_category" text,
   "outcome" text not null,
@@ -100,17 +42,15 @@ create table if not exists "better_supabase"."forecast_snapshot_deals" (
   "closed_at" timestamptz,
   primary key ("snapshot_id", "deal_id")
 );
-create index if not exists forecast_snapshot_deals_deal_idx on "better_supabase"."forecast_snapshot_deals" ("tenant_id", "deal_id");
+create index forecast_snapshot_deals_deal_idx on "better_supabase"."forecast_snapshot_deals" ("tenant_id", "deal_id");
 alter table "better_supabase"."forecast_snapshot_deals" enable row level security;
 revoke all on "better_supabase"."forecast_snapshot_deals" from public, anon, authenticated;
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
-drop policy if exists forecast_snapshots_read on "better_supabase"."forecast_snapshots";
-create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots"
+create policy bsb_forecast_snapshots_read on "better_supabase"."forecast_snapshots"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
-drop policy if exists forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals";
-create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
+create policy bsb_forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 
@@ -155,8 +95,8 @@ begin
   insert into "better_supabase"."forecast_snapshots" ("tenant_id", "pipeline_id", "period_start", "period_end", "currency", "target", "totals", "taken_by")
   values (take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, "better_supabase"."deal_forecast"(take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, null), auth.uid())
   returning * into v_row;
-  insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_user_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
-  select v_row."id", x."tenant_id", x."id", x."name", x."owner_user_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
+  insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
+  select v_row."id", x."tenant_id", x."id", x."name", x."owner_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
   from "better_supabase"."deals" x
   where x."tenant_id" = take_forecast_snapshot.tenant
     and x."currency" = v_currency
@@ -218,7 +158,7 @@ begin
     raise exception 'No forecast snapshot you can read has this id' using errcode = 'P0002', hint = 'FORECAST_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'pipelineId', v_row."pipeline_id", 'since', v_row."period_start", 'until', v_row."period_end", 'currency', v_row."currency", 'target', v_row."target"::text, 'totals', v_row."totals", 'dealCount', v_row."deal_count", 'takenBy', v_row."taken_by", 'takenAt', v_row."taken_at") || jsonb_build_object('deals', (
-    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_user_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
     from "better_supabase"."forecast_snapshot_deals" y where y."snapshot_id" = v_row."id"
   ));
 end;
@@ -263,8 +203,8 @@ begin
       when a."outcome" = 'open' and b."outcome" = 'lost' then 'lost'
       else 'changed'
     end,
-        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_user_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
-        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_user_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
+        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
+        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
       ) order by coalesce(b."amount", a."amount") desc, coalesce(b."deal_id", a."deal_id")), '[]'::jsonb)
       from (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_from."id") a
       full join (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_to."id") b on b."deal_id" = a."deal_id"
@@ -274,7 +214,7 @@ begin
       or a."forecast_category" is distinct from b."forecast_category"
       or a."stage_id" is distinct from b."stage_id"
       or a."expected_close_on" is distinct from b."expected_close_on"
-      or a."owner_user_id" is distinct from b."owner_user_id"
+      or a."owner_id" is distinct from b."owner_id"
     ));
 end;
 $$;
@@ -284,90 +224,45 @@ grant execute on function "better_supabase"."forecast_changes"(uuid, uuid) to au
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshots";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshots";
 create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshots" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots";
 create policy bsb_tenant_scope_insert on "better_supabase"."forecast_snapshots" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshots";
 create policy bsb_tenant_scope_update on "better_supabase"."forecast_snapshots" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots";
 create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshots" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."forecast_snapshot_deals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals";
 create policy bsb_tenant_scope_select on "better_supabase"."forecast_snapshot_deals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals";
 create policy bsb_tenant_scope_insert on "better_supabase"."forecast_snapshot_deals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals";
 create policy bsb_tenant_scope_update on "better_supabase"."forecast_snapshot_deals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals";
 create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_deals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.forecast_snapshots', target_type => 'forecast_snapshot', event_prefix => 'forecast_snapshot', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.forecast_snapshots deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"forecast_snapshot","event_prefix":"forecast_snapshot"}');
 
 -- blocks.forecasts.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."take_forecast_snapshot"(tenant uuid, pipeline uuid, since date, until date, currency text, target bigint default null)
 returns jsonb
@@ -407,16 +302,3 @@ set search_path = ''
 as $$ select "better_supabase"."forecast_changes"($1, $2) $$;
 revoke execute on function "api"."forecast_changes"(uuid, uuid) from public, anon;
 grant execute on function "api"."forecast_changes"(uuid, uuid) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

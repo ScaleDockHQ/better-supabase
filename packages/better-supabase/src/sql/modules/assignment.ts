@@ -172,9 +172,9 @@ create index if not exists ${ctx.naming.rename("assignments_subject_idx")} on ${
 create index if not exists ${ctx.naming.rename("assignments_queue_idx")} on ${t("log")} (${g("queue")}) where ${g("queue")} is not null;
 create index if not exists ${ctx.naming.rename("assignments_user_idx")} on ${t("log")} (${g("user")}) where ${g("user")} is not null;
 ${lockTable(t("log"), { read: true })}
-${renderPolicy(makePolicy({ table: t("queues"), name: policy("queues"), command: "select", roles: ["authenticated"], using: ctx.scope.check(q("tenant"), n.read) }), { drop: true, target: t("queues") })}
-${renderPolicy(makePolicy({ table: t("members"), name: policy("members"), command: "select", roles: ["authenticated"], using: ctx.scope.check(u("tenant"), n.read) }), { drop: true, target: t("members") })}
-${renderPolicy(makePolicy({ table: t("log"), name: policy("log"), command: "select", roles: ["authenticated"], using: ctx.scope.check(g("tenant"), n.read) }), { drop: true, target: t("log") })}
+${renderPolicy(makePolicy({ table: t("queues"), name: policy("queues"), command: "select", roles: ["authenticated"], using: ctx.scope.check(q("tenant"), n.read) }), { target: t("queues") })}
+${renderPolicy(makePolicy({ table: t("members"), name: policy("members"), command: "select", roles: ["authenticated"], using: ctx.scope.check(u("tenant"), n.read) }), { target: t("members") })}
+${renderPolicy(makePolicy({ table: t("log"), name: policy("log"), command: "select", roles: ["authenticated"], using: ctx.scope.check(g("tenant"), n.read) }), { target: t("log") })}
 `;
 }
 

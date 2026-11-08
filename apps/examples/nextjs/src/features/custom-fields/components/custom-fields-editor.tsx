@@ -56,13 +56,12 @@ import { FieldTypeBadge } from "./field-type-badge";
  * them.
  */
 export async function CustomFieldsEditor({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, params, permissions] = await Promise.all([
+  const [t, permissions] = await Promise.all([
     getExtracted("custom-fields"),
-    searchParams,
     getPermissions(),
   ]);
 
@@ -70,7 +69,7 @@ export async function CustomFieldsEditor({
     forbidden();
   }
 
-  const parsed = v.safeParse(FieldEntitySchema, params["entity"]);
+  const parsed = v.safeParse(FieldEntitySchema, query["entity"]);
   const entity = parsed.success ? parsed.output : "customer";
   const fields = await getFields(entity);
 

@@ -52,7 +52,7 @@ export interface RequestContext {
 /** Plugin-specific per-call options (`withDeleted`, `hard`, ...). */
 export type CallOptions = Readonly<Record<string, unknown>>;
 
-export interface HookArgs {
+export interface HookParams {
   readonly table: TableMeta;
   readonly schema: SchemaMeta;
   readonly context: RequestContext;
@@ -240,11 +240,11 @@ export interface Plugin<
     args: { readonly schema: SchemaMeta },
   ) => RequestContext;
   /** `ir`: rewrite an operation before it runs (filters, defaults). */
-  readonly transformQuery?: (op: Operation, args: HookArgs) => Operation;
+  readonly transformQuery?: (op: Operation, args: HookParams) => Operation;
   /** `mutation`: rewrite a mutation or reject it by throwing a `DbException`. */
   readonly beforeMutation?: (
     op: MutationOp,
-    args: HookArgs,
+    args: HookParams,
   ) => MutationOp | Promise<MutationOp>;
   /** `mutation`: observe a finished mutation. Cannot change the result. */
   readonly afterMutation?: (event: MutationEvent) => void | Promise<void>;

@@ -3,7 +3,7 @@ import type { UIMessage } from "ai";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type {
-  DurableTurnAgentArgs,
+  DurableTurnAgentOptions,
   DurableTurnAgentResult,
   DurableChatOptions,
   DurableTurnDeps,
@@ -22,18 +22,18 @@ describe("durable turn types", () => {
       Settings | undefined
     >();
 
-    expectTypeOf<DurableTurnAgentArgs<Settings>["context"]>().toEqualTypeOf<
+    expectTypeOf<DurableTurnAgentOptions<Settings>["context"]>().toEqualTypeOf<
       Settings | undefined
     >();
 
     expectTypeOf<DurableTurnDeps<Settings>["agent"]>()
       .parameter(0)
-      .toEqualTypeOf<DurableTurnAgentArgs<Settings>>();
+      .toEqualTypeOf<DurableTurnAgentOptions<Settings>>();
   });
 
   it("gives the agent the user and the tenant", () => {
-    expectTypeOf<DurableTurnAgentArgs["userId"]>().toEqualTypeOf<string>();
-    expectTypeOf<DurableTurnAgentArgs["organizationId"]>().toEqualTypeOf<
+    expectTypeOf<DurableTurnAgentOptions["userId"]>().toEqualTypeOf<string>();
+    expectTypeOf<DurableTurnAgentOptions["organizationId"]>().toEqualTypeOf<
       string | undefined
     >();
   });

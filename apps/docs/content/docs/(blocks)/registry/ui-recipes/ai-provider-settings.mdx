@@ -22,7 +22,6 @@ import { useAction } from "better-supabase/react";
 import { CpuIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useState, useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -84,7 +83,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -94,13 +92,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Provider } from "../ai-provider-options";
-import type { ProviderKeyRow, ProviderKeysRead } from "../ai-provider-queries";
+import type { ProviderKeyRow, ProviderKeysRead } from "../ai-providers-queries";
 
-import { addProviderKey, removeProviderKey } from "../ai-provider-actions";
 import { PROVIDERS } from "../ai-provider-options";
+import { addProviderKey, removeProviderKey } from "../ai-providers-actions";
 
 const PROVIDER_LABELS = {
   anthropic: "Anthropic",
@@ -438,28 +437,5 @@ export function AiProviderSettings({ read }: { read: ProviderKeysRead }) {
   );
 }
 
-const SKELETON_ROWS = ["first", "second"];
-
 /** Keeps the card's title in the static shell, so the tab commits it at once. */
-export function AiProviderSettingsSkeleton() {
-  const t = useExtracted("aiProviders");
-
-  return (
-    <Card aria-busy="true">
-      <CardHeader>
-        <CardTitle>{t("AI providers")}</CardTitle>
-        <CardDescription>
-          {t(
-            "The organization's own provider keys, used instead of the app's key for the assistant.",
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {SKELETON_ROWS.map((row) => (
-          <Skeleton key={row} className="h-11 w-full" />
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
 ```

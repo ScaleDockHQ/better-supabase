@@ -9,7 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, schemaPreamble } from "../shared.ts";
+import { schemaPreamble } from "../shared.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { postFunctions } from "./posts-functions.ts";
 import { postsSql } from "./posts-sql.ts";
@@ -59,7 +59,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["moderation", "maxBodyLength", "extraColumns"],
+  options: ["moderation", "maxBodyLength"],
   tables: {
     boards: {
       name: "post_boards",
@@ -171,7 +171,7 @@ create table if not exists ${posts} (
   ${p("moderation")} text not null default 'visible' check (${p("moderation")} in ('visible', 'pending', 'hidden', 'removed')),${column("posts", "pinnedAt", () => "timestamptz")}${column("posts", "lockedAt", () => "timestamptz")}
   ${p("mergedInto")} uuid references ${posts} (${p("id")}) on delete set null check (${p("mergedInto")} is distinct from ${p("id")}),${column("posts", "replyCount", () => "integer not null default 0")}${column("posts", "lastActivityAt", () => "timestamptz not null default now()")}
   ${p("createdAt")} timestamptz not null default now()${q.hasPost("updatedAt") ? `,\n  ${p("updatedAt")} timestamptz not null default now()` : ""}
-);${addExtraColumns(posts, q.extras)}
+);
 create index if not exists ${name("posts", "board_idx")} on ${posts} (${boardOrder});
 create index if not exists ${name("posts", "tenant_idx")} on ${posts} (${p("tenant")}, ${p("createdAt")} desc);
 create index if not exists ${name("posts", "author_idx")} on ${posts} (${p("author")});

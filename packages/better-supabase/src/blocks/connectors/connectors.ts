@@ -104,10 +104,9 @@ export interface ConnectorsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   /**
-   * A Standard Schema for the server's extra columns
-   * (`blocks.connectors.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `create` and
-   * `update`.
+   * A Standard Schema for the server's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `create` and `update`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -236,7 +235,7 @@ function grantOf(value: unknown): ConnectorGrant {
     id: textOf(row["id"]),
     userId: textOf(row["user_id"]),
     serverId: textOf(row["server_id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     credentialRef,
     scopes: stringsOf(row["scopes"]),
     expiresAt: optionalInstant(row["expires_at"]),
@@ -252,7 +251,7 @@ function serverOf(value: unknown): ConnectorServer {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     name: textOf(row["name"]),
     url: textOf(row["url"]),
     // SAFETY: TRANSPORTS holds exactly the ConnectorTransport members.

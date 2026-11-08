@@ -1,5 +1,7 @@
 import type { CatalogPolicy } from "../config/snapshot.ts";
 
+import { createPolicy } from "./emit/policy.ts";
+
 /** A command a policy applies to. */
 export type PolicyCommand = "all" | "select" | "insert" | "update" | "delete";
 
@@ -113,8 +115,6 @@ function splitName(name: string): string[] {
 }
 
 export interface RenderPolicyOptions {
-  /** A `drop policy if exists` line before the `create policy`. */
-  readonly drop?: boolean;
   /** The table as the caller writes it, instead of the quoted `schema.table`. */
   readonly target?: string;
 }
@@ -128,26 +128,15 @@ export function renderPolicy(
   entry: Policy,
   options: RenderPolicyOptions = {},
 ): string {
-  const table = options.target ?? quotedTable(entry.table);
-
-  const lines = [
-    `create policy ${quoteIdentifier(entry.name)} on ${table}${entry.permissive ? "" : " as restrictive"}`,
-    `  for ${entry.command} to ${entry.roles.map(quoteIdentifier).join(", ")}`,
-  ];
-
-  if (entry.using !== null) {
-    lines.push(`  using (${entry.using})`);
-  }
-
-  if (entry.check !== null) {
-    lines.push(`  with check (${entry.check})`);
-  }
-
-  const statement = `${lines.join("\n")};`;
-
-  return options.drop === true
-    ? `drop policy if exists ${quoteIdentifier(entry.name)} on ${table};\n${statement}`
-    : statement;
+  return createPolicy({
+    name: quoteIdentifier(entry.name),
+    table: options.target ?? quotedTable(entry.table),
+    permissive: entry.permissive,
+    command: entry.command,
+    roles: entry.roles.map(quoteIdentifier),
+    using: entry.using,
+    check: entry.check,
+  });
 }
 
 export interface MaskOptions {

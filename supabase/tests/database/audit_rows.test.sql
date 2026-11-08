@@ -21,7 +21,7 @@ set constraints all immediate;
 select is(
   (select count(*)::int from better_supabase.audit_events
     where target_type = 'api_key'
-      and organization_id = '00000000-0000-4000-8000-000000000001'
+      and tenant_id = '00000000-0000-4000-8000-000000000001'
       and event_type = 'api_key.created'),
   1,
   'the function and the row trigger record the key once'

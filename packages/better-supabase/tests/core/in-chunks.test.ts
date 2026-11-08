@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -20,7 +20,7 @@ function listOf(param: string | null): string[] {
 }
 
 describe("oversized in lists", () => {
-  const betterSupabase = defineSupabase(schema, { urlLengthLimit: 4000 });
+  const betterSupabase = createSupabase(schema, { urlLengthLimit: 4000 });
 
   it("splits an unpaginated read and merges the rows", async () => {
     const { client, requests } = capturingClient((request) => ({
@@ -183,7 +183,7 @@ describe("oversized in lists", () => {
         `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
     );
 
-    const rows = await defineSupabase(schema, { urlLengthLimit: 2000 })
+    const rows = await createSupabase(schema, { urlLengthLimit: 2000 })
       .connect(client)
       .customers.list({ select: ["id"], where: { id: { in: many } } })
       .orThrow();
@@ -289,7 +289,7 @@ describe("oversized in lists", () => {
   it("refuses a read whose other filters leave no room for the list", async () => {
     const { client } = capturingClient();
 
-    const result = await defineSupabase(schema, { urlLengthLimit: 200 })
+    const result = await createSupabase(schema, { urlLengthLimit: 200 })
       .connect(client)
       .customers.list({
         where: { id: { in: ids.slice(0, 20) }, name: { in: ids.slice(0, 5) } },
@@ -383,7 +383,7 @@ describe("oversized in lists on other key types", () => {
     },
   };
 
-  const betterSupabase = defineSupabase(defineSchema(meta), {
+  const betterSupabase = createSupabase(defineSchema(meta), {
     urlLengthLimit: 4000,
   });
 

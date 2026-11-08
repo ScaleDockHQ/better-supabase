@@ -12,7 +12,7 @@ import {
   createAutomationsAdmin,
   createActionRegistry,
   createRuleDispatcher,
-  createRuleSink,
+  automationSink,
   defineAction,
   eventTarget,
   ruleOf,
@@ -574,12 +574,12 @@ describe("dispatcher and sink", () => {
     ).not.toHaveProperty("subjectId");
   });
 
-  it("runs legacy triggers, passes the time zone and skips unmatched events", async () => {
+  it("runs the event trigger, passes the time zone and skips unmatched events", async () => {
     const runs: Record<string, unknown>[] = [];
     const seen: unknown[] = [];
     const match: RuleMatch = { rule: rule(["echo"]), results: {} };
 
-    const sink = createRuleSink({
+    const sink = automationSink({
       rules: {
         run: ({ input }) => {
           runs.push({ ...input });
@@ -605,7 +605,6 @@ describe("dispatcher and sink", () => {
 
     expect(runs.map((input) => input["trigger"])).toEqual([
       "agent.created",
-      "agent.saved",
       "widget.created",
     ]);
     expect(runs[0]).toMatchObject({
@@ -619,7 +618,7 @@ describe("dispatcher and sink", () => {
   it("falls back to the event target without a loader", async () => {
     const runs: unknown[] = [];
 
-    const sink = createRuleSink({
+    const sink = automationSink({
       rules: {
         run: ({ organizationId, input }) => {
           runs.push([organizationId, input.subjectId]);

@@ -60,8 +60,8 @@ describe("CliError", () => {
   it("exits 1 for failures and keeps an explicit exit code and cause", () => {
     const cause = new Error("boom");
     expect(new CliError("internal", "boom").exitCode).toBe(1);
-    const failed = new CliError("failed", "stale", { exitCode: 3, cause });
-    expect(failed.problem.exitCode).toBe(3);
+    const failed = new CliError("failed", "stale", { exitCode: 65, cause });
+    expect(failed.problem.exitCode).toBe(65);
     expect(failed.cause).toBe(cause);
     expect(failed.problem).not.toHaveProperty("cause");
   });

@@ -4,7 +4,7 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { GeneratedColumns, WritableColumns } from "../../src/schema/types.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import {
   schema,
   type GeneratedColumnOf,
@@ -14,7 +14,7 @@ import {
 } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
-const db = defineSupabase(schema).connect(client);
+const db = createSupabase(schema).connect(client);
 
 describe("generated columns", () => {
   it("keeps emailDomain in Row and out of the writable columns", () => {

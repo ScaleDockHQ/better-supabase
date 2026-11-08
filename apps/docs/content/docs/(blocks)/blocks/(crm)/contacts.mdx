@@ -64,6 +64,8 @@ texts). It is off by default. Query it with
 
 `saveCompany` and `savePerson` create a record when the input has no `id`, and change the keys the input names otherwise: a key left out keeps its value, and `null` clears it. A new record needs a `name` (`PARTY_NAME_REQUIRED`). Domains and emails are stored in lower case, and an active record can't share its domain or email with another in the organization (`PARTY_DOMAIN_TAKEN`, `PARTY_EMAIL_TAKEN`), so an import finds the existing record instead of a duplicate.
 
+A person has a `mode`: `external` (default) is someone outside your organization, and `tenant` is a member, which needs a `userId` when the person is created (`PARTY_MODE_INVALID`). A company can keep its `legalName` (the registered name, when it differs from `name`), its `registrationId` (the chamber of commerce number) and a `phone`. Each is a base column that replaces an app column of the same name: delete your own column and its schema file, run `better-supabase upgrade`, or map the column to `null` in `blocks.contacts.columns` to leave it out.
+
 A lifecycle stage is one of `options.companyLifecycles` (default `lead`, `prospect`, `customer`, `churned`) or `options.personLifecycles` (default `lead`, `mql`, `sql`, `opportunity`, `customer`); a new record starts at the first (`PARTY_LIFECYCLE_INVALID` for another value). `archiveCompany(id)` and `archivePerson(id)` hide a record from the lists, and `archived: false` restores it.
 
 `linkPerson(companyId, personId, { role, primary })` links a person to a company or changes the link; a primary link replaces the company's previous primary contact. `peopleOf(companyId)` returns the company's people, primary contact first, and `unlinkPerson` removes a link.
@@ -261,12 +263,11 @@ const mine = await db.contacts.representedByMe(organizationId).orThrow();
 
 ## Extra columns
 
-`options.extraColumns` adds columns to `companies`, such as a segment or an industry. `saveCompany` writes them from `fields`, and every company it returns carries them in `fields`:
+Columns you add to `companies` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):, such as a segment or an industry. `saveCompany` writes them from `fields`, and every company it returns carries them in `fields`:
 
-```ts title="better-supabase.config.ts"
-blocks: {
-  contacts: { options: { extraColumns: { segment: "text", employees: "integer" } } },
-},
+```sql title="supabase/schemas/companies.sql"
+alter table "better_supabase"."companies" add column "segment" text;
+alter table "better_supabase"."companies" add column "employees" integer;
 ```
 
 Pass a Standard Schema as `fields` to type them: `saveCompany` validates the fields it writes (a `validation` error, before the database), and `saveCompany`, `mergeCompanies` and `listCompanies` parse them on read.
@@ -341,7 +342,7 @@ The module calls `before_company_save(tenant, company uuid, attrs jsonb)`, `afte
 
 ## Wire it to ReUI
 
-The ReUI CRM Contacts Directory reads `listPeople` for its grid, with the Filters `search` and lifecycle values passed through, and its bulk owner action calls `savePerson` with `ownerId` per selected row (or the [bulk](/docs/blocks/bulk) block for many at once). Its CSV import maps rows to `savePerson`, and an email that is taken points at the existing record.
+The ReUI CRM Contacts Directory reads `listPeople` for its grid, with the Filters `search` and lifecycle values passed through, and its bulk owner action calls `savePerson` with `ownerId` per selected row (or the [bulk](/docs/blocks/bulk-actions) block for many at once). Its CSV import maps rows to `savePerson`, and an email that is taken points at the existing record.
 
 ## Errors
 

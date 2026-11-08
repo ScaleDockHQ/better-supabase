@@ -1,42 +1,26 @@
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:b88b269d165141c56fe96a352481f58d6eed03746558b1c32cdc76bdb722bbfe
+-- @bsb-hash sha256:e4b82088f0f549dcb350c4f25ee5c1e9e5407486d8954b17ff6a0c59fdd75539
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_cache_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_cache_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_cache_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_cache_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_cache_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Model responses cached by a key the application derives from the request
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
-create table if not exists "better_supabase"."ai_cache_entries" (
-  "key" text primary key check (length("key") between 1 and 256),
-  "organization_id" uuid,
-  "kind" text not null default 'generate' check ("kind" in ('generate', 'stream', 'embed', 'other')),
-  "model" text check (length("model") <= 200),
-  "value" jsonb not null check (octet_length("value"::text) <= 1048576),
+create table "better_supabase"."ai_cache_entries" (
+  "key" text primary key constraint bsb_ai_cache_entries_key_check check (length("key") >= 1 and length("key") <= 256),
+  "tenant_id" uuid,
+  "kind" text not null default 'generate' constraint bsb_ai_cache_entries_kind_check check ("kind" in ('generate', 'stream', 'embed', 'other')),
+  "model" text constraint bsb_ai_cache_entries_model_check check (length("model") <= 200),
+  "value" jsonb not null constraint bsb_ai_cache_entries_value_check check (octet_length("value"::text) <= 1048576),
   "hits" integer not null default 0,
   "created_at" timestamptz not null default now(),
   "last_hit_at" timestamptz,
   "expires_at" timestamptz not null
 );
-create index if not exists ai_cache_entries_expires_idx on "better_supabase"."ai_cache_entries" ("expires_at");
-create index if not exists ai_cache_entries_tenant_idx on "better_supabase"."ai_cache_entries" ("organization_id");
+create index ai_cache_entries_expires_idx on "better_supabase"."ai_cache_entries" ("expires_at");
+create index ai_cache_entries_tenant_idx on "better_supabase"."ai_cache_entries" ("tenant_id");
 alter table "better_supabase"."ai_cache_entries" enable row level security;
 revoke all on "better_supabase"."ai_cache_entries" from public, anon, authenticated;
 grant all on "better_supabase"."ai_cache_entries" to service_role;
@@ -57,7 +41,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('key', v_row."key", 'organization_id', v_row."organization_id", 'kind', v_row."kind", 'model', v_row."model", 'value', v_row."value", 'hits', v_row."hits", 'created_at', v_row."created_at", 'last_hit_at', v_row."last_hit_at", 'expires_at', v_row."expires_at");
+  return jsonb_build_object('key', v_row."key", 'tenant_id', v_row."tenant_id", 'kind', v_row."kind", 'model', v_row."model", 'value', v_row."value", 'hits', v_row."hits", 'created_at', v_row."created_at", 'last_hit_at', v_row."last_hit_at", 'expires_at', v_row."expires_at");
 end;
 $$;
 revoke execute on function "better_supabase"."ai_cache_get"(text) from public, anon, authenticated;
@@ -77,11 +61,11 @@ begin
   if ai_cache_set.ttl is null or ai_cache_set.ttl < 1 then
     raise exception 'ttl must be at least one second' using errcode = '22023', hint = 'AI_CACHE_INVALID';
   end if;
-  insert into "better_supabase"."ai_cache_entries" ("key", "organization_id", "kind", "model", "value", "expires_at")
+  insert into "better_supabase"."ai_cache_entries" ("key", "tenant_id", "kind", "model", "value", "expires_at")
   values (ai_cache_set.key, ai_cache_set.tenant, coalesce(ai_cache_set.kind, 'generate'), ai_cache_set.model, ai_cache_set.value,
     now() + make_interval(secs => least(ai_cache_set.ttl, 604800)))
   on conflict ("key") do update set
-    "organization_id" = excluded."organization_id",
+    "tenant_id" = excluded."tenant_id",
     "kind" = excluded."kind",
     "model" = excluded."model",
     "value" = excluded."value",
@@ -90,7 +74,7 @@ begin
     "last_hit_at" = null,
     "expires_at" = excluded."expires_at"
   returning * into v_row;
-  return jsonb_build_object('key', v_row."key", 'organization_id', v_row."organization_id", 'kind', v_row."kind", 'model', v_row."model", 'value', v_row."value", 'hits', v_row."hits", 'created_at', v_row."created_at", 'last_hit_at', v_row."last_hit_at", 'expires_at', v_row."expires_at") - 'value';
+  return jsonb_build_object('key', v_row."key", 'tenant_id', v_row."tenant_id", 'kind', v_row."kind", 'model', v_row."model", 'value', v_row."value", 'hits', v_row."hits", 'created_at', v_row."created_at", 'last_hit_at', v_row."last_hit_at", 'expires_at', v_row."expires_at") - 'value';
 end;
 $$;
 revoke execute on function "better_supabase"."ai_cache_set"(text, jsonb, integer, uuid, text, text) from public, anon, authenticated;
@@ -111,7 +95,7 @@ begin
   end if;
   delete from "better_supabase"."ai_cache_entries" x
   where (ai_cache_delete.key is null or x."key" = ai_cache_delete.key)
-    and (ai_cache_delete.tenant is null or x."organization_id" = ai_cache_delete.tenant)
+    and (ai_cache_delete.tenant is null or x."tenant_id" = ai_cache_delete.tenant)
     and (ai_cache_delete.model is null or x."model" = ai_cache_delete.model);
   get diagnostics v_count = row_count;
   return v_count;
@@ -184,16 +168,3 @@ set search_path = ''
 as $$ select "better_supabase"."purge_ai_cache"($1) $$;
 revoke execute on function "api"."purge_ai_cache"(integer) from public, anon, authenticated;
 grant execute on function "api"."purge_ai_cache"(integer) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

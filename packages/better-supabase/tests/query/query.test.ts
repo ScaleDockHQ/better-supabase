@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Executor } from "../../src/core/executor.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { DbException } from "../../src/core/errors.ts";
 import { ok } from "../../src/core/result.ts";
 import {
@@ -16,7 +16,7 @@ import {
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 function isInvalid(
   client: QueryClient,

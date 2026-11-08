@@ -16,7 +16,6 @@ import {
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   addForeignKey,
   extraFieldsArg,
   fail,
@@ -108,7 +107,7 @@ const NAMES: BlockSqlNames = {
     shipment_line: { table: "lines", singular: "shipment_line" },
   },
   events: EVENTS,
-  options: ["extraColumns"],
+  options: [],
   tables: {
     shipments: {
       name: "shipments",
@@ -121,6 +120,7 @@ const NAMES: BlockSqlNames = {
         status: "status",
         fromAddress: "from_address",
         toAddress: "to_address",
+        direction: "direction",
         fromLocation: "from_location_id",
         subjectType: "subject_type",
         subjectId: "subject_id",
@@ -143,6 +143,7 @@ const NAMES: BlockSqlNames = {
       },
       optional: [
         ...PROOF_OPTIONAL,
+        "direction",
         "fromLocation",
         "subjectType",
         "subjectId",
@@ -203,7 +204,7 @@ const assetsOf = (ctx: BlockSqlContext): BlockSqlContext | undefined =>
 const addressValid = (value: string): string =>
   `(jsonb_typeof(${value}) = 'object' and coalesce(${value} ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce(${value} ->> 'line1', ''))) >= 1 and length(btrim(coalesce(${value} ->> 'city', ''))) >= 1 and length(${value}::text) <= 4000)`;
 
-function tables(ctx: BlockSqlContext, extras: readonly ExtraColumn[]): string {
+function tables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -269,7 +270,7 @@ create table if not exists ${shipments} (
   ${h("reference")} text not null check (length(${h("reference")}) >= 1 and length(${h("reference")}) <= 100),
   ${h("status")} text not null default 'draft' check (${h("status")} in (${list(SHIPMENT_STATUSES)})),
   ${h("fromAddress")} jsonb not null check ${addressValid(h("fromAddress"))},
-  ${h("toAddress")} jsonb not null check ${addressValid(h("toAddress"))},${column("shipments", "fromLocation", (name) => `${name} uuid`)}${column("shipments", "subjectType", (name) => `${name} text check (${name} is null or ${name} ~ '^[a-z][a-z0-9_-]{0,62}$')`)}${column("shipments", "subjectId", (name) => `${name} text check (${name} is null or length(${name}) >= 1 and length(${name}) <= 200)`)}
+  ${h("toAddress")} jsonb not null check ${addressValid(h("toAddress"))},${column("shipments", "direction", (name) => `${name} text not null default 'outbound' constraint bsb_shipments_direction check (${name} in ('outbound', 'inbound'))`)}${column("shipments", "fromLocation", (name) => `${name} uuid`)}${column("shipments", "subjectType", (name) => `${name} text check (${name} is null or ${name} ~ '^[a-z][a-z0-9_-]{0,62}$')`)}${column("shipments", "subjectId", (name) => `${name} text check (${name} is null or length(${name}) >= 1 and length(${name}) <= 200)`)}
   ${h("carrier")} text check (${h("carrier")} is null or length(${h("carrier")}) >= 1 and length(${h("carrier")}) <= 100),
   ${h("service")} text check (${h("service")} is null or length(${h("service")}) >= 1 and length(${h("service")}) <= 100),
   ${h("trackingNumber")} text check (${h("trackingNumber")} is null or length(${h("trackingNumber")}) >= 1 and length(${h("trackingNumber")}) <= 100),${https("trackingUrl")}
@@ -284,7 +285,7 @@ create table if not exists ${shipments} (
   ${h("updatedAt")} timestamptz not null default now(),${subject ? `\n  check ((${h("subjectType")} is null) = (${h("subjectId")} is null)),` : ""}
   check ((${h("labelCost")} is null) = (${h("currency")} is null)),
   check (${h("status")} in ('draft', 'cancelled') or (${h("carrier")} is not null and ${h("trackingNumber")} is not null))
-);${addExtraColumns(shipments, extras)}
+);
 create index if not exists ${index("shipments", "tenant_idx")} on ${shipments} (${h("tenant")}, ${h("createdAt")} desc);
 create index if not exists ${index("shipments", "status_idx")} on ${shipments} (${h("tenant")}, ${h("status")});
 create unique index if not exists ${index("shipments", "tracking_key")} on ${shipments} (${h("carrier")}, ${h("trackingNumber")}) where ${h("trackingNumber")} is not null;${subject ? `\ncreate index if not exists ${index("shipments", "subject_idx")} on ${shipments} (${h("tenant")}, ${h("subjectType")}, ${h("subjectId")});` : ""}${ctx.has("shipments", "fromLocation") ? `\ncreate index if not exists ${index("shipments", "location_idx")} on ${shipments} (${h("fromLocation")});` : ""}
@@ -394,7 +395,7 @@ function functions(
 
   const shipmentJson = (row: string): string =>
     withExtraFields(
-      `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}::text, 'reference', ${row}.${h("reference")}, 'status', ${ctx.label("shipments", "status", `${row}.${h("status")}`)}, 'from', ${row}.${h("fromAddress")}, 'to', ${row}.${h("toAddress")}, 'fromLocationId', ${or("shipments", row, "fromLocation")}, 'subjectType', ${or("shipments", row, "subjectType")}, 'subjectId', ${or("shipments", row, "subjectId")}, 'carrier', ${row}.${h("carrier")}, 'service', ${row}.${h("service")}, 'trackingNumber', ${row}.${h("trackingNumber")}, 'trackingUrl', ${or("shipments", row, "trackingUrl")}, 'labelId', ${row}.${h("labelId")}, 'labelUrl', ${or("shipments", row, "labelUrl")}, 'labelFormat', ${row}.${h("labelFormat")}, 'labelCost', ${row}.${h("labelCost")}::text, 'currency', ${row}.${h("currency")}, 'labeledAt', ${row}.${h("labeledAt")}, 'deliveredAt', ${row}.${h("deliveredAt")}, 'deliveredTo', ${or("shipments", row, "deliveredTo")}, 'proofReference', ${or("shipments", row, "proofReference")}, 'proofAttachmentId', ${or("shipments", row, "proofAttachment")}, 'proofRecordedAt', ${or("shipments", row, "proofRecordedAt")}, 'cancelledAt', ${row}.${h("cancelledAt")}, 'createdBy', ${or("shipments", row, "createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")}, 'packages', ${packagesJson(row)}, 'lines', ${linesJson(ctx, row)})`,
+      `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}::text, 'reference', ${row}.${h("reference")}, 'status', ${ctx.label("shipments", "status", `${row}.${h("status")}`)}, 'from', ${row}.${h("fromAddress")}, 'to', ${row}.${h("toAddress")}, 'direction', ${or("shipments", row, "direction")}, 'fromLocationId', ${or("shipments", row, "fromLocation")}, 'subjectType', ${or("shipments", row, "subjectType")}, 'subjectId', ${or("shipments", row, "subjectId")}, 'carrier', ${row}.${h("carrier")}, 'service', ${row}.${h("service")}, 'trackingNumber', ${row}.${h("trackingNumber")}, 'trackingUrl', ${or("shipments", row, "trackingUrl")}, 'labelId', ${row}.${h("labelId")}, 'labelUrl', ${or("shipments", row, "labelUrl")}, 'labelFormat', ${row}.${h("labelFormat")}, 'labelCost', ${row}.${h("labelCost")}::text, 'currency', ${row}.${h("currency")}, 'labeledAt', ${row}.${h("labeledAt")}, 'deliveredAt', ${row}.${h("deliveredAt")}, 'deliveredTo', ${or("shipments", row, "deliveredTo")}, 'proofReference', ${or("shipments", row, "proofReference")}, 'proofAttachmentId', ${or("shipments", row, "proofAttachment")}, 'proofRecordedAt', ${or("shipments", row, "proofRecordedAt")}, 'cancelledAt', ${row}.${h("cancelledAt")}, 'createdBy', ${or("shipments", row, "createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")}, 'packages', ${packagesJson(row)}, 'lines', ${linesJson(ctx, row)})`,
       row,
       extras,
     );
@@ -795,20 +796,51 @@ ${findForWrite("cancel_shipment.shipment_id")}
 end;
 $$;
 ${userGrant(`${fn("cancel_shipment")}(uuid)`)}
-${proofFunctionSql(ctx, {
-  shipments,
-  h,
-  findForWrite,
-  notDelivered: st("v_ship", ["delivered"], true),
-  shipmentJson,
-  record: ctx.record({
-    type: "shipment.proof_recorded",
-    payload: `jsonb_build_object(${base("v_ship")}, 'deliveredTo', ${or("shipments", "v_ship", "deliveredTo")})`,
-    subject: subject("v_ship"),
-    tenant: `v_ship.${h("tenant")}`,
-    audit: audited("v_ship", "recorded proof of delivery"),
-  }),
-})}${lineFunctions(ctx, findForWrite, shipmentJson)}${intrastatFunctions(ctx)}
+${
+  ctx.has("shipments", "direction")
+    ? `
+-- Sets whether a draft shipment leaves the organization (outbound) or comes
+-- to it (inbound). Lines keep their own direction.
+create or replace function ${fn("set_shipment_direction")}(shipment_id uuid, direction text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_ship ${shipments}%rowtype;
+begin
+${findForWrite("set_shipment_direction.shipment_id")}
+  if set_shipment_direction.direction is null or set_shipment_direction.direction not in ('outbound', 'inbound') then
+    ${fail("SHIPMENT_DIRECTION_INVALID", "a shipment is outbound or inbound", "22023")}
+  end if;
+  if ${st("v_ship", ["draft"], true)} then
+    ${fail("SHIPMENT_SHIPPED", "only a draft changes direction", "55000")}
+  end if;
+  update ${shipments} x set ${h("direction")} = set_shipment_direction.direction, ${h("updatedAt")} = now()
+  where x.${h("id")} = v_ship.${h("id")}
+  returning * into v_ship;
+  return ${shipmentJson("v_ship")};
+end;
+$$;
+${userGrant(`${fn("set_shipment_direction")}(uuid, text)`)}
+`
+    : ""
+}${proofFunctionSql(ctx, {
+    shipments,
+    h,
+    findForWrite,
+    notDelivered: st("v_ship", ["delivered"], true),
+    shipmentJson,
+    record: ctx.record({
+      type: "shipment.proof_recorded",
+      payload: `jsonb_build_object(${base("v_ship")}, 'deliveredTo', ${or("shipments", "v_ship", "deliveredTo")})`,
+      subject: subject("v_ship"),
+      tenant: `v_ship.${h("tenant")}`,
+      audit: audited("v_ship", "recorded proof of delivery"),
+    }),
+  })}${lineFunctions(ctx, findForWrite, shipmentJson)}${intrastatFunctions(ctx)}
 -- A shipment's tracking timeline, oldest first.
 create or replace function ${fn("list_tracking_events")}(shipment_id uuid)
 returns jsonb
@@ -882,7 +914,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Shipments: packages, addresses, carrier labels and a tracking timeline
 -- whose latest event sets the shipment's status.
-${tables(ctx, extras)}${functions(ctx, extras)}${shipmentMerges(ctx)}`;
+${tables(ctx)}${functions(ctx, extras)}${shipmentMerges(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -937,6 +969,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "cancel_shipment", args: ["uuid"], returns: "jsonb" },
+    ...(ctx.has("shipments", "direction")
+      ? [
+          {
+            name: "set_shipment_direction",
+            args: ["uuid", "text"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     ...proofContract,
     { name: "list_tracking_events", args: ["uuid"], returns: "jsonb" },
     { name: "set_shipment_lines", args: ["uuid", "jsonb"], returns: "jsonb" },

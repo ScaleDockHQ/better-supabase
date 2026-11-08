@@ -46,7 +46,7 @@ is rendered once too, and every call returns a fresh copy, so changing a
 returned document never changes the next one. The same options give the
 same bytes on every run.
 
-`buildApiModel(betterSupabase, options)` returns `{ model, diagnostics }`
+`defineApiModel(betterSupabase, options)` returns `{ model, diagnostics }`
 without the renderers, for tools that read the model directly. It throws a
 `TypeError` for a table key the schema doesn't have.
 

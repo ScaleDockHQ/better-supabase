@@ -58,7 +58,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       optional: ["account", "createdAt"],
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         customer: "stripe_customer_id",
         account: "stripe_customer_account_id",
         createdAt: "created_at",
@@ -71,7 +71,7 @@ const NAMES: BlockSqlNames = {
       optional: ["price", "plan", "periodEnd", "cancelAt", "updatedAt"],
       typed: ["status"],
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         subscription: "subscription_id",
         status: "status",
         price: "price_id",
@@ -320,7 +320,7 @@ alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select on ${t} to authenticated;
 grant all on ${t} to service_role;
-${tenantKey}${renderPolicy(makePolicy({ table: t, name: "billing_customers_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), ctx.permission("read", permissions.read)) }), { drop: true, target: t })}
+${tenantKey}${renderPolicy(makePolicy({ table: t, name: "billing_customers_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), ctx.permission("read", permissions.read)) }), { target: t })}
 
 create or replace function ${fn("billing_customer")}(tenant ${id})
 returns text

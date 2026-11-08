@@ -46,7 +46,7 @@ describe.skipIf(!live)("forecasts", () => {
       const transport = sqlTransport(s.sql);
       const deals = createDeals({ transport });
       const forecasts = createForecasts({ transport });
-      const today = Temporal.Now.plainDateISO();
+      const today = Temporal.Now.plainDateISO("UTC");
 
       const period = {
         since: today.subtract({ days: 30 }),
@@ -139,7 +139,7 @@ describe.skipIf(!live)("forecasts", () => {
       expect((await forecasts.get(first.id).orThrow()).deals).toHaveLength(2);
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type = 'forecast_snapshot.created'",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and type = 'forecast_snapshot.created'",
         [org],
       );
 

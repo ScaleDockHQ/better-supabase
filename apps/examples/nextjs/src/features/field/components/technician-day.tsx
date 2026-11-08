@@ -2,9 +2,8 @@ import type { WorkOrderStatus } from "better-supabase/blocks/dispatch";
 
 import { ChevronLeftIcon, ChevronRightIcon, RouteIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
+import { io } from "next/cache";
 import { forbidden } from "next/navigation";
-import { connection } from "next/server";
-import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { Badge } from "@/components/reui/badge";
@@ -83,16 +82,15 @@ function nextStep(
  * with the button that moves it on. `?day=YYYY-MM-DD` picks the day.
  */
 export async function TechnicianDay({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, format, query, permissions] = await Promise.all([
+  const [t, format, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "dispatch.work")) {

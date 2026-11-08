@@ -16,7 +16,7 @@ export const NATIVE_TABLE = {
   lifecycle: { tenant: "tenant" },
   columns: {
     id: "id",
-    tenant: "organization_id",
+    tenant: "tenant_id",
     plan: "plan",
     currency: "currency",
     unitAmount: "unit_amount",

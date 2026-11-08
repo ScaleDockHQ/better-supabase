@@ -24,8 +24,12 @@ const CENTRAKIT: AnyBlocksConfig = {
     schema: "public",
     idType: "uuid",
     columns: {
-      events: { actor: "actor_user_id", data: "metadata" },
-      recipients: { user: "recipient_user_id" },
+      events: {
+        tenant: "organization_id",
+        actor: "actor_user_id",
+        data: "metadata",
+      },
+      recipients: { tenant: "organization_id", user: "recipient_user_id" },
     },
     options: {
       topic: "organization:{tenantId}:notifications:{userId}",
@@ -37,17 +41,10 @@ const CENTRAKIT: AnyBlocksConfig = {
 describe("notifications module", () => {
   it("adds actions and a resolution to managed tables and validates actions", () => {
     const sql = body();
-    expect(sql).toContain(
-      'alter table "better_supabase"."notification_events" add column if not exists "actions" jsonb;',
-    );
-    expect(sql).toContain(
-      'alter table "better_supabase"."notification_recipients" add column if not exists "resolution" jsonb;',
-    );
+    expect(sql).toContain('"actions" jsonb');
+    expect(sql).toContain('"resolution" jsonb');
     expect(sql).toContain("hint = 'NOTIFICATION_ACTIONS_INVALID'");
     expect(sql).toContain("hint = 'NOTIFICATION_RESOLUTION_INVALID'");
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."resolve_notifications"(text, text, text, uuid);',
-    );
     expect(sql).toContain(
       'grant execute on function "better_supabase".resolve_notifications(text, text, text, uuid, jsonb) to authenticated, service_role;',
     );
@@ -96,7 +93,7 @@ describe("notifications module", () => {
   it("owns its tables with RLS and keeps notify for the definer", () => {
     const sql = body();
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."notification_events" (',
+      'create table "better_supabase"."notification_events" (',
     );
     expect(sql).toContain('"data" jsonb not null default');
     expect(sql).toContain("notification_events_key_idx");
@@ -148,7 +145,7 @@ describe("notifications module", () => {
     expect(sql).not.toContain("notification_subscriptions");
     expect(sql).not.toContain('"idempotency_key"');
     expect(sql).not.toContain("realtime.send(");
-    expect(sql).toContain("drop trigger if exists");
+    expect(sql).not.toContain("drop trigger if exists");
     expect(sql).toContain(
       `overlay(overlay(v_hash placing '8' from 13 for 1) placing to_hex(8 | (('x' || substr(v_hash, 17, 1))::bit(4)::integer & 3)) from 17 for 1)::uuid`,
     );
@@ -189,9 +186,6 @@ describe("notifications module", () => {
     expect(sql).toContain('and d."next_attempt_at" <= now()');
     expect(sql).toMatch(/v_status := 'failed'/);
     expect(sql).toContain("'The lease ran out on the last attempt'");
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text);',
-    );
 
     const plain = body({
       notifications: {
@@ -313,9 +307,6 @@ describe("notifications module", () => {
           `function "better_supabase"\\."${fn}"\\([^)]*\\)\\nreturns jsonb`,
         ),
       );
-      expect(sql).toContain(
-        `drop function if exists "better_supabase"."${fn}"(`,
-      );
     }
 
     expect(sql).toContain(`filter (where rc."user_id" = auth.uid()), '[]')`);
@@ -341,19 +332,13 @@ describe("notifications module", () => {
       `and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)`,
     );
     expect(sql).toContain(
-      `drop function if exists "better_supabase"."notification_page"(uuid, text, text[], text[], text, integer, integer);`,
-    );
-    expect(sql).toContain(
       `or ev."subject_type" = any(list_notifications.subject_types)`,
     );
     expect(sql).toContain(
       `concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92))`,
     );
     expect(sql).toContain(
-      `drop function if exists "better_supabase"."list_notifications"(uuid, text, text[], timestamptz, integer, uuid);`,
-    );
-    expect(sql).toContain(
-      `'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."organization_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end)`,
+      `'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."tenant_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end)`,
     );
     expect(sql).toContain(`set "read_at" = null`);
 
@@ -431,8 +416,8 @@ describe("notification subjects", () => {
     delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
     delete from "better_supabase"."notification_subscriptions" x where x."subject_type" = v_type and x."subject_id" = v_id;
   else
-    delete from "better_supabase"."notification_events" x where x."organization_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
-    delete from "better_supabase"."notification_subscriptions" x where x."organization_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_events" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
   end if;`,
     );
     expect(sql).toContain(
@@ -446,6 +431,30 @@ describe("notification subjects", () => {
     );
     expect(sql).not.toContain("bsb_notifications_invoice_cascade");
     expect(body()).not.toContain("notifications_subject_deleted");
+  });
+
+  it("cascades every registered subject when on is unset, and an explicit on decides itself", () => {
+    const subjects = { task: { table: "public.tasks" } };
+
+    const inferred = moduleBody("notifications", { subjects })!;
+
+    expect(inferred).toContain("bsb_notifications_task_cascade");
+
+    const explicit = moduleBody("notifications", {
+      subjects,
+      modules: { notifications: { on: { task: { table: "tasks" } } } },
+    })!;
+
+    expect(explicit).not.toContain("notifications_subject_deleted");
+
+    expect(
+      moduleBody("notifications", {
+        subjects: { message: { table: "better_supabase.messages" } },
+      }),
+    ).not.toContain("notifications_subject_deleted");
+    expect(moduleBody("notifications")).not.toContain(
+      "notifications_subject_deleted",
+    );
   });
 
   it("leaves subscriptions alone without the table and needs the subject columns", () => {

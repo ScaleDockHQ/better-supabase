@@ -14,8 +14,17 @@ import {
 import { moduleLayout } from "../../src/sql/layout.ts";
 import { sameBlockFile } from "../../src/sql/markers.ts";
 import { resolveBlocks, SQL_MODULES } from "../../src/sql/registry.ts";
-import { moduleTopics, renderBlocks } from "../../src/sql/render.ts";
+import {
+  moduleTopics,
+  renderBlocks as renderAll,
+} from "../../src/sql/render.ts";
 import { stubProvider } from "../fixtures/authorization-provider.ts";
+
+// The module files, without the prelude that renderBlocks writes ahead of them.
+const renderBlocks = (
+  ...args: Parameters<typeof renderAll>
+): ReturnType<typeof renderAll> =>
+  renderAll(...args).filter((file) => file.module !== "prelude");
 
 describe("resolveBlocks", () => {
   it("adds dependencies and keeps registry order", () => {
@@ -363,8 +372,11 @@ describe("module event triggers", () => {
 
 describe("rls-guard", () => {
   it("installs a replaceable event trigger that skips managed schemas", () => {
-    const [file] = renderBlocks(["rls-guard"]);
-    expect(file!.path).toMatch(/_rls_guard\.sql$/);
+    const files = renderBlocks(["rls-guard"]);
+    const [module] = files;
+    const file = files.find((entry) => entry.module === "unscoped");
+    expect(module!.path).toMatch(/_rls_guard\.sql$/);
+    expect(module!.contents).not.toMatch(/^create event trigger/m);
     expect(file!.contents).toContain(
       "drop event trigger if exists bsb_ensure_rls;",
     );
@@ -376,10 +388,10 @@ describe("rls-guard", () => {
     );
 
     for (const schema of ["auth", "storage", "realtime", "extensions"]) {
-      expect(file!.contents).toContain(`'${schema}'`);
+      expect(module!.contents).toContain(`'${schema}'`);
     }
 
-    expect(file!.contents).toContain(String.raw`like 'pg\_%'`);
+    expect(module!.contents).toContain(String.raw`like 'pg\_%'`);
   });
 });
 
@@ -428,13 +440,13 @@ describe("sameBlockFile", () => {
     });
 
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('public.customers', tenant_column => 'organization_id');",
+      "create trigger bsb_realtime_insert after insert on public.customers referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes('organization_id', 'tenant');",
     );
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('billing.invoices', tenant_column => 'organization_id');",
+      "create trigger bsb_realtime_delete after delete on billing.invoices referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes('organization_id', 'tenant');",
     );
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('public.plans', tenant_column => null);",
+      "create trigger bsb_realtime after insert or update or delete on public.plans for each statement execute function better_supabase.broadcast_changes();",
     );
     expect(file!.contents).toContain("raise exception '% has no column %'");
     expect(renderBlocks(["realtime-tables"])[0]!.contents).not.toContain(
@@ -450,10 +462,10 @@ describe("sameBlockFile", () => {
     });
 
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('public.notifications', tenant_column => null, user_column => 'user_id');",
+      "create trigger bsb_realtime_update after update on public.notifications referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes('user_id', 'user');",
     );
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('public.customers', tenant_column => 'organization_id');",
+      "create trigger bsb_realtime_update after update on public.customers referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes('organization_id', 'tenant');",
     );
     expect(file!.contents).toContain(
       "split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text",
@@ -485,9 +497,7 @@ describe("sameBlockFile", () => {
     expect(file!.contents).toContain(
       `alter table "public"."customers" add constraint "bsb_json_metadata"\n  check (extensions.jsonb_matches_schema('{"type":"object"}'::json, "metadata")) not valid;\nalter table "public"."customers" validate constraint "bsb_json_metadata";`,
     );
-    expect(file!.contents).toContain(
-      'alter table "billing"."invoices" drop constraint if exists "bsb_json_lines";',
-    );
+    expect(file!.contents).not.toContain("drop constraint if exists");
   });
 
   it("writes the complete Data API grants from the expose config", () => {
@@ -592,7 +602,6 @@ describe("sameBlockFile", () => {
     const [file] = renderBlocks(["sessions"], layout);
     expect(file!.contents).toContain(
       [
-        'drop policy if exists bsb_session_active on "public"."invoices";',
         'create policy bsb_session_active on "public"."invoices" as restrictive',
         "  for all to authenticated",
         "  using ((select better_supabase.session_active()))",
@@ -855,9 +864,6 @@ describe("vector search options", () => {
       'select t."id" as id, t."embedding" operator(extensions.<=>) query as distance',
     );
     expect(sql).toContain("1 - v.distance as score");
-    expect(sql).toContain(
-      'drop function if exists "public"."search_chunks"(extensions.vector, integer, jsonb, text);',
-    );
   });
 
   it("ranks halfvec columns with hybrid RRF, a boost and prefilters", () => {
@@ -888,9 +894,6 @@ describe("vector search options", () => {
     );
     expect(sql).toContain("least(greatest(k, 1) * 4, 1000)");
     expect(sql).toContain('join "public"."chunks" t on t."chunk_id" = r.id');
-    expect(sql).toContain(
-      'drop function if exists "public"."search_chunks"(extensions.halfvec, integer);',
-    );
   });
 
   it("filters with a predicate, adds the boost, breaks ties and allows text alone", () => {
@@ -1063,7 +1066,7 @@ describe("entitlements with provider memberships", () => {
       'select t."stripe_customer_id" from "better_supabase"."organizations" t where t."id" = tenant',
     );
     expect(sql("organizations")).toContain(
-      "add column if not exists stripe_customer_id text unique;",
+      "add column stripe_customer_id text unique;",
     );
     expect(sql("entitlements")).toContain("returns text\nlanguage plpgsql");
     expect(

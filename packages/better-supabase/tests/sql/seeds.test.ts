@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlContext } from "../../src/sql/context.ts";
 import type { BlockSql } from "../../src/sql/module-types.ts";
 
+import { seedDefaultsSql } from "../../src/sql/pipeline/prepare.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
-import { renderBlocks, seedDefaultsSql } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import {
   renderSeedDefaults,
   renderSeedUmbrella,

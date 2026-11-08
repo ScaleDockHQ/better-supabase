@@ -27,12 +27,21 @@ export const ignorePatterns: string[] = [
   "**/.source",
   "**/.agents/**",
   "**/.claude/**",
+  // What `init` writes for Next.js, compared byte for byte by the init fixture test.
+  "tests/init-fixture/**",
   "**/.cursor/**",
   "**/generated.ts",
   "**/generated.meta.*",
   "**/generated-*.ts",
   "**/database.types.ts",
   "**/lib/supabase/records/**",
+  "**/lib/supabase/tables/**",
+  // The table and block modules `gen` writes.
+  "**/lib/supabase/blocks/*.ts",
+  "**/src/tables/*.ts",
+  "**/src/runtime/tables/*.ts",
+  "**/src/blocks/permissions.ts",
+  "**/src/blocks/slices.ts",
 ];
 
 /**

@@ -50,8 +50,12 @@ describe("import mode session", () => {
   });
 
   it("only reports the run to the service role", () => {
-    const fn = body("audit").slice(
-      body("audit").indexOf("function better_supabase.import_run()"),
+    const prelude = renderBlocks(["audit", "imports"], {}).find(
+      (file) => file.module === "prelude",
+    )!.contents;
+
+    const fn = prelude.slice(
+      prelude.indexOf("function better_supabase.import_run()"),
     );
 
     expect(fn).toContain("session_user::text");

@@ -75,7 +75,7 @@ export interface AssistantContext {
 }
 
 /** What `run` gets to generate one answer. */
-export interface AssistantRunArgs<UI_MESSAGE extends UIMessage = UIMessage> {
+export interface AssistantRunOptions<UI_MESSAGE extends UIMessage = UIMessage> {
   readonly chat: AiChatRecord;
   /** The model the request may use, after the catalog check. */
   readonly model: string;
@@ -185,7 +185,7 @@ export interface AssistantMessageMetadata {
  * and the finish reason and usage with the last, as message metadata.
  */
 export function assistantMetadata<UI_MESSAGE extends UIMessage = UIMessage>(
-  args: Pick<AssistantRunArgs<UI_MESSAGE>, "model">,
+  args: Pick<AssistantRunOptions<UI_MESSAGE>, "model">,
 ): AssistantStreamOptions<UI_MESSAGE> {
   const messageMetadata = ({
     part,
@@ -212,7 +212,7 @@ export interface AssistantOptions<UI_MESSAGE extends UIMessage = UIMessage> {
   readonly streams: StreamStore;
   /** Starts the generation: `agent.stream(...)` or `streamText(...)`. */
   readonly run: (
-    args: AssistantRunArgs<UI_MESSAGE>,
+    args: AssistantRunOptions<UI_MESSAGE>,
   ) => AssistantRunResult | PromiseLike<AssistantRunResult>;
   /** The model when neither the request nor the chat names an allowed one. */
   readonly defaultModel: string;
@@ -256,7 +256,7 @@ export interface AssistantOptions<UI_MESSAGE extends UIMessage = UIMessage> {
   readonly stream?:
     | AssistantStreamOptions<UI_MESSAGE>
     | ((
-        args: AssistantRunArgs<UI_MESSAGE>,
+        args: AssistantRunOptions<UI_MESSAGE>,
       ) => AssistantStreamOptions<UI_MESSAGE>);
   /** Checks the user's message against schemas before it is stored. */
   readonly validate?: AssistantValidation<UI_MESSAGE>;
@@ -849,7 +849,7 @@ export function createAssistant<UI_MESSAGE extends UIMessage = UIMessage>(
         ...runRelease(status, usage, error),
       });
 
-    const runArgs: AssistantRunArgs<UI_MESSAGE> = {
+    const runArgs: AssistantRunOptions<UI_MESSAGE> = {
       chat,
       model,
       messages: turn.messages,

@@ -66,7 +66,7 @@ describe("gen tasks", () => {
             realtime: {
               policies: {
                 from: ["src/lib/topics.ts"],
-                output: "supabase/schemas/905_topics.sql",
+                file: "supabase/schemas/905_topics.sql",
               },
             },
           },
@@ -173,7 +173,7 @@ describe("gen sql and env steps", () => {
 
     const results = await runSteps(["sql", "env"], {
       config: resolved({
-        tooling: { env: { output: ".env.test", prefix: "VITE_" } },
+        tooling: { env: { file: ".env.test", prefix: "VITE_" } },
       }),
       env: { SUPABASE_BIN: bin },
       check: false,

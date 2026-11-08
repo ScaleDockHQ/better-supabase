@@ -403,7 +403,7 @@ ${renderPolicy(
     or ${a("owner")} = (select auth.uid())
     or (${a("tenant")}, ${a("readPermission")}) in (select g.tenant, g.permission from ${fn("ledger_read_grants")}() g)`,
   }),
-  { drop: true, target: accounts },
+  { target: accounts },
 )}
 ${lockModuleTable(ctx, "transactions", { read: true })}
 ${renderPolicy(
@@ -415,14 +415,14 @@ ${renderPolicy(
     using: `${ctx.scope.check(t("tenant"), read)}
     or exists (select 1 from ${entries} y where y.${e("transaction")} = ${t("id")})`,
   }),
-  { drop: true, target: transactions },
+  { target: transactions },
 )}
 ${lockModuleTable(ctx, "entries", { read: true })}
-${renderPolicy(makePolicy({ table: entries, name: policyName("entries"), command: "select", roles: ["authenticated"], using: `${e("account")} in (select y.${a("id")} from ${accounts} y)` }), { drop: true, target: entries })}
+${renderPolicy(makePolicy({ table: entries, name: policyName("entries"), command: "select", roles: ["authenticated"], using: `${e("account")} in (select y.${a("id")} from ${accounts} y)` }), { target: entries })}
 ${lockModuleTable(ctx, "balances", { read: true })}
-${renderPolicy(makePolicy({ table: balances, name: policyName("balances"), command: "select", roles: ["authenticated"], using: `${b("account")} in (select y.${a("id")} from ${accounts} y)` }), { drop: true, target: balances })}
+${renderPolicy(makePolicy({ table: balances, name: policyName("balances"), command: "select", roles: ["authenticated"], using: `${b("account")} in (select y.${a("id")} from ${accounts} y)` }), { target: balances })}
 ${lockModuleTable(ctx, "holds", { read: true })}
-${renderPolicy(makePolicy({ table: holds, name: policyName("holds"), command: "select", roles: ["authenticated"], using: `${h("account")} in (select y.${a("id")} from ${accounts} y)` }), { drop: true, target: holds })}
+${renderPolicy(makePolicy({ table: holds, name: policyName("holds"), command: "select", roles: ["authenticated"], using: `${h("account")} in (select y.${a("id")} from ${accounts} y)` }), { target: holds })}
 
 -- Entries and transactions are append-only: a reversal posts the opposite.
 create or replace function ${fn("ledger_append_only")}()

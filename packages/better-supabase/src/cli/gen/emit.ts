@@ -1,5 +1,6 @@
 import type { SchemaExtension } from "./blocks.ts";
 import type { ColumnModel, FunctionModel, Model } from "./model.ts";
+import type { TableModuleInfo } from "./tables.ts";
 
 import { byCodePoint } from "../compare.ts";
 import { functionGroups } from "./model.ts";
@@ -234,6 +235,12 @@ export interface EmitOptions {
    * then installs `validation` with them, so writes are checked.
    */
   readonly validatorsImport?: string;
+  /**
+   * The per-table modules (`gen.tableModules`): the schema imports its tables
+   * from them instead of from the metadata module, and the module adds
+   * `clientSchema`.
+   */
+  readonly tables?: readonly TableModuleInfo[];
 }
 
 /**
@@ -280,9 +287,12 @@ export function emitMeta(
   model: Model,
   options: Pick<EmitOptions, "runtimeImport"> & {
     readonly types?: string;
+    /** The tables live in `tables/<table>.ts`, so `tables` stays empty. */
+    readonly splitTables?: boolean;
   } = {},
 ): { js: string; dts: string } {
   const runtime = options.runtimeImport ?? "better-supabase";
+  const meta = options.splitTables ? { ...model.meta, tables: {} } : model.meta;
 
   return {
     js: [
@@ -292,7 +302,7 @@ export function emitMeta(
       "/* oxlint-disable */",
       "/* eslint-disable */",
       "",
-      `export default ${compactJson({ ...model.meta })};`,
+      `export default ${compactJson({ ...meta })};`,
       "",
     ].join("\n"),
     dts: [
@@ -432,6 +442,48 @@ function inlineDatabaseTypes(text: string): string[] {
   ];
 }
 
+/** The imports of the per-table modules, and the `tables` object they fill. */
+function tableImports(tables: readonly TableModuleInfo[]): string[] {
+  return tables.map(
+    (table) => `import { ${table.name} } from ${q(table.specifier)};`,
+  );
+}
+
+function tablesObject(tables: readonly TableModuleInfo[]): string[] {
+  return [
+    "const tables = {",
+    ...tables.map((table) => `  ${prop(table.key)}: ${table.name},`),
+    "};",
+  ];
+}
+
+/**
+ * The schema of a client that registers the tables it uses
+ * (`bsb.table(customers)`): no tables, functions or enums of its own, and the
+ * same extensions.
+ */
+function clientSchemaLines(
+  model: Model,
+  typed: string | undefined,
+  extensionsExpr: string | undefined,
+): string[] {
+  const claims = model.meta.claims
+    ? `, claims: ${JSON.stringify(model.meta.claims)}`
+    : "";
+
+  const meta = `{ version: 1, casing: ${q(model.meta.casing)}, lazyTables: true, tables: {}, enums: {}, functions: {}${claims} }`;
+
+  const extensions = extensionsExpr === undefined ? "" : `, ${extensionsExpr}`;
+
+  return [
+    "/**",
+    " * The schema of a browser client without a table registry: it registers each",
+    " * table module a page uses through `bsb.table(...)`.",
+    " */",
+    `export const clientSchema${typed === undefined ? "" : `: ${typed}`} = /*#__PURE__*/ defineSchema(${meta}${extensions});`,
+  ];
+}
+
 /**
  * The runtime half of the generated module, for the content mapper: the values
  * (value lists, buckets, topics, extensions, subject types and `schema`), with
@@ -501,6 +553,10 @@ export function emitModule(model: Model, options: EmitOptions): string {
   const declaresMeta =
     options.inlineMeta === true || options.declareMeta === true;
 
+  // The tables and the server's schema live in their own modules
+  // (`emitSchemaModule`), so this one carries no table metadata.
+  const split = options.tables !== undefined && !declaresMeta;
+
   const lines: string[] = [
     GENERATED_HEADER,
     "/* oxlint-disable */",
@@ -514,8 +570,12 @@ export function emitModule(model: Model, options: EmitOptions): string {
     table.columns.some((column) => column.storage !== undefined),
   );
 
+  // Only an enriched Database names EnrichDatabase; an unused import fails
+  // apps that set noUnusedLocals.
+  const enriched = enrichedDatabase(model);
+
   lines.push(
-    `import type { EnrichDatabase, GeneratedColumns, MutableWhere, OrderByArg, OrderByInput${storagePaths ? ", StoragePath" : ""}, WritableColumns } from ${q(runtime)};`,
+    `import type { ${enriched.length > 1 ? "EnrichDatabase, " : ""}GeneratedColumns, MutableWhere, OrderByArg, OrderByInput${storagePaths ? ", StoragePath" : ""}, WritableColumns } from ${q(runtime)};`,
   );
 
   if (options.databaseTypes === undefined) {
@@ -540,19 +600,25 @@ export function emitModule(model: Model, options: EmitOptions): string {
     );
   }
 
+  if (model.jsonImports.some((entry) => entry.value === true)) {
+    lines.push(`import type { StandardSchemaV1 } from ${q(runtime)};`);
+  }
+
   lines.push(
     options.inlineMeta
       ? `\nconst meta: SchemaMeta = ${compactJson({ ...model.meta })};`
       : options.declareMeta
         ? "\ndeclare const meta: SchemaMeta;"
-        : `import meta from ${q(options.metaImport ?? "./generated.meta.js")};`,
+        : split
+          ? ""
+          : `import meta from ${q(options.metaImport ?? "./generated.meta.js")};`,
     ...(options.databaseTypes === undefined
       ? []
       : ["", ...inlineDatabaseTypes(options.databaseTypes)]),
     "",
     "export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];",
     "",
-    ...enrichedDatabase(model),
+    ...enriched,
     "",
   );
 
@@ -637,18 +703,20 @@ export function emitModule(model: Model, options: EmitOptions): string {
 
   if (extended) {
     lines.push(
-      "/** The installed blocks' repository extensions; `defineSupabase` installs them. */",
-      `type Extensions = readonly [${calls.map(({ fn }) => `ReturnType<typeof ${fn}>`).join(", ")}];`,
-      `const extensions: Extensions = [${calls.map(({ call }) => call).join(", ")}];`,
+      "/** The installed blocks' repository extensions; `createSupabase` installs them. */",
+      `${split ? "export " : ""}type Extensions = readonly [${calls.map(({ fn }) => `ReturnType<typeof ${fn}>`).join(", ")}];`,
+      `${split ? "export " : ""}const extensions: Extensions = [${calls.map(({ call }) => (split ? `/*#__PURE__*/ ${call}` : call)).join(", ")}];`,
       "",
     );
   }
 
   const subjectType = subjects.length > 0 ? "SubjectType" : "string";
 
-  const schemaLine = extended
-    ? `export const schema: Schema<Models, Database, Functions, ${subjectType}, ExtensionsOf<Extensions>> = defineSchema(meta, extensions);`
-    : `export const schema: Schema<Models, Database, Functions${subjects.length > 0 ? ", SubjectType" : ""}> = defineSchema(meta);`;
+  const schemaType = extended
+    ? `Schema<Models, Database, Functions, ${subjectType}, ExtensionsOf<Extensions>>`
+    : `Schema<Models, Database, Functions${subjects.length > 0 ? ", SubjectType" : ""}>`;
+
+  const schemaLine = `export const schema: ${schemaType} = defineSchema(meta${extended ? ", extensions" : ""});`;
 
   if (subjects.length > 0) {
     lines.push(
@@ -661,7 +729,73 @@ export function emitModule(model: Model, options: EmitOptions): string {
     );
   }
 
-  lines.push(schemaLine, "");
+  if (split) {
+    lines.push(
+      ...clientSchemaLines(
+        model,
+        schemaType,
+        extended ? "extensions" : undefined,
+      ),
+      "",
+    );
+  } else {
+    lines.push(schemaLine, "");
+  }
 
   return lines.join("\n");
+}
+
+/** Where the server's schema module goes: `generated-schema.ts`. */
+export function schemaModulePath(output: string): string {
+  return `${output.replace(/\.[cm]?[jt]sx?$/, "")}-schema.ts`;
+}
+
+/**
+ * The server's schema (`gen.tableModules`): every table module plus the
+ * metadata module, in a module of its own so a client that imports
+ * `generated.ts` never reaches it.
+ */
+export function emitSchemaModule(
+  model: Model,
+  tables: readonly TableModuleInfo[],
+  options: EmitOptions & { readonly generated: string },
+): string {
+  const runtime = options.runtimeImport ?? "better-supabase";
+
+  const extended =
+    (options.extensions ?? []).length > 0 ||
+    options.validatorsImport !== undefined;
+
+  const subjects = Object.keys(model.config.subjects).length > 0;
+
+  const types = [
+    "Database",
+    ...(extended ? ["Extensions"] : []),
+    "Functions",
+    "Models",
+    ...(subjects ? ["SubjectType"] : []),
+  ];
+
+  const subjectType = subjects ? "SubjectType" : "string";
+
+  const schemaType = extended
+    ? `Schema<Models, Database, Functions, ${subjectType}, ExtensionsOf<Extensions>>`
+    : `Schema<Models, Database, Functions${subjects ? ", SubjectType" : ""}>`;
+
+  return [
+    GENERATED_HEADER,
+    "/* oxlint-disable */",
+    "/* eslint-disable */",
+    "",
+    `import { defineSchema, ${extended ? "type ExtensionsOf, " : ""}type Schema } from ${q(runtime)};`,
+    `import meta from ${q(options.metaImport ?? "./generated.meta.js")};`,
+    `import ${extended ? "{ extensions, " : "{ "}type ${types.join(", type ")} } from ${q(options.generated)};`,
+    ...tableImports(tables),
+    "",
+    ...tablesObject(tables),
+    "",
+    "/** The server's schema, with every table. Browser code imports `clientSchema` from the generated module instead. */",
+    `export const schema: ${schemaType} = /*#__PURE__*/ defineSchema({ ...meta, tables }${extended ? ", extensions" : ""});`,
+    "",
+  ].join("\n");
 }

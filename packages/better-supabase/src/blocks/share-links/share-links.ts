@@ -32,10 +32,9 @@ export interface ShareLinksOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the link's extra columns
-   * (`blocks.share-links.options.extraColumns`), keyed by database name. It
-   * types and parses them on `create` and `list`, and validates them on
-   * `create`.
+   * A Standard Schema for the link's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on `create` and `list`, and validates them on `create`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

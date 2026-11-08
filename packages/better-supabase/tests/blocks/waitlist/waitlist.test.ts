@@ -28,7 +28,7 @@ const code = {
   max_uses: 5,
   uses: 1,
   expires_at: null,
-  organization_id: "org",
+  tenant_id: "org",
   role: "admin",
   created_by: "u",
   created_at: "2026-01-01T00:00:00Z",

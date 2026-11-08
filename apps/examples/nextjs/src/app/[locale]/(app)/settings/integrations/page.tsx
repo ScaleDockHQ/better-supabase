@@ -1,11 +1,13 @@
 import { Suspense } from "react";
 
-import { IntegrationSection } from "@/features/integrations/components/integration-section";
-import { IntegrationSettingsSkeleton } from "@/features/integrations/components/integration-settings";
+import {
+  IntegrationSectionSkeleton,
+  IntegrationSection,
+} from "@/features/integrations/components/integration-section";
 
 export default function IntegrationsSettingsPage() {
   return (
-    <Suspense fallback={<IntegrationSettingsSkeleton />}>
+    <Suspense fallback={<IntegrationSectionSkeleton />}>
       <IntegrationSection />
     </Suspense>
   );

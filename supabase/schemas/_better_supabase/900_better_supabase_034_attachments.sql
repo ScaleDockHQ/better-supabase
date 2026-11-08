@@ -1,76 +1,10 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:2d424a11288fdfff488471d7ae03bc8bd2cf6fbe741dbb37528129a326e858b5
+-- @bsb-hash sha256:3fa399398f9805cdaca602eefe1744aa83b5b369b6badc509865db1e8a7f3476
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_document_types";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_document_types";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_document_types";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_document_types";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_document_types";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Files linked to records. Each object lives at options.path (default
 -- {organization_id}/attachments/{id}) in the attachments bucket, or its
 -- subject's bucket; the record is created first, so the storage policies
@@ -78,24 +12,23 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Document types (ADR 0157): a key and a name per organization, and the fields
 -- a file of that type carries in its metadata: { <key>: { type, required?,
 -- options? } } with the types text, number, amount, date, expiry, boolean, select.
-create table if not exists "better_supabase"."attachment_document_types" (
+create table "better_supabase"."attachment_document_types" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "name" text not null check (length(btrim("name")) between 1 and 200),
-  "fields" jsonb not null default '{}'::jsonb check (jsonb_typeof("fields") = 'object'),
+  "tenant_id" uuid not null,
+  "key" text not null constraint bsb_attachment_document_types_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
+  "name" text not null constraint bsb_attachment_document_types_name_check check (length(btrim("name")) between 1 and 200),
+  "fields" jsonb not null default '{}'::jsonb constraint bsb_attachment_document_types_fields_check check (jsonb_typeof("fields") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  unique ("organization_id", "key")
+  unique ("tenant_id", "key")
 );
 alter table "better_supabase"."attachment_document_types" enable row level security;
 revoke all on "better_supabase"."attachment_document_types" from public, anon, authenticated;
 grant select on "better_supabase"."attachment_document_types" to authenticated;
 grant all on "better_supabase"."attachment_document_types" to service_role;
-drop policy if exists attachment_document_types_read on "better_supabase"."attachment_document_types";
-create policy attachment_document_types_read on "better_supabase"."attachment_document_types"
+create policy bsb_attachment_document_types_read on "better_supabase"."attachment_document_types"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')));
 
 -- The reason a document type's field schema is invalid, or null.
 create or replace function "better_supabase"."attachment_schema_error"(fields jsonb)
@@ -230,9 +163,9 @@ begin
   if v_error is not null then
     raise exception '%', v_error using errcode = '22023', hint = 'ATTACHMENT_DOCUMENT_SCHEMA_INVALID';
   end if;
-  insert into "better_supabase"."attachment_document_types" as t ("organization_id", "key", "name", "fields")
+  insert into "better_supabase"."attachment_document_types" as t ("tenant_id", "key", "name", "fields")
   values (define_attachment_document_type.tenant, define_attachment_document_type.key, define_attachment_document_type.name, coalesce(define_attachment_document_type.fields, '{}'::jsonb))
-  on conflict ("organization_id", "key") do update
+  on conflict ("tenant_id", "key") do update
     set "name" = excluded."name", "fields" = excluded."fields", "updated_at" = now()
   returning * into v_row;
   return to_jsonb(v_row);
@@ -249,7 +182,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(to_jsonb(t) order by t."key"), '[]'::jsonb)
   from "better_supabase"."attachment_document_types" t
-  where t."organization_id" = list_attachment_document_types.tenant
+  where t."tenant_id" = list_attachment_document_types.tenant
 $$;
 
 -- Deletes a document type that no attachment uses.
@@ -268,7 +201,7 @@ begin
     raise exception 'not allowed to manage document types' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."attachment_document_types" t
-  where t."organization_id" = delete_attachment_document_type.tenant and t."key" = delete_attachment_document_type.key;
+  where t."tenant_id" = delete_attachment_document_type.tenant and t."key" = delete_attachment_document_type.key;
   return found;
 exception when foreign_key_violation then
   raise exception 'attachments still use this document type' using errcode = '23503', hint = 'ATTACHMENT_DOCUMENT_TYPE_IN_USE';
@@ -281,80 +214,54 @@ grant execute on function "better_supabase"."define_attachment_document_type"(uu
 grant execute on function "better_supabase"."list_attachment_document_types"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment_document_type"(uuid, text) to authenticated, service_role;
 
-create table if not exists "better_supabase"."attachments" (
+create table "better_supabase"."attachments" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
-  "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check (length("subject_id") between 1 and 200),
+  "tenant_id" uuid not null,
+  "subject_type" text constraint bsb_attachments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_attachments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "bucket" text not null default 'attachments',
   "object_path" text,
-  "name" text not null check (length("name") between 1 and 255),
-  "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
+  "name" text not null constraint bsb_attachments_name_check check (length("name") >= 1 and length("name") <= 255),
+  "mime_type" text not null constraint bsb_attachments_mime_type_check check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null default 'pending' constraint bsb_attachments_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "uploaded_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default clock_timestamp(),
   "uploaded_at" timestamptz,
   "scanned_at" timestamptz,
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_attachments_check check (("subject_type" is null) = ("subject_id" is null))
 );
 -- The current version (replace_attachment() adds one) and the image or
 -- document size the client measured: width and height in pixels, pages.
-alter table "better_supabase"."attachments" add column if not exists "version" integer not null default 1 check ("version" >= 1);
+alter table "better_supabase"."attachments" add column "version" integer not null default 1 constraint bsb_attachments_version_check check ("version" >= 1);
 -- The SHA-256 of the file's bytes, hex, recorded by the scan step from the
 -- stored object. A client never supplies it.
-alter table "better_supabase"."attachments" add column if not exists "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$');
-alter table "better_supabase"."attachments" add column if not exists "hash_verified_at" timestamptz;
-alter table "better_supabase"."attachments" add column if not exists "width" integer check ("width" > 0);
-alter table "better_supabase"."attachments" add column if not exists "height" integer check ("height" > 0);
-alter table "better_supabase"."attachments" add column if not exists "pages" integer check ("pages" > 0);
+alter table "better_supabase"."attachments" add column "sha256" text constraint bsb_attachments_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."attachments" add column "hash_verified_at" timestamptz;
+alter table "better_supabase"."attachments" add column "width" integer constraint bsb_attachments_width_check check ("width" > 0);
+alter table "better_supabase"."attachments" add column "height" integer constraint bsb_attachments_height_check check ("height" > 0);
+alter table "better_supabase"."attachments" add column "pages" integer constraint bsb_attachments_pages_check check ("pages" > 0);
 -- App data about the file (a caption, the source, a page count), set on create.
-alter table "better_supabase"."attachments" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."attachments" add column "metadata" jsonb not null default '{}' constraint bsb_attachments_metadata_check check (jsonb_typeof("metadata") = 'object');
 -- Where a record came from and what it is (ADR 0157). storage_status follows
 -- the upload: stored once uploaded_at is set, pending_upload until then, and
 -- missing for a record whose file never arrived.
-alter table "better_supabase"."attachments" add column if not exists "document_type_id" uuid references "better_supabase"."attachment_document_types" ("id") on delete restrict;
-alter table "better_supabase"."attachments" add column if not exists "source" text check (length("source") between 1 and 200);
-alter table "better_supabase"."attachments" add column if not exists "external_id" text check (length("external_id") between 1 and 500);
-alter table "better_supabase"."attachments" add column if not exists "storage_status" text not null default 'pending_upload' check ("storage_status" in ('stored', 'pending_upload', 'missing'));
-alter table "better_supabase"."attachments" add column if not exists "source_path" text check (length("source_path") between 1 and 2000);
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bsb_attachments_external'
-  ), 'pg_constraint'), '') <> 'better-supabase check 9237e50d' then
-    alter table "better_supabase"."attachments" drop constraint if exists "bsb_attachments_external";
-    alter table "better_supabase"."attachments" add constraint "bsb_attachments_external" check (("source" is null) = ("external_id" is null));
-    comment on constraint "bsb_attachments_external" on "better_supabase"."attachments" is 'better-supabase check 9237e50d';
-  end if;
-end;
-$$;
-create unique index if not exists attachments_external_idx on "better_supabase"."attachments" ("organization_id", "source", "external_id") where "source" is not null;
-create index if not exists attachments_document_type_idx on "better_supabase"."attachments" ("document_type_id") where "document_type_id" is not null;
-do $$
-begin
-  update "better_supabase"."attachments" set "storage_status" = 'stored' where "uploaded_at" is not null and "storage_status" = 'pending_upload';
-end;
-$$;
+alter table "better_supabase"."attachments" add column "document_type_id" uuid references "better_supabase"."attachment_document_types" ("id") on delete restrict;
+alter table "better_supabase"."attachments" add column "source" text constraint bsb_attachments_source_check check (length("source") >= 1 and length("source") <= 200);
+alter table "better_supabase"."attachments" add column "external_id" text constraint bsb_attachments_external_id_check check (length("external_id") >= 1 and length("external_id") <= 500);
+alter table "better_supabase"."attachments" add column "storage_status" text not null default 'pending_upload' constraint bsb_attachments_storage_status_check check ("storage_status" in ('stored', 'pending_upload', 'missing'));
+alter table "better_supabase"."attachments" add column "source_path" text constraint bsb_attachments_source_path_check check (length("source_path") >= 1 and length("source_path") <= 2000);
+alter table "better_supabase"."attachments" add constraint "bsb_attachments_external"
+  check (("source" is null) = ("external_id" is null));
+create unique index attachments_external_idx on "better_supabase"."attachments" ("tenant_id", "source", "external_id") where "source" is not null;
+create index attachments_document_type_idx on "better_supabase"."attachments" ("document_type_id") where "document_type_id" is not null;
 
 -- The bucket, size limit and MIME types come from the module options, so a
 -- re-run applies changed options to an existing table.
 -- "object_path" is a plain column a trigger fills: logical replication (PowerSync)
 -- skips generated columns. An install from before keeps its values when the
 -- expression is dropped.
-do $$
-begin
-  if exists (
-    select 1 from pg_attribute
-    where attrelid = 'better_supabase.attachments'::regclass
-      and attname = 'object_path' and attgenerated <> ''
-  ) then
-    alter table "better_supabase"."attachments" alter column "object_path" drop expression;
-  end if;
-end;
-$$;
 create or replace function "better_supabase"."attachment_object_path"()
 returns trigger
 language plpgsql
@@ -362,59 +269,25 @@ security invoker
 set search_path = ''
 as $$
 begin
-  select "organization_id"::text || '/attachments/' || "id"::text into new."object_path" from (select new.*) as r;
+  select "tenant_id"::text || '/attachments/' || "id"::text into new."object_path" from (select new.*) as r;
   return new;
 end;
 $$;
 revoke execute on function "better_supabase"."attachment_object_path"() from public, anon, authenticated;
-drop trigger if exists bsb_attachments_object_path on "better_supabase"."attachments";
 create trigger bsb_attachments_object_path
   before insert or update on "better_supabase"."attachments"
   for each row execute function "better_supabase"."attachment_object_path"();
--- options.path: the column comment records the template the path was built
--- from, so a changed template rewrites every row's path.
-do $$
-declare
-  v_current text := coalesce(
-    col_description('better_supabase.attachments'::regclass,
-      (select attnum from pg_attribute where attrelid = 'better_supabase.attachments'::regclass and attname = 'object_path')::integer),
-    'better-supabase path: {organization_id}/attachments/{id}');
-begin
-  if v_current is distinct from 'better-supabase path: {organization_id}/attachments/{id}' then
-    update "better_supabase"."attachments" set "object_path" = null;
-  end if;
-end;
-$$;
+-- options.path: the data file recomputes the path of a row that no longer
+-- matches the template, so a changed template rewrites it.
 comment on column "better_supabase"."attachments"."object_path" is 'better-supabase path: {organization_id}/attachments/{id}';
 alter table "better_supabase"."attachments" alter column "bucket" set default 'attachments';
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bsb_attachments_bucket'
-  ), 'pg_constraint'), '') <> 'better-supabase check 06ecf11d' then
-    alter table "better_supabase"."attachments" drop constraint if exists "bsb_attachments_bucket";
-    alter table "better_supabase"."attachments" add constraint "bsb_attachments_bucket" check ("bucket" in ('attachments')) not valid;
-    comment on constraint "bsb_attachments_bucket" on "better_supabase"."attachments" is 'better-supabase check 06ecf11d';
-  end if;
-end;
-$$;
-do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bsb_attachments_size'
-  ), 'pg_constraint'), '') <> 'better-supabase check 65b1c9ef' then
-    alter table "better_supabase"."attachments" drop constraint if exists "bsb_attachments_size";
-    alter table "better_supabase"."attachments" add constraint "bsb_attachments_size" check ("size" between 0 and 52428800);
-    comment on constraint "bsb_attachments_size" on "better_supabase"."attachments" is 'better-supabase check 65b1c9ef';
-  end if;
-end;
-$$;
-alter table "better_supabase"."attachments" drop constraint if exists bsb_attachments_mime_type;
-create unique index if not exists attachments_object_idx on "better_supabase"."attachments" ("bucket", "object_path");
-create index if not exists attachments_subject_idx on "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id");
-create index if not exists attachments_uploaded_by_idx on "better_supabase"."attachments" ("uploaded_by");
+alter table "better_supabase"."attachments" add constraint "bsb_attachments_bucket"
+  check ("bucket" in ('attachments')) not valid;
+alter table "better_supabase"."attachments" add constraint "bsb_attachments_size"
+  check ("size" >= 0 and "size" <= 52428800);
+create unique index attachments_object_idx on "better_supabase"."attachments" ("bucket", "object_path");
+create index attachments_subject_idx on "better_supabase"."attachments" ("tenant_id", "subject_type", "subject_id");
+create index attachments_uploaded_by_idx on "better_supabase"."attachments" ("uploaded_by");
 create or replace function "better_supabase"."attachment_document_guard"()
 returns trigger
 language plpgsql
@@ -440,20 +313,20 @@ begin
     if not (new."source" = any (array[]::text[])
       or exists (
         select 1 from "better_supabase"."import_runs" r
-        where r."tenant_id" = new."organization_id" and r."source" = new."source"
+        where r."tenant_id" = new."tenant_id" and r."source" = new."source"
       )) then
       raise exception 'the source is not in options.sources and has no import run' using errcode = '22023', hint = 'ATTACHMENT_SOURCE_UNKNOWN';
     end if;
-    if new."organization_id" is not null and exists (
+    if new."tenant_id" is not null and exists (
       select 1 from "better_supabase"."attachments" x
-      where x."organization_id" = new."organization_id" and x."source" = new."source" and x."external_id" = new."external_id" and x."id" <> new."id"
+      where x."tenant_id" = new."tenant_id" and x."source" = new."source" and x."external_id" = new."external_id" and x."id" <> new."id"
     ) then
       raise exception 'an attachment of this source already has this external id' using errcode = '23505', hint = 'ATTACHMENT_EXTERNAL_ID_TAKEN';
     end if;
   end if;
   if new."document_type_id" is not null and (tg_op = 'INSERT' or new."document_type_id" is distinct from old."document_type_id" or new."metadata" is distinct from old."metadata") then
     select y."fields" into v_fields from "better_supabase"."attachment_document_types" y
-    where y."id" = new."document_type_id" and y."organization_id" = new."organization_id";
+    where y."id" = new."document_type_id" and y."tenant_id" = new."tenant_id";
     if not found then
       raise exception 'the document type doesn''t exist in this organization' using errcode = '22023', hint = 'ATTACHMENT_DOCUMENT_TYPE_UNKNOWN';
     end if;
@@ -466,7 +339,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."attachment_document_guard"() from public, anon, authenticated;
-drop trigger if exists bsb_attachments_documents on "better_supabase"."attachments";
 create trigger bsb_attachments_documents
   before insert or update on "better_supabase"."attachments"
   for each row execute function "better_supabase"."attachment_document_guard"();
@@ -474,7 +346,7 @@ create trigger bsb_attachments_documents
 alter table "better_supabase"."attachments" enable row level security;
 revoke all on "better_supabase"."attachments" from public, anon, authenticated;
 grant select, delete on "better_supabase"."attachments" to authenticated;
-grant insert ("organization_id", "bucket", "subject_type", "subject_id", "name", "mime_type", "size", "metadata", "width", "height", "pages", "document_type_id", "source", "external_id", "source_path") on "better_supabase"."attachments" to authenticated;
+grant insert ("tenant_id", "bucket", "subject_type", "subject_id", "name", "mime_type", "size", "metadata", "width", "height", "pages", "document_type_id", "source", "external_id", "source_path") on "better_supabase"."attachments" to authenticated;
 grant all on "better_supabase"."attachments" to service_role;
 -- Whether the caller may read a subject: its row is visible to them (the
 -- subject table's own policies apply) and they hold its permission. Files
@@ -554,20 +426,17 @@ $$;
 revoke execute on function "better_supabase"."attachment_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."attachment_subject_readable"(text, text, uuid) to authenticated, service_role;
 
-drop policy if exists attachments_read on "better_supabase"."attachments";
-create policy attachments_read on "better_supabase"."attachments"
+create policy bsb_attachments_read on "better_supabase"."attachments"
   for select to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"));
-drop policy if exists attachments_insert on "better_supabase"."attachments";
-create policy attachments_insert on "better_supabase"."attachments"
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"));
+create policy bsb_attachments_insert on "better_supabase"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
-    and (coalesce(better_supabase.can('tenant', "organization_id", case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id")) and (select better_supabase.actor_may_write()));
-drop policy if exists attachments_delete on "better_supabase"."attachments";
-create policy attachments_delete on "better_supabase"."attachments"
+    and (coalesce(better_supabase.can('tenant', "tenant_id", case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
+    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+create policy bsb_attachments_delete on "better_supabase"."attachments"
   for delete to authenticated
-  using (("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage'))) and (select better_supabase.actor_may_write()));
+  using (("uploaded_by" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('attachments.manage'))) and (select better_supabase.actor_may_write()));
 
 -- Tells the tenant's topic which subject's files changed. The payload carries
 -- ids only; files without a tenant broadcast nothing.
@@ -585,43 +454,35 @@ begin
   else
     v_row := new;
   end if;
-  if v_row."organization_id" is null then
+  if v_row."tenant_id" is null then
     return null;
   end if;
   if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
-    perform realtime.send(jsonb_build_object('subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'changed', 'attachments:' || v_row."organization_id"::text, true);
+    perform realtime.send(jsonb_build_object('subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'changed', 'attachments:' || v_row."tenant_id"::text, true);
   end if;
   return null;
 end;
 $$;
 revoke execute on function "better_supabase"."attachments_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_attachments_changed" on "better_supabase"."attachments";
 create trigger "bsb_attachments_changed"
   after insert or update or delete on "better_supabase"."attachments"
   for each row execute function "better_supabase"."attachments_changed"();
 
 -- Members join attachments:{tenant}; payloads name the subject whose files changed.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_attachments_receive on realtime.messages;
 create policy bsb_attachments_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'attachments:%'
         and substr((select realtime.topic()), 13) in (select x::text from better_supabase.tenant_ids_with('attachments.read') x));
-  end if;
-end;
-$do$;
 
 -- The earlier versions of each file, written by replace_attachment() and
 -- restore_attachment_version(). A reader of the file reads its versions; the
 -- rows change only through those functions.
-create table if not exists "better_supabase"."attachment_versions" (
+create table "better_supabase"."attachment_versions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "attachment_id" uuid not null references "better_supabase"."attachments" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
+  "version" integer not null constraint bsb_attachment_versions_version_check check ("version" >= 1),
   "bucket" text not null,
   "object_path" text not null,
   "name" text not null,
@@ -630,7 +491,7 @@ create table if not exists "better_supabase"."attachment_versions" (
   "width" integer,
   "height" integer,
   "pages" integer,
-  "status" text not null check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null constraint bsb_attachment_versions_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "uploaded_by" uuid references auth.users (id) on delete set null,
   "uploaded_at" timestamptz,
@@ -641,15 +502,12 @@ create table if not exists "better_supabase"."attachment_versions" (
   unique ("attachment_id", "version"),
   unique ("bucket", "object_path")
 );
-alter table "better_supabase"."attachment_versions" add column if not exists "sha256" text;
-alter table "better_supabase"."attachment_versions" add column if not exists "hash_verified_at" timestamptz;
-create index if not exists attachment_versions_uploaded_by_idx on "better_supabase"."attachment_versions" ("uploaded_by");
+create index attachment_versions_uploaded_by_idx on "better_supabase"."attachment_versions" ("uploaded_by");
 alter table "better_supabase"."attachment_versions" enable row level security;
 revoke all on "better_supabase"."attachment_versions" from public, anon, authenticated;
 grant select on "better_supabase"."attachment_versions" to authenticated;
 grant all on "better_supabase"."attachment_versions" to service_role;
-drop policy if exists attachment_versions_read on "better_supabase"."attachment_versions";
-create policy attachment_versions_read on "better_supabase"."attachment_versions"
+create policy bsb_attachment_versions_read on "better_supabase"."attachment_versions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"));
 
@@ -658,10 +516,7 @@ create policy attachment_versions_read on "better_supabase"."attachment_versions
 -- read a not infected file or the uploader or attachments.manage, a delete
 -- the uploader or attachments.manage. It reads the table as its owner, so
 -- the storage policies don't depend on the table's own policies.
-drop policy if exists "bsb_attachments_insert" on storage.objects;
-drop policy if exists "bsb_attachments_select" on storage.objects;
-drop policy if exists "bsb_attachments_delete" on storage.objects;
-drop function if exists "better_supabase"."attachment_object_allowed"(text, text);
+
 create or replace function "better_supabase"."attachment_object_allowed"(bucket text, path text, action text)
 returns boolean
 language sql
@@ -674,9 +529,9 @@ as $$
     where a."bucket" = attachment_object_allowed.bucket and a."object_path" = any (array[attachment_object_allowed.path, regexp_replace(attachment_object_allowed.path, '-v[0-9]+$', '')]) and (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end) = attachment_object_allowed.path
       and case attachment_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."uploaded_at" is null and a."uploaded_by" = auth.uid()
-        when 'select' then (a."status" in ('pending', 'clean', 'failed') and (coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false) or ((a."organization_id")::text, (a."subject_type")::text, (a."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))
-          or a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)
-        when 'delete' then a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)
+        when 'select' then (a."status" in ('pending', 'clean', 'failed') and (coalesce(better_supabase.can('tenant', a."tenant_id", 'attachments.read'), false) or ((a."tenant_id")::text, (a."subject_type")::text, (a."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))
+          or a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."tenant_id", 'attachments.manage'), false)
+        when 'delete' then a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."tenant_id", 'attachments.manage'), false)
         else false
       end
   ) or exists (
@@ -684,9 +539,9 @@ as $$
     join "better_supabase"."attachments" a on a."id" = v."attachment_id"
     where v."bucket" = attachment_object_allowed.bucket and v."object_path" = attachment_object_allowed.path
       and case attachment_object_allowed.action
-        when 'select' then (v."status" in ('pending', 'clean', 'failed') and (coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false) or ((a."organization_id")::text, (a."subject_type")::text, (a."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))
-          or v."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)
-        when 'delete' then a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)
+        when 'select' then (v."status" in ('pending', 'clean', 'failed') and (coalesce(better_supabase.can('tenant', a."tenant_id", 'attachments.read'), false) or ((a."tenant_id")::text, (a."subject_type")::text, (a."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))
+          or v."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."tenant_id", 'attachments.manage'), false)
+        when 'delete' then a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."tenant_id", 'attachments.manage'), false)
         else false
       end
   )
@@ -716,10 +571,6 @@ $$;
 revoke execute on function "better_supabase"."attachment_object_visible"(text, text) from public, anon;
 grant execute on function "better_supabase"."attachment_object_visible"(text, text) to authenticated, service_role;
 
-drop trigger if exists "bsb_attachments_object_uploaded" on storage.objects;
-drop trigger if exists "bsb_attachments_object_removed" on storage.objects;
-drop trigger if exists "bsb_attachments_queue_cleanup" on "better_supabase"."attachments";
-
 create policy bsb_attachments_insert on storage.objects
   for insert to authenticated
   with check ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
@@ -731,12 +582,7 @@ create policy bsb_attachments_delete on storage.objects
   using ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'delete')) and (select better_supabase.actor_may_write()));
 
 -- The caller's new record, for a signed upload URL to its object_path.
-drop function if exists "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text);
-drop function if exists "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb);
-drop function if exists "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, jsonb);
-drop function if exists "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer);
-drop function if exists "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, jsonb);
-drop function if exists "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text, jsonb);
+
 create or replace function "better_supabase"."create_attachment"(
   tenant uuid,
   name text,
@@ -767,7 +613,7 @@ begin
     from jsonb_each('{}'::jsonb) as e (field_key, field_value)
     where e.field_key = any (array[]::text[])
   ));
-  v_row."organization_id" := create_attachment.tenant;
+  v_row."tenant_id" := create_attachment.tenant;
   v_row."bucket" := 'attachments';
   v_row."name" := create_attachment.name;
   v_row."mime_type" := lower(create_attachment.mime_type);
@@ -781,7 +627,7 @@ begin
 
   if create_attachment.document_type is not null then
     select y."id" into v_row."document_type_id" from "better_supabase"."attachment_document_types" y
-    where y."organization_id" = create_attachment.tenant and y."key" = create_attachment.document_type;
+    where y."tenant_id" = create_attachment.tenant and y."key" = create_attachment.document_type;
     if not found then
       raise exception 'the document type doesn''t exist in this organization' using errcode = '22023', hint = 'ATTACHMENT_DOCUMENT_TYPE_UNKNOWN';
     end if;
@@ -791,7 +637,7 @@ begin
   v_row."source_path" := create_attachment.source_path;
   select string_agg(column_name, ', ')
   into v_columns
-  from unnest(array['"organization_id"', '"bucket"', '"name"', '"mime_type"', '"size"', '"subject_type"', '"subject_id"', '"metadata"', '"width"', '"height"', '"pages"', '"document_type_id"', '"source"', '"external_id"', '"source_path"']
+  from unnest(array['"tenant_id"', '"bucket"', '"name"', '"mime_type"', '"size"', '"subject_type"', '"subject_id"', '"metadata"', '"width"', '"height"', '"pages"', '"document_type_id"', '"source"', '"external_id"', '"source_path"']
     || array(select quote_ident(k) from jsonb_object_keys('{}'::jsonb) as k
       where k = any (array[]::text[]))) as column_name;
   execute format('insert into "better_supabase"."attachments" as x (%1$s) select %1$s from (select ($1).*) r returning x.*', v_columns)
@@ -836,14 +682,14 @@ begin
     "status" = 'clean'
   where a."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('attachment.uploaded', jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."organization_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'uploadedBy', v_row."uploaded_by", 'mimeType', v_row."mime_type", 'size', v_row."size", 'version', v_row."version"), 'attachments/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/attachments');
+  perform "better_supabase".emit_event('attachment.uploaded', jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'uploadedBy', v_row."uploaded_by", 'mimeType', v_row."mime_type", 'size', v_row."size", 'version', v_row."version"), 'attachments/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/attachments');
   perform better_supabase.audit_event(
     event_type => 'attachment.uploaded',
     category => 'data',
     target_type => 'attachment',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."organization_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'uploadedBy', v_row."uploaded_by", 'mimeType', v_row."mime_type", 'size', v_row."size", 'version', v_row."version")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'uploadedBy', v_row."uploaded_by", 'mimeType', v_row."mime_type", 'size', v_row."size", 'version', v_row."version")
   );
   return (to_jsonb(v_row) || jsonb_build_object('object_path', (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end)));
 end;
@@ -870,7 +716,7 @@ begin
   if v_row."id" is null then
     raise exception 'No attachment has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
-  if not ((coalesce(better_supabase.can('tenant', v_row."organization_id", case v_row."subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or ((v_row."organization_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g)) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if not ((coalesce(better_supabase.can('tenant', v_row."tenant_id", case v_row."subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or ((v_row."tenant_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'not allowed to upload this attachment' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if v_row."uploaded_at" is not null or v_row."storage_status" = 'stored' then
@@ -903,7 +749,7 @@ begin
   if v_row."id" is null then
     raise exception 'No attachment has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
-  if not (coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if not (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'not allowed to manage this attachment' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if v_row."uploaded_at" is not null or v_row."storage_status" = 'stored' then
@@ -977,14 +823,14 @@ begin
   end if;
   if v_data ->> 'documentType' is not null then
     select y."id" into v_document from "better_supabase"."attachment_document_types" y
-    where y."organization_id" = v_tenant and y."key" = v_data ->> 'documentType';
+    where y."tenant_id" = v_tenant and y."key" = v_data ->> 'documentType';
     if not found then
       raise exception 'the document type doesn''t exist in this organization' using errcode = '22022', hint = 'ATTACHMENT_DOCUMENT_TYPE_UNKNOWN';
     end if;
   end if;
 
   select a."id" into v_id from "better_supabase"."attachments" a
-  where a."organization_id" = v_tenant and a."source" = v_source and a."external_id" = v_key;
+  where a."tenant_id" = v_tenant and a."source" = v_source and a."external_id" = v_key;
   if found then
     update "better_supabase"."attachments" a set
       "name" = v_data ->> 'name',
@@ -998,7 +844,7 @@ begin
       "storage_status" = case when a."uploaded_at" is null then v_status else a."storage_status" end
     where a."id" = v_id;
   else
-    insert into "better_supabase"."attachments" ("organization_id", "name", "mime_type", "size", "subject_type", "subject_id", "document_type_id", "metadata", "source", "external_id", "source_path", "storage_status", "uploaded_by")
+    insert into "better_supabase"."attachments" ("tenant_id", "name", "mime_type", "size", "subject_type", "subject_id", "document_type_id", "metadata", "source", "external_id", "source_path", "storage_status", "uploaded_by")
     values (v_tenant, v_data ->> 'name', lower(coalesce(v_data ->> 'mimeType', 'application/octet-stream')), v_size, v_type, v_subject, v_document, v_metadata, v_source, v_key, v_data ->> 'sourcePath', v_status, null)
     returning "id" into v_id;
   end if;
@@ -1046,7 +892,7 @@ begin
   values (v_row."bucket", (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end), v_row."status", v_row."scan_detail", now())
   on conflict ("bucket", "object_path") do update
     set "status" = excluded."status", "scan_detail" = excluded."scan_detail", "scanned_at" = excluded."scanned_at";
-  perform "better_supabase".emit_event('attachment.scanned', jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."organization_id"::text, 'status', v_row."status", 'uploadedBy', v_row."uploaded_by"), 'attachments/' || v_row."id"::text, (v_row."organization_id")::text, 'attachment.scanned:' || v_row."id"::text || ':' || v_row."status", 'better-supabase/attachments');
+  perform "better_supabase".emit_event('attachment.scanned', jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'status', v_row."status", 'uploadedBy', v_row."uploaded_by"), 'attachments/' || v_row."id"::text, (v_row."tenant_id")::text, 'attachment.scanned:' || v_row."id"::text || ':' || v_row."status", 'better-supabase/attachments');
   return (to_jsonb(v_row) || jsonb_build_object('object_path', (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end)));
 end;
 $$;
@@ -1064,7 +910,7 @@ as $$
   from "better_supabase"."attachments" y
   join "better_supabase"."profiles" pr on pr."id" = y."uploaded_by"
   where y."id" = any ($1)
-    and (y."organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or ((y."organization_id")::text, (y."subject_type")::text, (y."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))
+    and (y."tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or ((y."tenant_id")::text, (y."subject_type")::text, (y."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))
 $$;
 revoke execute on function "better_supabase"."attachment_authors"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."attachment_authors"(uuid[]) to authenticated, service_role;
@@ -1081,7 +927,7 @@ declare
 begin
   with page as (
     select * from "better_supabase"."attachments" y
-    where y."organization_id" is not distinct from list_attachments.tenant
+    where y."tenant_id" is not distinct from list_attachments.tenant
       and (list_attachments.subject_type is null or y."subject_type" = list_attachments.subject_type)
       and (list_attachments.subject_id is null or y."subject_id" = list_attachments.subject_id)
   ),
@@ -1133,12 +979,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."attachments" a where a."id" = replace_attachment.id for update;
-  if v_row."id" is null or not ((coalesce(v_row."uploaded_by" = auth.uid(), false) and (coalesce(better_supabase.can('tenant', v_row."organization_id", case v_row."subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or ((v_row."organization_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if v_row."id" is null or not ((coalesce(v_row."uploaded_by" = auth.uid(), false) and (coalesce(better_supabase.can('tenant', v_row."tenant_id", case v_row."subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or ((v_row."tenant_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'No attachment you may replace has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
   if v_row."uploaded_at" is not null then
-    insert into "better_supabase"."attachment_versions" ("organization_id", "attachment_id", "version", "bucket", "object_path", "name", "mime_type", "size", "width", "height", "pages", "status", "scan_detail", "uploaded_by", "uploaded_at", "scanned_at", "sha256", "hash_verified_at")
-    values (v_row."organization_id", v_row."id", v_row."version", v_row."bucket", (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end), v_row."name", v_row."mime_type", v_row."size", v_row."width", v_row."height", v_row."pages", v_row."status", v_row."scan_detail", v_row."uploaded_by", v_row."uploaded_at", v_row."scanned_at", v_row."sha256", v_row."hash_verified_at");
+    insert into "better_supabase"."attachment_versions" ("tenant_id", "attachment_id", "version", "bucket", "object_path", "name", "mime_type", "size", "width", "height", "pages", "status", "scan_detail", "uploaded_by", "uploaded_at", "scanned_at", "sha256", "hash_verified_at")
+    values (v_row."tenant_id", v_row."id", v_row."version", v_row."bucket", (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end), v_row."name", v_row."mime_type", v_row."size", v_row."width", v_row."height", v_row."pages", v_row."status", v_row."scan_detail", v_row."uploaded_by", v_row."uploaded_at", v_row."scanned_at", v_row."sha256", v_row."hash_verified_at");
   end if;
   select greatest(v_row."version" - case when v_row."uploaded_at" is null then 1 else 0 end, coalesce(max(v."version"), 0)) + 1
   into v_next
@@ -1160,14 +1006,14 @@ begin
     "hash_verified_at" = null
   where a."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('attachment.replaced', jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."organization_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'uploadedBy', v_row."uploaded_by", 'version', v_row."version"), 'attachments/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/attachments');
+  perform "better_supabase".emit_event('attachment.replaced', jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'uploadedBy', v_row."uploaded_by", 'version', v_row."version"), 'attachments/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/attachments');
   perform better_supabase.audit_event(
     event_type => 'attachment.replaced',
     category => 'data',
     target_type => 'attachment',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."organization_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'uploadedBy', v_row."uploaded_by", 'version', v_row."version")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'uploadedBy', v_row."uploaded_by", 'version', v_row."version")
   );
   return (to_jsonb(v_row) || jsonb_build_object('object_path', (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end)));
 end;
@@ -1190,7 +1036,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."attachments" a where a."id" = restore_attachment_version.id for update;
-  if v_row."id" is null or not ((coalesce(v_row."uploaded_by" = auth.uid(), false) and (coalesce(better_supabase.can('tenant', v_row."organization_id", case v_row."subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or ((v_row."organization_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
+  if v_row."id" is null or not ((coalesce(v_row."uploaded_by" = auth.uid(), false) and (coalesce(better_supabase.can('tenant', v_row."tenant_id", case v_row."subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or ((v_row."tenant_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'attachments.manage'), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))) then
     raise exception 'No attachment you may restore has this id' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_FOUND';
   end if;
   select * into v_old from "better_supabase"."attachment_versions" v
@@ -1201,8 +1047,8 @@ begin
   end if;
   delete from "better_supabase"."attachment_versions" v where v."id" = v_old."id";
   if v_row."uploaded_at" is not null then
-    insert into "better_supabase"."attachment_versions" ("organization_id", "attachment_id", "version", "bucket", "object_path", "name", "mime_type", "size", "width", "height", "pages", "status", "scan_detail", "uploaded_by", "uploaded_at", "scanned_at", "sha256", "hash_verified_at")
-    values (v_row."organization_id", v_row."id", v_row."version", v_row."bucket", (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end), v_row."name", v_row."mime_type", v_row."size", v_row."width", v_row."height", v_row."pages", v_row."status", v_row."scan_detail", v_row."uploaded_by", v_row."uploaded_at", v_row."scanned_at", v_row."sha256", v_row."hash_verified_at");
+    insert into "better_supabase"."attachment_versions" ("tenant_id", "attachment_id", "version", "bucket", "object_path", "name", "mime_type", "size", "width", "height", "pages", "status", "scan_detail", "uploaded_by", "uploaded_at", "scanned_at", "sha256", "hash_verified_at")
+    values (v_row."tenant_id", v_row."id", v_row."version", v_row."bucket", (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end), v_row."name", v_row."mime_type", v_row."size", v_row."width", v_row."height", v_row."pages", v_row."status", v_row."scan_detail", v_row."uploaded_by", v_row."uploaded_at", v_row."scanned_at", v_row."sha256", v_row."hash_verified_at");
   end if;
   update "better_supabase"."attachments" a set
     "version" = v_old."version",
@@ -1221,14 +1067,14 @@ begin
     "hash_verified_at" = v_old."hash_verified_at"
   where a."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('attachment.restored', jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."organization_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'version', v_row."version"), 'attachments/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/attachments');
+  perform "better_supabase".emit_event('attachment.restored', jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'version', v_row."version"), 'attachments/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/attachments');
   perform better_supabase.audit_event(
     event_type => 'attachment.restored',
     category => 'data',
     target_type => 'attachment',
     record_id => v_row."id"::text,
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."organization_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'version', v_row."version")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('attachmentId', v_row."id", 'organizationId', v_row."tenant_id"::text, 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'version', v_row."version")
   );
   return (to_jsonb(v_row) || jsonb_build_object('object_path', (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end)));
 end;
@@ -1268,10 +1114,10 @@ $$;
 -- for storage policies, and set_object_scan() for the scanner. With
 -- options.scanBuckets, a new object in those buckets gets a pending row and
 -- writes object.uploaded for the scan job.
-create table if not exists "better_supabase"."scanned_objects" (
+create table "better_supabase"."scanned_objects" (
   "bucket" text not null,
   "object_path" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null default 'pending' constraint bsb_scanned_objects_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "created_at" timestamptz not null default now(),
   "scanned_at" timestamptz,
@@ -1339,7 +1185,6 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-drop trigger if exists bsb_object_scan_pending on storage.objects;
 
 -- on with cascade: deleting a subject row deletes its attachments rows.
 create or replace function "better_supabase"."attachments_subject_deleted"()
@@ -1357,13 +1202,9 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."attachments_subject_deleted"() from public, anon, authenticated;
-
-drop trigger if exists "bsb_attachments_product_cascade" on "better_supabase"."products";
 create trigger "bsb_attachments_product_cascade"
   after delete on "better_supabase"."products"
   for each row execute function "better_supabase"."attachments_subject_deleted"('product', 'id');
-
-drop trigger if exists "bsb_attachments_product_variant_cascade" on "better_supabase"."product_variants";
 create trigger "bsb_attachments_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."attachments_subject_deleted"('product_variant', 'id');
@@ -1416,24 +1257,24 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  insert into "better_supabase"."attachment_document_types" ("tenant_id", "key", "name", "fields")
   select p_tenant, 'contract', 'Contract', '{"counterparty":{"type":"text","required":true},"signed_on":{"type":"date"},"expires_on":{"type":"expiry"}}'::jsonb
-  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'contract');
-  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'contract');
+  insert into "better_supabase"."attachment_document_types" ("tenant_id", "key", "name", "fields")
   select p_tenant, 'invoice', 'Invoice', '{"number":{"type":"text","required":true},"issued_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
-  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'invoice');
-  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'invoice');
+  insert into "better_supabase"."attachment_document_types" ("tenant_id", "key", "name", "fields")
   select p_tenant, 'receipt', 'Receipt', '{"merchant":{"type":"text"},"paid_on":{"type":"date"},"amount":{"type":"amount"}}'::jsonb
-  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'receipt');
-  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'receipt');
+  insert into "better_supabase"."attachment_document_types" ("tenant_id", "key", "name", "fields")
   select p_tenant, 'identity', 'Identity document', '{"number":{"type":"text"},"expires_on":{"type":"expiry"}}'::jsonb
-  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'identity');
-  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'identity');
+  insert into "better_supabase"."attachment_document_types" ("tenant_id", "key", "name", "fields")
   select p_tenant, 'report', 'Report', '{}'::jsonb
-  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'report');
-  insert into "better_supabase"."attachment_document_types" ("organization_id", "key", "name", "fields")
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'report');
+  insert into "better_supabase"."attachment_document_types" ("tenant_id", "key", "name", "fields")
   select p_tenant, 'other', 'Other', '{}'::jsonb
-  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."organization_id" = p_tenant and x."key" is not distinct from 'other');
+  where not exists (select 1 from "better_supabase"."attachment_document_types" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'other');
 end;
 $$;
 revoke execute on function "better_supabase"."seed_attachments_defaults"(uuid, text, text) from public, anon, authenticated;
@@ -1442,133 +1283,72 @@ grant execute on function "better_supabase"."seed_attachments_defaults"(uuid, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachments";
 create policy bsb_tenant_scope_select on "better_supabase"."attachments" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or (("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachments";
 create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
-    and (coalesce(better_supabase.can('tenant', "organization_id", case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+    and (coalesce(better_supabase.can('tenant', "tenant_id", case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
+    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachments";
 create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachments";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."attachments" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
   );
-drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_document_types";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_document_types";
 create policy bsb_tenant_scope_select on "better_supabase"."attachment_document_types" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_document_types";
 create policy bsb_tenant_scope_insert on "better_supabase"."attachment_document_types" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_document_types";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."attachment_document_types" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_document_types";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."attachment_document_types" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."attachment_versions";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."attachment_versions" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."attachment_versions";
 create policy bsb_tenant_scope_insert on "better_supabase"."attachment_versions" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."attachment_versions";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."attachment_versions" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."attachment_versions";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.attachments', target_type => 'attachment', event_prefix => 'attachment', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.attachments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"attachment","event_prefix":"attachment"}');
 
 -- blocks.attachments.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."attachment_subject_readable"(text, text, uuid);
-drop function if exists "api"."attachment_object_allowed"(text, text, text);
-drop function if exists "api"."attachment_object_visible"(text, text);
-drop function if exists "api"."attachment_authors"(uuid[]);
-drop function if exists "api"."object_clean"(text, text);
 
-drop function if exists "api"."create_attachment"(uuid, text, text, bigint, text, text);
-drop function if exists "api"."create_attachment"(uuid, text, text, bigint, text, text, jsonb);
-drop function if exists "api"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, jsonb);
-drop function if exists "api"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer);
-drop function if exists "api"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, jsonb);
-drop function if exists "api"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text, jsonb);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."attachment_schema_error"(fields jsonb)
 returns text
@@ -1754,16 +1534,3 @@ set search_path = ''
 as $$ select "better_supabase"."seed_attachments_defaults"($1, $2, $3) $$;
 revoke execute on function "api"."seed_attachments_defaults"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "api"."seed_attachments_defaults"(uuid, text, text) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

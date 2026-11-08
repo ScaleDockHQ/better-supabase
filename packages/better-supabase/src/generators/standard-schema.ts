@@ -4,21 +4,25 @@ import type {
   GeneratorInput,
 } from "../config/index.ts";
 
-import { extraSchemas, fieldMetaLines, objectType } from "./extras.ts";
+import { VERSION } from "../core/version.ts";
 import {
+  extraSchemas,
   fieldDocs,
-  fieldSpec,
+  fieldMetaLines,
   fieldsFor,
+  fieldSpec,
   HEADER,
+  objectType,
   parseImport,
   propertyKey,
+  relativeImport,
   schemaName,
   siblingPath,
   tableDocs,
   tableEntries,
   variantsFor,
   variantTitle,
-} from "./shared.ts";
+} from "./kit.ts";
 
 export interface StandardSchemaGeneratorOptions {
   /**
@@ -27,10 +31,22 @@ export interface StandardSchemaGeneratorOptions {
    */
   readonly output?: string;
   /**
+   * Install these schemas as the schema's `validation`, so writes are checked.
+   * Only one configured generator may; set `false` on the others. Defaults to
+   * `true`.
+   */
+  readonly validators?: boolean;
+  /**
    * Standard Schemas for typed jsonb columns: `{ 'customers.metadata':
    * './schemas.ts#metadata' }`.
    */
   readonly json?: Readonly<Record<string, string>>;
+  /**
+   * The project's `defineSettings()` result, `'./settings.ts#settings'`. The
+   * `settings` block checks its keys with these schemas when
+   * `blocks.settings.options.schemas` is unset.
+   */
+  readonly settings?: string;
   /**
    * Also export `fieldMeta`: a label, a required flag, enum options and bounds
    * for each writable field, for building forms.
@@ -47,7 +63,16 @@ export function standardSchema(
   options: StandardSchemaGeneratorOptions = {},
 ): Generator {
   return {
-    apiVersion: 1,
+    apiVersion: 2,
+    version: VERSION,
+    options,
+    pure: true,
+    provides: options.validators === false ? [] : ["validators"],
+    workerSafe: true,
+    module: {
+      specifier: "better-supabase/generators/standard-schema",
+      export: "standardSchema",
+    },
     name: "standard-schema",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =
@@ -65,7 +90,7 @@ export function standardSchema(
         const { from, name } = parseImport(spec);
 
         const specifier = from.startsWith(".")
-          ? input.importPath(path, from)
+          ? relativeImport(path, from)
           : from;
 
         imports.set(specifier, [...(imports.get(specifier) ?? []), name]);
@@ -83,9 +108,9 @@ export function standardSchema(
 
       const lines = [
         HEADER,
-        `import { type TableSchema, tableSchema } from ${JSON.stringify(input.runtimeImport ?? "better-supabase")};`,
+        `import { type TableSchema, tableSchema } from ${JSON.stringify(input.imports.runtime)};`,
         "",
-        `import type { InsertOf, ${usesJson ? "Json, " : ""}RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
+        `import type { InsertOf, ${usesJson ? "Json, " : ""}RowOf, UpdateOf } from ${JSON.stringify(relativeImport(path, input.config.output))};`,
       ];
 
       for (const [from, names] of imports) {
@@ -180,7 +205,7 @@ export function standardSchema(
         "",
       );
 
-      return [{ path, contents: lines.join("\n"), validators: true }];
+      return [{ path, contents: lines.join("\n") }];
     },
   };
 }

@@ -11,9 +11,9 @@ import type { ProtocolServer, ToolInfo, ToolResult } from "../../mcp/index.ts";
 import type { Cli } from "../core/run.ts";
 
 import { answerLine } from "../../mcp/index.ts";
-import { consentToken } from "../core/agent.ts";
+import { consentDigest } from "../core/agent.ts";
 import { CliError } from "../core/errors.ts";
-import { envelope } from "../core/output.ts";
+import { errorDocument } from "../core/output.ts";
 import { VERSION } from "../version.ts";
 
 export interface DevMcpOptions {
@@ -45,7 +45,7 @@ const Input = v.object({
   blocks: v.optional(v.array(v.string())),
   text: v.optional(v.string()),
   preset: v.optional(v.string()),
-  confirm: v.optional(v.string()),
+  effectsDigest: v.optional(v.string()),
 });
 
 type Input = v.InferOutput<typeof Input>;
@@ -91,8 +91,8 @@ const write = (
 ): DevTool => ({
   info: {
     name,
-    description: `${description} Writes files: the first call returns a consent token; call again with confirm once the user agrees.`,
-    inputSchema: schema({ ...properties, confirm: CONFIRM }, required),
+    description: `${description} Writes files: the first call returns an effects digest; call again with effectsDigest once the user agrees.`,
+    inputSchema: schema({ ...properties, effectsDigest: CONFIRM }, required),
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -202,7 +202,7 @@ const TOOLS: readonly DevTool[] = [
 ];
 
 const INSTRUCTIONS =
-  "Tools for the better-supabase project in this directory. Each returns the CLI's JSON envelope (status, data, error, next). Read with doctor, config, blocks_* and the dry runs first. Tools that write files ask for consent: show the user the error's detail, and call again with confirm set to its token only after they agree.";
+  "Tools for the better-supabase project in this directory. Each returns the CLI's JSON result (status, data, next), or its error document (status, reason, message, next, data). Read with doctor, config, blocks_* and the dry runs first. Tools that write files ask for consent: show the user the error's detail, and call again with effectsDigest set to its data.digest only after they agree.";
 
 function parsedEnvelope(stdout: string): Json | undefined {
   try {
@@ -217,26 +217,24 @@ function parsedEnvelope(stdout: string): Json | undefined {
 function consentResult(
   name: string,
   detail: string,
-  token: string,
+  digest: string,
 ): ToolResult {
   const error = new CliError(
-    "consent_required",
-    `${detail}. Ask the user first, then call ${name} again with confirm "${token}".`,
+    "confirmation_required",
+    `${detail}. Ask the user first, then call ${name} again with effectsDigest "${digest}".`,
     {
-      token,
+      digest,
+      effects: [detail],
       next: [
         {
-          command: `${name} ${JSON.stringify({ confirm: token })}`,
+          command: `${name} ${JSON.stringify({ effectsDigest: digest })}`,
           when: "after the user agrees",
         },
       ],
     },
   );
 
-  const body = envelope(error.exitCode, {
-    error: error.problem,
-    next: error.next,
-  });
+  const body = errorDocument(error);
 
   return {
     content: [{ type: "text", text: JSON.stringify(body) }],
@@ -282,10 +280,10 @@ export function createDevMcp(options: DevMcpOptions): ProtocolServer {
 
     if (tool.writes) {
       const detail = `${name} writes files in ${options.cwd}`;
-      const token = consentToken(argv, { effect: "mcp-write", detail });
+      const digest = consentDigest(argv, { effect: "mcp-write", detail });
 
-      if (parsed.output.confirm !== token) {
-        return consentResult(name, detail, token);
+      if (parsed.output.effectsDigest !== digest) {
+        return consentResult(name, detail, digest);
       }
     }
 
@@ -294,8 +292,21 @@ export function createDevMcp(options: DevMcpOptions): ProtocolServer {
       env: options.env,
     });
 
-    const body = parsedEnvelope(result.stdout);
-    const diagnostics = result.stderr.trim();
+    // A failure prints its error document as the last line of stderr.
+    const stderrLines = result.stderr.trim().split("\n");
+    const failed = result.code === 0 ? undefined : stderrLines.at(-1);
+
+    const body =
+      parsedEnvelope(result.stdout) ??
+      (failed === undefined ? undefined : parsedEnvelope(failed));
+
+    const diagnostics = (
+      body && failed !== undefined && result.stdout.trim() === ""
+        ? stderrLines.slice(0, -1)
+        : stderrLines
+    )
+      .join("\n")
+      .trim();
 
     return {
       content: [

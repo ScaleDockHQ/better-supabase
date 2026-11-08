@@ -61,7 +61,7 @@ export default defineConfig({
       // files when measured.
       files: [
         "tests/ai-sdk/react/use-assistant.test.ts",
-        "tests/ai-sdk/workflow/react/use-durable-assistant.test.ts",
+        "tests/ai-sdk/workflow-react/use-durable-assistant.test.ts",
         "tests/ai-sdk/workflow/server.test.ts",
         "tests/blocks/*/react/*.test.ts",
         "tests/blocks/react-controller.test.ts",
@@ -211,6 +211,7 @@ export default defineConfig({
         "src/postgres/pool.ts",
         "src/testing/**",
         "src/next/create.ts",
+        "src/next/proxy-runtime.ts",
         "src/server/respond.ts",
         "src/core/events.ts",
         // The CLI reads its environment: DATABASE_URL, SUPABASE_BIN and CI.

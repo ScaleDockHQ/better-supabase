@@ -1,164 +1,88 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:969d3e782634dc0eaaea71bb915efb504d11da3f0ba5606a5b780d2c97eaa5f8
+-- @bsb-hash sha256:9c3c205354e43babf87a545c4e0989bf9569d15b667ba42fb4b4ea434c57d11f
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_locations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_depreciations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."asset_locations" (
+create table "better_supabase"."asset_locations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid references "better_supabase"."asset_locations" ("id") on delete restrict,
   -- site, building, floor, unit, room, or the app's own kind.
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "code" text check ("code" is null or length("code") between 1 and 100),
-  "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "latitude" double precision check ("latitude" between -90 and 90),
-  "longitude" double precision check ("longitude" between -180 and 180),
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "kind" text not null constraint bsb_asset_locations_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_asset_locations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "code" text constraint bsb_asset_locations_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "address" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_address_check check (jsonb_typeof("address") = 'object'),
+  "latitude" double precision constraint bsb_asset_locations_latitude_check check ("latitude" >= -90 and "latitude" <= 90),
+  "longitude" double precision constraint bsb_asset_locations_longitude_check check ("longitude" >= -180 and "longitude" <= 180),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
-  check (("latitude" is null) = ("longitude" is null))
+  constraint bsb_asset_locations_check check (("latitude" is null) = ("longitude" is null))
 );
-create index if not exists "asset_locations_parent_idx" on "better_supabase"."asset_locations" ("parent_id", "tenant_id");
-create index if not exists "asset_locations_coordinates_idx" on "better_supabase"."asset_locations" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
+create index "asset_locations_parent_idx" on "better_supabase"."asset_locations" ("parent_id", "tenant_id");
+create index "asset_locations_coordinates_idx" on "better_supabase"."asset_locations" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
 
-create table if not exists "better_supabase"."assets" (
+create table "better_supabase"."assets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "location_id" uuid references "better_supabase"."asset_locations" ("id") on delete set null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null constraint bsb_assets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_assets_name_check check (length("name") >= 1 and length("name") <= 200),
   -- The asset tag, unique per organization.
-  "tag" text check ("tag" is null or length("tag") between 1 and 100),
-  "serial_number" text check ("serial_number" is null or length("serial_number") <= 200),
-  "status" text not null default 'active' check ("status" in ('active', 'maintenance', 'retired')),
+  "tag" text constraint bsb_assets_tag_check check ("tag" is null or length("tag") >= 1 and length("tag") <= 100),
+  "serial_number" text constraint bsb_assets_serial_number_check check ("serial_number" is null or length("serial_number") <= 200),
+  "status" text not null default 'active' constraint bsb_assets_status_check check ("status" in ('active', 'maintenance', 'retired')),
   -- member (a user id) or a subject type such as party, with its id.
-  "assignee_type" text check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_type" text constraint bsb_assets_assignee_type_check check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "assignee_id" text,
   -- Where a moving asset (a vehicle) was last seen.
-  "latitude" double precision check ("latitude" between -90 and 90),
-  "longitude" double precision check ("longitude" between -180 and 180),
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "latitude" double precision constraint bsb_assets_latitude_check check ("latitude" >= -90 and "latitude" <= 90),
+  "longitude" double precision constraint bsb_assets_longitude_check check ("longitude" >= -180 and "longitude" <= 180),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_assets_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "retired_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "tag"),
-  check (("assignee_type" is null) = ("assignee_id" is null)),
-  check (("latitude" is null) = ("longitude" is null))
+  constraint bsb_assets_check check (("assignee_type" is null) = ("assignee_id" is null)),
+  constraint bsb_assets_check1 check (("latitude" is null) = ("longitude" is null))
 );
-create index if not exists "assets_location_idx" on "better_supabase"."assets" ("location_id", "tenant_id");
-create index if not exists "assets_assignee_idx" on "better_supabase"."assets" ("tenant_id", "assignee_type", "assignee_id") where "assignee_type" is not null;
-create index if not exists "assets_kind_idx" on "better_supabase"."assets" ("tenant_id", "kind", "status");
-create index if not exists "assets_coordinates_idx" on "better_supabase"."assets" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
+create index "assets_location_idx" on "better_supabase"."assets" ("location_id", "tenant_id");
+create index "assets_assignee_idx" on "better_supabase"."assets" ("tenant_id", "assignee_type", "assignee_id") where "assignee_type" is not null;
+create index "assets_kind_idx" on "better_supabase"."assets" ("tenant_id", "kind", "status");
+create index "assets_coordinates_idx" on "better_supabase"."assets" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
 
-create table if not exists "better_supabase"."asset_assignments" (
+create table "better_supabase"."asset_assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
   "assignee_type" text not null,
   "assignee_id" text not null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_asset_assignments_note_check check ("note" is null or length("note") <= 2000),
   "assigned_by" uuid,
   "assigned_at" timestamptz not null default now(),
   "released_at" timestamptz
 );
-create unique index if not exists "asset_assignments_open_idx" on "better_supabase"."asset_assignments" ("asset_id") where "released_at" is null;
-create index if not exists "asset_assignments_history_idx" on "better_supabase"."asset_assignments" ("asset_id", "assigned_at" desc);
+create unique index "asset_assignments_open_idx" on "better_supabase"."asset_assignments" ("asset_id") where "released_at" is null;
+create index "asset_assignments_history_idx" on "better_supabase"."asset_assignments" ("asset_id", "assigned_at" desc);
 
 alter table "better_supabase"."asset_locations" enable row level security;
 revoke all on "better_supabase"."asset_locations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_locations" to authenticated;
 grant all on "better_supabase"."asset_locations" to service_role;
-drop policy if exists asset_locations_read on "better_supabase"."asset_locations";
-create policy asset_locations_read on "better_supabase"."asset_locations"
+create policy bsb_asset_locations_read on "better_supabase"."asset_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 alter table "better_supabase"."assets" enable row level security;
 revoke all on "better_supabase"."assets" from public, anon, authenticated;
 grant select on "better_supabase"."assets" to authenticated;
 grant all on "better_supabase"."assets" to service_role;
-drop policy if exists assets_read on "better_supabase"."assets";
-create policy assets_read on "better_supabase"."assets"
+create policy bsb_assets_read on "better_supabase"."assets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text));
@@ -166,8 +90,7 @@ alter table "better_supabase"."asset_assignments" enable row level security;
 revoke all on "better_supabase"."asset_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."asset_assignments" to authenticated;
 grant all on "better_supabase"."asset_assignments" to service_role;
-drop policy if exists asset_assignments_read on "better_supabase"."asset_assignments";
-create policy asset_assignments_read on "better_supabase"."asset_assignments"
+create policy bsb_asset_assignments_read on "better_supabase"."asset_assignments"
   for select to authenticated
   using ("asset_id" in (select y."id" from "better_supabase"."assets" y));
 
@@ -202,40 +125,38 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."asset_location_check_parent"() from public, anon, authenticated;
-drop trigger if exists "bsb_asset_locations_parent" on "better_supabase"."asset_locations";
 create trigger "bsb_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
   for each row execute function "better_supabase"."asset_location_check_parent"();
 
 -- What an asset cost and how it depreciates, in bigint minor units of currency.
-alter table "better_supabase"."assets" add column if not exists "acquisition_cost" bigint check ("acquisition_cost" >= 0);
-alter table "better_supabase"."assets" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."assets" add column if not exists "acquired_on" date;
-alter table "better_supabase"."assets" add column if not exists "useful_life_months" integer check ("useful_life_months" between 1 and 1200);
-alter table "better_supabase"."assets" add column if not exists "residual_value" bigint not null default 0 check ("residual_value" >= 0);
-alter table "better_supabase"."assets" add column if not exists "depreciation_method" text not null default 'none' check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
+alter table "better_supabase"."assets" add column "acquisition_cost" bigint constraint bsb_assets_acquisition_cost_check check ("acquisition_cost" >= 0);
+alter table "better_supabase"."assets" add column "currency" text constraint bsb_assets_currency_check check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."assets" add column "acquired_on" date;
+alter table "better_supabase"."assets" add column "useful_life_months" integer constraint bsb_assets_useful_life_months_check check ("useful_life_months" >= 1 and "useful_life_months" <= 1200);
+alter table "better_supabase"."assets" add column "residual_value" bigint not null default 0 constraint bsb_assets_residual_value_check check ("residual_value" >= 0);
+alter table "better_supabase"."assets" add column "depreciation_method" text not null default 'none' constraint bsb_assets_depreciation_method_check check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
 -- Declining balance: the yearly rate in basis points of the book value.
-alter table "better_supabase"."assets" add column if not exists "depreciation_rate_bps" integer check ("depreciation_rate_bps" between 1 and 100000);
-alter table "better_supabase"."assets" add column if not exists "disposed_on" date;
-alter table "better_supabase"."assets" add column if not exists "disposal_amount" bigint check ("disposal_amount" >= 0);
+alter table "better_supabase"."assets" add column "depreciation_rate_bps" integer constraint bsb_assets_depreciation_rate_bps_check check ("depreciation_rate_bps" >= 1 and "depreciation_rate_bps" <= 100000);
+alter table "better_supabase"."assets" add column "disposed_on" date;
+alter table "better_supabase"."assets" add column "disposal_amount" bigint constraint bsb_assets_disposal_amount_check check ("disposal_amount" >= 0);
 
 -- One month of an asset's depreciation; entry_id is its accounting entry.
-create table if not exists "better_supabase"."asset_depreciations" (
+create table "better_supabase"."asset_depreciations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
-  "period_start" date not null check (extract(day from "period_start") = 1),
-  "amount" bigint not null check ("amount" > 0),
+  "period_start" date not null constraint bsb_asset_depreciations_period_start_check check (extract(day from "period_start") = 1),
+  "amount" bigint not null constraint bsb_asset_depreciations_amount_check check ("amount" > 0),
   "entry_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("asset_id", "period_start")
 );
-create index if not exists "asset_depreciations_tenant_idx" on "better_supabase"."asset_depreciations" ("tenant_id", "period_start");
+create index "asset_depreciations_tenant_idx" on "better_supabase"."asset_depreciations" ("tenant_id", "period_start");
 alter table "better_supabase"."asset_depreciations" enable row level security;
 revoke all on "better_supabase"."asset_depreciations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_depreciations" to authenticated;
 grant all on "better_supabase"."asset_depreciations" to service_role;
-drop policy if exists asset_depreciations_read on "better_supabase"."asset_depreciations";
-create policy asset_depreciations_read on "better_supabase"."asset_depreciations"
+create policy bsb_asset_depreciations_read on "better_supabase"."asset_depreciations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 
@@ -697,7 +618,7 @@ begin
     )
     select jsonb_agg(jsonb_build_object('id', up.id, 'kind', up.kind, 'name', up.name) order by up.depth desc) from up
   ), '[]'::jsonb) end,
-    'links', jsonb_build_object('bookingResources', '[]'::jsonb, 'workItems', '[]'::jsonb));
+    'links', jsonb_build_object('bookingResources', '[]'::jsonb, 'tasks', '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."get_asset"(uuid) from public, anon;
@@ -846,7 +767,7 @@ revoke execute on function "better_supabase"."asset_locations_at"(uuid, double p
 grant execute on function "better_supabase"."asset_locations_at"(uuid, double precision, double precision) to authenticated, service_role;
 
 -- Names the asset a booking resource or a work item is about; a null
--- asset_id clears it. target_type is booking_resource or work_item.
+-- asset_id clears it. target_type is booking_resource or task.
 create or replace function "better_supabase"."set_asset_link"(target_type text, target_id uuid, asset_id uuid default null)
 returns jsonb
 language plpgsql
@@ -1053,41 +974,22 @@ grant execute on function "better_supabase"."list_asset_depreciations"(uuid, int
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_locations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_locations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_locations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_locations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."assets";
 create policy bsb_tenant_scope_select on "better_supabase"."assets" as restrictive
   for select to public
   using (
@@ -1095,74 +997,48 @@ create policy bsb_tenant_scope_select on "better_supabase"."assets" as restricti
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assets";
 create policy bsb_tenant_scope_insert on "better_supabase"."assets" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."assets";
 create policy bsb_tenant_scope_update on "better_supabase"."assets" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assets";
 create policy bsb_tenant_scope_delete on "better_supabase"."assets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("asset_id" in (select y."id" from "better_supabase"."assets" y))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_depreciations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_depreciations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_depreciations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_depreciations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
@@ -1181,164 +1057,88 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:f444b2a815e9c2580d8d50df9aa6b4d39d0dd7954b5484547fad654d3085d539
+-- @bsb-hash sha256:9c4efc9b09723e9154c2a7cf5fc6ed265f2a767c2024f617fcbb8ee7795ac2a4
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_locations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_depreciations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."asset_locations" (
+create table "better_supabase"."asset_locations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid references "better_supabase"."asset_locations" ("id") on delete restrict,
   -- site, building, floor, unit, room, or the app's own kind.
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "code" text check ("code" is null or length("code") between 1 and 100),
-  "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "latitude" double precision check ("latitude" between -90 and 90),
-  "longitude" double precision check ("longitude" between -180 and 180),
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "kind" text not null constraint bsb_asset_locations_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_asset_locations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "code" text constraint bsb_asset_locations_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "address" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_address_check check (jsonb_typeof("address") = 'object'),
+  "latitude" double precision constraint bsb_asset_locations_latitude_check check ("latitude" >= -90 and "latitude" <= 90),
+  "longitude" double precision constraint bsb_asset_locations_longitude_check check ("longitude" >= -180 and "longitude" <= 180),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
-  check (("latitude" is null) = ("longitude" is null))
+  constraint bsb_asset_locations_check check (("latitude" is null) = ("longitude" is null))
 );
-create index if not exists "asset_locations_parent_idx" on "better_supabase"."asset_locations" ("parent_id", "tenant_id");
-create index if not exists "asset_locations_coordinates_idx" on "better_supabase"."asset_locations" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
+create index "asset_locations_parent_idx" on "better_supabase"."asset_locations" ("parent_id", "tenant_id");
+create index "asset_locations_coordinates_idx" on "better_supabase"."asset_locations" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
 
-create table if not exists "better_supabase"."assets" (
+create table "better_supabase"."assets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "location_id" uuid references "better_supabase"."asset_locations" ("id") on delete set null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null constraint bsb_assets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_assets_name_check check (length("name") >= 1 and length("name") <= 200),
   -- The asset tag, unique per organization.
-  "tag" text check ("tag" is null or length("tag") between 1 and 100),
-  "serial_number" text check ("serial_number" is null or length("serial_number") <= 200),
-  "status" text not null default 'active' check ("status" in ('active', 'maintenance', 'retired')),
+  "tag" text constraint bsb_assets_tag_check check ("tag" is null or length("tag") >= 1 and length("tag") <= 100),
+  "serial_number" text constraint bsb_assets_serial_number_check check ("serial_number" is null or length("serial_number") <= 200),
+  "status" text not null default 'active' constraint bsb_assets_status_check check ("status" in ('active', 'maintenance', 'retired')),
   -- member (a user id) or a subject type such as party, with its id.
-  "assignee_type" text check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_type" text constraint bsb_assets_assignee_type_check check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "assignee_id" text,
   -- Where a moving asset (a vehicle) was last seen.
-  "latitude" double precision check ("latitude" between -90 and 90),
-  "longitude" double precision check ("longitude" between -180 and 180),
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "latitude" double precision constraint bsb_assets_latitude_check check ("latitude" >= -90 and "latitude" <= 90),
+  "longitude" double precision constraint bsb_assets_longitude_check check ("longitude" >= -180 and "longitude" <= 180),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_assets_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "retired_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "tag"),
-  check (("assignee_type" is null) = ("assignee_id" is null)),
-  check (("latitude" is null) = ("longitude" is null))
+  constraint bsb_assets_check check (("assignee_type" is null) = ("assignee_id" is null)),
+  constraint bsb_assets_check1 check (("latitude" is null) = ("longitude" is null))
 );
-create index if not exists "assets_location_idx" on "better_supabase"."assets" ("location_id", "tenant_id");
-create index if not exists "assets_assignee_idx" on "better_supabase"."assets" ("tenant_id", "assignee_type", "assignee_id") where "assignee_type" is not null;
-create index if not exists "assets_kind_idx" on "better_supabase"."assets" ("tenant_id", "kind", "status");
-create index if not exists "assets_coordinates_idx" on "better_supabase"."assets" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
+create index "assets_location_idx" on "better_supabase"."assets" ("location_id", "tenant_id");
+create index "assets_assignee_idx" on "better_supabase"."assets" ("tenant_id", "assignee_type", "assignee_id") where "assignee_type" is not null;
+create index "assets_kind_idx" on "better_supabase"."assets" ("tenant_id", "kind", "status");
+create index "assets_coordinates_idx" on "better_supabase"."assets" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
 
-create table if not exists "better_supabase"."asset_assignments" (
+create table "better_supabase"."asset_assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
   "assignee_type" text not null,
   "assignee_id" text not null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_asset_assignments_note_check check ("note" is null or length("note") <= 2000),
   "assigned_by" uuid,
   "assigned_at" timestamptz not null default now(),
   "released_at" timestamptz
 );
-create unique index if not exists "asset_assignments_open_idx" on "better_supabase"."asset_assignments" ("asset_id") where "released_at" is null;
-create index if not exists "asset_assignments_history_idx" on "better_supabase"."asset_assignments" ("asset_id", "assigned_at" desc);
+create unique index "asset_assignments_open_idx" on "better_supabase"."asset_assignments" ("asset_id") where "released_at" is null;
+create index "asset_assignments_history_idx" on "better_supabase"."asset_assignments" ("asset_id", "assigned_at" desc);
 
 alter table "better_supabase"."asset_locations" enable row level security;
 revoke all on "better_supabase"."asset_locations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_locations" to authenticated;
 grant all on "better_supabase"."asset_locations" to service_role;
-drop policy if exists asset_locations_read on "better_supabase"."asset_locations";
-create policy asset_locations_read on "better_supabase"."asset_locations"
+create policy bsb_asset_locations_read on "better_supabase"."asset_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 alter table "better_supabase"."assets" enable row level security;
 revoke all on "better_supabase"."assets" from public, anon, authenticated;
 grant select on "better_supabase"."assets" to authenticated;
 grant all on "better_supabase"."assets" to service_role;
-drop policy if exists assets_read on "better_supabase"."assets";
-create policy assets_read on "better_supabase"."assets"
+create policy bsb_assets_read on "better_supabase"."assets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text));
@@ -1346,8 +1146,7 @@ alter table "better_supabase"."asset_assignments" enable row level security;
 revoke all on "better_supabase"."asset_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."asset_assignments" to authenticated;
 grant all on "better_supabase"."asset_assignments" to service_role;
-drop policy if exists asset_assignments_read on "better_supabase"."asset_assignments";
-create policy asset_assignments_read on "better_supabase"."asset_assignments"
+create policy bsb_asset_assignments_read on "better_supabase"."asset_assignments"
   for select to authenticated
   using ("asset_id" in (select y."id" from "better_supabase"."assets" y));
 
@@ -1382,47 +1181,45 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."asset_location_check_parent"() from public, anon, authenticated;
-drop trigger if exists "bsb_asset_locations_parent" on "better_supabase"."asset_locations";
 create trigger "bsb_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
   for each row execute function "better_supabase"."asset_location_check_parent"();
 
 -- What an asset cost and how it depreciates, in bigint minor units of currency.
-alter table "better_supabase"."assets" add column if not exists "acquisition_cost" bigint check ("acquisition_cost" >= 0);
-alter table "better_supabase"."assets" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."assets" add column if not exists "acquired_on" date;
-alter table "better_supabase"."assets" add column if not exists "useful_life_months" integer check ("useful_life_months" between 1 and 1200);
-alter table "better_supabase"."assets" add column if not exists "residual_value" bigint not null default 0 check ("residual_value" >= 0);
-alter table "better_supabase"."assets" add column if not exists "depreciation_method" text not null default 'none' check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
+alter table "better_supabase"."assets" add column "acquisition_cost" bigint constraint bsb_assets_acquisition_cost_check check ("acquisition_cost" >= 0);
+alter table "better_supabase"."assets" add column "currency" text constraint bsb_assets_currency_check check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."assets" add column "acquired_on" date;
+alter table "better_supabase"."assets" add column "useful_life_months" integer constraint bsb_assets_useful_life_months_check check ("useful_life_months" >= 1 and "useful_life_months" <= 1200);
+alter table "better_supabase"."assets" add column "residual_value" bigint not null default 0 constraint bsb_assets_residual_value_check check ("residual_value" >= 0);
+alter table "better_supabase"."assets" add column "depreciation_method" text not null default 'none' constraint bsb_assets_depreciation_method_check check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
 -- Declining balance: the yearly rate in basis points of the book value.
-alter table "better_supabase"."assets" add column if not exists "depreciation_rate_bps" integer check ("depreciation_rate_bps" between 1 and 100000);
-alter table "better_supabase"."assets" add column if not exists "disposed_on" date;
-alter table "better_supabase"."assets" add column if not exists "disposal_amount" bigint check ("disposal_amount" >= 0);
+alter table "better_supabase"."assets" add column "depreciation_rate_bps" integer constraint bsb_assets_depreciation_rate_bps_check check ("depreciation_rate_bps" >= 1 and "depreciation_rate_bps" <= 100000);
+alter table "better_supabase"."assets" add column "disposed_on" date;
+alter table "better_supabase"."assets" add column "disposal_amount" bigint constraint bsb_assets_disposal_amount_check check ("disposal_amount" >= 0);
 
 -- One month of an asset's depreciation; entry_id is its accounting entry.
-create table if not exists "better_supabase"."asset_depreciations" (
+create table "better_supabase"."asset_depreciations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
-  "period_start" date not null check (extract(day from "period_start") = 1),
-  "amount" bigint not null check ("amount" > 0),
+  "period_start" date not null constraint bsb_asset_depreciations_period_start_check check (extract(day from "period_start") = 1),
+  "amount" bigint not null constraint bsb_asset_depreciations_amount_check check ("amount" > 0),
   "entry_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("asset_id", "period_start")
 );
-create index if not exists "asset_depreciations_tenant_idx" on "better_supabase"."asset_depreciations" ("tenant_id", "period_start");
+create index "asset_depreciations_tenant_idx" on "better_supabase"."asset_depreciations" ("tenant_id", "period_start");
 alter table "better_supabase"."asset_depreciations" enable row level security;
 revoke all on "better_supabase"."asset_depreciations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_depreciations" to authenticated;
 grant all on "better_supabase"."asset_depreciations" to service_role;
-drop policy if exists asset_depreciations_read on "better_supabase"."asset_depreciations";
-create policy asset_depreciations_read on "better_supabase"."asset_depreciations"
+create policy bsb_asset_depreciations_read on "better_supabase"."asset_depreciations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 
-alter table "better_supabase"."booking_resources" add column if not exists asset_id uuid references "better_supabase"."assets" ("id") on delete set null;
-create index if not exists "booking_resources_asset_idx" on "better_supabase"."booking_resources" (asset_id) where asset_id is not null;
-alter table "better_supabase"."tasks" add column if not exists asset_id uuid references "better_supabase"."assets" ("id") on delete set null;
-create index if not exists "tasks_asset_idx" on "better_supabase"."tasks" (asset_id) where asset_id is not null;
+alter table "better_supabase"."booking_resources" add column asset_id uuid references "better_supabase"."assets" ("id") on delete set null;
+create index "booking_resources_asset_idx" on "better_supabase"."booking_resources" (asset_id) where asset_id is not null;
+alter table "better_supabase"."tasks" add column asset_id uuid references "better_supabase"."assets" ("id") on delete set null;
+create index "tasks_asset_idx" on "better_supabase"."tasks" (asset_id) where asset_id is not null;
 
 -- Adds a location (a site, building, floor, unit or room) under parent_id,
 -- or at the top when it is null. area is GeoJSON and needs the postgis option.
@@ -1950,7 +1747,7 @@ begin
     )
     select jsonb_agg(jsonb_build_object('id', up.id, 'kind', up.kind, 'name', up.name) order by up.depth desc) from up
   ), '[]'::jsonb) end,
-    'links', jsonb_build_object('bookingResources', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name") order by y."name") from "better_supabase"."booking_resources" y where y.asset_id = v_row."id"), '[]'::jsonb), 'workItems', coalesce((select jsonb_agg(jsonb_build_object('id', z.id, 'title', z.title) order by z.created_at desc) from (select y."id" as id, y."title" as title, y."created_at" as created_at from "better_supabase"."tasks" y where y.asset_id = v_row."id" and y."closed_at" is null order by y."created_at" desc limit 50) z), '[]'::jsonb)));
+    'links', jsonb_build_object('bookingResources', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name") order by y."name") from "better_supabase"."booking_resources" y where y.asset_id = v_row."id"), '[]'::jsonb), 'tasks', coalesce((select jsonb_agg(jsonb_build_object('id', z.id, 'title', z.title) order by z.created_at desc) from (select y."id" as id, y."title" as title, y."created_at" as created_at from "better_supabase"."tasks" y where y.asset_id = v_row."id" and y."closed_at" is null order by y."created_at" desc limit 50) z), '[]'::jsonb)));
 end;
 $$;
 revoke execute on function "better_supabase"."get_asset"(uuid) from public, anon;
@@ -2099,7 +1896,7 @@ revoke execute on function "better_supabase"."asset_locations_at"(uuid, double p
 grant execute on function "better_supabase"."asset_locations_at"(uuid, double precision, double precision) to authenticated, service_role;
 
 -- Names the asset a booking resource or a work item is about; a null
--- asset_id clears it. target_type is booking_resource or work_item.
+-- asset_id clears it. target_type is booking_resource or task.
 create or replace function "better_supabase"."set_asset_link"(target_type text, target_id uuid, asset_id uuid default null)
 returns jsonb
 language plpgsql
@@ -2116,10 +1913,10 @@ begin
   case set_asset_link.target_type
   when 'booking_resource' then
     select y."tenant_id" into v_tenant from "better_supabase"."booking_resources" y where y."id" = set_asset_link.target_id;
-  when 'task', 'work_item' then
+  when 'task' then
     select y."tenant_id" into v_tenant from "better_supabase"."tasks" y where y."id" = set_asset_link.target_id;
   else
-    raise exception 'target_type must be booking_resource or work_item' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
+    raise exception 'target_type must be booking_resource or task' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
   end case;
   if v_tenant is null then
     raise exception 'the record to link doesn''t exist' using errcode = 'P0002', hint = 'ASSETS_LINK_TARGET_NOT_FOUND';
@@ -2135,7 +1932,7 @@ begin
   if set_asset_link.target_type = 'booking_resource' then
     update "better_supabase"."booking_resources" y set asset_id = set_asset_link.asset_id where y."id" = set_asset_link.target_id;
   end if;
-  if set_asset_link.target_type in ('task', 'work_item') then
+  if set_asset_link.target_type in ('task') then
     update "better_supabase"."tasks" y set asset_id = set_asset_link.asset_id where y."id" = set_asset_link.target_id;
   end if;
   return jsonb_build_object('targetType', set_asset_link.target_type, 'targetId', set_asset_link.target_id, 'assetId', set_asset_link.asset_id);
@@ -2409,41 +2206,22 @@ revoke execute on function "better_supabase"."accounting_asset_disposal_lines"(t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_locations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_locations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_locations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_locations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."assets";
 create policy bsb_tenant_scope_select on "better_supabase"."assets" as restrictive
   for select to public
   using (
@@ -2451,82 +2229,52 @@ create policy bsb_tenant_scope_select on "better_supabase"."assets" as restricti
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assets";
 create policy bsb_tenant_scope_insert on "better_supabase"."assets" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."assets";
 create policy bsb_tenant_scope_update on "better_supabase"."assets" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assets";
 create policy bsb_tenant_scope_delete on "better_supabase"."assets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("asset_id" in (select y."id" from "better_supabase"."assets" y))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_depreciations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_depreciations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_depreciations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_depreciations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.assets', target_type => 'asset', event_prefix => 'asset', deferred => true);
-  perform better_supabase.audit('better_supabase.asset_locations', target_type => 'asset_location', event_prefix => 'asset_location', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.assets deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset","event_prefix":"asset"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.asset_locations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset_location","event_prefix":"asset_location"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
@@ -2545,169 +2293,93 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:2b2bcd994f8fa14f7e4eb38e694353f35075a05a00e7c927516dbe5db7e5a4cf
+-- @bsb-hash sha256:2e281cd595264e15478bb782c4d3b3cb5d02d809db006b40382116f8045e3ca9
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."asset_locations";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."asset_locations";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."asset_locations";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."asset_locations";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."asset_locations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."assets";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."assets";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."assets";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."assets";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."assets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."asset_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."asset_depreciations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
-create table if not exists "app_private"."asset_locations" (
+create table "app_private"."asset_locations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid references "app_private"."asset_locations" ("id") on delete restrict,
   -- site, building, floor, unit, room, or the app's own kind.
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "code" text check ("code" is null or length("code") between 1 and 100),
-  "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "latitude" double precision check ("latitude" between -90 and 90),
-  "longitude" double precision check ("longitude" between -180 and 180),
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "kind" text not null constraint bsb_asset_locations_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_asset_locations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "code" text constraint bsb_asset_locations_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "address" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_address_check check (jsonb_typeof("address") = 'object'),
+  "latitude" double precision constraint bsb_asset_locations_latitude_check check ("latitude" >= -90 and "latitude" <= 90),
+  "longitude" double precision constraint bsb_asset_locations_longitude_check check ("longitude" >= -180 and "longitude" <= 180),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
-  check (("latitude" is null) = ("longitude" is null))
+  constraint bsb_asset_locations_check check (("latitude" is null) = ("longitude" is null))
 );
-create index if not exists "asset_locations_parent_idx" on "app_private"."asset_locations" ("parent_id", "tenant_id");
-create index if not exists "asset_locations_coordinates_idx" on "app_private"."asset_locations" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
+create index "asset_locations_parent_idx" on "app_private"."asset_locations" ("parent_id", "tenant_id");
+create index "asset_locations_coordinates_idx" on "app_private"."asset_locations" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
 
-create table if not exists "app_private"."assets" (
+create table "app_private"."assets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "location_id" uuid references "app_private"."asset_locations" ("id") on delete set null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null constraint bsb_assets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_assets_name_check check (length("name") >= 1 and length("name") <= 200),
   -- The asset tag, unique per organization.
-  "tag" text check ("tag" is null or length("tag") between 1 and 100),
-  "serial_number" text check ("serial_number" is null or length("serial_number") <= 200),
-  "status" text not null default 'active' check ("status" in ('active', 'maintenance', 'retired')),
+  "tag" text constraint bsb_assets_tag_check check ("tag" is null or length("tag") >= 1 and length("tag") <= 100),
+  "serial_number" text constraint bsb_assets_serial_number_check check ("serial_number" is null or length("serial_number") <= 200),
+  "status" text not null default 'active' constraint bsb_assets_status_check check ("status" in ('active', 'maintenance', 'retired')),
   -- member (a user id) or a subject type such as party, with its id.
-  "assignee_type" text check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_type" text constraint bsb_assets_assignee_type_check check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "assignee_id" text,
   -- Where a moving asset (a vehicle) was last seen.
-  "latitude" double precision check ("latitude" between -90 and 90),
-  "longitude" double precision check ("longitude" between -180 and 180),
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "latitude" double precision constraint bsb_assets_latitude_check check ("latitude" >= -90 and "latitude" <= 90),
+  "longitude" double precision constraint bsb_assets_longitude_check check ("longitude" >= -180 and "longitude" <= 180),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_assets_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "retired_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "tag"),
-  check (("assignee_type" is null) = ("assignee_id" is null)),
-  check (("latitude" is null) = ("longitude" is null))
+  constraint bsb_assets_check check (("assignee_type" is null) = ("assignee_id" is null)),
+  constraint bsb_assets_check1 check (("latitude" is null) = ("longitude" is null))
 );
-create index if not exists "assets_location_idx" on "app_private"."assets" ("location_id", "tenant_id");
-create index if not exists "assets_assignee_idx" on "app_private"."assets" ("tenant_id", "assignee_type", "assignee_id") where "assignee_type" is not null;
-create index if not exists "assets_kind_idx" on "app_private"."assets" ("tenant_id", "kind", "status");
-create index if not exists "assets_coordinates_idx" on "app_private"."assets" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
+create index "assets_location_idx" on "app_private"."assets" ("location_id", "tenant_id");
+create index "assets_assignee_idx" on "app_private"."assets" ("tenant_id", "assignee_type", "assignee_id") where "assignee_type" is not null;
+create index "assets_kind_idx" on "app_private"."assets" ("tenant_id", "kind", "status");
+create index "assets_coordinates_idx" on "app_private"."assets" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
 
-create table if not exists "app_private"."asset_assignments" (
+create table "app_private"."asset_assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid not null references "app_private"."assets" ("id") on delete cascade,
   "assignee_type" text not null,
   "assignee_id" text not null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_asset_assignments_note_check check ("note" is null or length("note") <= 2000),
   "assigned_by" uuid,
   "assigned_at" timestamptz not null default now(),
   "released_at" timestamptz
 );
-create unique index if not exists "asset_assignments_open_idx" on "app_private"."asset_assignments" ("asset_id") where "released_at" is null;
-create index if not exists "asset_assignments_history_idx" on "app_private"."asset_assignments" ("asset_id", "assigned_at" desc);
+create unique index "asset_assignments_open_idx" on "app_private"."asset_assignments" ("asset_id") where "released_at" is null;
+create index "asset_assignments_history_idx" on "app_private"."asset_assignments" ("asset_id", "assigned_at" desc);
 
 alter table "app_private"."asset_locations" enable row level security;
 revoke all on "app_private"."asset_locations" from public, anon, authenticated;
 grant select on "app_private"."asset_locations" to authenticated;
 grant all on "app_private"."asset_locations" to service_role;
-drop policy if exists asset_locations_read on "app_private"."asset_locations";
-create policy asset_locations_read on "app_private"."asset_locations"
+create policy bsb_asset_locations_read on "app_private"."asset_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 alter table "app_private"."assets" enable row level security;
 revoke all on "app_private"."assets" from public, anon, authenticated;
 grant select on "app_private"."assets" to authenticated;
 grant all on "app_private"."assets" to service_role;
-drop policy if exists assets_read on "app_private"."assets";
-create policy assets_read on "app_private"."assets"
+create policy bsb_assets_read on "app_private"."assets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text));
@@ -2715,8 +2387,7 @@ alter table "app_private"."asset_assignments" enable row level security;
 revoke all on "app_private"."asset_assignments" from public, anon, authenticated;
 grant select on "app_private"."asset_assignments" to authenticated;
 grant all on "app_private"."asset_assignments" to service_role;
-drop policy if exists asset_assignments_read on "app_private"."asset_assignments";
-create policy asset_assignments_read on "app_private"."asset_assignments"
+create policy bsb_asset_assignments_read on "app_private"."asset_assignments"
   for select to authenticated
   using ("asset_id" in (select y."id" from "app_private"."assets" y));
 
@@ -2751,40 +2422,38 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."asset_location_check_parent"() from public, anon, authenticated;
-drop trigger if exists "bsb_asset_locations_parent" on "app_private"."asset_locations";
 create trigger "bsb_asset_locations_parent" before insert or update of "parent_id" on "app_private"."asset_locations"
   for each row execute function "app_private"."asset_location_check_parent"();
 
 -- What an asset cost and how it depreciates, in bigint minor units of currency.
-alter table "app_private"."assets" add column if not exists "acquisition_cost" bigint check ("acquisition_cost" >= 0);
-alter table "app_private"."assets" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
-alter table "app_private"."assets" add column if not exists "acquired_on" date;
-alter table "app_private"."assets" add column if not exists "useful_life_months" integer check ("useful_life_months" between 1 and 1200);
-alter table "app_private"."assets" add column if not exists "residual_value" bigint not null default 0 check ("residual_value" >= 0);
-alter table "app_private"."assets" add column if not exists "depreciation_method" text not null default 'none' check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
+alter table "app_private"."assets" add column "acquisition_cost" bigint constraint bsb_assets_acquisition_cost_check check ("acquisition_cost" >= 0);
+alter table "app_private"."assets" add column "currency" text constraint bsb_assets_currency_check check ("currency" ~ '^[A-Z]{3}$');
+alter table "app_private"."assets" add column "acquired_on" date;
+alter table "app_private"."assets" add column "useful_life_months" integer constraint bsb_assets_useful_life_months_check check ("useful_life_months" >= 1 and "useful_life_months" <= 1200);
+alter table "app_private"."assets" add column "residual_value" bigint not null default 0 constraint bsb_assets_residual_value_check check ("residual_value" >= 0);
+alter table "app_private"."assets" add column "depreciation_method" text not null default 'none' constraint bsb_assets_depreciation_method_check check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
 -- Declining balance: the yearly rate in basis points of the book value.
-alter table "app_private"."assets" add column if not exists "depreciation_rate_bps" integer check ("depreciation_rate_bps" between 1 and 100000);
-alter table "app_private"."assets" add column if not exists "disposed_on" date;
-alter table "app_private"."assets" add column if not exists "disposal_amount" bigint check ("disposal_amount" >= 0);
+alter table "app_private"."assets" add column "depreciation_rate_bps" integer constraint bsb_assets_depreciation_rate_bps_check check ("depreciation_rate_bps" >= 1 and "depreciation_rate_bps" <= 100000);
+alter table "app_private"."assets" add column "disposed_on" date;
+alter table "app_private"."assets" add column "disposal_amount" bigint constraint bsb_assets_disposal_amount_check check ("disposal_amount" >= 0);
 
 -- One month of an asset's depreciation; entry_id is its accounting entry.
-create table if not exists "app_private"."asset_depreciations" (
+create table "app_private"."asset_depreciations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid not null references "app_private"."assets" ("id") on delete cascade,
-  "period_start" date not null check (extract(day from "period_start") = 1),
-  "amount" bigint not null check ("amount" > 0),
+  "period_start" date not null constraint bsb_asset_depreciations_period_start_check check (extract(day from "period_start") = 1),
+  "amount" bigint not null constraint bsb_asset_depreciations_amount_check check ("amount" > 0),
   "entry_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("asset_id", "period_start")
 );
-create index if not exists "asset_depreciations_tenant_idx" on "app_private"."asset_depreciations" ("tenant_id", "period_start");
+create index "asset_depreciations_tenant_idx" on "app_private"."asset_depreciations" ("tenant_id", "period_start");
 alter table "app_private"."asset_depreciations" enable row level security;
 revoke all on "app_private"."asset_depreciations" from public, anon, authenticated;
 grant select on "app_private"."asset_depreciations" to authenticated;
 grant all on "app_private"."asset_depreciations" to service_role;
-drop policy if exists asset_depreciations_read on "app_private"."asset_depreciations";
-create policy asset_depreciations_read on "app_private"."asset_depreciations"
+create policy bsb_asset_depreciations_read on "app_private"."asset_depreciations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 
@@ -3246,7 +2915,7 @@ begin
     )
     select jsonb_agg(jsonb_build_object('id', up.id, 'kind', up.kind, 'name', up.name) order by up.depth desc) from up
   ), '[]'::jsonb) end,
-    'links', jsonb_build_object('bookingResources', '[]'::jsonb, 'workItems', '[]'::jsonb));
+    'links', jsonb_build_object('bookingResources', '[]'::jsonb, 'tasks', '[]'::jsonb));
 end;
 $$;
 revoke execute on function "app_private"."get_asset"(uuid) from public, anon;
@@ -3395,7 +3064,7 @@ revoke execute on function "app_private"."asset_locations_at"(uuid, double preci
 grant execute on function "app_private"."asset_locations_at"(uuid, double precision, double precision) to authenticated, service_role;
 
 -- Names the asset a booking resource or a work item is about; a null
--- asset_id clears it. target_type is booking_resource or work_item.
+-- asset_id clears it. target_type is booking_resource or task.
 create or replace function "app_private"."set_asset_link"(target_type text, target_id uuid, asset_id uuid default null)
 returns jsonb
 language plpgsql
@@ -3602,41 +3271,22 @@ grant execute on function "app_private"."list_asset_depreciations"(uuid, integer
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."asset_locations";
-drop policy if exists bsb_tenant_scope_select on "app_private"."asset_locations";
 create policy bsb_tenant_scope_select on "app_private"."asset_locations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."asset_locations";
 create policy bsb_tenant_scope_insert on "app_private"."asset_locations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."asset_locations";
 create policy bsb_tenant_scope_update on "app_private"."asset_locations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."asset_locations";
 create policy bsb_tenant_scope_delete on "app_private"."asset_locations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."assets";
-drop policy if exists bsb_tenant_scope_select on "app_private"."assets";
 create policy bsb_tenant_scope_select on "app_private"."assets" as restrictive
   for select to public
   using (
@@ -3644,74 +3294,48 @@ create policy bsb_tenant_scope_select on "app_private"."assets" as restrictive
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."assets";
 create policy bsb_tenant_scope_insert on "app_private"."assets" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."assets";
 create policy bsb_tenant_scope_update on "app_private"."assets" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."assets";
 create policy bsb_tenant_scope_delete on "app_private"."assets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."asset_assignments";
-drop policy if exists bsb_tenant_scope_select on "app_private"."asset_assignments";
 create policy bsb_tenant_scope_select on "app_private"."asset_assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("asset_id" in (select y."id" from "app_private"."assets" y))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."asset_assignments";
 create policy bsb_tenant_scope_insert on "app_private"."asset_assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."asset_assignments";
 create policy bsb_tenant_scope_update on "app_private"."asset_assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."asset_assignments";
 create policy bsb_tenant_scope_delete on "app_private"."asset_assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."asset_depreciations";
-drop policy if exists bsb_tenant_scope_select on "app_private"."asset_depreciations";
 create policy bsb_tenant_scope_select on "app_private"."asset_depreciations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."asset_depreciations";
 create policy bsb_tenant_scope_insert on "app_private"."asset_depreciations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."asset_depreciations";
 create policy bsb_tenant_scope_update on "app_private"."asset_depreciations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."asset_depreciations";
 create policy bsb_tenant_scope_delete on "app_private"."asset_depreciations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
@@ -3730,164 +3354,88 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:a443882311253f3d97402bd14b412cc3bfd2b392b8193baabd225de953cd34bb
+-- @bsb-hash sha256:717c715da66f4ebd5f0598c0a3b374475817b6cac4fdd94ea9c92d65f7701fe1
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_locations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_depreciations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."asset_locations" (
+create table "better_supabase"."asset_locations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "parent_id" uuid references "better_supabase"."asset_locations" ("id") on delete restrict,
   -- site, building, floor, unit, room, or the app's own kind.
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "code" text check ("code" is null or length("code") between 1 and 100),
-  "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "latitude" double precision check ("latitude" between -90 and 90),
-  "longitude" double precision check ("longitude" between -180 and 180),
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "kind" text not null constraint bsb_asset_locations_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_asset_locations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "code" text constraint bsb_asset_locations_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "address" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_address_check check (jsonb_typeof("address") = 'object'),
+  "latitude" double precision constraint bsb_asset_locations_latitude_check check ("latitude" >= -90 and "latitude" <= 90),
+  "longitude" double precision constraint bsb_asset_locations_longitude_check check ("longitude" >= -180 and "longitude" <= 180),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
-  check (("latitude" is null) = ("longitude" is null))
+  constraint bsb_asset_locations_check check (("latitude" is null) = ("longitude" is null))
 );
-create index if not exists "asset_locations_parent_idx" on "better_supabase"."asset_locations" ("parent_id", "tenant_id");
-create index if not exists "asset_locations_coordinates_idx" on "better_supabase"."asset_locations" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
+create index "asset_locations_parent_idx" on "better_supabase"."asset_locations" ("parent_id", "tenant_id");
+create index "asset_locations_coordinates_idx" on "better_supabase"."asset_locations" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
 
-create table if not exists "better_supabase"."assets" (
+create table "better_supabase"."assets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "location_id" uuid references "better_supabase"."asset_locations" ("id") on delete set null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null constraint bsb_assets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_assets_name_check check (length("name") >= 1 and length("name") <= 200),
   -- The asset tag, unique per organization.
-  "tag" text check ("tag" is null or length("tag") between 1 and 100),
-  "serial_number" text check ("serial_number" is null or length("serial_number") <= 200),
-  "status" text not null default 'active' check ("status" in ('active', 'maintenance', 'retired')),
+  "tag" text constraint bsb_assets_tag_check check ("tag" is null or length("tag") >= 1 and length("tag") <= 100),
+  "serial_number" text constraint bsb_assets_serial_number_check check ("serial_number" is null or length("serial_number") <= 200),
+  "status" text not null default 'active' constraint bsb_assets_status_check check ("status" in ('active', 'maintenance', 'retired')),
   -- member (a user id) or a subject type such as party, with its id.
-  "assignee_type" text check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_type" text constraint bsb_assets_assignee_type_check check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "assignee_id" text,
   -- Where a moving asset (a vehicle) was last seen.
-  "latitude" double precision check ("latitude" between -90 and 90),
-  "longitude" double precision check ("longitude" between -180 and 180),
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "latitude" double precision constraint bsb_assets_latitude_check check ("latitude" >= -90 and "latitude" <= 90),
+  "longitude" double precision constraint bsb_assets_longitude_check check ("longitude" >= -180 and "longitude" <= 180),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_assets_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "retired_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "tag"),
-  check (("assignee_type" is null) = ("assignee_id" is null)),
-  check (("latitude" is null) = ("longitude" is null))
+  constraint bsb_assets_check check (("assignee_type" is null) = ("assignee_id" is null)),
+  constraint bsb_assets_check1 check (("latitude" is null) = ("longitude" is null))
 );
-create index if not exists "assets_location_idx" on "better_supabase"."assets" ("location_id", "tenant_id");
-create index if not exists "assets_assignee_idx" on "better_supabase"."assets" ("tenant_id", "assignee_type", "assignee_id") where "assignee_type" is not null;
-create index if not exists "assets_kind_idx" on "better_supabase"."assets" ("tenant_id", "kind", "status");
-create index if not exists "assets_coordinates_idx" on "better_supabase"."assets" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
+create index "assets_location_idx" on "better_supabase"."assets" ("location_id", "tenant_id");
+create index "assets_assignee_idx" on "better_supabase"."assets" ("tenant_id", "assignee_type", "assignee_id") where "assignee_type" is not null;
+create index "assets_kind_idx" on "better_supabase"."assets" ("tenant_id", "kind", "status");
+create index "assets_coordinates_idx" on "better_supabase"."assets" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
 
-create table if not exists "better_supabase"."asset_assignments" (
+create table "better_supabase"."asset_assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
   "assignee_type" text not null,
   "assignee_id" text not null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_asset_assignments_note_check check ("note" is null or length("note") <= 2000),
   "assigned_by" uuid,
   "assigned_at" timestamptz not null default now(),
   "released_at" timestamptz
 );
-create unique index if not exists "asset_assignments_open_idx" on "better_supabase"."asset_assignments" ("asset_id") where "released_at" is null;
-create index if not exists "asset_assignments_history_idx" on "better_supabase"."asset_assignments" ("asset_id", "assigned_at" desc);
+create unique index "asset_assignments_open_idx" on "better_supabase"."asset_assignments" ("asset_id") where "released_at" is null;
+create index "asset_assignments_history_idx" on "better_supabase"."asset_assignments" ("asset_id", "assigned_at" desc);
 
 alter table "better_supabase"."asset_locations" enable row level security;
 revoke all on "better_supabase"."asset_locations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_locations" to authenticated;
 grant all on "better_supabase"."asset_locations" to service_role;
-drop policy if exists asset_locations_read on "better_supabase"."asset_locations";
-create policy asset_locations_read on "better_supabase"."asset_locations"
+create policy bsb_asset_locations_read on "better_supabase"."asset_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 alter table "better_supabase"."assets" enable row level security;
 revoke all on "better_supabase"."assets" from public, anon, authenticated;
 grant select on "better_supabase"."assets" to authenticated;
 grant all on "better_supabase"."assets" to service_role;
-drop policy if exists assets_read on "better_supabase"."assets";
-create policy assets_read on "better_supabase"."assets"
+create policy bsb_assets_read on "better_supabase"."assets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text));
@@ -3895,8 +3443,7 @@ alter table "better_supabase"."asset_assignments" enable row level security;
 revoke all on "better_supabase"."asset_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."asset_assignments" to authenticated;
 grant all on "better_supabase"."asset_assignments" to service_role;
-drop policy if exists asset_assignments_read on "better_supabase"."asset_assignments";
-create policy asset_assignments_read on "better_supabase"."asset_assignments"
+create policy bsb_asset_assignments_read on "better_supabase"."asset_assignments"
   for select to authenticated
   using ("asset_id" in (select y."id" from "better_supabase"."assets" y));
 
@@ -3931,40 +3478,38 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."asset_location_check_parent"() from public, anon, authenticated;
-drop trigger if exists "bsb_asset_locations_parent" on "better_supabase"."asset_locations";
 create trigger "bsb_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
   for each row execute function "better_supabase"."asset_location_check_parent"();
 
 -- What an asset cost and how it depreciates, in bigint minor units of currency.
-alter table "better_supabase"."assets" add column if not exists "acquisition_cost" bigint check ("acquisition_cost" >= 0);
-alter table "better_supabase"."assets" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."assets" add column if not exists "acquired_on" date;
-alter table "better_supabase"."assets" add column if not exists "useful_life_months" integer check ("useful_life_months" between 1 and 1200);
-alter table "better_supabase"."assets" add column if not exists "residual_value" bigint not null default 0 check ("residual_value" >= 0);
-alter table "better_supabase"."assets" add column if not exists "depreciation_method" text not null default 'none' check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
+alter table "better_supabase"."assets" add column "acquisition_cost" bigint constraint bsb_assets_acquisition_cost_check check ("acquisition_cost" >= 0);
+alter table "better_supabase"."assets" add column "currency" text constraint bsb_assets_currency_check check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."assets" add column "acquired_on" date;
+alter table "better_supabase"."assets" add column "useful_life_months" integer constraint bsb_assets_useful_life_months_check check ("useful_life_months" >= 1 and "useful_life_months" <= 1200);
+alter table "better_supabase"."assets" add column "residual_value" bigint not null default 0 constraint bsb_assets_residual_value_check check ("residual_value" >= 0);
+alter table "better_supabase"."assets" add column "depreciation_method" text not null default 'none' constraint bsb_assets_depreciation_method_check check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
 -- Declining balance: the yearly rate in basis points of the book value.
-alter table "better_supabase"."assets" add column if not exists "depreciation_rate_bps" integer check ("depreciation_rate_bps" between 1 and 100000);
-alter table "better_supabase"."assets" add column if not exists "disposed_on" date;
-alter table "better_supabase"."assets" add column if not exists "disposal_amount" bigint check ("disposal_amount" >= 0);
+alter table "better_supabase"."assets" add column "depreciation_rate_bps" integer constraint bsb_assets_depreciation_rate_bps_check check ("depreciation_rate_bps" >= 1 and "depreciation_rate_bps" <= 100000);
+alter table "better_supabase"."assets" add column "disposed_on" date;
+alter table "better_supabase"."assets" add column "disposal_amount" bigint constraint bsb_assets_disposal_amount_check check ("disposal_amount" >= 0);
 
 -- One month of an asset's depreciation; entry_id is its accounting entry.
-create table if not exists "better_supabase"."asset_depreciations" (
+create table "better_supabase"."asset_depreciations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
-  "period_start" date not null check (extract(day from "period_start") = 1),
-  "amount" bigint not null check ("amount" > 0),
+  "period_start" date not null constraint bsb_asset_depreciations_period_start_check check (extract(day from "period_start") = 1),
+  "amount" bigint not null constraint bsb_asset_depreciations_amount_check check ("amount" > 0),
   "entry_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("asset_id", "period_start")
 );
-create index if not exists "asset_depreciations_tenant_idx" on "better_supabase"."asset_depreciations" ("tenant_id", "period_start");
+create index "asset_depreciations_tenant_idx" on "better_supabase"."asset_depreciations" ("tenant_id", "period_start");
 alter table "better_supabase"."asset_depreciations" enable row level security;
 revoke all on "better_supabase"."asset_depreciations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_depreciations" to authenticated;
 grant all on "better_supabase"."asset_depreciations" to service_role;
-drop policy if exists asset_depreciations_read on "better_supabase"."asset_depreciations";
-create policy asset_depreciations_read on "better_supabase"."asset_depreciations"
+create policy bsb_asset_depreciations_read on "better_supabase"."asset_depreciations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 
@@ -4426,7 +3971,7 @@ begin
     )
     select jsonb_agg(jsonb_build_object('id', up.id, 'kind', up.kind, 'name', up.name) order by up.depth desc) from up
   ), '[]'::jsonb) end,
-    'links', jsonb_build_object('bookingResources', '[]'::jsonb, 'workItems', '[]'::jsonb));
+    'links', jsonb_build_object('bookingResources', '[]'::jsonb, 'tasks', '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."get_asset"(uuid) from public, anon;
@@ -4575,7 +4120,7 @@ revoke execute on function "better_supabase"."asset_locations_at"(uuid, double p
 grant execute on function "better_supabase"."asset_locations_at"(uuid, double precision, double precision) to authenticated, service_role;
 
 -- Names the asset a booking resource or a work item is about; a null
--- asset_id clears it. target_type is booking_resource or work_item.
+-- asset_id clears it. target_type is booking_resource or task.
 create or replace function "better_supabase"."set_asset_link"(target_type text, target_id uuid, asset_id uuid default null)
 returns jsonb
 language plpgsql
@@ -4782,41 +4327,22 @@ grant execute on function "better_supabase"."list_asset_depreciations"(uuid, int
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_locations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_locations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_locations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_locations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."assets";
 create policy bsb_tenant_scope_select on "better_supabase"."assets" as restrictive
   for select to public
   using (
@@ -4824,58 +4350,45 @@ create policy bsb_tenant_scope_select on "better_supabase"."assets" as restricti
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assets";
 create policy bsb_tenant_scope_insert on "better_supabase"."assets" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."assets";
 create policy bsb_tenant_scope_update on "better_supabase"."assets" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assets";
 create policy bsb_tenant_scope_delete on "better_supabase"."assets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("asset_id" in (select y."id" from "better_supabase"."assets" y))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_depreciations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_depreciations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_depreciations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_depreciations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -4883,25 +4396,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations"
 -- blocks.assets.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."create_asset_location"(tenant uuid, kind text, name text, parent_id uuid default null, code text default null, address jsonb default null, latitude double precision default null, longitude double precision default null, area jsonb default null, metadata jsonb default null)
 returns jsonb
@@ -5073,19 +4567,6 @@ as $$ select "better_supabase"."list_asset_depreciations"($1, $2) $$;
 revoke execute on function "api"."list_asset_depreciations"(uuid, integer) from public, anon;
 grant execute on function "api"."list_asset_depreciations"(uuid, integer) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block-data assets
@@ -5103,112 +4584,22 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:2d9b66fefbd29e4b4bf43e8c5e45052e1cda3f916dd2a54df4bdbbeff4803336
+-- @bsb-hash sha256:8d8902f3118c37c6ffb7661eecfa238907e7265a10b5ece574fd45214edd56cd
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.as_column_type(value text, target anyelement)
-returns anyelement
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return value;
-end;
-$$;
-revoke execute on function better_supabase.as_column_type(text, anyelement) from public;
-grant execute on function better_supabase.as_column_type(text, anyelement) to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_locations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_depreciations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.asset_locations is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."asset_locations" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."asset_locations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."asset_locations" add column if not exists "parent_id" uuid references "better_supabase"."asset_locations" ("id") on delete restrict;
-alter table "better_supabase"."asset_locations" add column if not exists "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."asset_locations" add column if not exists "name" text check (length("name") between 1 and 200);
-alter table "better_supabase"."asset_locations" add column if not exists "code" text check ("code" is null or length("code") between 1 and 100);
-alter table "better_supabase"."asset_locations" add column if not exists "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object');
-alter table "better_supabase"."asset_locations" add column if not exists "latitude" double precision check ("latitude" between -90 and 90);
-alter table "better_supabase"."asset_locations" add column if not exists "longitude" double precision check ("longitude" between -180 and 180);
-alter table "better_supabase"."asset_locations" add column if not exists "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."asset_locations" add column if not exists "kind" text constraint bsb_asset_locations_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."asset_locations" add column if not exists "name" text constraint bsb_asset_locations_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."asset_locations" add column if not exists "code" text constraint bsb_asset_locations_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100);
+alter table "better_supabase"."asset_locations" add column if not exists "address" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_address_check check (jsonb_typeof("address") = 'object');
+alter table "better_supabase"."asset_locations" add column if not exists "latitude" double precision constraint bsb_asset_locations_latitude_check check ("latitude" >= -90 and "latitude" <= 90);
+alter table "better_supabase"."asset_locations" add column if not exists "longitude" double precision constraint bsb_asset_locations_longitude_check check ("longitude" >= -180 and "longitude" <= 180);
+alter table "better_supabase"."asset_locations" add column if not exists "metadata" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_metadata_check check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."asset_locations" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."asset_locations" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."asset_locations" add column if not exists "updated_at" timestamptz not null default now();
@@ -5219,16 +4610,16 @@ create index if not exists "asset_locations_coordinates_idx" on "better_supabase
 alter table "better_supabase"."assets" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."assets" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."assets" add column if not exists "location_id" uuid references "better_supabase"."asset_locations" ("id") on delete set null;
-alter table "better_supabase"."assets" add column if not exists "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."assets" add column if not exists "name" text check (length("name") between 1 and 200);
-alter table "better_supabase"."assets" add column if not exists "tag" text check ("tag" is null or length("tag") between 1 and 100);
-alter table "better_supabase"."assets" add column if not exists "serial_number" text check ("serial_number" is null or length("serial_number") <= 200);
-alter table "better_supabase"."assets" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'maintenance', 'retired'));
-alter table "better_supabase"."assets" add column if not exists "assignee_type" text check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."assets" add column if not exists "kind" text constraint bsb_assets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."assets" add column if not exists "name" text constraint bsb_assets_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."assets" add column if not exists "tag" text constraint bsb_assets_tag_check check ("tag" is null or length("tag") >= 1 and length("tag") <= 100);
+alter table "better_supabase"."assets" add column if not exists "serial_number" text constraint bsb_assets_serial_number_check check ("serial_number" is null or length("serial_number") <= 200);
+alter table "better_supabase"."assets" add column if not exists "status" text not null default 'active' constraint bsb_assets_status_check check ("status" in ('active', 'maintenance', 'retired'));
+alter table "better_supabase"."assets" add column if not exists "assignee_type" text constraint bsb_assets_assignee_type_check check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."assets" add column if not exists "assignee_id" text;
-alter table "better_supabase"."assets" add column if not exists "latitude" double precision check ("latitude" between -90 and 90);
-alter table "better_supabase"."assets" add column if not exists "longitude" double precision check ("longitude" between -180 and 180);
-alter table "better_supabase"."assets" add column if not exists "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."assets" add column if not exists "latitude" double precision constraint bsb_assets_latitude_check check ("latitude" >= -90 and "latitude" <= 90);
+alter table "better_supabase"."assets" add column if not exists "longitude" double precision constraint bsb_assets_longitude_check check ("longitude" >= -180 and "longitude" <= 180);
+alter table "better_supabase"."assets" add column if not exists "metadata" jsonb not null default '{}'::jsonb constraint bsb_assets_metadata_check check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."assets" add column if not exists "retired_at" timestamptz;
 alter table "better_supabase"."assets" add column if not exists "created_by" uuid;
 alter table "better_supabase"."assets" add column if not exists "created_at" timestamptz not null default now();
@@ -5244,7 +4635,7 @@ alter table "better_supabase"."asset_assignments" add column if not exists "tena
 alter table "better_supabase"."asset_assignments" add column if not exists "asset_id" uuid references "better_supabase"."assets" ("id") on delete cascade;
 alter table "better_supabase"."asset_assignments" add column if not exists "assignee_type" text;
 alter table "better_supabase"."asset_assignments" add column if not exists "assignee_id" text;
-alter table "better_supabase"."asset_assignments" add column if not exists "note" text check ("note" is null or length("note") <= 2000);
+alter table "better_supabase"."asset_assignments" add column if not exists "note" text constraint bsb_asset_assignments_note_check check ("note" is null or length("note") <= 2000);
 alter table "better_supabase"."asset_assignments" add column if not exists "assigned_by" uuid;
 alter table "better_supabase"."asset_assignments" add column if not exists "assigned_at" timestamptz not null default now();
 alter table "better_supabase"."asset_assignments" add column if not exists "released_at" timestamptz;
@@ -5254,14 +4645,12 @@ create index if not exists "asset_assignments_history_idx" on "better_supabase".
 alter table "better_supabase"."asset_locations" enable row level security;
 grant select on "better_supabase"."asset_locations" to authenticated;
 grant all on "better_supabase"."asset_locations" to service_role;
-drop policy if exists bsb_asset_locations_select on "better_supabase"."asset_locations";
 create policy bsb_asset_locations_select on "better_supabase"."asset_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 alter table "better_supabase"."assets" enable row level security;
 grant select on "better_supabase"."assets" to authenticated;
 grant all on "better_supabase"."assets" to service_role;
-drop policy if exists bsb_assets_select on "better_supabase"."assets";
 create policy bsb_assets_select on "better_supabase"."assets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
@@ -5269,7 +4658,6 @@ create policy bsb_assets_select on "better_supabase"."assets"
 alter table "better_supabase"."asset_assignments" enable row level security;
 grant select on "better_supabase"."asset_assignments" to authenticated;
 grant all on "better_supabase"."asset_assignments" to service_role;
-drop policy if exists bsb_asset_assignments_select on "better_supabase"."asset_assignments";
 create policy bsb_asset_assignments_select on "better_supabase"."asset_assignments"
   for select to authenticated
   using ("asset_id" in (select y."id" from "better_supabase"."assets" y));
@@ -5305,36 +4693,34 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."asset_location_check_parent"() from public, anon, authenticated;
-drop trigger if exists "bsb_asset_locations_parent" on "better_supabase"."asset_locations";
 create trigger "bsb_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
   for each row execute function "better_supabase"."asset_location_check_parent"();
 
 -- What an asset cost and how it depreciates, in bigint minor units of currency.
-alter table "better_supabase"."assets" add column if not exists "acquisition_cost" bigint check ("acquisition_cost" >= 0);
-alter table "better_supabase"."assets" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."assets" add column if not exists "acquisition_cost" bigint constraint bsb_assets_acquisition_cost_check check ("acquisition_cost" >= 0);
+alter table "better_supabase"."assets" add column if not exists "currency" text constraint bsb_assets_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."assets" add column if not exists "acquired_on" date;
-alter table "better_supabase"."assets" add column if not exists "useful_life_months" integer check ("useful_life_months" between 1 and 1200);
-alter table "better_supabase"."assets" add column if not exists "residual_value" bigint not null default 0 check ("residual_value" >= 0);
-alter table "better_supabase"."assets" add column if not exists "depreciation_method" text not null default 'none' check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
+alter table "better_supabase"."assets" add column if not exists "useful_life_months" integer constraint bsb_assets_useful_life_months_check check ("useful_life_months" >= 1 and "useful_life_months" <= 1200);
+alter table "better_supabase"."assets" add column if not exists "residual_value" bigint not null default 0 constraint bsb_assets_residual_value_check check ("residual_value" >= 0);
+alter table "better_supabase"."assets" add column if not exists "depreciation_method" text not null default 'none' constraint bsb_assets_depreciation_method_check check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
 -- Declining balance: the yearly rate in basis points of the book value.
-alter table "better_supabase"."assets" add column if not exists "depreciation_rate_bps" integer check ("depreciation_rate_bps" between 1 and 100000);
+alter table "better_supabase"."assets" add column if not exists "depreciation_rate_bps" integer constraint bsb_assets_depreciation_rate_bps_check check ("depreciation_rate_bps" >= 1 and "depreciation_rate_bps" <= 100000);
 alter table "better_supabase"."assets" add column if not exists "disposed_on" date;
-alter table "better_supabase"."assets" add column if not exists "disposal_amount" bigint check ("disposal_amount" >= 0);
+alter table "better_supabase"."assets" add column if not exists "disposal_amount" bigint constraint bsb_assets_disposal_amount_check check ("disposal_amount" >= 0);
 
 -- One month of an asset's depreciation; entry_id is its accounting entry.
 -- better_supabase.asset_depreciations is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."asset_depreciations" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."asset_depreciations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."asset_depreciations" add column if not exists "asset_id" uuid references "better_supabase"."assets" ("id") on delete cascade;
-alter table "better_supabase"."asset_depreciations" add column if not exists "period_start" date check (extract(day from "period_start") = 1);
-alter table "better_supabase"."asset_depreciations" add column if not exists "amount" bigint check ("amount" > 0);
+alter table "better_supabase"."asset_depreciations" add column if not exists "period_start" date constraint bsb_asset_depreciations_period_start_check check (extract(day from "period_start") = 1);
+alter table "better_supabase"."asset_depreciations" add column if not exists "amount" bigint constraint bsb_asset_depreciations_amount_check check ("amount" > 0);
 alter table "better_supabase"."asset_depreciations" add column if not exists "entry_id" uuid;
 alter table "better_supabase"."asset_depreciations" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "asset_depreciations_tenant_idx" on "better_supabase"."asset_depreciations" ("tenant_id", "period_start");
 alter table "better_supabase"."asset_depreciations" enable row level security;
 grant select on "better_supabase"."asset_depreciations" to authenticated;
 grant all on "better_supabase"."asset_depreciations" to service_role;
-drop policy if exists bsb_asset_depreciations_select on "better_supabase"."asset_depreciations";
 create policy bsb_asset_depreciations_select on "better_supabase"."asset_depreciations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
@@ -5797,7 +5183,7 @@ begin
     )
     select jsonb_agg(jsonb_build_object('id', up.id, 'kind', up.kind, 'name', up.name) order by up.depth desc) from up
   ), '[]'::jsonb) end,
-    'links', jsonb_build_object('bookingResources', '[]'::jsonb, 'workItems', '[]'::jsonb));
+    'links', jsonb_build_object('bookingResources', '[]'::jsonb, 'tasks', '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."get_asset"(uuid) from public, anon;
@@ -5946,7 +5332,7 @@ revoke execute on function "better_supabase"."asset_locations_at"(uuid, double p
 grant execute on function "better_supabase"."asset_locations_at"(uuid, double precision, double precision) to authenticated, service_role;
 
 -- Names the asset a booking resource or a work item is about; a null
--- asset_id clears it. target_type is booking_resource or work_item.
+-- asset_id clears it. target_type is booking_resource or task.
 create or replace function "better_supabase"."set_asset_link"(target_type text, target_id uuid, asset_id uuid default null)
 returns jsonb
 language plpgsql
@@ -6153,41 +5539,22 @@ grant execute on function "better_supabase"."list_asset_depreciations"(uuid, int
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_locations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_locations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_locations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_locations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."assets";
 create policy bsb_tenant_scope_select on "better_supabase"."assets" as restrictive
   for select to public
   using (
@@ -6195,74 +5562,48 @@ create policy bsb_tenant_scope_select on "better_supabase"."assets" as restricti
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assets";
 create policy bsb_tenant_scope_insert on "better_supabase"."assets" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."assets";
 create policy bsb_tenant_scope_update on "better_supabase"."assets" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assets";
 create policy bsb_tenant_scope_delete on "better_supabase"."assets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_assignments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("asset_id" in (select y."id" from "better_supabase"."assets" y))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_assignments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_assignments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_assignments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_depreciations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_depreciations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_depreciations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_depreciations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
@@ -6281,164 +5622,88 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:88cf7a428fca4c2d99e3a00ff6ac44bf8b00e1e6468fc4566aae302fdc71b1c8
+-- @bsb-hash sha256:7c86bb77a36f7e88b251f14bf9cac774f48419f82b084d7a8db391fba7183c07
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_locations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_locations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."assets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_depreciations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."asset_locations" (
+create table "better_supabase"."asset_locations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "parent_id" uuid references "better_supabase"."asset_locations" ("id") on delete restrict,
   -- site, building, floor, unit, room, or the app's own kind.
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "code" text check ("code" is null or length("code") between 1 and 100),
-  "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "latitude" double precision check ("latitude" between -90 and 90),
-  "longitude" double precision check ("longitude" between -180 and 180),
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "kind" text not null constraint bsb_asset_locations_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_asset_locations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "code" text constraint bsb_asset_locations_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "address" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_address_check check (jsonb_typeof("address") = 'object'),
+  "latitude" double precision constraint bsb_asset_locations_latitude_check check ("latitude" >= -90 and "latitude" <= 90),
+  "longitude" double precision constraint bsb_asset_locations_longitude_check check ("longitude" >= -180 and "longitude" <= 180),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "code"),
-  check (("latitude" is null) = ("longitude" is null))
+  constraint bsb_asset_locations_check check (("latitude" is null) = ("longitude" is null))
 );
-create index if not exists "asset_locations_parent_idx" on "better_supabase"."asset_locations" ("parent_id", "org_id");
-create index if not exists "asset_locations_coordinates_idx" on "better_supabase"."asset_locations" ("org_id", "latitude", "longitude") where "latitude" is not null;
+create index "asset_locations_parent_idx" on "better_supabase"."asset_locations" ("parent_id", "org_id");
+create index "asset_locations_coordinates_idx" on "better_supabase"."asset_locations" ("org_id", "latitude", "longitude") where "latitude" is not null;
 
-create table if not exists "better_supabase"."assets" (
+create table "better_supabase"."assets" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "location_id" uuid references "better_supabase"."asset_locations" ("id") on delete set null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null constraint bsb_assets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_assets_name_check check (length("name") >= 1 and length("name") <= 200),
   -- The asset tag, unique per organization.
-  "tag" text check ("tag" is null or length("tag") between 1 and 100),
-  "serial_number" text check ("serial_number" is null or length("serial_number") <= 200),
-  "status" text not null default 'active' check ("status" in ('active', 'maintenance', 'retired')),
+  "tag" text constraint bsb_assets_tag_check check ("tag" is null or length("tag") >= 1 and length("tag") <= 100),
+  "serial_number" text constraint bsb_assets_serial_number_check check ("serial_number" is null or length("serial_number") <= 200),
+  "status" text not null default 'active' constraint bsb_assets_status_check check ("status" in ('active', 'maintenance', 'retired')),
   -- member (a user id) or a subject type such as party, with its id.
-  "assignee_type" text check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_type" text constraint bsb_assets_assignee_type_check check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "assignee_id" text,
   -- Where a moving asset (a vehicle) was last seen.
-  "latitude" double precision check ("latitude" between -90 and 90),
-  "longitude" double precision check ("longitude" between -180 and 180),
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "latitude" double precision constraint bsb_assets_latitude_check check ("latitude" >= -90 and "latitude" <= 90),
+  "longitude" double precision constraint bsb_assets_longitude_check check ("longitude" >= -180 and "longitude" <= 180),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_assets_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "retired_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "tag"),
-  check (("assignee_type" is null) = ("assignee_id" is null)),
-  check (("latitude" is null) = ("longitude" is null))
+  constraint bsb_assets_check check (("assignee_type" is null) = ("assignee_id" is null)),
+  constraint bsb_assets_check1 check (("latitude" is null) = ("longitude" is null))
 );
-create index if not exists "assets_location_idx" on "better_supabase"."assets" ("location_id", "org_id");
-create index if not exists "assets_assignee_idx" on "better_supabase"."assets" ("org_id", "assignee_type", "assignee_id") where "assignee_type" is not null;
-create index if not exists "assets_kind_idx" on "better_supabase"."assets" ("org_id", "kind", "status");
-create index if not exists "assets_coordinates_idx" on "better_supabase"."assets" ("org_id", "latitude", "longitude") where "latitude" is not null;
+create index "assets_location_idx" on "better_supabase"."assets" ("location_id", "org_id");
+create index "assets_assignee_idx" on "better_supabase"."assets" ("org_id", "assignee_type", "assignee_id") where "assignee_type" is not null;
+create index "assets_kind_idx" on "better_supabase"."assets" ("org_id", "kind", "status");
+create index "assets_coordinates_idx" on "better_supabase"."assets" ("org_id", "latitude", "longitude") where "latitude" is not null;
 
-create table if not exists "better_supabase"."asset_assignments" (
+create table "better_supabase"."asset_assignments" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
   "assignee_type" text not null,
   "assignee_id" text not null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_asset_assignments_note_check check ("note" is null or length("note") <= 2000),
   "assigned_by" uuid,
   "assigned_at" timestamptz not null default now(),
   "released_at" timestamptz
 );
-create unique index if not exists "asset_assignments_open_idx" on "better_supabase"."asset_assignments" ("asset_id") where "released_at" is null;
-create index if not exists "asset_assignments_history_idx" on "better_supabase"."asset_assignments" ("asset_id", "assigned_at" desc);
+create unique index "asset_assignments_open_idx" on "better_supabase"."asset_assignments" ("asset_id") where "released_at" is null;
+create index "asset_assignments_history_idx" on "better_supabase"."asset_assignments" ("asset_id", "assigned_at" desc);
 
 alter table "better_supabase"."asset_locations" enable row level security;
 revoke all on "better_supabase"."asset_locations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_locations" to authenticated;
 grant all on "better_supabase"."asset_locations" to service_role;
-drop policy if exists asset_locations_read on "better_supabase"."asset_locations";
-create policy asset_locations_read on "better_supabase"."asset_locations"
+create policy bsb_asset_locations_read on "better_supabase"."asset_locations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('assets.read')));
 alter table "better_supabase"."assets" enable row level security;
 revoke all on "better_supabase"."assets" from public, anon, authenticated;
 grant select on "better_supabase"."assets" to authenticated;
 grant all on "better_supabase"."assets" to service_role;
-drop policy if exists assets_read on "better_supabase"."assets";
-create policy assets_read on "better_supabase"."assets"
+create policy bsb_assets_read on "better_supabase"."assets"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text));
@@ -6446,8 +5711,7 @@ alter table "better_supabase"."asset_assignments" enable row level security;
 revoke all on "better_supabase"."asset_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."asset_assignments" to authenticated;
 grant all on "better_supabase"."asset_assignments" to service_role;
-drop policy if exists asset_assignments_read on "better_supabase"."asset_assignments";
-create policy asset_assignments_read on "better_supabase"."asset_assignments"
+create policy bsb_asset_assignments_read on "better_supabase"."asset_assignments"
   for select to authenticated
   using ("asset_id" in (select y."id" from "better_supabase"."assets" y));
 
@@ -6482,40 +5746,38 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."asset_location_check_parent"() from public, anon, authenticated;
-drop trigger if exists "bsb_asset_locations_parent" on "better_supabase"."asset_locations";
 create trigger "bsb_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
   for each row execute function "better_supabase"."asset_location_check_parent"();
 
 -- What an asset cost and how it depreciates, in bigint minor units of currency.
-alter table "better_supabase"."assets" add column if not exists "acquisition_cost" bigint check ("acquisition_cost" >= 0);
-alter table "better_supabase"."assets" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."assets" add column if not exists "acquired_on" date;
-alter table "better_supabase"."assets" add column if not exists "useful_life_months" integer check ("useful_life_months" between 1 and 1200);
-alter table "better_supabase"."assets" add column if not exists "residual_value" bigint not null default 0 check ("residual_value" >= 0);
-alter table "better_supabase"."assets" add column if not exists "depreciation_method" text not null default 'none' check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
+alter table "better_supabase"."assets" add column "acquisition_cost" bigint constraint bsb_assets_acquisition_cost_check check ("acquisition_cost" >= 0);
+alter table "better_supabase"."assets" add column "currency" text constraint bsb_assets_currency_check check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."assets" add column "acquired_on" date;
+alter table "better_supabase"."assets" add column "useful_life_months" integer constraint bsb_assets_useful_life_months_check check ("useful_life_months" >= 1 and "useful_life_months" <= 1200);
+alter table "better_supabase"."assets" add column "residual_value" bigint not null default 0 constraint bsb_assets_residual_value_check check ("residual_value" >= 0);
+alter table "better_supabase"."assets" add column "depreciation_method" text not null default 'none' constraint bsb_assets_depreciation_method_check check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
 -- Declining balance: the yearly rate in basis points of the book value.
-alter table "better_supabase"."assets" add column if not exists "depreciation_rate_bps" integer check ("depreciation_rate_bps" between 1 and 100000);
-alter table "better_supabase"."assets" add column if not exists "disposed_on" date;
-alter table "better_supabase"."assets" add column if not exists "disposal_amount" bigint check ("disposal_amount" >= 0);
+alter table "better_supabase"."assets" add column "depreciation_rate_bps" integer constraint bsb_assets_depreciation_rate_bps_check check ("depreciation_rate_bps" >= 1 and "depreciation_rate_bps" <= 100000);
+alter table "better_supabase"."assets" add column "disposed_on" date;
+alter table "better_supabase"."assets" add column "disposal_amount" bigint constraint bsb_assets_disposal_amount_check check ("disposal_amount" >= 0);
 
 -- One month of an asset's depreciation; entry_id is its accounting entry.
-create table if not exists "better_supabase"."asset_depreciations" (
+create table "better_supabase"."asset_depreciations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
-  "period_start" date not null check (extract(day from "period_start") = 1),
-  "amount" bigint not null check ("amount" > 0),
+  "period_start" date not null constraint bsb_asset_depreciations_period_start_check check (extract(day from "period_start") = 1),
+  "amount" bigint not null constraint bsb_asset_depreciations_amount_check check ("amount" > 0),
   "entry_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("asset_id", "period_start")
 );
-create index if not exists "asset_depreciations_tenant_idx" on "better_supabase"."asset_depreciations" ("org_id", "period_start");
+create index "asset_depreciations_tenant_idx" on "better_supabase"."asset_depreciations" ("org_id", "period_start");
 alter table "better_supabase"."asset_depreciations" enable row level security;
 revoke all on "better_supabase"."asset_depreciations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_depreciations" to authenticated;
 grant all on "better_supabase"."asset_depreciations" to service_role;
-drop policy if exists asset_depreciations_read on "better_supabase"."asset_depreciations";
-create policy asset_depreciations_read on "better_supabase"."asset_depreciations"
+create policy bsb_asset_depreciations_read on "better_supabase"."asset_depreciations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('assets.read')));
 
@@ -6977,7 +6239,7 @@ begin
     )
     select jsonb_agg(jsonb_build_object('id', up.id, 'kind', up.kind, 'name', up.name) order by up.depth desc) from up
   ), '[]'::jsonb) end,
-    'links', jsonb_build_object('bookingResources', '[]'::jsonb, 'workItems', '[]'::jsonb));
+    'links', jsonb_build_object('bookingResources', '[]'::jsonb, 'tasks', '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."get_asset"(uuid) from public, anon;
@@ -7126,7 +6388,7 @@ revoke execute on function "better_supabase"."asset_locations_at"(uuid, double p
 grant execute on function "better_supabase"."asset_locations_at"(uuid, double precision, double precision) to authenticated, service_role;
 
 -- Names the asset a booking resource or a work item is about; a null
--- asset_id clears it. target_type is booking_resource or work_item.
+-- asset_id clears it. target_type is booking_resource or task.
 create or replace function "better_supabase"."set_asset_link"(target_type text, target_id uuid, asset_id uuid default null)
 returns jsonb
 language plpgsql
@@ -7333,41 +6595,22 @@ grant execute on function "better_supabase"."list_asset_depreciations"(uuid, int
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_locations" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('assets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_locations" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_locations" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_locations";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_locations" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."assets";
 create policy bsb_tenant_scope_select on "better_supabase"."assets" as restrictive
   for select to public
   using (
@@ -7375,74 +6618,48 @@ create policy bsb_tenant_scope_select on "better_supabase"."assets" as restricti
     or ("org_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."assets";
 create policy bsb_tenant_scope_insert on "better_supabase"."assets" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."assets";
 create policy bsb_tenant_scope_update on "better_supabase"."assets" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."assets";
 create policy bsb_tenant_scope_delete on "better_supabase"."assets" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_assignments" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("asset_id" in (select y."id" from "better_supabase"."assets" y))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_assignments" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_assignments" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_assignments" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_depreciations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_select on "better_supabase"."asset_depreciations" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('assets.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_insert on "better_supabase"."asset_depreciations" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_update on "better_supabase"."asset_depreciations" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_depreciations";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_114_assets.sql
 -- better-supabase module: assets

@@ -34,7 +34,7 @@ can attach to, with `leave` approved leave counts as out of office, and with
 | `calendar_event_alarms`  | An event's alarms: a `method`, an `offset_minutes` offset or a `trigger_at` time, a repeat count, and an optional `user_id`  |
 | `calendar_working_hours` | A member's weekly hours in an organization: a `weekday` with a `starts_at` and `ends_at` time in their `tz`                  |
 
-An override has `recurrence_id` (the series row) and `original_start` (the
+An override has `recurrence_id` (the series row) and `original_starts_at` (the
 occurrence it replaces) and shares the series' `uid`, as `RECURRENCE-ID` does
 in iCalendar. Members read through the tables' policies; every write goes
 through a function that checks `calendar.write`, or `calendar.manage` to
@@ -113,7 +113,7 @@ yourself.
 
 ## No overlapping events
 
-`noOverlap: true` adds the `calendar_events_no_overlap` exclusion constraint
+`noOverlap: true` adds the `calendar_events_no_overlap_excl` exclusion constraint
 (`btree_gist`). Two timed, opaque, non-recurring, non-cancelled events on the
 same calendar can't cover the same time range. It is off by default because
 existing data may already overlap.
@@ -568,8 +568,8 @@ blocks: {
       workingHours: null,
     },
     columns: {
-      calendars: { tenant: "organization_id", ownerType: null, ownerId: "owner_user_id", rank: "position" },
-      events: { tenant: "organization_id", rrule: null, exdates: null, rdates: null, owner: "owner_user_id" },
+      calendars: { tenant: "organization_id", ownerType: null, ownerId: "owner_id", rank: "position" },
+      events: { tenant: "organization_id", rrule: null, exdates: null, rdates: null, owner: "owner_id" },
       attendees: { tenant: "organization_id", role: null, subjectType: "record_type", subjectId: "record_id" },
       grants: { tenant: "organization_id", role: "access" },
       rules: { rrule: null, freq: "frequency", interval: "every", count: "occurrences", until: "ends_at", byDay: "weekdays", byMonthDay: "month_days", byMonth: null, bySetPos: null },
@@ -667,7 +667,7 @@ mount, and the controller is disposed with the component.
 ```svelte title="Component.svelte"
 <script lang="ts">
   import {
-    getBetterSupabase,
+    betterSupabase,
     useBlockController,
   } from "better-supabase/svelte";
   import {
@@ -677,7 +677,7 @@ mount, and the controller is disposed with the component.
   import { rpcTransport } from "better-supabase/blocks";
 
   let { calendarId }: { calendarId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const calendar = useBlockController(createCalendarController, {
     client: createCalendar({ transport: rpcTransport(supabase) }),
     calendarIds: [calendarId],
@@ -781,15 +781,14 @@ it; their source is licensed per user, so copy them into your app from
 
 ## Your own fields
 
-`blocks.calendar.options.extraColumns` adds columns to the `calendar_events` table,
+Columns you add to `calendar_events` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createCalendar` a Standard Schema
 for them as `fields`: `upsert` and the occurrence edits take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and `events` return them
 parsed. A column the module already uses is refused. See
 [your own fields](/docs/extending/blocks#your-own-fields).
 
-`blocks.calendar.options.calendarExtraColumns` does the same for the
-calendars table: `createCalendar(organizationId, name, { fields })` writes
+A column you add to the calendars table does the same: `createCalendar(organizationId, name, { fields })` writes
 them (one that is `not null` without a `default` inside the insert), and
 `listCalendars` returns them under `fields`.
 

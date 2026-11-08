@@ -7,6 +7,5 @@ export type {
   RateLimitHit,
   RateLimitOptions,
   RateLimitRule,
-  RateLimitSettings,
   RateLimitSource,
 } from "./rate-limit.ts";

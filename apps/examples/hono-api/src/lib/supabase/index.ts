@@ -1,7 +1,7 @@
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 
-import { schema } from "./generated";
+import { schema } from "./generated-schema";
 
 export type { Functions, Models } from "./generated";
 
-export const betterSupabase = defineSupabase(schema);
+export const betterSupabase = createSupabase(schema);

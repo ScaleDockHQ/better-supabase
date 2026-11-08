@@ -298,6 +298,12 @@ export interface BlockSqlLayout {
   /** Directory for schema modules. Defaults to `supabase/schemas`. */
   readonly dir?: string;
   /**
+   * Render each statement so it can run again. The migrations workflow writes
+   * every module into each migration; the other workflows read the files as
+   * declarative DDL and leave this unset.
+   */
+  readonly rerunnable?: boolean;
+  /**
    * The declarative schema folder the diff engine loads. Defaults to
    * `supabase/schemas`.
    */
@@ -316,13 +322,6 @@ export interface BlockSqlLayout {
    * (`schema.name`); `tests.authenticate_as_issued` calls it by default.
    */
   readonly customAccessTokenHook?: string;
-  /**
-   * Ignored: the header names only the module, so a release doesn't rewrite
-   * every file. The `@bsb-block name@N` marker carries the module version.
-   *
-   * @deprecated Remove it; it has no effect.
-   */
-  readonly version?: string;
   /**
    * `config.realtime.tables`: registered at the end of the `realtime-tables`
    * module.
@@ -357,6 +356,14 @@ export interface BlockSqlLayout {
    * the columns it needs, and an app table refuses their names.
    */
   readonly ownTables?: Readonly<Record<string, string>>;
+  /**
+   * The columns the app's own schema files add to a table (`alter table ... add
+   * column`), by `schema.table`, with each column's type text. A block reads
+   * and writes them as fields, and adds none of them itself.
+   */
+  readonly appColumns?: Readonly<
+    Record<string, readonly { readonly name: string; readonly type: string }[]>
+  >;
   /** The columns of the tables in `ownTables`, where they are known. */
   readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
   /**
@@ -396,6 +403,12 @@ export interface BlockSqlLayout {
    * `sameTenant.auto`.
    */
   readonly declaredColumns?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The columns the app's own triggers read or write, `schema.table` to names.
+   * `sameTenant.auto` emits nothing for a column an app trigger already guards
+   * (Lienlink's `jobs_organization_fixed`).
+   */
+  readonly appTriggerColumns?: Readonly<Record<string, readonly string[]>>;
   /** `config.readSets`, compiled: the functions the `read-sets` module writes. */
   readonly readSets?: readonly {
     readonly name: string;
@@ -496,8 +509,6 @@ export interface BlockSqlAccessProvider {
   readonly memberships?: readonly AuthorizationMembership[];
   /** `blocks.invitations.options.platformRoles` defaults to this. */
   readonly platformRoles?: AuthorizationPlatformRoles;
-  /** How `ai-chat` applies `functions.canApprove`. */
-  readonly approvals?: { readonly distinctApprover?: boolean };
   /** The provider's operations table; `operationPermission` reads it. */
   readonly operations?: Readonly<Record<string, AuthorizationOperation>>;
   /**
@@ -512,6 +523,8 @@ export interface BlockSqlAccessProvider {
   readonly ownsPermissions?: boolean;
   /** The claim the provider's hook sets when it truncated `permissions`. */
   readonly truncatedClaim?: string;
+  /** The wildcard grants `permission_matches` honours; unset is `all`. */
+  readonly wildcards?: "all" | "prefix" | "none";
 }
 
 /** Whether any of the module's tables can be a table the app already has. */

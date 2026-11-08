@@ -9,6 +9,7 @@ import type {
 import type { JobHandler } from "../blocks/queue/types.ts";
 import type { Usage, UsageEntry, UsageStatus } from "../blocks/usage/usage.ts";
 import type { DbError } from "../core/errors.ts";
+import type { ProblemResponseOptions } from "../core/problem.ts";
 
 import { isRecord } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
@@ -153,6 +154,31 @@ export function usageEntries(
   return entries.filter((entry) => (entry.quantity ?? 0) > 0);
 }
 
+/** What `problem429` adds to the response. */
+export interface Problem429Options extends Pick<
+  ProblemResponseOptions,
+  "headers" | "format" | "instance"
+> {
+  /** Members added to the Problem Details body, after `format` ran. */
+  readonly extra?: Readonly<Record<string, unknown>>;
+}
+
+function responseOptions(options: Problem429Options): ProblemResponseOptions {
+  const { extra, format, ...rest } = options;
+
+  if (extra === undefined) {
+    return { ...rest, format };
+  }
+
+  return {
+    ...rest,
+    format: (problem, error) => ({
+      ...(format ? format(problem, error) : problem),
+      ...extra,
+    }),
+  };
+}
+
 /**
  * A 429 Problem Details response for a quota or rate limit: pass the
  * `quota_exceeded` or `rate_limited` error a block returned, or the
@@ -161,9 +187,10 @@ export function usageEntries(
 export function problem429(
   decision: DbError | UsageStatus,
   now: Temporal.Instant = nowInstant(),
+  options: Problem429Options = {},
 ): Response {
   if ("kind" in decision) {
-    return problemResponse(decision);
+    return problemResponse(decision, responseOptions(options));
   }
 
   const retryAfter = Math.max(
@@ -177,6 +204,7 @@ export function problem429(
       ...(decision.limit === undefined ? {} : { limit: decision.limit }),
       retryAfter,
     }),
+    responseOptions(options),
   );
 }
 

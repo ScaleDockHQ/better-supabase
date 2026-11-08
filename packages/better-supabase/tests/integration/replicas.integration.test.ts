@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { parseEnv } from "../../src/env/index.ts";
 import { PRIMARY_COOKIE } from "../../src/server/replicas.ts";
 import { createServer } from "../../src/server/server.ts";
@@ -41,7 +41,7 @@ const readUrl = url.replace("127.0.0.1", "localhost");
 describe.skipIf(!(await reachable()) || readUrl === url)(
   "read URL against the local stack",
   () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const server = createServer(betterSupabase, {
       env: parseEnv({

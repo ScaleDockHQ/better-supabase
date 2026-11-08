@@ -8,6 +8,8 @@ import type {
 import { entitySchema, moneyField } from "../entity-schema.ts";
 import { CREDIT_BLOCKS, SUPPLIER_STATUSES } from "./roles.ts";
 
+const PERSON_MODES = ["external", "tenant"] as const;
+
 const NAME = {
   kind: "string",
   optional: true,
@@ -26,6 +28,9 @@ export const companyInputSchema: EntitySchema<CompanyInput> =
       domain: { kind: "string", optional: true, nullable: true },
       website: { kind: "string", optional: true, nullable: true },
       vatId: { kind: "string", optional: true, nullable: true },
+      legalName: { kind: "string", optional: true, nullable: true },
+      registrationId: { kind: "string", optional: true, nullable: true },
+      phone: { kind: "string", optional: true, nullable: true },
       lifecycle: { kind: "string", optional: true },
       ownerId: { kind: "uuid", optional: true, nullable: true },
       address: { kind: "json", optional: true, nullable: true },
@@ -57,6 +62,7 @@ export const personInputSchema: EntitySchema<PersonInput> =
       email: { kind: "string", optional: true, nullable: true },
       phone: { kind: "string", optional: true, nullable: true },
       title: { kind: "string", optional: true, nullable: true },
+      mode: { kind: "enum", values: PERSON_MODES, optional: true },
       lifecycle: { kind: "string", optional: true },
       ownerId: { kind: "uuid", optional: true, nullable: true },
       userId: { kind: "uuid", optional: true, nullable: true },

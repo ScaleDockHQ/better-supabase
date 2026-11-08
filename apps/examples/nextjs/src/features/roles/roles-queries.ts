@@ -3,12 +3,12 @@ import type { CatalogRole } from "better-supabase/blocks/permissions";
 
 import { can as holds } from "better-supabase/blocks/permissions";
 import { tenantOf } from "better-supabase/next";
-import { cacheTag } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import * as v from "valibot";
 
 import type { PermissionSet } from "@/features/user/user-permissions";
 
-import { organizationSnapshotTag } from "@/features/user/permission-snapshot";
+import { organizationSnapshotTag } from "@/features/user/user-cache";
 import { Role } from "@/lib/claims";
 import { bsb } from "@/lib/supabase/server";
 
@@ -28,6 +28,9 @@ export async function getRoles(): Promise<readonly CatalogRole[] | null> {
     return null;
   }
 
+  // Every role write calls updateTag(organizationSnapshotTag), so the entry
+  // never needs to expire on a timer.
+  cacheLife("max");
   cacheTag(organizationSnapshotTag(tenant));
 
   return db.permissions.roles().orThrow();

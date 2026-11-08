@@ -19,8 +19,8 @@ export interface InventoryNames {
   readonly reserve: string;
   readonly purchase: string;
   /**
-   * `options.extraColumns` on the locations table, which `save_location` writes
-   * from `fields`.
+   * The columns your schema files add on the locations table, which
+   * `save_location` writes from `fields`.
    */
   readonly extras: readonly ExtraColumn[];
 }
@@ -485,6 +485,31 @@ begin
 end;
 $$;
 ${userGrant(`${fn("set_reorder_point")}(uuid, uuid, numeric)`)}
+
+create or replace function ${fn("set_reorder_quantity")}(variant uuid, location uuid, reorder_quantity numeric)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+  v_active boolean;
+begin
+  ${loadLocation(ctx, "set_reorder_quantity.location")}
+  ${guard(names.scope, names.manage, "v_tenant")}
+  ${variantCheck(ctx, "set_reorder_quantity.variant", "v_tenant")}
+  if set_reorder_quantity.reorder_quantity is not null and set_reorder_quantity.reorder_quantity <= 0 then
+    ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must be greater than zero", "22023")}
+  end if;
+  insert into ${levels} as x (${lv("tenant")}, ${lv("variant")}, ${lv("location")}, ${lv("reorderQuantity")})
+  values (v_tenant, set_reorder_quantity.variant, set_reorder_quantity.location, set_reorder_quantity.reorder_quantity)
+  on conflict (${lv("variant")}, ${lv("location")}) do update
+    set ${lv("reorderQuantity")} = excluded.${lv("reorderQuantity")}, ${lv("updatedAt")} = now();
+  return true;
+end;
+$$;
+${userGrant(`${fn("set_reorder_quantity")}(uuid, uuid, numeric)`)}
 `;
 }
 

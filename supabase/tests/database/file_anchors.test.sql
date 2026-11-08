@@ -5,7 +5,7 @@
 begin;
 select plan(12);
 
-insert into better_supabase.attachments (id, organization_id, subject_type, subject_id, name, mime_type, size, status, uploaded_by) values
+insert into better_supabase.attachments (id, tenant_id, subject_type, subject_id, name, mime_type, size, status, uploaded_by) values
   ('00000000-0000-4000-8000-0000000f1001', '00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a001', 'contract.pdf', 'application/pdf', 1024, 'clean', '00000000-0000-4000-8000-0000000000a1'),
   ('00000000-0000-4000-8000-0000000f1002', '00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a002', 'quote.pdf', 'application/pdf', 1024, 'clean', '00000000-0000-4000-8000-0000000000a1'),
   ('00000000-0000-4000-8000-0000000f1003', '00000000-0000-4000-8000-000000000002', 'customer', '00000000-0000-4000-8000-00000000a003', 'globex.pdf', 'application/pdf', 1024, 'clean', '00000000-0000-4000-8000-0000000000a3');

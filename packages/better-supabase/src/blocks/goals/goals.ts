@@ -31,7 +31,7 @@ import {
 export type TargetMetric =
   | "deals.won_amount"
   | "deals.won_count"
-  | "work_items.completed"
+  | "tasks.completed"
   | "invoices.paid_amount"
   | (string & {});
 
@@ -96,9 +96,9 @@ export interface GoalsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the target's extra columns
-   * (`blocks.goals.options.extraColumns`), keyed by database name. It types and
-   * parses them on reads, and validates them on `save`.
+   * A Standard Schema for the target's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `save`.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Goals<FieldsOf<S>>>>;
@@ -112,7 +112,7 @@ function targetOf(value: unknown): Target {
     id: textOf(row["id"]),
     name: textOf(row["name"]),
     metric: textOf(row["metric"]),
-    ownerId: optionalText(row["owner_user_id"]),
+    ownerId: optionalText(row["owner_id"]),
     teamId: optionalText(row["team_id"]),
     periodStart:
       optionalPlainDateOf(row["period_start"]) ??

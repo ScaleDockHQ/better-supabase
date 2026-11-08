@@ -16,6 +16,7 @@ async function retry() {
   refresh();
 }
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /** The inline error of a bookings region, with a Retry that reads again. */
 export async function BookingsLoadError({ title }: { title: string }) {
   const t = await getExtracted("bookings");

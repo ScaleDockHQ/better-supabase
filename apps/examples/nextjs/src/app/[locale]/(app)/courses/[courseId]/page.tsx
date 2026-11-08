@@ -31,7 +31,9 @@ export default function CoursePage({
       </Link>
       <Suspense fallback={<CourseOutlineSkeleton />}>
         <PermissionGate permission="courses.read">
-          <CourseOutline params={params} />
+          {params.then(({ courseId }) => (
+            <CourseOutline courseId={courseId} />
+          ))}
         </PermissionGate>
       </Suspense>
     </>

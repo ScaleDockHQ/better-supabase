@@ -29,7 +29,11 @@ const entries = new Set(
 
 // The seed guards key on Symbol.for, so the CLI's copy agrees with the entry's,
 // and the testing entry would load optional peers (chat) the CLI never needs.
-const BUNDLED = new Set([join(SRC, "testing/seed.ts")]);
+const BUNDLED = new Set([
+  join(SRC, "testing/seed.ts"),
+  // Data, not a module: the rename table the `naming` codemod and BS260 read.
+  resolve(SRC, "../api/naming.json"),
+]);
 
 describe("the CLI's library imports", () => {
   // The CLI build loads these from the package's own entries, so a deeper

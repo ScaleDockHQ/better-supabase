@@ -16,7 +16,7 @@ import type { StoragePath } from "better-supabase/storage";
 import { QueryClient } from "@tanstack/react-query";
 import {
   defineRepository,
-  defineSupabase,
+  createSupabase,
   fromBetterResult,
   memoryCache,
   ok,
@@ -29,10 +29,11 @@ import { createQueue } from "better-supabase/blocks/queue";
 import { rpcTransport } from "better-supabase/blocks/settings";
 import { verifyWebhook } from "better-supabase/blocks/webhooks";
 import { createClient } from "better-supabase/client";
-import { defineConfig, zod } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
 import { createEdge } from "better-supabase/edge";
 import { parseEnv } from "better-supabase/env";
 import { forwardMutations, httpSink } from "better-supabase/events";
+import { zod } from "better-supabase/generators/zod";
 import { createHono } from "better-supabase/hono";
 import { defineListQuery } from "better-supabase/list";
 import { createNext, nextCache, requireAal } from "better-supabase/next";
@@ -81,7 +82,7 @@ createQueue({ client: typedClient, queues: {} });
 const logger: Logger = silentLogger;
 
 // The schema installs the blocks' extensions; `use()` replaces one by name.
-const base = defineSupabase(schema, { logger })
+const base = createSupabase(schema, { logger })
   .use(membershipsExtension({ onMissing: "error" }))
   .use(otel());
 

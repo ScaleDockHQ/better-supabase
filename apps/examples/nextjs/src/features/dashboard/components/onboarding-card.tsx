@@ -19,10 +19,10 @@ import { gettingStarted } from "@/features/onboarding/checklist";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { Link, toAppHref } from "@/i18n/navigation";
 import { useAuth } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { onboardingConfig } from "@/lib/supabase/blocks/slices";
 
 /** The API schema `gen` wrote for the onboarding block. */
-const API_SCHEMA = blockConfig.onboarding.api;
+const API_SCHEMA = onboardingConfig.api;
 
 /** The organization's getting-started checklist; hidden once every step is done. */
 export function OnboardingCard() {

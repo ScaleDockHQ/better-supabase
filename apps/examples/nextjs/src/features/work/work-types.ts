@@ -1,8 +1,7 @@
-import type { WorkItem, WorkItemState } from "better-supabase/blocks/tasks";
-
 import * as v from "valibot";
 
 import type { Search } from "@/i18n/navigation";
+import type { WorkItem, WorkItemState } from "@/lib/supabase/blocks.generated";
 
 export const WORK_ITEM_SUBJECT = "work_item";
 
@@ -17,6 +16,9 @@ export const WORK_ITEM_STATES = [
   "completed",
   "canceled",
 ] as const satisfies readonly WorkItemState[];
+
+/** The state names, for client files that must not import the block barrel. */
+export type WorkItemStateName = (typeof WORK_ITEM_STATES)[number];
 
 export const WorkItemStateSchema = v.picklist(WORK_ITEM_STATES);
 

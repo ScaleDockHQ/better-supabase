@@ -38,7 +38,7 @@ describe("payroll-export module", () => {
     const sql = sqlOf({}, [
       "memberships",
       "permissions",
-      "time-tracking",
+      "time-entries",
       "leave",
       "payroll-export",
     ]);
@@ -52,7 +52,7 @@ describe("payroll-export module", () => {
     const sql = sqlOf({}, [
       "memberships",
       "permissions",
-      "time-tracking",
+      "time-entries",
       "payroll-export",
     ]);
 
@@ -63,14 +63,14 @@ describe("payroll-export module", () => {
     const modules = [
       "memberships",
       "permissions",
-      "time-tracking",
+      "time-entries",
       "shifts",
       "payroll-export",
     ];
 
     expect(sqlOf({}, modules)).not.toContain("shift_assignments");
     expect(
-      sqlOf(withOptions({ sources: ["time-tracking", "shifts"] }), modules),
+      sqlOf(withOptions({ sources: ["time-entries", "shifts"] }), modules),
     ).toContain("shift_assignments");
   });
 
@@ -79,7 +79,7 @@ describe("payroll-export module", () => {
       "isn't installed",
     );
     expect(() =>
-      sqlOf(withOptions({ sources: ["payroll"] }), [...BASE, "time-tracking"]),
+      sqlOf(withOptions({ sources: ["payroll"] }), [...BASE, "time-entries"]),
     ).toThrow("sources");
   });
 
@@ -101,7 +101,7 @@ describe("payroll-export module", () => {
       "memberships",
       "permissions",
       "employees",
-      "time-tracking",
+      "time-entries",
       "leave",
       "shifts",
       "payroll-export",
@@ -109,7 +109,7 @@ describe("payroll-export module", () => {
 
     const sql = sqlOf(
       withOptions({
-        sources: ["time-tracking", "leave", "shifts"],
+        sources: ["time-entries", "leave", "shifts"],
         timeZone: "Europe/Amsterdam",
       }),
       modules,
@@ -122,7 +122,7 @@ describe("payroll-export module", () => {
     const custom = sqlOf(
       {
         modules: {
-          "time-tracking": { mode: "custom" },
+          "time-entries": { mode: "custom" },
           "payroll-export": { options: { sources: ["leave"] } },
         },
       },

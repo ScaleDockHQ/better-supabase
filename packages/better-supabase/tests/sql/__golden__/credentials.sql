@@ -1,13 +1,11 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:eb04fd354dbee2f43137a501e9b541d898711939da8063634a701cce718b63d8
+-- @bsb-hash sha256:7e66c78fa0db9965f8c249f31c0af5a5f6b351b271f00d2bf9394a109b56ffff
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Third-party credentials live in Vault as bs:cred:<provider>:<name>; tables
 -- keep a credential_ref that names them, never the secret. Only the service
 -- role reads or writes them.
@@ -102,19 +100,6 @@ $$;
 revoke execute on function "better_supabase"."credential_delete"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."credential_delete"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block-data credentials
@@ -132,13 +117,11 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:9d3c6ccc006695e48f88203c21d8922273fa509333ab0e0a46c11a169264440c
+-- @bsb-hash sha256:d7d15686ce7c58877f40221a9d13ffb5157d48070059d293897ff5914634afbc
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Third-party credentials live in Vault as bs:cred:<provider>:<name>; tables
 -- keep a credential_ref that names them, never the secret. Only the service
 -- role reads or writes them.
@@ -247,19 +230,6 @@ $$;
 revoke execute on function "better_supabase"."credential_delete"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."credential_delete"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block-data credentials
@@ -277,13 +247,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:8a553f4e6f89f8baf980407e7a8cfa08f8065a013d0cf38e585aeaef5998aca9
+-- @bsb-hash sha256:f978a112be832695bb4171bc2a635bbd4f8335030e54612eea6aa94a00a9aa03
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -383,19 +351,6 @@ $$;
 revoke execute on function "app_private"."credential_delete"(text, text) from public, anon, authenticated;
 grant execute on function "app_private"."credential_delete"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block-data credentials
@@ -413,13 +368,11 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:5749e18e3b756ab6f45a1de9f843df7bdedb5966753ed807b97fa2fe8c2c827b
+-- @bsb-hash sha256:fbc4d06bef5f44e68d0f3e2d492d2d1d3d7f997ce45f525f68dd6c56d0356b71
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Third-party credentials live in Vault as bs:cred:<provider>:<name>; tables
 -- keep a credential_ref that names them, never the secret. Only the service
 -- role reads or writes them.
@@ -546,19 +499,6 @@ as $$ select "better_supabase"."credential_delete"($1, $2) $$;
 revoke execute on function "api"."credential_delete"(text, text) from public, anon, authenticated;
 grant execute on function "api"."credential_delete"(text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block-data credentials
@@ -576,13 +516,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:57d4a5f84a33535d11ad40583412ef2372d677fb58213c0e00cc0fe6a8236840
+-- @bsb-hash sha256:14fe3de5682a6bd52a9e436c7baaff094e8dee6bf4c852ea1c787f2af3590d1e
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Third-party credentials live in the app's "better_supabase"."credentials", each row naming its Vault secret. Only the service role reads or writes them.
 create or replace function "better_supabase"."credential_get"(provider text, name text)
 returns text
@@ -758,22 +696,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_credential_vault_secret"() from public, anon, authenticated;
-drop trigger if exists "bsb_credential_vault" on "better_supabase"."credentials";
 create trigger "bsb_credential_vault" after delete or update of "vault_id" on "better_supabase"."credentials"
   for each row execute function "better_supabase"."drop_credential_vault_secret"();
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials

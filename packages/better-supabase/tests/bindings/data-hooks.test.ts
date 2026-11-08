@@ -401,3 +401,45 @@ describe("liveEngine", () => {
     stop();
   });
 });
+
+describe("dataTarget with a table module", () => {
+  it("reads through client.table and ignores db.<table>", () => {
+    const registered: object[] = [];
+    const source = tickets([]).source;
+    const tableModule = { key: "tickets" };
+
+    const client = {
+      db: {},
+      table: (table: object) => {
+        registered.push(table);
+
+        return source;
+      },
+    };
+
+    const target = dataTarget(
+      client,
+      "tickets",
+      () => {
+        throw new Error("db.<table> was read");
+      },
+      tableModule,
+    );
+
+    expect(target.source).toBe(source);
+    expect(registered).toEqual([tableModule]);
+  });
+
+  it("falls back to select(db) without client.table", () => {
+    const source = tickets([]).source;
+
+    const target = dataTarget(
+      { db: { tickets: source } },
+      "tickets",
+      (db: { tickets: typeof source }) => db.tickets,
+      {},
+    );
+
+    expect(target.source).toBe(source);
+  });
+});

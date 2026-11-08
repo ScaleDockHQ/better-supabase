@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { SigningJwk } from "../../src/testing/jwt.ts";
 
 import { resolveAuth } from "../../src/auth/resolve.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { asUser } from "../../src/testing/as-user.ts";
 import { signTestJwtWithKey } from "../../src/testing/jwt.ts";
 import { localSigningKey } from "../../src/testing/local-key.ts";
@@ -89,7 +89,7 @@ describe("local ES256 signing", () => {
 });
 
 describe("asUser", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   it("signs ES256 by default", async () => {
     const key = await signingKey();
@@ -120,7 +120,7 @@ describe("asUser", () => {
 });
 
 describe("asUser tracing and request context", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const stack = {
     publishableKey: "sb_publishable_test",

@@ -47,11 +47,11 @@ export interface EntitySchema<T> extends TableSchema<T> {
 
 /** What a block's client takes for one entity. */
 export interface EntitySchemas {
-  /** Creating one (`WorkItemInput`). */
+  /** Creating one (`TaskInput`). */
   readonly input?: EntitySchema<unknown>;
-  /** Updating one (`WorkItemChange`). */
+  /** Updating one (`TaskChange`). */
   readonly change?: EntitySchema<unknown>;
-  /** Listing them (`WorkItemListOptions`). */
+  /** Listing them (`TaskListOptions`). */
   readonly listFilter?: EntitySchema<unknown>;
 }
 

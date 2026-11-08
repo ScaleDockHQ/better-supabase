@@ -60,9 +60,9 @@ export interface GenOptions extends SnapshotSource {
   /** Pre-loaded snapshot (tests, watch mode). */
   readonly snapshot?: Snapshot;
   /**
-   * Writes only the generated files (`gen --metadata --out-dir`): no read-set
-   * SQL module, and the manifest that removes files an earlier run wrote is
-   * neither read nor written.
+   * Writes only the generated files (`gen --metadata --out`): no read-set SQL
+   * module, and the manifest that removes files an earlier run wrote is neither
+   * read nor written.
    */
   readonly isolated?: boolean;
 }
@@ -85,7 +85,9 @@ async function readSetFile(
     readSets,
   );
 
-  return renderBlocks(["read-sets"], layout)[0];
+  return renderBlocks(["read-sets"], layout).find(
+    (file) => file.module === "read-sets",
+  );
 }
 
 /**
@@ -152,7 +154,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       manifestPath(config.root, file.path),
     );
 
-  const notice = (await generationNotices(snapshot, warnings, notices))
+  const notice = (await generationNotices(snapshot, warnings, notices, config))
     .map((line) => `\n${line}`)
     .join("");
 

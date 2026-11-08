@@ -1,12 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { CustomersService } from "./customers.ts";
 import type { Json } from "./generated.ts";
 
 import { createCustomersService } from "./customers.ts";
-import { schema } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
 const ORG = "00000000-0000-4000-8000-0000000000aa";
 
@@ -33,7 +33,7 @@ function service(body: Json = []) {
     });
 
   return {
-    customers: createCustomersService(defineSupabase(schema).connect(client)),
+    customers: createCustomersService(createSupabase(schema).connect(client)),
     requests,
   };
 }
@@ -115,7 +115,7 @@ describe("CRM customers on better-supabase", () => {
     });
 
     const customers = createCustomersService(
-      defineSupabase(schema).connect(client),
+      createSupabase(schema).connect(client),
     );
 
     const result = await customers.deleteCustomer(1);

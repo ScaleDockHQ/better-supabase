@@ -1,5 +1,5 @@
 -- Owned by you since `better-supabase migrate schema-first`.
-create table if not exists "public"."client_notes" (
+create table "public"."client_notes" (
   id uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null references "public"."organizations" ("id") on delete cascade,
   created_at timestamptz not null default now(),
@@ -67,7 +67,7 @@ create policy bsb_tenant_scope_delete on "public"."client_notes" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create index if not exists "client_notes_organization_id_idx" on "public"."client_notes" ("organization_id");
+create index "client_notes_organization_id_idx" on "public"."client_notes" ("organization_id");
 
 drop trigger if exists "bsb_updated_at" on "public"."client_notes";
 

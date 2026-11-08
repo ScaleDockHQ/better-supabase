@@ -4,7 +4,6 @@ import { useAction } from "better-supabase/react";
 import { UserPlusIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,16 +23,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { SharingGrant, SharingTarget } from "../drive-grants-actions";
+import type { SharingGrant, SharingTarget } from "../drive-actions";
 import type { DriveRole } from "../drive-roles";
 
 import {
   loadDriveSharing,
   shareDriveItem,
   unshareDriveItem,
-} from "../drive-grants-actions";
+} from "../drive-actions";
 import { DRIVE_ROLES } from "../drive-roles";
 
 const isRole = (value: unknown): value is DriveRole =>

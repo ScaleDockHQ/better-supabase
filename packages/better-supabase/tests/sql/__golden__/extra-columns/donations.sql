@@ -1,97 +1,23 @@
 -- ==== schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:c879ef9f33acd9fc0df3bdc933c2c62b7c3543469c208ee8b2f84c32e75a3130
+-- @bsb-hash sha256:82f29725802132f8e112f916517f41cbc83a0ace4b64865c4fdfb2c6c60dcc61
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."donation_funds";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."donation_funds";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."donation_funds";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."donation_funds";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donation_funds";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pledges";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pledges";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pledges";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pledges";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pledges";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."donation_receipts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."donation_receipts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."donation_receipts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."donation_receipts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donation_receipts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."donations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."donations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."donations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."donations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Donations: gifts and pledges from donors (registered subjects) to funds
 -- and campaigns, each posted gift on the ledger, and numbered tax receipts.
 
 -- A fund or campaign gifts go to; goal is in minor units of currency.
-create table if not exists "better_supabase"."donation_funds" (
+create table "better_supabase"."donation_funds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "kind" text not null default 'fund' check ("kind" in ('fund', 'campaign')),
-  "goal" bigint check ("goal" is null or "goal" > 0),
-  "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "key" text not null constraint bsb_donation_funds_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_donation_funds_name_check check (length("name") >= 1 and length("name") <= 200),
+  "kind" text not null default 'fund' constraint bsb_donation_funds_kind_check check ("kind" in ('fund', 'campaign')),
+  "goal" bigint constraint bsb_donation_funds_goal_check check ("goal" is null or "goal" > 0),
+  "currency" char(3) constraint bsb_donation_funds_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "starts_on" date,
   "ends_on" date,
   "archived_at" timestamptz,
@@ -99,83 +25,80 @@ create table if not exists "better_supabase"."donation_funds" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id"),
-  check ("goal" is null or "currency" is not null),
-  check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
+  constraint bsb_donation_funds_check check ("goal" is null or "currency" is not null),
+  constraint bsb_donation_funds_check1 check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
 );
 alter table "better_supabase"."donation_funds" enable row level security;
 revoke all on "better_supabase"."donation_funds" from public, anon, authenticated;
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
-drop policy if exists "donation_funds_read" on "better_supabase"."donation_funds";
-create policy donation_funds_read on "better_supabase"."donation_funds"
+create policy bsb_donation_funds_read on "better_supabase"."donation_funds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A recurring gift: amount every period of frequency, charged through the
 -- payments provider when provider is set, recorded by hand otherwise.
-create table if not exists "better_supabase"."pledges" (
+create table "better_supabase"."pledges" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "donor_type" text not null,
   "donor_id" text not null,
   "fund_id" uuid,
-  "amount" bigint not null check ("amount" > 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "frequency" text not null default 'monthly' check ("frequency" in ('weekly', 'monthly', 'quarterly', 'yearly')),
+  "amount" bigint not null constraint bsb_pledges_amount_check check ("amount" > 0),
+  "currency" char(3) not null constraint bsb_pledges_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "frequency" text not null default 'monthly' constraint bsb_pledges_frequency_check check ("frequency" in ('weekly', 'monthly', 'quarterly', 'yearly')),
   "starts_on" date not null,
   "ends_on" date,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'ended')),
+  "status" text not null default 'active' constraint bsb_pledges_status_check check ("status" in ('active', 'paused', 'ended')),
   "provider" text,
   "provider_customer" text,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_pledges_note_check check ("note" is null or length("note") <= 2000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "fund_id") references "better_supabase"."donation_funds" ("tenant_id", "id") on delete restrict,
-  check ("ends_on" is null or "ends_on" > "starts_on")
+  constraint bsb_pledges_check check ("ends_on" is null or "ends_on" > "starts_on")
 );
-create index if not exists "pledges_tenant_idx" on "better_supabase"."pledges" ("tenant_id", "status");
-create index if not exists "pledges_donor_idx" on "better_supabase"."pledges" ("tenant_id", "donor_type", "donor_id");
-create index if not exists "pledges_fund_idx" on "better_supabase"."pledges" ("tenant_id", "fund_id") where "fund_id" is not null;
+create index "pledges_tenant_idx" on "better_supabase"."pledges" ("tenant_id", "status");
+create index "pledges_donor_idx" on "better_supabase"."pledges" ("tenant_id", "donor_type", "donor_id");
+create index "pledges_fund_idx" on "better_supabase"."pledges" ("tenant_id", "fund_id") where "fund_id" is not null;
 alter table "better_supabase"."pledges" enable row level security;
 revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
-drop policy if exists "pledges_read" on "better_supabase"."pledges";
-create policy pledges_read on "better_supabase"."pledges"
+create policy bsb_pledges_read on "better_supabase"."pledges"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- A tax receipt: one gift, or a donor's posted gifts in a year and currency.
-create table if not exists "better_supabase"."donation_receipts" (
+create table "better_supabase"."donation_receipts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "donor_type" text not null,
   "donor_id" text not null,
   "sequence" bigint not null,
   "number" text not null,
-  "kind" text not null check ("kind" in ('gift', 'yearly')),
+  "kind" text not null constraint bsb_donation_receipts_kind_check check ("kind" in ('gift', 'yearly')),
   "year" integer not null,
-  "amount" bigint not null check ("amount" > 0),
+  "amount" bigint not null constraint bsb_donation_receipts_amount_check check ("amount" > 0),
   "currency" char(3) not null,
   "issued_at" timestamptz not null default now(),
   "voided_at" timestamptz,
-  "void_reason" text check ("void_reason" is null or length("void_reason") <= 2000),
+  "void_reason" text constraint bsb_donation_receipts_void_reason_check check ("void_reason" is null or length("void_reason") <= 2000),
   unique ("tenant_id", "number")
 );
-create index if not exists "donation_receipts_donor_idx" on "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "year");
-create unique index if not exists "donation_receipts_yearly_key" on "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "year", "currency")
+create index "donation_receipts_donor_idx" on "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "year");
+create unique index "donation_receipts_yearly_key" on "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "year", "currency")
   where "kind" = 'yearly' and "voided_at" is null;
 alter table "better_supabase"."donation_receipts" enable row level security;
 revoke all on "better_supabase"."donation_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
-drop policy if exists "donation_receipts_read" on "better_supabase"."donation_receipts";
-create policy donation_receipts_read on "better_supabase"."donation_receipts"
+create policy bsb_donation_receipts_read on "better_supabase"."donation_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
-create table if not exists "better_supabase"."donations" (
+create table "better_supabase"."donations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "donor_type" text not null,
@@ -184,38 +107,36 @@ create table if not exists "better_supabase"."donations" (
   "pledge_id" uuid references "better_supabase"."pledges" ("id") on delete set null,
   -- The pledge period this gift pays; unique per pledge.
   "period_start" date,
-  "amount" bigint not null check ("amount" > 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null constraint bsb_donations_amount_check check ("amount" > 0),
+  "currency" char(3) not null constraint bsb_donations_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "received_on" date not null default current_date,
-  "method" text check ("method" is null or length("method") <= 40),
-  "status" text not null default 'pending' check ("status" in ('pending', 'posted', 'failed', 'refunded')),
+  "method" text constraint bsb_donations_method_check check ("method" is null or length("method") <= 40),
+  "status" text not null default 'pending' constraint bsb_donations_status_check check ("status" in ('pending', 'posted', 'failed', 'refunded')),
   "provider" text,
   "payment_reference" text,
   "transaction_id" uuid,
   "refund_transaction_id" uuid,
   "receipt_id" uuid references "better_supabase"."donation_receipts" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_donations_note_check check ("note" is null or length("note") <= 2000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "fund_id") references "better_supabase"."donation_funds" ("tenant_id", "id") on delete restrict,
   unique ("pledge_id", "period_start")
 );
-alter table "better_supabase"."donations" add column if not exists "app_note" text;
-create index if not exists "donations_tenant_idx" on "better_supabase"."donations" ("tenant_id", "received_on" desc);
-create index if not exists "donations_donor_idx" on "better_supabase"."donations" ("tenant_id", "donor_type", "donor_id", "received_on");
-create index if not exists "donations_fund_idx" on "better_supabase"."donations" ("tenant_id", "fund_id") where "fund_id" is not null;
-create index if not exists "donations_receipt_idx" on "better_supabase"."donations" ("receipt_id") where "receipt_id" is not null;
-create index if not exists "donations_transaction_idx" on "better_supabase"."donations" ("transaction_id") where "transaction_id" is not null;
-create index if not exists "donations_refund_idx" on "better_supabase"."donations" ("refund_transaction_id") where "refund_transaction_id" is not null;
-create unique index if not exists "donations_payment_key" on "better_supabase"."donations" ("provider", "payment_reference")
+create index "donations_tenant_idx" on "better_supabase"."donations" ("tenant_id", "received_on" desc);
+create index "donations_donor_idx" on "better_supabase"."donations" ("tenant_id", "donor_type", "donor_id", "received_on");
+create index "donations_fund_idx" on "better_supabase"."donations" ("tenant_id", "fund_id") where "fund_id" is not null;
+create index "donations_receipt_idx" on "better_supabase"."donations" ("receipt_id") where "receipt_id" is not null;
+create index "donations_transaction_idx" on "better_supabase"."donations" ("transaction_id") where "transaction_id" is not null;
+create index "donations_refund_idx" on "better_supabase"."donations" ("refund_transaction_id") where "refund_transaction_id" is not null;
+create unique index "donations_payment_key" on "better_supabase"."donations" ("provider", "payment_reference")
   where "payment_reference" is not null;
 alter table "better_supabase"."donations" enable row level security;
 revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
-drop policy if exists "donations_read" on "better_supabase"."donations";
-create policy donations_read on "better_supabase"."donations"
+create policy bsb_donations_read on "better_supabase"."donations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -394,7 +315,7 @@ revoke execute on function "better_supabase"."donation_settle"(uuid, text, text,
 -- bank transfer) and posts it at once. With a pledge and period it pays
 -- that installment; a second call for the same period returns the gift.
 -- fields: the extra columns to set.
-drop function if exists "better_supabase"."record_gift"(uuid, text, text, bigint, text, uuid, date, text, text, uuid, date);
+
 create or replace function "better_supabase"."record_gift"(tenant uuid, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, received_on date default null, method text default null, note text default null, pledge_id uuid default null, period_start date default null, fields jsonb default null)
 returns jsonb
 language plpgsql
@@ -456,7 +377,7 @@ grant execute on function "better_supabase"."record_gift"(uuid, text, text, bigi
 -- Opens a pending gift a payments provider will charge. With a pledge and
 -- period a second call returns the same gift, so a retried charge run never
 -- charges a period twice. fields: the extra columns to set.
-drop function if exists "better_supabase"."open_gift"(uuid, text, text, bigint, text, uuid, uuid, date, text, text);
+
 create or replace function "better_supabase"."open_gift"(tenant uuid, donor_type text, donor_id text, amount bigint, currency text, fund_id uuid default null, pledge_id uuid default null, period_start date default null, provider text default null, note text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
@@ -991,115 +912,70 @@ grant execute on function "better_supabase"."yearly_giving_summary"(uuid, text, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."donation_funds";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."donation_funds";
 create policy bsb_tenant_scope_select on "better_supabase"."donation_funds" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."donation_funds";
 create policy bsb_tenant_scope_insert on "better_supabase"."donation_funds" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."donation_funds";
 create policy bsb_tenant_scope_update on "better_supabase"."donation_funds" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donation_funds";
 create policy bsb_tenant_scope_delete on "better_supabase"."donation_funds" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."pledges";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."pledges";
 create policy bsb_tenant_scope_select on "better_supabase"."pledges" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pledges";
 create policy bsb_tenant_scope_insert on "better_supabase"."pledges" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."pledges";
 create policy bsb_tenant_scope_update on "better_supabase"."pledges" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pledges";
 create policy bsb_tenant_scope_delete on "better_supabase"."pledges" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."donation_receipts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."donation_receipts";
 create policy bsb_tenant_scope_select on "better_supabase"."donation_receipts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."donation_receipts";
 create policy bsb_tenant_scope_insert on "better_supabase"."donation_receipts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."donation_receipts";
 create policy bsb_tenant_scope_update on "better_supabase"."donation_receipts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donation_receipts";
 create policy bsb_tenant_scope_delete on "better_supabase"."donation_receipts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."donations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."donations";
 create policy bsb_tenant_scope_select on "better_supabase"."donations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."donations";
 create policy bsb_tenant_scope_insert on "better_supabase"."donations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."donations";
 create policy bsb_tenant_scope_update on "better_supabase"."donations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."donations";
 create policy bsb_tenant_scope_delete on "better_supabase"."donations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_122_donations.sql
 -- better-supabase module: donations

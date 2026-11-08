@@ -163,10 +163,7 @@ export interface AssetLinks {
     readonly name: string;
   }[];
   /** Open work items, newest first, at most 50. */
-  readonly workItems: readonly {
-    readonly id: string;
-    readonly title: string;
-  }[];
+  readonly tasks: readonly { readonly id: string; readonly title: string }[];
 }
 
 export interface AssetDetail extends Asset {
@@ -275,8 +272,7 @@ export interface AssetsNear {
 
 /** A record that can name an asset. */
 export interface AssetLinkTarget {
-  /** `work_item` is the type a task had before 0.47; it still links a task. */
-  readonly type: "booking_resource" | "task" | "work_item";
+  readonly type: "booking_resource" | "task";
   readonly id: string;
 }
 
@@ -533,7 +529,7 @@ function assetDetailOf(value: unknown, fn: string): AssetDetail {
       bookingResources: recordsOf(links["bookingResources"] ?? [], fn).map(
         (link) => ({ id: textOf(link["id"]), name: textOf(link["name"]) }),
       ),
-      workItems: recordsOf(links["workItems"] ?? [], fn).map((link) => ({
+      tasks: recordsOf(links["tasks"] ?? [], fn).map((link) => ({
         id: textOf(link["id"]),
         title: textOf(link["title"]),
       })),

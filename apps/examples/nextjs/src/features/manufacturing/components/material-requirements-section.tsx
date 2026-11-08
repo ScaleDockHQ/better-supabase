@@ -114,7 +114,7 @@ export async function MaterialRequirementsSection() {
   );
 }
 
-export function MaterialRequirementsSkeleton() {
+export function MaterialRequirementsSectionSkeleton() {
   return (
     <Frame spacing="sm" aria-busy="true">
       <FrameHeader className="gap-1">

@@ -1,125 +1,42 @@
 -- ==== schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:3dfd455b1cae284d9700aa442eb59c102e043d1fdb6e19743cc691c0940dfc50
+-- @bsb-hash sha256:fb380c99eee3242160591eb8eaa9a451c5fbbe774c491d42d597ca95986fc2e0
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_products";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_products";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_awards";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_awards";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claims";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claims";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claim_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Funding: the products a funder pays for, awards of units per period to a
 -- record, the care delivered against them, and claims to the funder with its
 -- response per line.
 
-create table if not exists "better_supabase"."funding_products" (
+create table "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
-  "code" text not null check (length("code") between 1 and 50),
-  "title" text not null check (length("title") between 1 and 300),
-  "unit" text not null check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
+  "code" text not null constraint bsb_funding_products_code_check check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null constraint bsb_funding_products_title_check check (length("title") >= 1 and length("title") <= 300),
+  "unit" text not null constraint bsb_funding_products_unit_check check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
   -- The price of one unit, in minor units of currency.
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_funding_products_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_funding_products_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "valid_from" date,
   "valid_until" date,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
+  constraint bsb_funding_products_check check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "funding_products_code_idx" on "better_supabase"."funding_products" ("tenant_id", "code");
+create unique index "funding_products_code_idx" on "better_supabase"."funding_products" ("tenant_id", "code");
 alter table "better_supabase"."funding_products" enable row level security;
 revoke all on "better_supabase"."funding_products" from public, anon, authenticated;
 grant select on "better_supabase"."funding_products" to authenticated;
 grant all on "better_supabase"."funding_products" to service_role;
-drop policy if exists funding_products_read on "better_supabase"."funding_products";
-create policy funding_products_read on "better_supabase"."funding_products"
+create policy bsb_funding_products_read on "better_supabase"."funding_products"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_awards" (
+create table "better_supabase"."funding_awards" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The record the award is for, a type in config.subjects.
@@ -129,126 +46,121 @@ create table if not exists "better_supabase"."funding_awards" (
   "funder_id" uuid not null,
   "product_id" uuid not null,
   -- The units awarded per period.
-  "units" numeric not null check ("units" > 0),
-  "period" text not null check ("period" in ('week', 'month', 'total')),
+  "units" numeric not null constraint bsb_funding_awards_units_check check ("units" > 0),
+  "period" text not null constraint bsb_funding_awards_period_check check ("period" in ('week', 'month', 'total')),
   "starts_on" date not null,
   "ends_on" date,
   -- The funder's reference for the award, such as an indication number.
-  "reference" text check ("reference" is null or length("reference") <= 200),
-  "status" text not null default 'active' check ("status" in ('requested', 'active', 'ended', 'canceled')),
+  "reference" text constraint bsb_funding_awards_reference_check check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'active' constraint bsb_funding_awards_status_check check ("status" in ('requested', 'active', 'ended', 'canceled')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_funding_awards_check check ("ends_on" is null or "ends_on" >= "starts_on"),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
 );
-alter table "better_supabase"."funding_awards" add column if not exists "app_note" text;
-create index if not exists "funding_awards_product_idx" on "better_supabase"."funding_awards" ("tenant_id", "product_id");
-create index if not exists "funding_awards_subject_idx" on "better_supabase"."funding_awards" ("subject_type", "subject_id");
-create index if not exists "funding_awards_funder_idx" on "better_supabase"."funding_awards" ("tenant_id", "funder_id", "status");
+create index "funding_awards_product_idx" on "better_supabase"."funding_awards" ("tenant_id", "product_id");
+create index "funding_awards_subject_idx" on "better_supabase"."funding_awards" ("subject_type", "subject_id");
+create index "funding_awards_funder_idx" on "better_supabase"."funding_awards" ("tenant_id", "funder_id", "status");
 alter table "better_supabase"."funding_awards" enable row level security;
 revoke all on "better_supabase"."funding_awards" from public, anon, authenticated;
 grant select on "better_supabase"."funding_awards" to authenticated;
 grant all on "better_supabase"."funding_awards" to service_role;
-drop policy if exists funding_awards_read on "better_supabase"."funding_awards";
-create policy funding_awards_read on "better_supabase"."funding_awards"
+create policy bsb_funding_awards_read on "better_supabase"."funding_awards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
-create table if not exists "better_supabase"."funding_claims" (
+create table "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
-  "number" text not null check (length("number") between 1 and 100),
+  "number" text not null constraint bsb_funding_claims_number_check check (length("number") >= 1 and length("number") <= 100),
   "period_start" date not null,
   "period_end" date not null,
   -- The FundingClaimFormat key that renders the claim, such as iwlz-aw319.
-  "format" text not null check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected')),
+  "format" text not null constraint bsb_funding_claims_format_check check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
+  "status" text not null default 'draft' constraint bsb_funding_claims_status_check check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected')),
   -- The funder's or the channel's reference for the sent claim.
-  "external_ref" text check ("external_ref" is null or length("external_ref") <= 200),
+  "external_ref" text constraint bsb_funding_claims_external_ref_check check ("external_ref" is null or length("external_ref") <= 200),
   "sent_at" timestamptz,
   -- The SHA-256 of the rendered file that was sent, in hex.
-  "payload_sha256" text check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$'),
+  "payload_sha256" text constraint bsb_funding_claims_payload_sha256_check check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$'),
   -- The funder's response as the format parsed it.
   "response" jsonb,
   "total" bigint not null default 0,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" char(3) not null constraint bsb_funding_claims_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "invoice_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("period_end" >= "period_start"),
+  constraint bsb_funding_claims_check check ("period_end" >= "period_start"),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "funding_claims_number_idx" on "better_supabase"."funding_claims" ("tenant_id", "number");
-create index if not exists "funding_claims_funder_idx" on "better_supabase"."funding_claims" ("tenant_id", "funder_id", "status");
+create unique index "funding_claims_number_idx" on "better_supabase"."funding_claims" ("tenant_id", "number");
+create index "funding_claims_funder_idx" on "better_supabase"."funding_claims" ("tenant_id", "funder_id", "status");
 alter table "better_supabase"."funding_claims" enable row level security;
 revoke all on "better_supabase"."funding_claims" from public, anon, authenticated;
 grant select on "better_supabase"."funding_claims" to authenticated;
 grant all on "better_supabase"."funding_claims" to service_role;
-drop policy if exists funding_claims_read on "better_supabase"."funding_claims";
-create policy funding_claims_read on "better_supabase"."funding_claims"
+create policy bsb_funding_claims_read on "better_supabase"."funding_claims"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_claim_lines" (
+create table "better_supabase"."funding_claim_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "claim_id" uuid not null,
   "award_id" uuid not null,
   "product_id" uuid not null,
-  "units" numeric not null check ("units" > 0),
+  "units" numeric not null constraint bsb_funding_claim_lines_units_check check ("units" > 0),
   -- The units times the product rate, in minor units of the claim currency.
   "amount" bigint not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'accepted', 'rejected')),
+  "status" text not null default 'pending' constraint bsb_funding_claim_lines_status_check check ("status" in ('pending', 'accepted', 'rejected')),
   -- The funder's code for a rejected line.
-  "rejection_code" text check ("rejection_code" is null or length("rejection_code") <= 100),
+  "rejection_code" text constraint bsb_funding_claim_lines_rejection_code_check check ("rejection_code" is null or length("rejection_code") <= 100),
   foreign key ("tenant_id", "claim_id") references "better_supabase"."funding_claims" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
 );
-create index if not exists "funding_claim_lines_claim_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "claim_id");
-create index if not exists "funding_claim_lines_award_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "award_id");
-create index if not exists "funding_claim_lines_product_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "product_id");
+create index "funding_claim_lines_claim_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "claim_id");
+create index "funding_claim_lines_award_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "award_id");
+create index "funding_claim_lines_product_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "product_id");
 alter table "better_supabase"."funding_claim_lines" enable row level security;
 revoke all on "better_supabase"."funding_claim_lines" from public, anon, authenticated;
 grant select on "better_supabase"."funding_claim_lines" to authenticated;
 grant all on "better_supabase"."funding_claim_lines" to service_role;
-drop policy if exists funding_claim_lines_read on "better_supabase"."funding_claim_lines";
-create policy funding_claim_lines_read on "better_supabase"."funding_claim_lines"
+create policy bsb_funding_claim_lines_read on "better_supabase"."funding_claim_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
-create table if not exists "better_supabase"."funding_deliveries" (
+create table "better_supabase"."funding_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "award_id" uuid not null,
   -- Where the delivery came from; source_id is the time entry or booking id.
-  "source_type" text not null default 'manual' check ("source_type" in ('time_entry', 'booking', 'manual')),
-  "source_id" text check ("source_id" is null or length("source_id") <= 200),
+  "source_type" text not null default 'manual' constraint bsb_funding_deliveries_source_type_check check ("source_type" in ('time_entry', 'booking', 'manual')),
+  "source_id" text constraint bsb_funding_deliveries_source_id_check check ("source_id" is null or length("source_id") <= 200),
   "delivered_on" date not null,
-  "units" numeric not null check ("units" > 0),
+  "units" numeric not null constraint bsb_funding_deliveries_units_check check ("units" > 0),
   "performer_id" uuid,
-  "status" text not null default 'registered' check ("status" in ('registered', 'approved', 'claimed', 'rejected')),
+  "status" text not null default 'registered' constraint bsb_funding_deliveries_status_check check ("status" in ('registered', 'approved', 'claimed', 'rejected')),
   -- The claim line that claims it, once a claim gathered it.
   "claim_line_id" uuid references "better_supabase"."funding_claim_lines" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_funding_deliveries_note_check check ("note" is null or length("note") <= 2000),
   "created_at" timestamptz not null default now(),
-  check ("source_type" = 'manual' or "source_id" is not null),
+  constraint bsb_funding_deliveries_check check ("source_type" = 'manual' or "source_id" is not null),
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
-create index if not exists "funding_deliveries_status_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "status", "delivered_on");
-create index if not exists "funding_deliveries_claim_line_idx" on "better_supabase"."funding_deliveries" ("claim_line_id");
-create unique index if not exists "funding_deliveries_source_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "source_type", "source_id") where "source_id" is not null;
+create index "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
+create index "funding_deliveries_status_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "status", "delivered_on");
+create index "funding_deliveries_claim_line_idx" on "better_supabase"."funding_deliveries" ("claim_line_id");
+create unique index "funding_deliveries_source_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "source_type", "source_id") where "source_id" is not null;
 alter table "better_supabase"."funding_deliveries" enable row level security;
 revoke all on "better_supabase"."funding_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
-drop policy if exists funding_deliveries_read on "better_supabase"."funding_deliveries";
-create policy funding_deliveries_read on "better_supabase"."funding_deliveries"
+create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
@@ -1097,136 +1009,86 @@ grant execute on function "better_supabase"."list_funding_claims"(uuid, text, uu
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_products";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_products" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_products" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_products" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_products";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_products" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_awards";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_awards" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_awards" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_awards" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_awards";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_awards" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_deliveries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_deliveries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_deliveries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_deliveries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_deliveries";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claims";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_claims" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_claims" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_claims" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claims";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claims" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."funding_claim_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."funding_claim_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_claim_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."funding_claim_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_158_funding.sql
 -- better-supabase module: funding

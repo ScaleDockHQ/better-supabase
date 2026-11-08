@@ -34,14 +34,13 @@ import { WorkLoadError } from "./work-load-error";
  * and sort, with the caller's saved views of the grid.
  */
 export async function WorkGrid({
-  searchParams,
+  query: search,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [session, t, params, permissions] = await Promise.all([
+  const [session, t, permissions] = await Promise.all([
     getSession(),
     getExtracted("work"),
-    searchParams,
     getPermissions(),
   ]);
 
@@ -55,7 +54,7 @@ export async function WorkGrid({
     return null;
   }
 
-  const query = parseWorkGridQuery(params);
+  const query = parseWorkGridQuery(search);
 
   const [grid, views, members] = await Promise.all([
     settle(() => getWorkGrid(query)),
@@ -111,7 +110,7 @@ export async function WorkGrid({
                 views={views.kind === "ok" ? views.data : []}
                 query={query}
                 canWrite={can(permissions, "tasks.write")}
-                canBulk={can(permissions, "bulk.run")}
+                canBulk={can(permissions, "bulk_actions.run")}
               />
               {grid.data.rows.length === 0 ? (
                 <Empty className="border">

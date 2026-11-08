@@ -159,9 +159,8 @@ export interface RemindersOptions<
   /** `server.authorization`, for its `delivery.audience` policy. */
   readonly authorization?: Pick<AuthorizationHooks, "delivery">;
   /**
-   * A Standard Schema for the extra columns of the reminders table
-   * (`blocks.reminders.options.extraColumns`): writes are validated, reads
-   * parsed.
+   * A Standard Schema for the extra columns of the reminders table (columns the
+   * app's schema files add to the table): writes are validated, reads parsed.
    */
   readonly fields?: S;
   /**
@@ -178,7 +177,10 @@ export interface RemindersOptions<
 /** A saved reminder: its id and the app's extra columns. */
 export interface SavedReminder<F extends object = Record<never, never>> {
   readonly id: string;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
 }
 

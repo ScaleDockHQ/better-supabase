@@ -39,7 +39,7 @@ create table if not exists ${k} (
   ${ck("updatedAt")} timestamptz not null default now()
 );${appUniqueIndex(ctx, "nodeKinds", ["kind"])}
 ${lockModuleTable(ctx, "nodeKinds", { read: true })}
-${renderPolicy(makePolicy({ table: k, name: "workflow_node_kinds_read", command: "select", roles: ["authenticated"], using: "true" }), { drop: true, target: k })}`;
+${renderPolicy(makePolicy({ table: k, name: "workflow_node_kinds_read", command: "select", roles: ["authenticated"], using: "true" }), { target: k })}`;
 }
 
 /** The registry's sync and list functions and `validate_workflow_graph`. */

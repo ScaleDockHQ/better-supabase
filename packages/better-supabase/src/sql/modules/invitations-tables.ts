@@ -72,8 +72,8 @@ export function tokenHash(ctx: BlockSqlContext, token: string): string {
 export interface InviteTable {
   readonly table: string;
   /**
-   * `options.extraColumns`: the tenant table's app columns; none on platform
-   * invitations.
+   * The columns your schema files add: the tenant table's app columns; none on
+   * platform invitations.
    */
   readonly extras: readonly ExtraColumn[];
   col(logical: string): string;

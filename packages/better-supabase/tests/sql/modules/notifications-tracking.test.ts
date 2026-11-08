@@ -8,6 +8,7 @@ import {
   renderBlocks,
 } from "../../../src/sql/render.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("notifications", { modules })!;
@@ -42,23 +43,23 @@ const APP_TABLES: AnyBlocksConfig = {
 describe("notification delivery tracking", () => {
   it("adds the provider status, the template key and the provider lookup index to deliveries", () => {
     const sql = body();
-    expect(sql).toContain(
-      `alter table ${DELIVERIES} add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));`,
+    expect(unnamedChecks(sql)).toContain(
+      `alter table ${DELIVERIES} add column "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));`,
     );
     expect(sql).toContain(
-      `alter table ${DELIVERIES} add column if not exists "provider_status_at" timestamptz;`,
+      `alter table ${DELIVERIES} add column "provider_status_at" timestamptz;`,
     );
     expect(sql).toContain(
-      `alter table ${DELIVERIES} add column if not exists "template_key" text;`,
+      `alter table ${DELIVERIES} add column "template_key" text;`,
     );
     expect(sql).toContain(
-      `create index if not exists notification_deliveries_provider_message_idx on ${DELIVERIES} ("provider", "provider_message_id") where "provider_message_id" is not null;`,
+      `create index notification_deliveries_provider_message_idx on ${DELIVERIES} ("provider", "provider_message_id") where "provider_message_id" is not null;`,
     );
   });
 
   it("owns an events table that recipients read for their own deliveries", () => {
     const sql = body();
-    expect(sql).toContain(`create table if not exists ${EVENTS} (`);
+    expect(sql).toContain(`create table ${EVENTS} (`);
     expect(sql).toContain(
       `"delivery_id" uuid not null references ${DELIVERIES} ("id") on delete cascade`,
     );
@@ -118,9 +119,6 @@ describe("notification delivery tracking", () => {
     expect(sql).toContain(
       `"template_key" = coalesce(complete_notification_delivery.template_key, d."template_key")`,
     );
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text, integer);`,
-    );
   });
 
   it("lists a record's deliveries for the service, or for senders with access", () => {
@@ -155,13 +153,13 @@ describe("notification delivery tracking", () => {
   it("creates its own events table over the app's deliveries when the app maps none", () => {
     const sql = overApp(APP_TABLES);
     expect(sql).toContain(
-      `create table if not exists "public"."notification_delivery_events" (`,
+      `create table "public"."notification_delivery_events" (`,
     );
     expect(sql).toContain(
       `references "public"."notification_deliveries" ("id") on delete cascade`,
     );
     expect(sql).not.toContain(
-      `create table if not exists "public"."notification_deliveries" (`,
+      `create table "public"."notification_deliveries" (`,
     );
     expect(sql).toContain("record_delivery_event");
   });
@@ -197,7 +195,7 @@ describe("notification delivery tracking", () => {
 describe("partitioned delivery events", () => {
   it("partitions only the delivery events and dedupes provider events with a lock", () => {
     const sql = body({ notifications: { options: { partitioned: true } } });
-    expect(sql).toContain(`create table if not exists ${EVENTS} (`);
+    expect(sql).toContain(`create table ${EVENTS} (`);
     expect(sql).toContain('primary key ("id", "created_at")');
     expect(sql).toContain(') partition by range ("created_at");');
     expect(sql).toContain(

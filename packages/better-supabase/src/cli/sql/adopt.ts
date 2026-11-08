@@ -379,7 +379,11 @@ export function proposeAdoption(
     for (const match of columns) {
       if (match.column === null) {
         if (table.optional?.includes(match.logical) === true) {
-          mapped[match.logical] = null;
+          // A view lacking it leaves the feature out already; a table the
+          // block would add it to needs the `null` entry.
+          if (existing.kind !== "view") {
+            mapped[match.logical] = null;
+          }
         } else if (existing.kind === "view") {
           errors.push(
             `${name} is a view with no column for ${logical}.${match.logical}, and the block can't add one to a view. Add ${table.columns[match.logical]} to the view, or map blocks.${block}.columns.${logical}.${match.logical} to the column that holds it.`,

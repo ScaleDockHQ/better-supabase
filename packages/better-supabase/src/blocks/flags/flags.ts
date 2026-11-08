@@ -132,8 +132,8 @@ export interface FlagDefinition {
   /** When the flag last changed, as an ISO 8601 string. */
   readonly updatedAt?: string;
   /**
-   * The extra columns (`blocks['flags'].options.extraColumns`), when the flag
-   * has any.
+   * The extra columns (the columns your schema files add), when the flag has
+   * any.
    */
   readonly fields?: Readonly<Record<string, unknown>>;
 }

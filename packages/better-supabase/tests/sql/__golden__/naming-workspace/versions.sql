@@ -1,91 +1,39 @@
 -- ==== schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:3730ecc833dda77dc7a8988777ee189d4298a9fa90ca1c961c73c8632dd1825b
+-- @bsb-hash sha256:e10523454c3892bb195dfac0a7f80d95274e9857a28d3fde0fc2e3c987eede43
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."versions" (
+create table "better_supabase"."versions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "number" integer not null check ("number" > 0),
-  "label" text check (length("label") between 1 and 120),
+  "number" integer not null constraint bsb_versions_number_check check ("number" > 0),
+  "label" text constraint bsb_versions_label_check check (length("label") >= 1 and length("label") <= 120),
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,
-  "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$'),
-  "hash_version" smallint not null default 1 check ("hash_version" in (1, 2)),
-  "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore')),
+  "file_hash" text constraint bsb_versions_file_hash_check check ("file_hash" ~ '^[0-9a-f]{64}$'),
+  "hash_version" smallint not null default 1 constraint bsb_versions_hash_version_check check ("hash_version" in (1, 2)),
+  "source" text not null default 'manual' constraint bsb_versions_source_check check ("source" in ('manual', 'auto', 'restore')),
   "frozen" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "number"),
-  check ("content" is not null or "storage_path" is not null)
+  constraint bsb_versions_check check ("content" is not null or "storage_path" is not null)
 );
 -- A hash_version 1 version hashes its content and storage path; version 2
 -- hashes its content and the SHA-256 of the file's bytes (file_hash).
-alter table "better_supabase"."versions" add column if not exists "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$');
-alter table "better_supabase"."versions" add column if not exists "hash_version" smallint not null default 1 check ("hash_version" in (1, 2));
-create index if not exists "versions_tenant_idx" on "better_supabase"."versions" ("tenant_id");
+
+create index "versions_tenant_idx" on "better_supabase"."versions" ("tenant_id");
 alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from public, anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
-drop policy if exists versions_read on "better_supabase"."versions";
-create policy versions_read on "better_supabase"."versions"
+create policy bsb_versions_read on "better_supabase"."versions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
@@ -93,7 +41,7 @@ create policy versions_read on "better_supabase"."versions"
 -- content matches the latest is not written again; an auto snapshot within
 -- the debounce window of the previous auto snapshot replaces its content.
 -- Keeps the newest 50 versions without a label or freeze.
-drop function if exists "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid);
+
 create or replace function "better_supabase"."version_insert"(tenant uuid, subject_type text, subject_id text, content jsonb, storage_path text, label text, source text, frozen boolean, actor uuid, file_sha256 text default null)
 returns jsonb
 language plpgsql
@@ -152,11 +100,9 @@ $$;
 revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
--- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- fields: the extra columns (columns your schema files add) to set
 -- on the version written, or on the latest one when the content is unchanged.
-drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text);
-drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, jsonb);
-drop function if exists "better_supabase"."snapshot_version"(uuid, text, text, jsonb, text, text, text, jsonb);
+
 create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
 returns jsonb
 language plpgsql
@@ -259,7 +205,7 @@ grant execute on function "better_supabase"."get_version"(uuid) to authenticated
 -- function or its columns, then records the result as a new version. With
 -- fields, only those keys come from the version and the rest keep the row's
 -- current values, so the subject needs columns to read them from.
-drop function if exists "better_supabase"."restore_version"(uuid);
+
 create or replace function "better_supabase"."restore_version"(version_id uuid, fields text[] default null)
 returns jsonb
 language plpgsql
@@ -441,52 +387,22 @@ revoke execute on function "better_supabase"."versions_capture"() from public, a
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
-    create function better_supabase.member_workspace_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."versions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."versions";
 create policy bsb_tenant_scope_select on "better_supabase"."versions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."versions";
 create policy bsb_tenant_scope_insert on "better_supabase"."versions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."versions";
 create policy bsb_tenant_scope_update on "better_supabase"."versions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."versions";
 create policy bsb_tenant_scope_delete on "better_supabase"."versions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_074_versions.sql
 -- better-supabase module: versions

@@ -3,7 +3,6 @@
 import { useAction } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/reui/badge";
 import {
@@ -16,12 +15,13 @@ import {
   KanbanOverlay,
 } from "@/components/reui/kanban";
 import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { MemberOption, TaskRow } from "../project-types";
 
-import { moveTask } from "../project-actions";
 import { TASK_STATUSES } from "../project-types";
+import { moveTask } from "../projects-actions";
 import { statusBadgeVariant, useStatusLabel } from "../use-task-labels";
 
 // #region recipe:record-board

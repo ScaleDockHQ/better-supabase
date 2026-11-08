@@ -1,166 +1,78 @@
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:367a4467395eef252a14f4c81e4923335b15d6c463b4c1f803143ed7d1206789
+-- @bsb-hash sha256:1d9e3167188f98fb731d2dc3ba2af99ed89f402edfde45ff00fff85d98d6af8c
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."passes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."passes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."pass_check_ins";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."pass_check_ins";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Passes: QR and NFC admission signed with the signing-keys block, with a
 -- log of every scan and capacity counted against bookings.
 
 -- Admission passes: a ticket for one booking, or a pass for a resource (a gym,
 -- a venue) with a number of uses. The nonce goes in the signed token on the
 -- QR code or NFC tag; only the functions read it.
-create table if not exists "better_supabase"."passes" (
+create table "better_supabase"."passes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null default 'ticket' check ("kind" ~ '^[a-z][a-z0-9_-]{0,39}$'),
-  "holder_user_id" uuid references auth.users (id) on delete set null,
-  "holder_name" text check ("holder_name" is null or length("holder_name") >= 1 and length("holder_name") <= 200),
-  "holder_email" text check ("holder_email" is null or (length("holder_email") >= 3 and length("holder_email") <= 320 and position('@' in "holder_email") > 1)),
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "kind" text not null default 'ticket' constraint bsb_passes_kind_check check ("kind" ~ '^[a-z][a-z0-9_-]{0,39}$'),
+  "holder_id" uuid references auth.users (id) on delete set null,
+  "holder_name" text constraint bsb_passes_holder_name_check check ("holder_name" is null or length("holder_name") >= 1 and length("holder_name") <= 200),
+  "holder_email" text constraint bsb_passes_holder_email_check check ("holder_email" is null or (length("holder_email") >= 3 and length("holder_email") <= 320 and position('@' in "holder_email") > 1)),
+  "subject_type" text constraint bsb_passes_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_passes_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
   "booking_id" uuid,
   "resource_id" uuid,
-  "uses_allowed" integer check ("uses_allowed" is null or "uses_allowed" > 0),
-  "uses" integer not null default 0 check ("uses" >= 0),
-  "valid_from" timestamptz not null default now(),
-  "valid_until" timestamptz,
-  "status" text not null default 'active' check ("status" in ('active', 'revoked')),
+  "uses_allowed" integer constraint bsb_passes_uses_allowed_check check ("uses_allowed" is null or "uses_allowed" > 0),
+  "uses" integer not null default 0 constraint bsb_passes_uses_check check ("uses" >= 0),
+  "starts_at" timestamptz not null default now(),
+  "expires_at" timestamptz,
+  "status" text not null default 'active' constraint bsb_passes_status_check check ("status" in ('active', 'revoked')),
   "nonce" text not null unique,
   "issued_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "revoked_at" timestamptz,
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check ("uses_allowed" is null or "uses" <= "uses_allowed"),
-  check ("valid_until" is null or "valid_until" > "valid_from")
+  constraint bsb_passes_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_passes_check1 check ("uses_allowed" is null or "uses" <= "uses_allowed"),
+  constraint bsb_passes_check2 check ("expires_at" is null or "expires_at" > "starts_at")
 );
-create index if not exists "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
-create index if not exists "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
-create index if not exists "passes_booking_idx" on "better_supabase"."passes" ("booking_id");
-create index if not exists "passes_resource_idx" on "better_supabase"."passes" ("resource_id");
-create index if not exists "passes_subject_idx" on "better_supabase"."passes" ("tenant_id", "subject_type", "subject_id");
+create index "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
+create index "passes_holder_idx" on "better_supabase"."passes" ("holder_id");
+create index "passes_booking_idx" on "better_supabase"."passes" ("booking_id");
+create index "passes_resource_idx" on "better_supabase"."passes" ("resource_id");
+create index "passes_subject_idx" on "better_supabase"."passes" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."passes" enable row level security;
 revoke all on "better_supabase"."passes" from public, anon, authenticated;
 grant all on "better_supabase"."passes" to service_role;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."passes"'::regclass and conname = 'passes_booking_fkey'
-  ) then
-    alter table "better_supabase"."passes" add constraint "passes_booking_fkey"
-      foreign key ("booking_id") references "better_supabase"."bookings" ("id") on delete cascade not valid;
-    begin
-      alter table "better_supabase"."passes" validate constraint "passes_booking_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."passes"', '"better_supabase"."passes"', 'passes_booking_fkey';
-    end;
-  end if;
-end;
-$$;
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."passes"'::regclass and conname = 'passes_resource_fkey'
-  ) then
-    alter table "better_supabase"."passes" add constraint "passes_resource_fkey"
-      foreign key ("resource_id") references "better_supabase"."booking_resources" ("id") on delete cascade not valid;
-    begin
-      alter table "better_supabase"."passes" validate constraint "passes_resource_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."passes"', '"better_supabase"."passes"', 'passes_resource_fkey';
-    end;
-  end if;
-end;
-$$;
+alter table "better_supabase"."passes" add constraint "passes_booking_fkey"
+  foreign key ("booking_id") references "better_supabase"."bookings" ("id") on delete cascade;
+alter table "better_supabase"."passes" add constraint "passes_resource_fkey"
+  foreign key ("resource_id") references "better_supabase"."booking_resources" ("id") on delete cascade;
 -- Every scan, admitted or not, for the door log and the drop-in count.
-create table if not exists "better_supabase"."pass_check_ins" (
+create table "better_supabase"."pass_check_ins" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pass_id" uuid not null references "better_supabase"."passes" ("id") on delete cascade,
   "resource_id" uuid,
   "booking_id" uuid,
-  "gate" text check ("gate" is null or length("gate") >= 1 and length("gate") <= 100),
-  "method" text not null check ("method" in ('qr', 'nfc', 'manual')),
+  "gate" text constraint bsb_pass_check_ins_gate_check check ("gate" is null or length("gate") >= 1 and length("gate") <= 100),
+  "method" text not null constraint bsb_pass_check_ins_method_check check ("method" in ('qr', 'nfc', 'manual')),
   "admitted" boolean not null,
-  "reason" text check ("reason" is null or "reason" in ('invalid', 'revoked', 'not_yet_valid', 'expired', 'used_up', 'booking_cancelled', 'booking_unconfirmed', 'outside_window', 'wrong_resource', 'full')),
+  "reason" text constraint bsb_pass_check_ins_reason_check check ("reason" is null or "reason" in ('invalid', 'revoked', 'not_yet_valid', 'expired', 'used_up', 'booking_cancelled', 'booking_unconfirmed', 'outside_window', 'wrong_resource', 'full')),
   "checked_in_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("admitted" = ("reason" is null))
+  constraint bsb_pass_check_ins_check check ("admitted" = ("reason" is null))
 );
-create index if not exists "pass_check_ins_log_idx" on "better_supabase"."pass_check_ins" ("pass_id", "created_at" desc);
-create index if not exists "pass_check_ins_drop_in_idx" on "better_supabase"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
+create index "pass_check_ins_log_idx" on "better_supabase"."pass_check_ins" ("pass_id", "created_at" desc);
+create index "pass_check_ins_drop_in_idx" on "better_supabase"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;
 alter table "better_supabase"."pass_check_ins" enable row level security;
 revoke all on "better_supabase"."pass_check_ins" from public, anon, authenticated;
 grant all on "better_supabase"."pass_check_ins" to service_role;
 
 -- Issues a pass in tenant: a ticket for booking_id (valid until the booking
--- ends unless valid_until says otherwise), a pass for resource_id, or a pass
+-- ends unless expires_at says otherwise), a pass for resource_id, or a pass
 -- for a registered record. Returns the pass with its nonce for the token.
-create or replace function "better_supabase"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, valid_from timestamptz default null, valid_until timestamptz default null)
+create or replace function "better_supabase"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, starts_at timestamptz default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -170,7 +82,7 @@ as $$
 declare
   v_row "better_supabase"."passes"%rowtype;
   v_resource uuid := issue_pass.resource_id;
-  v_until timestamptz := issue_pass.valid_until;
+  v_until timestamptz := issue_pass.expires_at;
   v_booking "better_supabase"."bookings"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -271,16 +183,16 @@ begin
       raise exception 'the resource does not exist in this organization' using errcode = 'P0002', hint = 'PASS_RESOURCE_NOT_FOUND';
     end if;
   end if;
-  if v_until is not null and v_until <= coalesce(issue_pass.valid_from, now()) then
-    raise exception 'valid_until must be after valid_from and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
+  if v_until is not null and v_until <= coalesce(issue_pass.starts_at, now()) then
+    raise exception 'expires_at must be after starts_at and in the future' using errcode = '22023', hint = 'PASS_VALIDITY_INVALID';
   end if;
-  insert into "better_supabase"."passes" ("tenant_id", "kind", "holder_user_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "valid_from", "valid_until", "nonce", "issued_by")
+  insert into "better_supabase"."passes" ("tenant_id", "kind", "holder_id", "holder_name", "holder_email", "subject_type", "subject_id", "booking_id", "resource_id", "uses_allowed", "starts_at", "expires_at", "nonce", "issued_by")
   values (issue_pass.tenant, coalesce(issue_pass.kind, 'ticket'), issue_pass.holder_user, issue_pass.holder_name, lower(btrim(issue_pass.holder_email)),
     issue_pass.subject_type, issue_pass.subject_id, issue_pass.booking_id, v_resource,
     case when issue_pass.booking_id is not null then coalesce(issue_pass.uses_allowed, 1) else issue_pass.uses_allowed end,
-    coalesce(issue_pass.valid_from, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
+    coalesce(issue_pass.starts_at, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid())
   returning * into v_row;
-  perform "better_supabase".emit_event('pass.issued', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'bookingId', v_row."booking_id"), 'passes/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/passes');
+  perform "better_supabase".emit_event('pass.issued', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'kind', v_row."kind", 'holderUserId', v_row."holder_id", 'bookingId', v_row."booking_id"), 'passes/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/passes');
   perform better_supabase.audit_event(
     event_type => 'pass.issued',
     category => 'access',
@@ -288,9 +200,9 @@ begin
     record_id => v_row."id"::text,
     summary => 'issued pass ' || v_row."kind",
     tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'bookingId', v_row."booking_id")
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'kind', v_row."kind", 'holderUserId', v_row."holder_id", 'bookingId', v_row."booking_id")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "better_supabase"."issue_pass"(uuid, text, uuid, text, text, text, text, uuid, uuid, integer, timestamptz, timestamptz) from public, anon;
@@ -329,7 +241,7 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id")
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at");
 end;
 $$;
 revoke execute on function "better_supabase"."revoke_pass"(uuid) from public, anon;
@@ -348,10 +260,10 @@ declare
   v_row "better_supabase"."passes"%rowtype;
 begin
   select * into v_row from "better_supabase"."passes" x where x."id" = get_pass.pass_id;
-  if not found or not (coalesce(v_row."holder_user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'passes.manage'), false))) then
+  if not found or not (coalesce(v_row."holder_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'passes.manage'), false))) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_user_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'kind', v_row."kind", 'holderUserId', v_row."holder_id", 'holderName', v_row."holder_name", 'holderEmail', v_row."holder_email", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'bookingId', v_row."booking_id", 'resourceId', v_row."resource_id", 'usesAllowed', v_row."uses_allowed", 'uses', v_row."uses", 'validFrom', v_row."starts_at", 'validUntil', v_row."expires_at", 'status', v_row."status", 'issuedBy', v_row."issued_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'revokedAt', v_row."revoked_at") || jsonb_build_object('nonce', v_row."nonce");
 end;
 $$;
 revoke execute on function "better_supabase"."get_pass"(uuid) from public, anon;
@@ -390,8 +302,8 @@ begin
   v_reason := case
     when check_in_pass.method <> 'manual' and check_in_pass.nonce is distinct from v_pass."nonce" then 'invalid'
     when v_pass."status" = 'revoked' then 'revoked'
-    when now() < v_pass."valid_from" then 'not_yet_valid'
-    when v_pass."valid_until" is not null and now() >= v_pass."valid_until" then 'expired'
+    when now() < v_pass."starts_at" then 'not_yet_valid'
+    when v_pass."expires_at" is not null and now() >= v_pass."expires_at" then 'expired'
     when v_pass."uses_allowed" is not null and v_pass."uses" >= v_pass."uses_allowed" then 'used_up'
     when check_in_pass.resource_id is not null and v_pass."resource_id" is not null
       and check_in_pass.resource_id <> v_pass."resource_id" then 'wrong_resource'
@@ -433,7 +345,7 @@ begin
   else
     perform "better_supabase".emit_event('pass.rejected', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."pass_id", 'checkInId', v_row."id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'reason', v_row."reason"), 'passes/' || v_row."pass_id"::text, (v_row."tenant_id")::text, null, 'better-supabase/passes');
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."tenant_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_user_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."valid_from", 'validUntil', v_pass."valid_until", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id"::text, 'passId', v_row."pass_id", 'resourceId', v_row."resource_id", 'bookingId', v_row."booking_id", 'gate', v_row."gate", 'method', v_row."method", 'admitted', v_row."admitted", 'reason', v_row."reason", 'checkedInBy', v_row."checked_in_by", 'createdAt', v_row."created_at") || jsonb_build_object('pass', jsonb_build_object('id', v_pass."id", 'organizationId', v_pass."tenant_id"::text, 'kind', v_pass."kind", 'holderUserId', v_pass."holder_id", 'holderName', v_pass."holder_name", 'holderEmail', v_pass."holder_email", 'subjectType', v_pass."subject_type", 'subjectId', v_pass."subject_id", 'bookingId', v_pass."booking_id", 'resourceId', v_pass."resource_id", 'usesAllowed', v_pass."uses_allowed", 'uses', v_pass."uses", 'validFrom', v_pass."starts_at", 'validUntil', v_pass."expires_at", 'status', v_pass."status", 'issuedBy', v_pass."issued_by", 'createdAt', v_pass."created_at", 'updatedAt', v_pass."updated_at", 'revokedAt', v_pass."revoked_at"));
 end;
 $$;
 revoke execute on function "better_supabase"."check_in_pass"(uuid, text, text, text, uuid) from public, anon;
@@ -455,10 +367,10 @@ begin
   return (
     select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") as item, x."created_at" as created, x."id" as id
       from "better_supabase"."passes" x
       where x."tenant_id" = list_passes.tenant
-        and (list_passes.holder_user is null or x."holder_user_id" = list_passes.holder_user)
+        and (list_passes.holder_user is null or x."holder_id" = list_passes.holder_user)
         and (list_passes.subject_type is null or (x."subject_type" = list_passes.subject_type and x."subject_id" = list_passes.subject_id))
         and (list_passes.status is null or x."status" = list_passes.status)
         and (list_passes.before is null or x."created_at" < list_passes.before)
@@ -479,11 +391,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_user_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."valid_from", 'validUntil', x."valid_until", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."valid_from", x."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'kind', x."kind", 'holderUserId', x."holder_id", 'holderName', x."holder_name", 'holderEmail', x."holder_email", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'bookingId', x."booking_id", 'resourceId', x."resource_id", 'usesAllowed', x."uses_allowed", 'uses', x."uses", 'validFrom', x."starts_at", 'validUntil', x."expires_at", 'status', x."status", 'issuedBy', x."issued_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'revokedAt', x."revoked_at") || jsonb_build_object('nonce', x."nonce") order by x."starts_at", x."id"), '[]'::jsonb)
   from "better_supabase"."passes" x
-  where x."holder_user_id" = auth.uid()
+  where x."holder_id" = auth.uid()
     and x."status" = 'active'
-    and (x."valid_until" is null or x."valid_until" > now())
+    and (x."expires_at" is null or x."expires_at" > now())
     and not better_supabase.tenant_disabled(x."tenant_id")
 $$;
 revoke execute on function "better_supabase"."my_passes"() from public, anon;
@@ -502,7 +414,7 @@ declare
   v_pass "better_supabase"."passes"%rowtype;
 begin
   select * into v_pass from "better_supabase"."passes" x where x."id" = list_pass_check_ins.pass_id;
-  if not found or not (coalesce(v_pass."holder_user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_pass."tenant_id", 'passes.read'), false))) then
+  if not found or not (coalesce(v_pass."holder_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_pass."tenant_id", 'passes.read'), false))) then
     return '[]'::jsonb;
   end if;
   return (
@@ -596,7 +508,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_pass from "better_supabase"."passes" x where x."id" = book_with_credit.pass_id for update;
-  if not found or not (coalesce(v_pass."holder_user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_pass."tenant_id", 'passes.manage'), false))) then
+  if not found or not (coalesce(v_pass."holder_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_pass."tenant_id", 'passes.manage'), false))) then
     raise exception 'pass not found' using errcode = 'P0002', hint = 'PASS_NOT_FOUND';
   end if;
   if v_pass."status" <> 'active' then
@@ -608,7 +520,7 @@ begin
   if v_pass."resource_id" is not null and v_pass."resource_id" <> book_with_credit.resource then
     raise exception 'the pass is for another resource' using errcode = '22023', hint = 'PASS_WRONG_RESOURCE';
   end if;
-  if book_with_credit.starts_at < v_pass."valid_from" or (v_pass."valid_until" is not null and book_with_credit.starts_at >= v_pass."valid_until") then
+  if book_with_credit.starts_at < v_pass."starts_at" or (v_pass."expires_at" is not null and book_with_credit.starts_at >= v_pass."expires_at") then
     raise exception 'the pass is not valid when the class starts' using errcode = '22023', hint = 'PASS_NOT_VALID';
   end if;
   if v_pass."uses" >= v_pass."uses_allowed" then
@@ -619,11 +531,11 @@ begin
     raise exception 'the service does not exist in the pass''s organization' using errcode = 'P0002', hint = 'PASS_BOOKING_NOT_FOUND';
   end if;
   v_booking := "better_supabase"."hold_booking"(book_with_credit.service, book_with_credit.resource, book_with_credit.starts_at,
-    coalesce(book_with_credit.customer, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object('userId', v_pass."holder_user_id", 'name', v_pass."holder_name", 'email', v_pass."holder_email")), true);
+    coalesce(book_with_credit.customer, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object('userId', v_pass."holder_id", 'name', v_pass."holder_name", 'email', v_pass."holder_email")), true);
   v_entry := "better_supabase"."ledger_post"(v_pass."tenant_id", 'pass.credit_used',
       jsonb_build_array(
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_pass."tenant_id", 'pass_credits', 'pass:' || v_pass."id"::text, 'Pass credits', 'credit', 0::smallint,
-    'passes', v_pass."id"::text, v_pass."holder_user_id", true, 'passes.read', 'passes', jsonb_build_object('passId', v_pass."id")), 'amount', -1),
+    'passes', v_pass."id"::text, v_pass."holder_id", true, 'passes.read', 'passes', jsonb_build_object('passId', v_pass."id")), 'amount', -1),
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_pass."tenant_id", 'pass_credits_pool', 'pass-credits:pool', 'Pass credits pool', 'credit', 0::smallint,
     null, null, null, true, 'passes.read', 'passes', null), 'amount', 1)),
       'bookings', (v_booking ->> 'id')::uuid::text, null, 'pass-credit:' || (v_booking ->> 'id')::uuid::text || ':booking', clock_timestamp(),
@@ -666,7 +578,7 @@ begin
     return null;
   end if;
   for v_spent in
-    select r."tenant_id" as tenant, (r."metadata" ->> 'passId')::uuid as pass, x."holder_user_id" as holder
+    select r."tenant_id" as tenant, (r."metadata" ->> 'passId')::uuid as pass, x."holder_id" as holder
     from "better_supabase"."ledger_transactions" r
     join "better_supabase"."passes" x on x."id" = (r."metadata" ->> 'passId')::uuid
     where r."tenant_id" = new."tenant_id" and r."idempotency_key" = 'pass-credit:' || new."id"::text || ':booking'
@@ -697,8 +609,7 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."refund_pass_credit"() from public, anon, authenticated;
-drop trigger if exists "passes_credit_refund" on "better_supabase"."bookings";
-create trigger "passes_credit_refund"
+create trigger "bsb_passes_credit_refund"
 after update of "status" on "better_supabase"."bookings"
 for each row execute function "better_supabase"."refund_pass_credit"();
 
@@ -716,7 +627,7 @@ declare
   v_pass "better_supabase"."passes"%rowtype;
 begin
   select * into v_pass from "better_supabase"."passes" x where x."id" = list_pass_credits.pass_id;
-  if not found or not (coalesce(v_pass."holder_user_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_pass."tenant_id", 'passes.read'), false))) then
+  if not found or not (coalesce(v_pass."holder_id" = auth.uid(), false) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_pass."tenant_id", 'passes.read'), false))) then
     raise exception 'pass not found' using errcode = 'P0002', hint = 'PASS_NOT_FOUND';
   end if;
   return coalesce((
@@ -735,37 +646,14 @@ revoke execute on function "better_supabase"."list_pass_credits"(uuid) from publ
 grant execute on function "better_supabase"."list_pass_credits"(uuid) to authenticated, service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.passes', target_type => 'pass', event_prefix => 'pass', deferred => true);
-  perform better_supabase.audit('better_supabase.pass_check_ins', target_type => 'pass_check_in', event_prefix => 'pass_check_in', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.passes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pass","event_prefix":"pass"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.pass_check_ins deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pass_check_in","event_prefix":"pass_check_in"}');
 
 -- blocks.passes.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
-
-create or replace function "api"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, valid_from timestamptz default null, valid_until timestamptz default null)
+create or replace function "api"."issue_pass"(tenant uuid, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, starts_at timestamptz default null, expires_at timestamptz default null)
 returns jsonb
 language sql
 security invoker
@@ -860,16 +748,3 @@ set search_path = ''
 as $$ select "better_supabase"."list_pass_credits"($1) $$;
 revoke execute on function "api"."list_pass_credits"(uuid) from public, anon;
 grant execute on function "api"."list_pass_credits"(uuid) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

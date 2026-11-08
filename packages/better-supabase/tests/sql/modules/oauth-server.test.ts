@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { moduleBody } from "../../../src/sql/render.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("oauth-server", { modules })!;
@@ -33,10 +34,10 @@ describe("oauth-server module", () => {
     const sql = body();
 
     for (const signature of SERVICE_FUNCTIONS) {
-      expect(sql).toContain(
+      expect(unnamedChecks(sql)).toContain(
         `revoke execute on function "better_supabase".${signature} from public, anon, authenticated;`,
       );
-      expect(sql).toContain(
+      expect(unnamedChecks(sql)).toContain(
         `grant execute on function "better_supabase".${signature} to service_role;`,
       );
     }
@@ -45,7 +46,7 @@ describe("oauth-server module", () => {
     expect(sql.match(/hint = 'OAUTH_SERVER_FORBIDDEN'/g)).toHaveLength(
       SERVICE_FUNCTIONS.length + 1,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'revoke execute on function "better_supabase"."oauth_grant_for"(uuid, text, text[], text[]) from public, anon, authenticated, service_role;',
     );
   });
@@ -57,27 +58,29 @@ describe("oauth-server module", () => {
       '"my_oauth_grants"()',
       '"revoke_my_oauth_grant"(uuid)',
     ]) {
-      expect(sql).toContain(
+      expect(unnamedChecks(sql)).toContain(
         `grant execute on function "better_supabase".${signature} to authenticated`,
       );
     }
 
-    expect(sql).toContain('and g."user_id" = (select auth.uid())');
+    expect(unnamedChecks(sql)).toContain(
+      'and g."user_id" = (select auth.uid())',
+    );
   });
 
   it("stores only hashes and an S256 challenge", () => {
     const sql = body();
 
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `"secret_hash" text check ("secret_hash" ~ '^[0-9a-f]{64}$')`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `"code_hash" text primary key check ("code_hash" ~ '^[0-9a-f]{64}$')`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `"code_challenge" text not null check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$')`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))`,
     );
   });
@@ -108,11 +111,13 @@ describe("oauth-server module", () => {
   it("stores RFC 8707 resources and refuses a wider request at exchange", () => {
     const sql = body();
 
-    expect(sql).toContain(`"resource" text[] not null default '{}'`);
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
+      `"resource" text[] not null default '{}'`,
+    );
+    expect(unnamedChecks(sql)).toContain(
       'not redeem_oauth_authorization_code.resource <@ v_code."resource"',
     );
-    expect(sql).toContain("'invalidTarget', true");
+    expect(unnamedChecks(sql)).toContain("'invalidTarget', true");
   });
 
   it("checks client ids against a configurable pattern", () => {

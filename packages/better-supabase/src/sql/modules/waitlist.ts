@@ -9,7 +9,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   fail,
   lockTable,
@@ -73,7 +72,7 @@ const CODE_COLUMNS = {
   maxUses: "max_uses",
   uses: "uses",
   expiresAt: "expires_at",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   role: "role",
   createdBy: "created_by",
   createdAt: "created_at",
@@ -90,7 +89,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["defaultRole", "codeField", "roles", "extraColumns"],
+  options: ["defaultRole", "codeField", "roles"],
   tables: {
     entries: {
       name: "waitlist_entries",
@@ -325,7 +324,7 @@ create table if not exists ${e} (
   ${ce("position")} bigint generated always as identity,${line("entries", "referrer", (name) => `text check (length(${name}) <= 200)`)}${line("entries", "metadata", (name) => `jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object' and pg_column_size(${name}) <= 4096)`)}
   ${ce("user")} uuid references auth.users (id) on delete set null,${line("entries", "decidedBy", () => "uuid references auth.users (id) on delete set null")}${line("entries", "decidedAt", () => "timestamptz")}
   ${ce("createdAt")} timestamptz not null default now()
-);${addExtraColumns(e, extras)}
+);
 create index if not exists ${ctx.naming.rename("waitlist_entries_status_idx")} on ${e} (${ce("status")}, ${ce("position")});
 create index if not exists ${ctx.naming.rename("waitlist_entries_user_idx")} on ${e} (${ce("user")});${hasEntry("decidedBy") ? `\ncreate index if not exists ${ctx.naming.rename("waitlist_entries_decided_by_idx")} on ${e} (${ce("decidedBy")});` : ""}${uniqueOverApp("entries", "email", ["email"])}
 ${lockTable(e)}
@@ -357,7 +356,7 @@ ${lockTable(r)}
 -- sees an entry's real status: everyone else reads 'waiting', and an entry that
 -- left the line gets the place a new address would, so the answer never tells
 -- whether someone was approved or signed up. fields: the extra columns
--- (blocks.waitlist.options.extraColumns), written only on a new entry.
+-- (columns your schema files add), written only on a new entry.
 ${extra.drop(fn("join_waitlist"), "text, text, jsonb")}
 create or replace function ${fn("join_waitlist")}(email text, referrer text default null, metadata jsonb default '{}'::jsonb${extra.param})
 returns jsonb

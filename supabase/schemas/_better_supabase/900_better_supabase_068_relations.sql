@@ -1,61 +1,11 @@
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:8ab0df8a25c506a6c6a7bc841b86a37508152a35fb1878bfac6ab9ad828fc7ca
+-- @bsb-hash sha256:a39ec708aa5dee1263758700b1ae2368beab4e1dd0ea9000234c885bd833b703
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."relations" (
+create table "better_supabase"."relations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "kind" text not null,
@@ -63,27 +13,26 @@ create table if not exists "better_supabase"."relations" (
   "source_id" text not null,
   "target_type" text not null,
   "target_id" text not null,
-  "data" jsonb not null default '{}'::jsonb check (jsonb_typeof("data") = 'object' and pg_column_size("data") <= 8192),
+  "data" jsonb not null default '{}'::jsonb constraint bsb_relations_data_check check (jsonb_typeof("data") = 'object' and pg_column_size("data") <= 8192),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "kind", "source_type", "source_id", "target_type", "target_id"),
-  check (not ("source_type" = "target_type" and "source_id" = "target_id"))
+  constraint bsb_relations_check check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
-create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
+create index relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
 revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
-drop policy if exists relations_read on "better_supabase"."relations";
-create policy relations_read on "better_supabase"."relations"
+create policy bsb_relations_read on "better_supabase"."relations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
 -- other end. Acyclic kinds take an advisory lock per tenant and kind, then
 -- refuse a link whose target already reaches its source.
-drop function if exists "better_supabase"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
+
 create or replace function "better_supabase"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
 language plpgsql
@@ -813,13 +762,9 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."relations_subject_deleted"() from public, anon, authenticated;
-
-drop trigger if exists "bsb_relations_product_cascade" on "better_supabase"."products";
 create trigger "bsb_relations_product_cascade"
   after delete on "better_supabase"."products"
   for each row execute function "better_supabase"."relations_subject_deleted"('product', 'id');
-
-drop trigger if exists "bsb_relations_product_variant_cascade" on "better_supabase"."product_variants";
 create trigger "bsb_relations_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."relations_subject_deleted"('product_variant', 'id');
@@ -875,71 +820,29 @@ comment on function "better_supabase"."relations_subject_merge"(text, text, text
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."relations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."relations";
 create policy bsb_tenant_scope_select on "better_supabase"."relations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."relations";
 create policy bsb_tenant_scope_insert on "better_supabase"."relations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."relations";
 create policy bsb_tenant_scope_update on "better_supabase"."relations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."relations";
 create policy bsb_tenant_scope_delete on "better_supabase"."relations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.relations', target_type => 'relation', event_prefix => 'relation', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.relations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"relation","event_prefix":"relation"}');
 
 -- blocks.relations.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."link"(uuid, text, text, text, text, text, jsonb, jsonb);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."link"(tenant uuid, kind text, source_type text, source_id text, target_type text, target_id text, data jsonb)
 returns jsonb
@@ -1028,16 +931,3 @@ set search_path = ''
 as $$ select "better_supabase"."relation_rollup"($1, $2, $3, $4, $5, $6, $7) $$;
 revoke execute on function "api"."relation_rollup"(uuid, text, text, text, text, text, text) from public, anon;
 grant execute on function "api"."relation_rollup"(uuid, text, text, text, text, text, text) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

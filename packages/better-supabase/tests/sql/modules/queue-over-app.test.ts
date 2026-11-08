@@ -37,7 +37,7 @@ create table public.crons (
   payload jsonb not null default '{}',
   next_at timestamptz,
   last_at timestamptz,
-  locked_until timestamptz,
+  lock_expires_at timestamptz,
   created_at timestamptz not null default now(),
   tenant text,
   first_after timestamptz

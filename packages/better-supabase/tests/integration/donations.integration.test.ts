@@ -224,7 +224,7 @@ describe.skipIf(!live)("donations", () => {
       expect(await donations.gifts().then(hint)).toBe("DONATIONS_FORBIDDEN");
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type in ('donation.received', 'donation.refunded', 'donation_receipt.issued') order by position",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and type in ('donation.received', 'donation.refunded', 'donation_receipt.issued') order by position",
         [tenant],
       );
 

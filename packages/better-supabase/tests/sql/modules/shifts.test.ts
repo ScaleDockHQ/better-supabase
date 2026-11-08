@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
 import { SHIFTS } from "../../../src/sql/modules/shifts.ts";
-import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { customContracts } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -16,7 +17,7 @@ const ALL = [
   "leave",
   "assets",
   "approvals",
-  "time-tracking",
+  "time-entries",
   "qualifications",
   "shifts",
 ];
@@ -34,7 +35,9 @@ describe("shifts module", () => {
   it("refuses overlap with an exclusion constraint and in the assignment check", () => {
     const sql = sqlOf();
     expect(sql).toContain("create extension if not exists btree_gist");
-    expect(sql).toContain('"shift_assignments_no_overlap" exclude using gist');
+    expect(sql).toContain(
+      '"shift_assignments_no_overlap_excl" exclude using gist',
+    );
     expect(sql).toContain("SHIFT_ASSIGNMENT_OVERLAP");
     expect(sql).toContain("interval '11 hours'");
   });
@@ -111,7 +114,7 @@ describe("shifts module", () => {
     });
 
     expect(sql).toContain(
-      `alter table "better_supabase"."shifts" add column if not exists "site_code" text;`,
+      `alter table "better_supabase"."shifts" add column "site_code" text;`,
     );
     expect(sql).toContain("shift_id uuid default null, fields jsonb");
   });

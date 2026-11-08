@@ -5,7 +5,7 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { BetterQueryMeta } from "../../src/query/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createQueries } from "../../src/query/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -16,7 +16,7 @@ declare module "@tanstack/query-core" {
 }
 
 declare const client: SupabaseClient;
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const q = createQueries(betterSupabase, betterSupabase.connect(client));
 
 describe("query meta with a registered queryMeta", () => {

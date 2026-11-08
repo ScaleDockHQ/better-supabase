@@ -95,7 +95,7 @@ ${lockTable(t("channels"), { read: true })}
 
 -- A channel is visible when its conversation is: a public one to the tenant,
 -- a private one to its members.
-${renderPolicy(makePolicy({ table: t("channels"), name: policy, command: "select", roles: ["authenticated"], using: `exists (select 1 from ${conversations} c where c.${cv("id")} = ${t("channels")}.${ch("id")})` }), { drop: true, target: t("channels") })}
+${renderPolicy(makePolicy({ table: t("channels"), name: policy, command: "select", roles: ["authenticated"], using: `exists (select 1 from ${conversations} c where c.${cv("id")} = ${t("channels")}.${ch("id")})` }), { target: t("channels") })}
 `;
 }
 

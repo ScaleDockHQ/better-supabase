@@ -5,7 +5,6 @@ import type {
   FilterNode,
   FilterQuery,
 } from "../../src/list/filter-query.ts";
-import type { ColumnMeta } from "../../src/schema/types.ts";
 
 import {
   dateBounds,
@@ -25,12 +24,7 @@ function field(
     id: "when",
     type,
     column: "when",
-    // SAFETY: the filter code reads only type, nullable and db from the column.
-    columnMeta: {
-      type: columnType,
-      nullable,
-      db: "when",
-    } as unknown as ColumnMeta,
+    columnMeta: { type: columnType, nullable, db: "when" },
     label: "When",
     operators: [],
   };

@@ -467,7 +467,7 @@ ${userGrant(`${fn("decide_shift_request")}(uuid, boolean)`)}
 
 -- Offers an assigned shift that hasn't started to another member. A manager
 -- decides with decide_shift_swap; the member who asked may withdraw it there.
-create or replace function ${fn("request_shift_swap")}(assignment_id uuid, to_user_id uuid, note text default null)
+create or replace function ${fn("request_shift_swap")}(assignment_id uuid, to_id uuid, note text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -490,7 +490,7 @@ begin
   if v_row.${a("status")} <> 'assigned' or v_shift.${s("status")} = 'canceled' or v_shift.${s("startsAt")} <= now() then
     ${swapInvalid("only an assigned shift that hasn't started can be swapped")}
   end if;
-  if request_shift_swap.to_user_id is null or request_shift_swap.to_user_id = v_row.${a("user")} or not ${isMember(`v_row.${a("tenant")}`, "request_shift_swap.to_user_id")} then
+  if request_shift_swap.to_id is null or request_shift_swap.to_id = v_row.${a("user")} or not ${isMember(`v_row.${a("tenant")}`, "request_shift_swap.to_id")} then
     ${swapInvalid("the swap goes to another member of this organization")}
   end if;
   if request_shift_swap.note is not null and length(request_shift_swap.note) > 2000 then
@@ -500,7 +500,7 @@ begin
     ${swapInvalid("the shift already has a pending swap")}
   end if;
   insert into ${swaps} (${w("tenant")}, ${w("assignment")}, ${w("fromUser")}, ${w("toUser")}${insertCol("swaps", "note")})
-  values (v_row.${a("tenant")}, v_row.${a("id")}, v_row.${a("user")}, request_shift_swap.to_user_id${insertVal("swaps", "note", "nullif(trim(request_shift_swap.note), '')")})
+  values (v_row.${a("tenant")}, v_row.${a("id")}, v_row.${a("user")}, request_shift_swap.to_id${insertVal("swaps", "note", "nullif(trim(request_shift_swap.note), '')")})
   returning * into v_swap;
   ${swapRecord("shift_swap.requested", "")}
   ${notifyUser("shift_swap.requested", `v_swap.${w("toUser")}`, "A shift swap is offered to you")}

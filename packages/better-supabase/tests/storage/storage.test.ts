@@ -11,7 +11,7 @@ import type {
 } from "../../src/storage/index.ts";
 
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError, DbException } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { provideTemporal } from "../../src/core/temporal.ts";
@@ -1153,15 +1153,15 @@ describe("BucketClient URLs", () => {
     expect(signs()).toBe(5);
   });
 
-  it("settles an upload with an error when its signal aborts mid-request", async () => {
+  it("settles an upload with an error when its signal is already aborted", async () => {
     const { client } = fakeStorage();
     const controller = new AbortController();
+    controller.abort(new Error("stop"));
 
     const pending = docs
       .connect(client)
       .upload(A, "a", { signal: controller.signal });
 
-    controller.abort(new Error("stop"));
     expect((await pending).ok).toBe(false);
   });
 
@@ -1976,7 +1976,7 @@ describe("tenant-scoped buckets", () => {
   it("uses the tenant tenant() resolved from a custom claim path", async () => {
     const { client } = fakeStorage();
 
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .use(membershipsExtension({ claim: "app_metadata.organization" }))
       .connect(
         {

@@ -173,12 +173,6 @@ const MANIFEST_BY_MODULE = new Map(
   PRESET_CATALOG.blocks.map((block) => [block.name, block.manifest]),
 );
 
-const EXTRA_TABLE_BY_MODULE = new Map(
-  PRESET_CATALOG.blocks.flatMap((block) =>
-    block.extraColumns === undefined ? [] : [[block.name, block.extraColumns]],
-  ),
-);
-
 /** Each table's module and logical table name. */
 function blockTables(
   tables: readonly SchemaTable[],
@@ -195,25 +189,6 @@ function blockTables(
         : [[table.id, { block: table.module, table: logical }]];
     }),
   );
-}
-
-/** The table ids `blocks.<module>.options.extraColumns` adds columns to. */
-function extraColumnTables(
-  tables: readonly SchemaTable[],
-  lookup: TableLookup,
-): readonly string[] {
-  const installed = new Set(tables.map((table) => table.module));
-
-  return [...EXTRA_TABLE_BY_MODULE].flatMap(([module, logical]) => {
-    const spec = SQL_MODULES[module]?.names?.tables[logical];
-
-    const table =
-      !installed.has(module) || spec === undefined
-        ? undefined
-        : lookup(module, spec.name);
-
-    return table === undefined ? [] : [table.id];
-  });
 }
 
 /**
@@ -235,7 +210,6 @@ export function schemaData(
         MANIFEST_BY_MODULE.get(table.module) ?? table.module,
       ]),
     ),
-    extraColumns: extraColumnTables(tables, lookup),
     blockTables: blockTables(tables, lookup),
     tenantTable: tenantTable(tables),
   };

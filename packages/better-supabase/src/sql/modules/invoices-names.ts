@@ -30,11 +30,11 @@ export interface InvoiceNames
   readonly termsDays: number;
   readonly providerMethods: readonly string[];
   readonly service: string;
-  /** `options.extraColumns`, which `create_invoice` writes by name. */
+  /** The columns your schema files add, which `create_invoice` writes by name. */
   readonly extras: readonly ExtraColumn[];
   readonly lineExtras: readonly ExtraColumn[];
   /**
-   * `options.chargeExtraColumns`, which `add_invoice_charge` writes from
+   * The columns your schema files add, which `add_invoice_charge` writes from
    * `fields`.
    */
   readonly chargeExtras: readonly ExtraColumn[];

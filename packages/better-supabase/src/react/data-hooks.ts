@@ -1,8 +1,8 @@
-import { useContext } from "react";
+import { useContext, useEffect } from "react";
 
 import type {
   DataId,
-  DataListArgs,
+  DataListOptions,
   DataRow,
   DataRows,
   DataSource,
@@ -18,6 +18,7 @@ import {
 } from "../bindings/data-hooks.ts";
 import { useController } from "../blocks/react-controller.ts";
 import { ClientContext } from "./context.ts";
+import { OfflineContext } from "./offline.ts";
 
 /** What `useList` and `useOne` return: the read and the writes. */
 export type DataView<S extends DataSource, T> = DataState<T> & DataWrites<S>;
@@ -25,7 +26,7 @@ export type DataView<S extends DataSource, T> = DataState<T> & DataWrites<S>;
 /** The hooks `defineDataHooks` makes for one table or block instance. */
 export interface DataHooks<S extends DataSource> {
   /** `source.list(args)`, kept fresh after every write. */
-  readonly useList: (args?: DataListArgs<S>) => DataView<S, DataRows<S>>;
+  readonly useList: (args?: DataListOptions<S>) => DataView<S, DataRows<S>>;
   /** `source.get(id)`, kept fresh after every write. */
   readonly useOne: (id: DataId<S>) => DataView<S, DataRow<S>>;
 }
@@ -44,27 +45,38 @@ function useClient(): Parameters<typeof dataTarget>[0] {
 
 /**
  * The list hook for one table or block instance, for a module that wants to
- * tree-shake each hook on its own. `defineDataHooks` makes both.
+ * tree-shake each hook on its own. `defineDataHooks` makes both. With a table
+ * module from `tables/<table>.ts` as `table`, the hook reads through
+ * `client.table(table)`, so a client of a `lazyTables` schema registers just
+ * that table.
  */
 export const defineListHook =
   /*#__NO_SIDE_EFFECTS__*/
   <D, S extends DataSource>(
     name: string,
     select: (db: D) => S,
+    table?: object,
   ): DataHooks<S>["useList"] =>
     (args) => {
       const client = useClient();
-      const target = dataTarget(client, name, select);
+      const target = dataTarget(client, name, select, table);
+      const offline = useContext(OfflineContext);
 
-      return useController(
-        () => createDataList(target, args),
+      const { controller, view } = useController(
+        () => createDataList(target, args, { offline }),
         [
           client.db,
           target.engine,
           dataArgsKey(target.scope),
           dataArgsKey(args),
         ],
-      ).view;
+      );
+
+      useEffect(() => {
+        controller.actions.setOffline(offline);
+      }, [controller, offline]);
+
+      return view;
     };
 
 /** The record hook for one table or block instance (see `defineListHook`). */
@@ -73,15 +85,23 @@ export const defineOneHook =
   <D, S extends DataSource>(
     name: string,
     select: (db: D) => S,
+    table?: object,
   ): DataHooks<S>["useOne"] =>
     (id) => {
       const client = useClient();
-      const target = dataTarget(client, name, select);
+      const target = dataTarget(client, name, select, table);
+      const offline = useContext(OfflineContext);
 
-      return useController(
-        () => createDataOne(target, id),
+      const { controller, view } = useController(
+        () => createDataOne(target, id, { offline }),
         [client.db, target.engine, dataArgsKey(target.scope), dataArgsKey(id)],
-      ).view;
+      );
+
+      useEffect(() => {
+        controller.actions.setOffline(offline);
+      }, [controller, offline]);
+
+      return view;
     };
 
 /**

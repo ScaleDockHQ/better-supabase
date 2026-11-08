@@ -6,11 +6,11 @@ import { taskFromConversationFactory } from "./actions.ts";
 import { tasksEvents } from "./events.ts";
 import { tasksSqlOptions } from "./options.ts";
 import { taskChecklistBinding } from "./record-binding.ts";
-import { workItemRecurrenceSink } from "./recurrence.ts";
+import { taskRecurrenceSink } from "./recurrence.ts";
 import {
-  workItemChangeSchema,
-  workItemInputSchema,
-  workItemListFilterSchema,
+  taskChangeSchema,
+  taskInputSchema,
+  taskListFilterSchema,
 } from "./schemas.ts";
 import { createTasks } from "./tasks.ts";
 
@@ -28,7 +28,7 @@ export const tasksBlock: BlockOf<
   options: { tasks: tasksSqlOptions },
   consumes: { customFields: "optional" },
   events: tasksEvents,
-  provides: { sink: (client) => workItemRecurrenceSink(client) },
+  provides: { sink: (client) => taskRecurrenceSink(client) },
   create: createTasks,
   record: taskChecklistBinding,
   category: "work",
@@ -44,9 +44,9 @@ export const tasksBlock: BlockOf<
   handlers: { "tasks.from_conversation": taskFromConversationFactory },
   schemas: {
     task: {
-      input: workItemInputSchema,
-      change: workItemChangeSchema,
-      listFilter: workItemListFilterSchema,
+      input: taskInputSchema,
+      change: taskChangeSchema,
+      listFilter: taskListFilterSchema,
     },
   },
 });

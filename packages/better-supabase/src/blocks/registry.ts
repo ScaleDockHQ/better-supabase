@@ -27,7 +27,7 @@ import { bankingBlock } from "./banking/manifest.ts";
 import { billableTimeBlock } from "./billable-time/manifest.ts";
 import { billingBlock } from "./billing/manifest.ts";
 import { bookingsBlock } from "./bookings/manifest.ts";
-import { bulkBlock } from "./bulk/manifest.ts";
+import { bulkActionsBlock } from "./bulk-actions/manifest.ts";
 import { calendarBlock } from "./calendar/manifest.ts";
 import { carePlansBlock } from "./care-plans/manifest.ts";
 import { careBlock } from "./care/manifest.ts";
@@ -184,7 +184,7 @@ import { taxBlock } from "./tax/manifest.ts";
 import { teamsBlock } from "./teams/manifest.ts";
 import { templatesBlock } from "./templates/manifest.ts";
 import { tillsBlock } from "./tills/manifest.ts";
-import { timeTrackingBlock } from "./time-tracking/manifest.ts";
+import { timeEntriesBlock } from "./time-entries/manifest.ts";
 import { timelineBlock } from "./timeline/manifest.ts";
 import { trashBlock } from "./trash/manifest.ts";
 import { undoBlock } from "./undo/manifest.ts";
@@ -243,7 +243,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   auditBlock,
   billingBlock,
   bookingsBlock,
-  bulkBlock,
+  bulkActionsBlock,
   calendarBlock,
   carePlansBlock,
   catalogBlock,
@@ -389,7 +389,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   teamsBlock,
   templatesBlock,
   membershipsBlock,
-  timeTrackingBlock,
+  timeEntriesBlock,
   trashBlock,
   undoBlock,
   updatedAtBlock,

@@ -59,7 +59,10 @@ export interface Job<F extends object = Record<never, never>> {
   readonly status: JobStatus;
   readonly openedAt?: Temporal.Instant;
   readonly closedAt?: Temporal.Instant;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: Readonly<Record<string, unknown>> & F;
 }
 
@@ -96,7 +99,7 @@ export interface Application {
   readonly rejectionReason?: string;
   readonly hiredAt?: Temporal.Instant;
   readonly createdAt: Temporal.Instant;
-  /** With `options.applicationExtraColumns`: those columns, by name. */
+  /** With the columns the app's schema files add: those columns, by name. */
   readonly fields?: Readonly<Record<string, unknown>>;
 }
 
@@ -144,7 +147,7 @@ export interface Hiring<F extends object = Record<never, never>> {
     input: { jobId: string; candidate: Candidate | { readonly id: string } } & {
       readonly source?: string;
       readonly ownerId?: string;
-      /** With `options.applicationExtraColumns`: values for those columns. */
+      /** With the columns the app's schema files add: values for those columns. */
       readonly fields?: Readonly<Record<string, unknown>>;
     },
   ): AsyncResult<Application>;
@@ -228,9 +231,9 @@ export interface HiringOptions<
   readonly transport: BlockTransport;
   readonly schema?: string;
   /**
-   * A Standard Schema for the jobs' extra columns
-   * (`blocks.hiring.options.extraColumns`), keyed by column name. It types and
-   * parses `fields` on `saveJob` and validates the ones it writes.
+   * A Standard Schema for the jobs' extra columns (columns the app's schema
+   * files add to the table), keyed by column name. It types and parses `fields`
+   * on `saveJob` and validates the ones it writes.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Hiring<FieldsOf<S>>>>;
@@ -248,7 +251,7 @@ function jobOf(value: unknown): Job {
     location: optionalText(row["location"]),
     employmentType: optionalText(row["employment_type"]),
     description: optionalText(row["description"]),
-    hiringManagerId: optionalText(row["hiring_manager_user_id"]),
+    hiringManagerId: optionalText(row["hiring_manager_id"]),
     status: enumOrThrow(row["status"], JOB_STATUSES, "job status"),
     openedAt: optionalInstant(row["opened_at"]),
     closedAt: optionalInstant(row["closed_at"]),
@@ -267,7 +270,7 @@ function applicationOf(value: unknown): Application {
       id: "",
     },
     source: optionalText(row["source"]),
-    ownerId: optionalText(row["owner_user_id"]),
+    ownerId: optionalText(row["owner_id"]),
     pipelineId: optionalText(row["pipeline_id"]),
     stageId: optionalText(row["stage_id"]),
     stageEnteredAt: optionalInstant(row["stage_entered_at"]),
@@ -296,7 +299,7 @@ function scorecardOf(value: unknown): Scorecard {
   return compact<Scorecard>({
     id: textOf(row["id"]),
     stageId: optionalText(row["stage_id"]),
-    reviewerId: textOf(row["reviewer_user_id"]),
+    reviewerId: textOf(row["reviewer_id"]),
     rating: Number(row["rating"]),
     recommendation:
       recommendation === null || recommendation === undefined

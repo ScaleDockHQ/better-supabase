@@ -1,46 +1,9 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:9f1068eb3fd63b5dc833a1ec802ff90d96028434f9ecfcbf20326a07dccbb06b
+-- @bsb-hash sha256:b1d84757d7d8f235dcd029437a782c0806808380d2f43daf3356f44f3c1fc027
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- An access token stays valid until it expires, even after its session is
 -- signed out or its user is deleted. This checks the session behind it.
@@ -222,241 +185,183 @@ grant execute on function better_supabase.sessions_overview() to authenticated;
 
 -- blocks['sessions'].options.policies: every table in the schema files,
 -- except blocks['sessions'].options.exclude. `upgrade` rewrites these.
-drop policy if exists bsb_session_active on "centrakit"."organizations";
 create policy bsb_session_active on "centrakit"."organizations" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."user_roles";
 create policy bsb_session_active on "centrakit"."user_roles" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."organization_users";
 create policy bsb_session_active on "centrakit"."organization_users" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."organization_invitations";
 create policy bsb_session_active on "centrakit"."organization_invitations" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."profiles";
 create policy bsb_session_active on "centrakit"."profiles" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."contact_profiles";
 create policy bsb_session_active on "centrakit"."contact_profiles" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."audit_logs";
 create policy bsb_session_active on "centrakit"."audit_logs" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."audit_log_restricted_details";
 create policy bsb_session_active on "centrakit"."audit_log_restricted_details" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."workflow_events";
 create policy bsb_session_active on "centrakit"."workflow_events" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."workflow_runs";
 create policy bsb_session_active on "centrakit"."workflow_runs" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."notification_events";
 create policy bsb_session_active on "centrakit"."notification_events" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."notification_recipients";
 create policy bsb_session_active on "centrakit"."notification_recipients" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."notification_subscriptions";
 create policy bsb_session_active on "centrakit"."notification_subscriptions" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."notification_preferences";
 create policy bsb_session_active on "centrakit"."notification_preferences" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."notification_deliveries";
 create policy bsb_session_active on "centrakit"."notification_deliveries" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."webhook_destinations";
 create policy bsb_session_active on "centrakit"."webhook_destinations" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."webhook_destination_secrets";
 create policy bsb_session_active on "centrakit"."webhook_destination_secrets" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."webhook_deliveries";
 create policy bsb_session_active on "centrakit"."webhook_deliveries" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."integration_credentials";
 create policy bsb_session_active on "centrakit"."integration_credentials" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."inbound_webhooks";
 create policy bsb_session_active on "centrakit"."inbound_webhooks" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."inbound_webhook_events";
 create policy bsb_session_active on "centrakit"."inbound_webhook_events" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."organization_number_sequences";
 create policy bsb_session_active on "centrakit"."organization_number_sequences" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."teams";
 create policy bsb_session_active on "centrakit"."teams" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."team_members";
 create policy bsb_session_active on "centrakit"."team_members" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."organization_tags";
 create policy bsb_session_active on "centrakit"."organization_tags" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."task_tags";
 create policy bsb_session_active on "centrakit"."task_tags" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."status_history";
 create policy bsb_session_active on "centrakit"."status_history" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."field_definitions";
 create policy bsb_session_active on "centrakit"."field_definitions" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."field_options";
 create policy bsb_session_active on "centrakit"."field_options" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."field_values";
 create policy bsb_session_active on "centrakit"."field_values" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."share_links";
 create policy bsb_session_active on "centrakit"."share_links" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."subject_views";
 create policy bsb_session_active on "centrakit"."subject_views" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."subject_user_state";
 create policy bsb_session_active on "centrakit"."subject_user_state" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."recurrence_rules";
 create policy bsb_session_active on "centrakit"."recurrence_rules" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."reminders";
 create policy bsb_session_active on "centrakit"."reminders" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."reminder_deliveries";
 create policy bsb_session_active on "centrakit"."reminder_deliveries" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."import_runs";
 create policy bsb_session_active on "centrakit"."import_runs" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."file_node";
 create policy bsb_session_active on "centrakit"."file_node" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."file_node_grant";
 create policy bsb_session_active on "centrakit"."file_node_grant" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."customers";
 create policy bsb_session_active on "centrakit"."customers" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."customer_contacts";
 create policy bsb_session_active on "centrakit"."customer_contacts" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."employees";
 create policy bsb_session_active on "centrakit"."employees" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."projects";
 create policy bsb_session_active on "centrakit"."projects" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."project_members";
 create policy bsb_session_active on "centrakit"."project_members" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-drop policy if exists bsb_session_active on "centrakit"."tasks";
 create policy bsb_session_active on "centrakit"."tasks" as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { retryCustomerRecord } from "../customer-record-actions";
+import { retryCustomerRecord } from "../customers-actions";
 
 /** A customer page card while its rows load. */
 export function RecordCardSkeleton({ rows = 2 }: { rows?: number }) {

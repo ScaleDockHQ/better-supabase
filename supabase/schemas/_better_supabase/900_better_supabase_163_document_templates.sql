@@ -1,93 +1,10 @@
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:6ca0b4e18c585b6c77983b7a02b33a301955d5c04e046b5225defa82fb814196
+-- @bsb-hash sha256:b36be62036657afbb09d9caedd4dec1fed624110130e00e6c47f92809cbf3537
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_templates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_templates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_text_blocks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_text_blocks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rendered_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Document templates (ADR 0145): per legal entity and language templates, text
 -- blocks, one variable contract per document type, render_document and the
 -- snapshots that keep an issued document stable.
@@ -216,6 +133,8 @@ begin
       return exists (select 1 from "better_supabase"."orders" x where x."id" = document_visible.document_id and x."tenant_id" = document_visible.tenant);
     when 'delivery_note' then
       return exists (select 1 from "better_supabase"."shipments" x where x."id" = document_visible.document_id and x."tenant_id" = document_visible.tenant);
+    when 'purchase_order' then
+      return exists (select 1 from "better_supabase"."purchase_orders" x where x."id" = document_visible.document_id and x."tenant_id" = document_visible.tenant);
     when 'dunning_letter' then
       return exists (select 1 from "better_supabase"."invoice_dunning_run_items" x where x."id" = document_visible.document_id and x."tenant_id" = document_visible.tenant);
     else
@@ -463,6 +382,67 @@ $$;
 revoke execute on function "better_supabase"."document_variables_delivery_note"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."document_variables_delivery_note"(uuid, uuid) to authenticated, service_role;
 
+-- A purchase order as a document: the supplier is the document's party, the
+-- amounts are the ordered quantities at their unit cost, with no tax.
+create or replace function "better_supabase"."document_variables_purchase_order"(tenant uuid, document_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."purchase_orders"%rowtype;
+  v_lines jsonb;
+  v_subtotal bigint;
+begin
+  select * into v_row from "better_supabase"."purchase_orders" x
+    where x."id" = document_variables_purchase_order.document_id and x."tenant_id" = document_variables_purchase_order.tenant;
+  if not found then
+    raise exception 'document not found' using errcode = 'P0002', hint = 'DOCUMENT_NOT_FOUND';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'position', n.n,
+      'description', n.description,
+      'sku', n.sku,
+      'reference', null::text,
+      'date', null::text,
+      'dueOn', null::text,
+      'quantity', trim_scale((n.quantity)::numeric)::text,
+      'unitAmount', (n.unit_cost)::bigint::text,
+      'discountBps', null::integer,
+      'discountAmount', null::text,
+      'taxRateBps', null::integer,
+      'taxCode', null::text,
+      'amount', (n.amount)::bigint::text
+    ) order by n.n), '[]'::jsonb), coalesce(sum(n.amount), 0)::bigint into v_lines, v_subtotal
+  from (
+    select row_number() over (order by cv."sku", x."id") as n,
+      coalesce(cv."title", cv."sku") as description,
+      cv."sku" as sku,
+      x."quantity_ordered" as quantity,
+      x."unit_cost" as unit_cost,
+      round(x."quantity_ordered" * x."unit_cost")::bigint as amount
+    from "better_supabase"."purchase_order_lines" x
+    join "better_supabase"."product_variants" cv on cv."id" = x."variant_id"
+    where x."purchase_order_id" = v_row."id"
+  ) n;
+  return jsonb_build_object(
+    'document', jsonb_build_object('id', v_row."id"::text, 'type', 'purchase_order', 'number', 'PO-' || upper(substr(replace(v_row."id"::text, '-', ''), 1, 8)), 'title', null::text, 'status', v_row."status"::text, 'date', to_char(coalesce(v_row."placed_at", v_row."created_at") at time zone 'UTC', 'YYYY-MM-DD'), 'currency', trim(v_row."currency"), 'language', null::text, 'note', v_row."note", 'reference', null::text),
+    'entity', "better_supabase"."document_entity"(document_variables_purchase_order.tenant, null::uuid),
+    'buyer', "better_supabase"."document_party"(document_variables_purchase_order.tenant, case when v_row."supplier_type" = 'company' then v_row."supplier_id" end, case when v_row."supplier_type" = 'person' then v_row."supplier_id" end, null::jsonb, null::text, null::jsonb),
+    'lines', v_lines,
+    'tax_lines', '[]'::jsonb,
+    'totals', jsonb_build_object('listTotal', null::text, 'discountTotal', null::text, 'subtotal', v_subtotal::text, 'taxTotal', null::text, 'total', v_subtotal::text, 'paidTotal', null::text, 'creditedTotal', null::text, 'shippingTotal', null::text, 'fee', null::text, 'balance', null::text),
+    'payment_terms', jsonb_build_object('code', null::text, 'name', null::text, 'days', null::text, 'dueOn', null::text, 'discountBps', null::text, 'discountDays', null::text, 'discountDueOn', null::text, 'discountAmount', null::text),
+    'shipping', jsonb_build_object('address', "better_supabase"."document_address"(v_row."ship_to"), 'carrier', null::text, 'trackingNumber', null::text)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."document_variables_purchase_order"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."document_variables_purchase_order"(uuid, uuid) to authenticated, service_role;
+
 create or replace function "better_supabase"."document_variables_dunning_letter"(tenant uuid, document_id uuid)
 returns jsonb
 language plpgsql
@@ -620,6 +600,7 @@ begin
     when 'quote' then return "better_supabase"."document_variables_quote"(document_variables.tenant, document_id);
     when 'order' then return "better_supabase"."document_variables_order"(document_variables.tenant, document_id);
     when 'delivery_note' then return "better_supabase"."document_variables_delivery_note"(document_variables.tenant, document_id);
+    when 'purchase_order' then return "better_supabase"."document_variables_purchase_order"(document_variables.tenant, document_id);
     when 'dunning_letter' then return "better_supabase"."document_variables_dunning_letter"(document_variables.tenant, document_id);
     when 'statement' then return "better_supabase"."document_variables_statement"(document_variables.tenant, document_id);
     else
@@ -633,15 +614,15 @@ grant execute on function "better_supabase"."document_variables"(uuid, text, uui
 
 -- The templates of an organization, per document type, name, legal entity
 -- (null for the organization) and language (null for any).
-create table if not exists "better_supabase"."document_templates" (
+create table "better_supabase"."document_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement')),
-  "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "name" text not null default 'default' check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$'),
-  "body" text not null check (length(btrim("body")) > 0 and length("body") <= 200000),
-  "version" integer not null default 1 check ("version" >= 1),
+  "document_type" text not null constraint bsb_document_templates_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
+  "language" text constraint bsb_document_templates_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "name" text not null default 'default' constraint bsb_document_templates_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$'),
+  "body" text not null constraint bsb_document_templates_body_check check (length(btrim("body")) > 0 and length("body") <= 200000),
+  "version" integer not null default 1 constraint bsb_document_templates_version_check check ("version" >= 1),
   "active" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
@@ -649,52 +630,50 @@ create table if not exists "better_supabase"."document_templates" (
   foreign key ("tenant_id", "legal_entity_id") references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict
 );
 -- One template per slot.
-create unique index if not exists "document_templates_slot_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
-create index if not exists "document_templates_lookup_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name") where "active";
-create index if not exists "document_templates_entity_idx" on "better_supabase"."document_templates" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
-create index if not exists "document_templates_created_by_idx" on "better_supabase"."document_templates" ("created_by") where "created_by" is not null;
+create unique index "document_templates_slot_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
+create index "document_templates_lookup_idx" on "better_supabase"."document_templates" ("tenant_id", "document_type", "name") where "active";
+create index "document_templates_entity_idx" on "better_supabase"."document_templates" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
+create index "document_templates_created_by_idx" on "better_supabase"."document_templates" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."document_templates" enable row level security;
 revoke all on "better_supabase"."document_templates" from public, anon, authenticated;
 grant select on "better_supabase"."document_templates" to authenticated;
 grant all on "better_supabase"."document_templates" to service_role;
-drop policy if exists document_templates_read on "better_supabase"."document_templates";
-create policy document_templates_read on "better_supabase"."document_templates"
+create policy bsb_document_templates_read on "better_supabase"."document_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
 -- Reusable texts, read in a template as texts.<key>.
-create table if not exists "better_supabase"."document_text_blocks" (
+create table "better_supabase"."document_text_blocks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,63}$'),
-  "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "body" text not null check (length(btrim("body")) > 0 and length("body") <= 200000),
-  "version" integer not null default 1 check ("version" >= 1),
+  "key" text not null constraint bsb_document_text_blocks_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,63}$'),
+  "language" text constraint bsb_document_text_blocks_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "body" text not null constraint bsb_document_text_blocks_body_check check (length(btrim("body")) > 0 and length("body") <= 200000),
+  "version" integer not null default 1 constraint bsb_document_text_blocks_version_check check ("version" >= 1),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "legal_entity_id") references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict
 );
-create unique index if not exists "document_text_blocks_slot_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "key", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
-create index if not exists "document_text_blocks_entity_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
-create index if not exists "document_text_blocks_created_by_idx" on "better_supabase"."document_text_blocks" ("created_by") where "created_by" is not null;
+create unique index "document_text_blocks_slot_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "key", coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid), coalesce("language", ''));
+create index "document_text_blocks_entity_idx" on "better_supabase"."document_text_blocks" ("tenant_id", "legal_entity_id") where "legal_entity_id" is not null;
+create index "document_text_blocks_created_by_idx" on "better_supabase"."document_text_blocks" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."document_text_blocks" enable row level security;
 revoke all on "better_supabase"."document_text_blocks" from public, anon, authenticated;
 grant select on "better_supabase"."document_text_blocks" to authenticated;
 grant all on "better_supabase"."document_text_blocks" to service_role;
-drop policy if exists document_text_blocks_read on "better_supabase"."document_text_blocks";
-create policy document_text_blocks_read on "better_supabase"."document_text_blocks"
+create policy bsb_document_text_blocks_read on "better_supabase"."document_text_blocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
 -- What a document looked like when it was frozen: its variables, the template
 -- and the text blocks it used. A snapshot never changes. The template column
 -- keeps the body, so deleting or editing the template leaves it as it was.
-create table if not exists "better_supabase"."rendered_documents" (
+create table "better_supabase"."rendered_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement')),
+  "document_type" text not null constraint bsb_rendered_documents_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
   "document_id" uuid not null,
   "language" text,
   "legal_entity_id" uuid,
@@ -702,21 +681,20 @@ create table if not exists "better_supabase"."rendered_documents" (
   "template_id" uuid,
   "template_version" integer,
   "template" jsonb,
-  "blocks" jsonb not null default '{}'::jsonb check (jsonb_typeof("blocks") = 'object'),
-  "variables" jsonb not null check (jsonb_typeof("variables") = 'object'),
+  "blocks" jsonb not null default '{}'::jsonb constraint bsb_rendered_documents_blocks_check check (jsonb_typeof("blocks") = 'object'),
+  "variables" jsonb not null constraint bsb_rendered_documents_variables_check check (jsonb_typeof("variables") = 'object'),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "document_type", "document_id")
 );
-create index if not exists "rendered_documents_created_by_idx" on "better_supabase"."rendered_documents" ("created_by") where "created_by" is not null;
+create index "rendered_documents_created_by_idx" on "better_supabase"."rendered_documents" ("created_by") where "created_by" is not null;
 alter table "better_supabase"."rendered_documents" enable row level security;
 revoke all on "better_supabase"."rendered_documents" from public, anon, authenticated;
 grant select on "better_supabase"."rendered_documents" to authenticated;
 grant all on "better_supabase"."rendered_documents" to service_role;
 -- A snapshot shows to someone who can read the document it froze; a statement
 -- has no row of its own, so it shows to the template managers.
-drop policy if exists rendered_documents_read on "better_supabase"."rendered_documents";
-create policy rendered_documents_read on "better_supabase"."rendered_documents"
+create policy bsb_rendered_documents_read on "better_supabase"."rendered_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end));
 
@@ -732,13 +710,13 @@ immutable
 set search_path = ''
 as $$
 declare
-  v_all constant jsonb := '{"invoice":{"version":1,"documentType":"invoice","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"document.dueOn","type":"date"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]},"credit_note":{"version":1,"documentType":"credit_note","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"document.dueOn","type":"date"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"},{"path":"document.originalNumber","type":"string"}]},"quote":{"version":1,"documentType":"quote","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"document.validUntil","type":"date"},{"path":"document.revision","type":"number"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]},"order":{"version":1,"documentType":"order","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"shipping","type":"object"},{"path":"shipping.address","type":"object"},{"path":"shipping.address.line1","type":"string"},{"path":"shipping.address.line2","type":"string"},{"path":"shipping.address.postalCode","type":"string"},{"path":"shipping.address.city","type":"string"},{"path":"shipping.address.region","type":"string"},{"path":"shipping.address.country","type":"string"},{"path":"shipping.carrier","type":"string"},{"path":"shipping.trackingNumber","type":"string"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]},"dunning_letter":{"version":1,"documentType":"dunning_letter","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"document.dueOn","type":"date"},{"path":"document.level","type":"number"},{"path":"document.textKey","type":"string"},{"path":"document.asOf","type":"date"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]},"delivery_note":{"version":1,"documentType":"delivery_note","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"shipping","type":"object"},{"path":"shipping.address","type":"object"},{"path":"shipping.address.line1","type":"string"},{"path":"shipping.address.line2","type":"string"},{"path":"shipping.address.postalCode","type":"string"},{"path":"shipping.address.city","type":"string"},{"path":"shipping.address.region","type":"string"},{"path":"shipping.address.country","type":"string"},{"path":"shipping.carrier","type":"string"},{"path":"shipping.trackingNumber","type":"string"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]},"statement":{"version":1,"documentType":"statement","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"document.asOf","type":"date"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]}}'::jsonb;
+  v_all constant jsonb := '{"invoice":{"version":1,"documentType":"invoice","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"document.dueOn","type":"date"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]},"credit_note":{"version":1,"documentType":"credit_note","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"document.dueOn","type":"date"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"},{"path":"document.originalNumber","type":"string"}]},"quote":{"version":1,"documentType":"quote","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"document.validUntil","type":"date"},{"path":"document.revision","type":"number"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]},"order":{"version":1,"documentType":"order","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"shipping","type":"object"},{"path":"shipping.address","type":"object"},{"path":"shipping.address.line1","type":"string"},{"path":"shipping.address.line2","type":"string"},{"path":"shipping.address.postalCode","type":"string"},{"path":"shipping.address.city","type":"string"},{"path":"shipping.address.region","type":"string"},{"path":"shipping.address.country","type":"string"},{"path":"shipping.carrier","type":"string"},{"path":"shipping.trackingNumber","type":"string"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]},"dunning_letter":{"version":1,"documentType":"dunning_letter","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"document.dueOn","type":"date"},{"path":"document.level","type":"number"},{"path":"document.textKey","type":"string"},{"path":"document.asOf","type":"date"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]},"delivery_note":{"version":1,"documentType":"delivery_note","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"shipping","type":"object"},{"path":"shipping.address","type":"object"},{"path":"shipping.address.line1","type":"string"},{"path":"shipping.address.line2","type":"string"},{"path":"shipping.address.postalCode","type":"string"},{"path":"shipping.address.city","type":"string"},{"path":"shipping.address.region","type":"string"},{"path":"shipping.address.country","type":"string"},{"path":"shipping.carrier","type":"string"},{"path":"shipping.trackingNumber","type":"string"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]},"statement":{"version":1,"documentType":"statement","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"document.asOf","type":"date"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]},"purchase_order":{"version":1,"documentType":"purchase_order","variables":[{"path":"document","type":"object"},{"path":"document.id","type":"string"},{"path":"document.type","type":"string"},{"path":"document.number","type":"string"},{"path":"document.title","type":"string"},{"path":"document.status","type":"string"},{"path":"document.date","type":"date"},{"path":"document.currency","type":"string"},{"path":"document.language","type":"string"},{"path":"document.note","type":"string"},{"path":"document.reference","type":"string"},{"path":"shipping","type":"object"},{"path":"shipping.address","type":"object"},{"path":"shipping.address.line1","type":"string"},{"path":"shipping.address.line2","type":"string"},{"path":"shipping.address.postalCode","type":"string"},{"path":"shipping.address.city","type":"string"},{"path":"shipping.address.region","type":"string"},{"path":"shipping.address.country","type":"string"},{"path":"shipping.carrier","type":"string"},{"path":"shipping.trackingNumber","type":"string"},{"path":"entity","type":"object"},{"path":"entity.id","type":"string"},{"path":"entity.code","type":"string"},{"path":"entity.name","type":"string"},{"path":"entity.address","type":"object"},{"path":"entity.address.line1","type":"string"},{"path":"entity.address.line2","type":"string"},{"path":"entity.address.postalCode","type":"string"},{"path":"entity.address.city","type":"string"},{"path":"entity.address.region","type":"string"},{"path":"entity.address.country","type":"string"},{"path":"entity.vatNumber","type":"string"},{"path":"entity.cocNumber","type":"string"},{"path":"entity.iban","type":"string"},{"path":"entity.bic","type":"string"},{"path":"entity.logoAttachmentId","type":"string"},{"path":"entity.defaultCurrency","type":"string"},{"path":"buyer","type":"object"},{"path":"buyer.id","type":"string"},{"path":"buyer.type","type":"string"},{"path":"buyer.name","type":"string"},{"path":"buyer.email","type":"string"},{"path":"buyer.vatNumber","type":"string"},{"path":"buyer.language","type":"string"},{"path":"buyer.address","type":"object"},{"path":"buyer.address.line1","type":"string"},{"path":"buyer.address.line2","type":"string"},{"path":"buyer.address.postalCode","type":"string"},{"path":"buyer.address.city","type":"string"},{"path":"buyer.address.region","type":"string"},{"path":"buyer.address.country","type":"string"},{"path":"lines","type":"list"},{"path":"lines[].position","type":"number"},{"path":"lines[].description","type":"string"},{"path":"lines[].sku","type":"string"},{"path":"lines[].reference","type":"string"},{"path":"lines[].date","type":"date"},{"path":"lines[].dueOn","type":"date"},{"path":"lines[].quantity","type":"string"},{"path":"lines[].unitAmount","type":"money"},{"path":"lines[].discountBps","type":"number"},{"path":"lines[].discountAmount","type":"money"},{"path":"lines[].taxRateBps","type":"number"},{"path":"lines[].taxCode","type":"string"},{"path":"lines[].amount","type":"money"},{"path":"tax_lines","type":"list"},{"path":"tax_lines[].taxRateBps","type":"number"},{"path":"tax_lines[].taxCode","type":"string"},{"path":"tax_lines[].net","type":"money"},{"path":"tax_lines[].tax","type":"money"},{"path":"tax_lines[].gross","type":"money"},{"path":"totals","type":"object"},{"path":"totals.listTotal","type":"money"},{"path":"totals.discountTotal","type":"money"},{"path":"totals.subtotal","type":"money"},{"path":"totals.taxTotal","type":"money"},{"path":"totals.total","type":"money"},{"path":"totals.paidTotal","type":"money"},{"path":"totals.creditedTotal","type":"money"},{"path":"totals.shippingTotal","type":"money"},{"path":"totals.fee","type":"money"},{"path":"totals.balance","type":"money"},{"path":"payment_terms","type":"object"},{"path":"payment_terms.code","type":"string"},{"path":"payment_terms.name","type":"string"},{"path":"payment_terms.days","type":"number"},{"path":"payment_terms.dueOn","type":"date"},{"path":"payment_terms.discountBps","type":"number"},{"path":"payment_terms.discountDays","type":"number"},{"path":"payment_terms.discountDueOn","type":"date"},{"path":"payment_terms.discountAmount","type":"money"},{"path":"texts","type":"object"}]}}'::jsonb;
 begin
   if document_template_contract.document_type is null then
     return v_all;
   end if;
   if not v_all ? document_template_contract.document_type then
-    raise exception 'the document type is invoice, credit_note, quote, order, dunning_letter, delivery_note, statement' using errcode = '22023', hint = 'DOCUMENT_TYPE_INVALID';
+    raise exception 'the document type is invoice, credit_note, quote, order, dunning_letter, delivery_note, statement, purchase_order' using errcode = '22023', hint = 'DOCUMENT_TYPE_INVALID';
   end if;
   return v_all -> document_template_contract.document_type;
 end;
@@ -961,8 +939,8 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_document_template.tenant, 'document_templates.manage'), false)) then
     raise exception 'not allowed to manage document templates' using errcode = '42501', hint = 'DOCUMENT_TEMPLATE_FORBIDDEN';
   end if;
-  if save_document_template.document_type is null or save_document_template.document_type not in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement') then
-    raise exception 'the document type is invoice, credit_note, quote, order, dunning_letter, delivery_note, statement' using errcode = '22023', hint = 'DOCUMENT_TYPE_INVALID';
+  if save_document_template.document_type is null or save_document_template.document_type not in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order') then
+    raise exception 'the document type is invoice, credit_note, quote, order, dunning_letter, delivery_note, statement, purchase_order' using errcode = '22023', hint = 'DOCUMENT_TYPE_INVALID';
   end if;
   if v_name !~ '^[a-z][a-z0-9_-]{0,63}$' then
     raise exception 'a template name is lower case letters, digits, _ and -, from a letter, up to 64 characters' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
@@ -1399,8 +1377,8 @@ as $$
 declare
   v_row "better_supabase"."rendered_documents"%rowtype;
 begin
-  if render_document.document_type is null or render_document.document_type not in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement') then
-    raise exception 'the document type is invoice, credit_note, quote, order, dunning_letter, delivery_note, statement' using errcode = '22023', hint = 'DOCUMENT_TYPE_INVALID';
+  if render_document.document_type is null or render_document.document_type not in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order') then
+    raise exception 'the document type is invoice, credit_note, quote, order, dunning_letter, delivery_note, statement, purchase_order' using errcode = '22023', hint = 'DOCUMENT_TYPE_INVALID';
   end if;
   if not coalesce(render_document.fresh, false) then
     select * into v_row from "better_supabase"."rendered_documents" s
@@ -1474,8 +1452,8 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', freeze_document.tenant, 'document_templates.manage'), false)) then
     raise exception 'not allowed to manage document templates' using errcode = '42501', hint = 'DOCUMENT_TEMPLATE_FORBIDDEN';
   end if;
-  if freeze_document.document_type is null or freeze_document.document_type not in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement') then
-    raise exception 'the document type is invoice, credit_note, quote, order, dunning_letter, delivery_note, statement' using errcode = '22023', hint = 'DOCUMENT_TYPE_INVALID';
+  if freeze_document.document_type is null or freeze_document.document_type not in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order') then
+    raise exception 'the document type is invoice, credit_note, quote, order, dunning_letter, delivery_note, statement, purchase_order' using errcode = '22023', hint = 'DOCUMENT_TYPE_INVALID';
   end if;
   return "better_supabase"."document_freeze"(freeze_document.tenant, freeze_document.document_type, freeze_document.document_id, freeze_document.language, freeze_document.template_name);
 end;
@@ -1494,7 +1472,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."document_snapshot_immutable"() from public, anon, authenticated;
-drop trigger if exists bsb_frozen_render_guard on "better_supabase"."rendered_documents";
 create trigger bsb_frozen_render_guard
   before update on "better_supabase"."rendered_documents"
   for each row execute function "better_supabase"."document_snapshot_immutable"();
@@ -1612,7 +1589,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."freeze_issued_invoice"() from public, anon, authenticated;
-drop trigger if exists bsb_document_freeze on "better_supabase"."invoices";
 create constraint trigger bsb_document_freeze
   after update of "status" on "better_supabase"."invoices"
   deferrable initially deferred
@@ -1620,126 +1596,95 @@ create constraint trigger bsb_document_freeze
   when (old."status" = 'draft' and new."status" not in ('draft', 'void'))
   execute function "better_supabase"."freeze_issued_invoice"();
 
+-- Seeds the rows every organization starts with for document-templates. Safe to run
+-- again: a row whose key exists is kept. It is not an entry point.
+create or replace function "better_supabase"."seed_document_templates_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if p_locale = any (array['nl']) then
+    insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
+    select p_tenant, 'letterhead', 'nl', '{{entity.name}} · KvK {{entity.cocNumber}} · BTW {{entity.vatNumber}} · IBAN {{entity.iban}}'
+    where not exists (select 1 from "better_supabase"."document_text_blocks" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'letterhead' and x."language" is not distinct from 'nl');
+  end if;
+  if p_locale = any (array['de']) then
+    insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
+    select p_tenant, 'letterhead', 'de', '{{entity.name}} · Handelsregister {{entity.cocNumber}} · USt-IdNr. {{entity.vatNumber}} · IBAN {{entity.iban}}'
+    where not exists (select 1 from "better_supabase"."document_text_blocks" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'letterhead' and x."language" is not distinct from 'de');
+  end if;
+  if p_locale = any (array['fr']) then
+    insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
+    select p_tenant, 'letterhead', 'fr', '{{entity.name}} · RCS {{entity.cocNumber}} · TVA {{entity.vatNumber}} · IBAN {{entity.iban}}'
+    where not exists (select 1 from "better_supabase"."document_text_blocks" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'letterhead' and x."language" is not distinct from 'fr');
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."seed_document_templates_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."seed_document_templates_defaults"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_templates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_select on "better_supabase"."document_templates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_templates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_update on "better_supabase"."document_templates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_templates";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_templates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."document_text_blocks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_select on "better_supabase"."document_text_blocks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_insert on "better_supabase"."document_text_blocks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_update on "better_supabase"."document_text_blocks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_text_blocks";
 create policy bsb_tenant_scope_delete on "better_supabase"."document_text_blocks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."rendered_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."rendered_documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."rendered_documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."rendered_documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rendered_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.document_templates', target_type => 'document_template', event_prefix => 'document_template', deferred => true);
-  perform better_supabase.audit('better_supabase.document_text_blocks', target_type => 'document_text_block', event_prefix => 'document_text_block', deferred => true);
-  perform better_supabase.audit('better_supabase.rendered_documents', target_type => 'document_snapshot', event_prefix => 'document_snapshot', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.document_templates deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document_template","event_prefix":"document_template"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.document_text_blocks deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document_text_block","event_prefix":"document_text_block"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.rendered_documents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document_snapshot","event_prefix":"document_snapshot"}');
 
 -- blocks.document-templates.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."import_run"()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."import_run"() $$;
-revoke execute on function "api"."import_run"() from public;
-grant execute on function "api"."import_run"() to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."document_address"(address jsonb)
 returns jsonb
@@ -1830,6 +1775,16 @@ set search_path = ''
 as $$ select "better_supabase"."document_variables_delivery_note"($1, $2) $$;
 revoke execute on function "api"."document_variables_delivery_note"(uuid, uuid) from public, anon;
 grant execute on function "api"."document_variables_delivery_note"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "api"."document_variables_purchase_order"(tenant uuid, document_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."document_variables_purchase_order"($1, $2) $$;
+revoke execute on function "api"."document_variables_purchase_order"(uuid, uuid) from public, anon;
+grant execute on function "api"."document_variables_purchase_order"(uuid, uuid) to authenticated, service_role;
 
 create or replace function "api"."document_variables_dunning_letter"(tenant uuid, document_id uuid)
 returns jsonb
@@ -2035,15 +1990,11 @@ as $$ select "better_supabase"."document_text_block_updated_at"($1) $$;
 revoke execute on function "api"."document_text_block_updated_at"(text) from public, anon, authenticated;
 grant execute on function "api"."document_text_block_updated_at"(text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create or replace function "api"."seed_document_templates_defaults"(p_tenant uuid, p_variant text default null, p_locale text default 'en')
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."seed_document_templates_defaults"($1, $2, $3) $$;
+revoke execute on function "api"."seed_document_templates_defaults"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."seed_document_templates_defaults"(uuid, text, text) to service_role;

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { BetterPostgres } from "../../src/postgres/pool.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { asUser } from "../../src/testing/as-user.ts";
 import {
   scopedSeed,
@@ -11,7 +11,7 @@ import {
 } from "../../src/testing/scope.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 afterEach(() => {
   vi.unstubAllGlobals();

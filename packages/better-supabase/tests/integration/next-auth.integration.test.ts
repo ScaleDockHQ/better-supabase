@@ -11,7 +11,7 @@ import {
 } from "vitest";
 
 import { readSession, sessionCookieName } from "../../src/auth/session.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { parseEnv } from "../../src/env/index.ts";
 import { createNext } from "../../src/next/index.ts";
 import { createServer } from "../../src/server/server.ts";
@@ -175,7 +175,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
   }
 
   function setup() {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     const server = createServer(betterSupabase, { env });
     const bsb = createNext(betterSupabase, { env, server });
     const name = sessionCookieName(url);

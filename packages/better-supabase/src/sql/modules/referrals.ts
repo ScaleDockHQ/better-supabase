@@ -79,7 +79,7 @@ const NAMES: BlockSqlNames = {
         tenant: "tenant_id",
         code: "code_id",
         referrer: "referrer_id",
-        referredUser: "referred_user_id",
+        referredUser: "referred_id",
         referredOrganization: "referred_organization_id",
         referredEmail: "referred_email",
         status: "status",

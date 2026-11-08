@@ -11,7 +11,9 @@ export default function BookPage({
 }: PageProps<"/[locale]/book/[token]">) {
   return (
     <Suspense fallback={<BookingPageSkeleton />}>
-      <BookingPage params={params} searchParams={searchParams} />
+      {Promise.all([params, searchParams]).then(([{ token }, query]) => (
+        <BookingPage token={token} query={query} />
+      ))}
     </Suspense>
   );
 }

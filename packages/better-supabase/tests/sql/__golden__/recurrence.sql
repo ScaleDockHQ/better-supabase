@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block recurrence@1 managed
--- @bsb-hash sha256:0202d01c211ad317728d341acb51fa83726f1b94ddeab31c91d1cda14c4b98f9
+-- @bsb-hash sha256:36e8caed65eddd4fa41be695f2e271e3fa1fc6f2104b5e769de51c0de661be64
 -- An RFC 5545 expander in SQL: rrule_occurrences lists the instants a rule starts in a range and rrule_next gives the first after an instant, matching the TypeScript expander in better-supabase/recurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -224,19 +224,6 @@ as $$
 $$;
 revoke execute on function better_supabase.rrule_next(text, timestamptz, text, timestamptz) from public, anon;
 grant execute on function better_supabase.rrule_next(text, timestamptz, text, timestamptz) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
@@ -255,7 +242,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block recurrence@1 managed
--- @bsb-hash sha256:0202d01c211ad317728d341acb51fa83726f1b94ddeab31c91d1cda14c4b98f9
+-- @bsb-hash sha256:36e8caed65eddd4fa41be695f2e271e3fa1fc6f2104b5e769de51c0de661be64
 -- An RFC 5545 expander in SQL: rrule_occurrences lists the instants a rule starts in a range and rrule_next gives the first after an instant, matching the TypeScript expander in better-supabase/recurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -478,19 +465,6 @@ as $$
 $$;
 revoke execute on function better_supabase.rrule_next(text, timestamptz, text, timestamptz) from public, anon;
 grant execute on function better_supabase.rrule_next(text, timestamptz, text, timestamptz) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
@@ -509,7 +483,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block recurrence@1 managed
--- @bsb-hash sha256:0202d01c211ad317728d341acb51fa83726f1b94ddeab31c91d1cda14c4b98f9
+-- @bsb-hash sha256:36e8caed65eddd4fa41be695f2e271e3fa1fc6f2104b5e769de51c0de661be64
 -- An RFC 5545 expander in SQL: rrule_occurrences lists the instants a rule starts in a range and rrule_next gives the first after an instant, matching the TypeScript expander in better-supabase/recurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -733,19 +707,6 @@ $$;
 revoke execute on function better_supabase.rrule_next(text, timestamptz, text, timestamptz) from public, anon;
 grant execute on function better_supabase.rrule_next(text, timestamptz, text, timestamptz) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block-data recurrence
@@ -763,7 +724,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence
 -- @bsb-block recurrence@1 managed
--- @bsb-hash sha256:f6c859c2d6ac7912323cbb94d11d6413dbfbf32336791589c8a8732074b7880d
+-- @bsb-hash sha256:89db11a1e1579192a2f67dcfd262318c8cd418f37a695c32ea047d5066dbb7b5
 -- An RFC 5545 expander in SQL: rrule_occurrences lists the instants a rule starts in a range and rrule_next gives the first after an instant, matching the TypeScript expander in better-supabase/recurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1010,19 +971,6 @@ set search_path = ''
 as $$ select "better_supabase"."rrule_next"($1, $2, $3, $4) $$;
 revoke execute on function "api"."rrule_next"(text, timestamptz, text, timestamptz) from public, anon;
 grant execute on function "api"."rrule_next"(text, timestamptz, text, timestamptz) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_174_recurrence.sql
 -- better-supabase module: recurrence

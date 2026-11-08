@@ -206,7 +206,7 @@ describe.skipIf(!live)("leave", () => {
       ).toEqual(["accrual 25", "taken -5", "taken 5"]);
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type like 'leave_request.%' order by position",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and type like 'leave_request.%' order by position",
         [tenant],
       );
 

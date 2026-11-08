@@ -32,7 +32,9 @@ export default function WorkflowRunPage({
         {t("All runs")}
       </Link>
       <Suspense fallback={<WorkflowRunDetailSkeleton />}>
-        <WorkflowRunDetail params={params} />
+        {params.then(({ run }) => (
+          <WorkflowRunDetail run={run} />
+        ))}
       </Suspense>
     </>
   );

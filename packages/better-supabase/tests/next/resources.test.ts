@@ -2,7 +2,7 @@ import { NextRequest } from "next/server.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createNext, defineAction } from "../../src/next/index.ts";
 import { resourceRoutes } from "../../src/next/resources.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -65,7 +65,7 @@ describe("bsb.resources()", () => {
         : { outcome: "approval-required", approval: { id: "apr_9" } },
   });
 
-  const bsb = createNext(defineSupabase(schema), {
+  const bsb = createNext(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     authorizer,

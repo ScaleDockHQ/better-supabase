@@ -1,114 +1,46 @@
 -- ==== schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:139ad5744c9f1db41930708ed73565a690934437a7bbe5f0f43edfe4551bca2b
+-- @bsb-hash sha256:55c4e675bc810fa9388b66d738b2dd2316a051674b134e5329c4d9dd88b8e4f0
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."sla_policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_policies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."sla_escalations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_escalations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_escalations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_escalations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_escalations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_clocks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_clocks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_clocks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_clocks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Service levels on any record: response and resolution clocks from a
 -- policy per record type and priority, in business hours, paused while the
 -- record waits, with warnings and breaches recorded by a job.
-create table if not exists "better_supabase"."sla_policies" (
+create table "better_supabase"."sla_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null constraint bsb_sla_policies_name_check check (length("name") >= 1 and length("name") <= 200),
   "priority" text,
-  "first_response_minutes" integer check ("first_response_minutes" > 0),
-  "next_response_minutes" integer check ("next_response_minutes" > 0),
-  "resolution_minutes" integer check ("resolution_minutes" > 0),
-  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" between 1 and 99),
+  "first_response_minutes" integer constraint bsb_sla_policies_first_response_minutes_check check ("first_response_minutes" > 0),
+  "next_response_minutes" integer constraint bsb_sla_policies_next_response_minutes_check check ("next_response_minutes" > 0),
+  "resolution_minutes" integer constraint bsb_sla_policies_resolution_minutes_check check ("resolution_minutes" > 0),
+  "warn_at_percent" smallint not null default 80 constraint bsb_sla_policies_warn_at_percent_check check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
   "business_hours" boolean not null default false,
-  "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
+  "escalations" jsonb not null default '[]'::jsonb constraint bsb_sla_policies_escalations_check check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."sla_policies" add column if not exists "app_note" text;
-create unique index if not exists sla_policies_match_idx on "better_supabase"."sla_policies" ("tenant_id", "subject_type", coalesce("priority", '')) where "archived_at" is null;
+create unique index sla_policies_match_idx on "better_supabase"."sla_policies" ("tenant_id", "subject_type", coalesce("priority", '')) where "archived_at" is null;
 alter table "better_supabase"."sla_policies" enable row level security;
 revoke all on "better_supabase"."sla_policies" from public, anon, authenticated;
 grant select on "better_supabase"."sla_policies" to authenticated;
 grant all on "better_supabase"."sla_policies" to service_role;
-drop policy if exists sla_policies_read on "better_supabase"."sla_policies";
-create policy sla_policies_read on "better_supabase"."sla_policies"
+create policy bsb_sla_policies_read on "better_supabase"."sla_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
-create table if not exists "better_supabase"."sla_clocks" (
+create table "better_supabase"."sla_clocks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
   "policy_id" uuid references "better_supabase"."sla_policies" ("id") on delete set null,
-  "metric" text not null check ("metric" in ('first_response', 'next_response', 'resolution')),
+  "metric" text not null constraint bsb_sla_clocks_metric_check check ("metric" in ('first_response', 'next_response', 'resolution')),
   "started_at" timestamptz not null,
   "due_at" timestamptz not null,
   "paused_at" timestamptz,
@@ -118,21 +50,21 @@ create table if not exists "better_supabase"."sla_clocks" (
   "met_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists sla_clocks_open_idx on "better_supabase"."sla_clocks" ("subject_type", "subject_id", "metric") where "met_at" is null;
-create index if not exists sla_clocks_due_idx on "better_supabase"."sla_clocks" ("due_at") where "met_at" is null and "paused_at" is null;
-create index if not exists sla_clocks_policy_idx on "better_supabase"."sla_clocks" ("policy_id");
+create unique index sla_clocks_open_idx on "better_supabase"."sla_clocks" ("subject_type", "subject_id", "metric") where "met_at" is null;
+create index sla_clocks_due_idx on "better_supabase"."sla_clocks" ("due_at") where "met_at" is null and "paused_at" is null;
+create index sla_clocks_policy_idx on "better_supabase"."sla_clocks" ("policy_id");
 alter table "better_supabase"."sla_clocks" enable row level security;
 revoke all on "better_supabase"."sla_clocks" from public, anon, authenticated;
 grant select on "better_supabase"."sla_clocks" to authenticated;
 grant all on "better_supabase"."sla_clocks" to service_role;
 
 -- One row per fired ladder step, so a step runs once per clock.
-create table if not exists "better_supabase"."sla_escalations" (
+create table "better_supabase"."sla_escalations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "clock_id" uuid not null references "better_supabase"."sla_clocks" ("id") on delete cascade,
   "at_percent" integer not null,
-  "action" text not null check ("action" in ('notify', 'reassign', 'page')),
+  "action" text not null constraint bsb_sla_escalations_action_check check ("action" in ('notify', 'reassign', 'page')),
   "target" text,
   "result" text not null,
   "fired_at" timestamptz not null default now(),
@@ -142,13 +74,11 @@ alter table "better_supabase"."sla_escalations" enable row level security;
 revoke all on "better_supabase"."sla_escalations" from public, anon, authenticated;
 grant select on "better_supabase"."sla_escalations" to authenticated;
 grant all on "better_supabase"."sla_escalations" to service_role;
-drop policy if exists sla_escalations_read on "better_supabase"."sla_escalations";
-create policy sla_escalations_read on "better_supabase"."sla_escalations"
+create policy bsb_sla_escalations_read on "better_supabase"."sla_escalations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
-drop policy if exists sla_clocks_read on "better_supabase"."sla_clocks";
-create policy sla_clocks_read on "better_supabase"."sla_clocks"
+create policy bsb_sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -483,94 +413,54 @@ grant execute on function "better_supabase"."check_sla_clocks"() to service_role
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."sla_policies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_policies";
 create policy bsb_tenant_scope_select on "better_supabase"."sla_policies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_policies";
 create policy bsb_tenant_scope_insert on "better_supabase"."sla_policies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_policies";
 create policy bsb_tenant_scope_update on "better_supabase"."sla_policies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_policies";
 create policy bsb_tenant_scope_delete on "better_supabase"."sla_policies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."sla_escalations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_escalations";
 create policy bsb_tenant_scope_select on "better_supabase"."sla_escalations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_escalations";
 create policy bsb_tenant_scope_insert on "better_supabase"."sla_escalations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_escalations";
 create policy bsb_tenant_scope_update on "better_supabase"."sla_escalations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_escalations";
 create policy bsb_tenant_scope_delete on "better_supabase"."sla_escalations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."sla_clocks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."sla_clocks";
 create policy bsb_tenant_scope_select on "better_supabase"."sla_clocks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sla_clocks";
 create policy bsb_tenant_scope_insert on "better_supabase"."sla_clocks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."sla_clocks";
 create policy bsb_tenant_scope_update on "better_supabase"."sla_clocks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sla_clocks";
 create policy bsb_tenant_scope_delete on "better_supabase"."sla_clocks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_099_sla.sql
 -- better-supabase module: sla

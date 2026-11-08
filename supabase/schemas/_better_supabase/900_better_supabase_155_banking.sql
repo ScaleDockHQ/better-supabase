@@ -1,120 +1,22 @@
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:023d39d3ed1f01e6b7ac82ab28d3456af4e3d567e91370476469fd412046c54b
+-- @bsb-hash sha256:6807a81606a9167c39e263b5f302c059abff2463e7e17aa88f11dcadc7d9bb79
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."bank_accounts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bank_accounts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bank_accounts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bank_accounts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bank_accounts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."bank_rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bank_rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bank_rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bank_rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bank_rules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."bank_statements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bank_statements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bank_statements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bank_statements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bank_statements";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."bank_transactions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bank_transactions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bank_transactions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bank_transactions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bank_transactions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."bank_matches";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."bank_matches";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bank_matches";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."bank_matches";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bank_matches";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payment_batches";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_batches";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_batches";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_batches";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_batches";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."payment_batch_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_batch_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_batch_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_batch_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_batch_items";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Banking per organization: bank accounts, imported statements and their
 -- transactions, matches to invoices, expense reports and accounting entries,
 -- bank rules that book or set aside what they match, and reconciliation.
 
-create table if not exists "better_supabase"."bank_accounts" (
+create table "better_supabase"."bank_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null constraint bsb_bank_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
   -- Upper case without spaces; save_bank_account checks the ISO 13616 digits.
-  "iban" text check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
-  "bic" text check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "iban" text constraint bsb_bank_accounts_iban_check check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
+  "bic" text constraint bsb_bank_accounts_bic_check check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
+  "currency" char(3) not null constraint bsb_bank_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   -- The accounting journal the account's money moves through.
   "journal_id" uuid references "better_supabase"."accounting_journals" ("id") on delete set null,
   "archived_at" timestamptz,
@@ -122,22 +24,21 @@ create table if not exists "better_supabase"."bank_accounts" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create unique index if not exists "bank_accounts_iban_key" on "better_supabase"."bank_accounts" ("tenant_id", "iban") where "iban" is not null;
-create index if not exists "bank_accounts_tenant_idx" on "better_supabase"."bank_accounts" ("tenant_id", "name");
-create index if not exists "bank_accounts_journal_idx" on "better_supabase"."bank_accounts" ("journal_id") where "journal_id" is not null;
+create unique index "bank_accounts_iban_key" on "better_supabase"."bank_accounts" ("tenant_id", "iban") where "iban" is not null;
+create index "bank_accounts_tenant_idx" on "better_supabase"."bank_accounts" ("tenant_id", "name");
+create index "bank_accounts_journal_idx" on "better_supabase"."bank_accounts" ("journal_id") where "journal_id" is not null;
 alter table "better_supabase"."bank_accounts" enable row level security;
 revoke all on "better_supabase"."bank_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."bank_accounts" to authenticated;
 grant all on "better_supabase"."bank_accounts" to service_role;
-drop policy if exists bank_accounts_read on "better_supabase"."bank_accounts";
-create policy bank_accounts_read on "better_supabase"."bank_accounts"
+create policy bsb_bank_accounts_read on "better_supabase"."bank_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 
-create table if not exists "better_supabase"."bank_rules" (
+create table "better_supabase"."bank_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 200),
+  "name" text not null constraint bsb_bank_rules_name_check check (length("name") >= 1 and length("name") <= 200),
   -- A filter tree (ADR 0046) over the transaction: amount, currency,
   -- counterpartyName, counterpartyIban, remittance and the rest.
   "conditions" jsonb not null default '{"type":"group","combinator":"and","rules":[]}'::jsonb,
@@ -146,7 +47,7 @@ create table if not exists "better_supabase"."bank_rules" (
   "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The party the booked line carries.
   "party_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_bank_rules_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   -- Lower runs first.
   "priority" integer not null default 100,
   "active" boolean not null default true,
@@ -154,50 +55,48 @@ create table if not exists "better_supabase"."bank_rules" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "bank_rules_tenant_idx" on "better_supabase"."bank_rules" ("tenant_id", "priority") where "active";
-create index if not exists "bank_rules_account_idx" on "better_supabase"."bank_rules" ("account_id") where "account_id" is not null;
+create index "bank_rules_tenant_idx" on "better_supabase"."bank_rules" ("tenant_id", "priority") where "active";
+create index "bank_rules_account_idx" on "better_supabase"."bank_rules" ("account_id") where "account_id" is not null;
 alter table "better_supabase"."bank_rules" enable row level security;
 revoke all on "better_supabase"."bank_rules" from public, anon, authenticated;
 grant select on "better_supabase"."bank_rules" to authenticated;
 grant all on "better_supabase"."bank_rules" to service_role;
-drop policy if exists bank_rules_read on "better_supabase"."bank_rules";
-create policy bank_rules_read on "better_supabase"."bank_rules"
+create policy bsb_bank_rules_read on "better_supabase"."bank_rules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 
-create table if not exists "better_supabase"."bank_statements" (
+create table "better_supabase"."bank_statements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "account_id" uuid not null,
   -- The bank's statement id; an import with the same reference adds to it.
-  "reference" text check ("reference" is null or length("reference") between 1 and 200),
+  "reference" text constraint bsb_bank_statements_reference_check check ("reference" is null or length("reference") >= 1 and length("reference") <= 200),
   "from_on" date,
   "until_on" date,
   -- Minor units of the account's currency.
   "opening_balance" bigint,
   "closing_balance" bigint,
-  "format" text not null check ("format" in ('camt053', 'mt940', 'csv', 'feed')),
+  "format" text not null constraint bsb_bank_statements_format_check check ("format" in ('camt053', 'mt940', 'csv', 'feed')),
   -- The file it was read from.
   "attachment_id" uuid references "better_supabase"."attachments" ("id") on delete set null,
   "imported_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("from_on" is null or "until_on" is null or "from_on" <= "until_on"),
+  constraint bsb_bank_statements_check check ("from_on" is null or "until_on" is null or "from_on" <= "until_on"),
   foreign key ("tenant_id", "account_id") references "better_supabase"."bank_accounts" ("tenant_id", "id") on delete cascade
 );
-create unique index if not exists "bank_statements_reference_key" on "better_supabase"."bank_statements" ("account_id", "reference") where "reference" is not null;
-create index if not exists "bank_statements_parent_idx" on "better_supabase"."bank_statements" ("tenant_id", "account_id", "until_on");
-create index if not exists "bank_statements_attachment_idx" on "better_supabase"."bank_statements" ("attachment_id") where "attachment_id" is not null;
+create unique index "bank_statements_reference_key" on "better_supabase"."bank_statements" ("account_id", "reference") where "reference" is not null;
+create index "bank_statements_parent_idx" on "better_supabase"."bank_statements" ("tenant_id", "account_id", "until_on");
+create index "bank_statements_attachment_idx" on "better_supabase"."bank_statements" ("attachment_id") where "attachment_id" is not null;
 alter table "better_supabase"."bank_statements" enable row level security;
 revoke all on "better_supabase"."bank_statements" from public, anon, authenticated;
 grant select on "better_supabase"."bank_statements" to authenticated;
 grant all on "better_supabase"."bank_statements" to service_role;
-drop policy if exists bank_statements_read on "better_supabase"."bank_statements";
-create policy bank_statements_read on "better_supabase"."bank_statements"
+create policy bsb_bank_statements_read on "better_supabase"."bank_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 
-create table if not exists "better_supabase"."bank_transactions" (
+create table "better_supabase"."bank_transactions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "account_id" uuid not null,
@@ -205,19 +104,19 @@ create table if not exists "better_supabase"."bank_transactions" (
   "booked_on" date not null,
   "value_on" date,
   -- Minor units, negative for money out.
-  "amount" bigint not null check ("amount" <> 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "counterparty_name" text check ("counterparty_name" is null or length("counterparty_name") <= 500),
-  "counterparty_iban" text check ("counterparty_iban" is null or length("counterparty_iban") <= 34),
+  "amount" bigint not null constraint bsb_bank_transactions_amount_check check ("amount" <> 0),
+  "currency" char(3) not null constraint bsb_bank_transactions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "counterparty_name" text constraint bsb_bank_transactions_counterparty_name_check check ("counterparty_name" is null or length("counterparty_name") <= 500),
+  "counterparty_iban" text constraint bsb_bank_transactions_counterparty_iban_check check ("counterparty_iban" is null or length("counterparty_iban") <= 34),
   -- The unstructured remittance information.
-  "remittance" text check ("remittance" is null or length("remittance") <= 2000),
+  "remittance" text constraint bsb_bank_transactions_remittance_check check ("remittance" is null or length("remittance") <= 2000),
   -- An ISO 11649 RF creditor reference or a national one, such as a Dutch
   -- betalingskenmerk.
-  "structured_reference" text check ("structured_reference" is null or length("structured_reference") <= 100),
-  "end_to_end_id" text check ("end_to_end_id" is null or length("end_to_end_id") <= 100),
+  "structured_reference" text constraint bsb_bank_transactions_structured_reference_check check ("structured_reference" is null or length("structured_reference") <= 100),
+  "end_to_end_id" text constraint bsb_bank_transactions_end_to_end_id_check check ("end_to_end_id" is null or length("end_to_end_id") <= 100),
   -- The bank's id of the entry; importing it again adds nothing.
-  "external_id" text not null check (length("external_id") between 1 and 200),
-  "status" text not null default 'unmatched' check ("status" in ('unmatched', 'matched', 'ignored')),
+  "external_id" text not null constraint bsb_bank_transactions_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "status" text not null default 'unmatched' constraint bsb_bank_transactions_status_check check ("status" in ('unmatched', 'matched', 'ignored')),
   -- The bank rule that matched or ignored it.
   "rule_id" uuid,
   "matched_at" timestamptz,
@@ -230,59 +129,57 @@ create table if not exists "better_supabase"."bank_transactions" (
   foreign key ("tenant_id", "statement_id") references "better_supabase"."bank_statements" ("tenant_id", "id") on delete set null ("statement_id"),
   foreign key ("tenant_id", "rule_id") references "better_supabase"."bank_rules" ("tenant_id", "id") on delete set null ("rule_id")
 );
-create index if not exists "bank_transactions_parent_idx" on "better_supabase"."bank_transactions" ("tenant_id", "account_id", "booked_on");
-create index if not exists "bank_transactions_status_idx" on "better_supabase"."bank_transactions" ("tenant_id", "status", "booked_on");
-create index if not exists "bank_transactions_statement_idx" on "better_supabase"."bank_transactions" ("tenant_id", "statement_id") where "statement_id" is not null;
-create index if not exists "bank_transactions_rule_idx" on "better_supabase"."bank_transactions" ("tenant_id", "rule_id") where "rule_id" is not null;
-create index if not exists "bank_transactions_iban_idx" on "better_supabase"."bank_transactions" ("tenant_id", "counterparty_iban") where "counterparty_iban" is not null;
+create index "bank_transactions_parent_idx" on "better_supabase"."bank_transactions" ("tenant_id", "account_id", "booked_on");
+create index "bank_transactions_status_idx" on "better_supabase"."bank_transactions" ("tenant_id", "status", "booked_on");
+create index "bank_transactions_statement_idx" on "better_supabase"."bank_transactions" ("tenant_id", "statement_id") where "statement_id" is not null;
+create index "bank_transactions_rule_idx" on "better_supabase"."bank_transactions" ("tenant_id", "rule_id") where "rule_id" is not null;
+create index "bank_transactions_iban_idx" on "better_supabase"."bank_transactions" ("tenant_id", "counterparty_iban") where "counterparty_iban" is not null;
 alter table "better_supabase"."bank_transactions" enable row level security;
 revoke all on "better_supabase"."bank_transactions" from public, anon, authenticated;
 grant select on "better_supabase"."bank_transactions" to authenticated;
 grant all on "better_supabase"."bank_transactions" to service_role;
-drop policy if exists bank_transactions_read on "better_supabase"."bank_transactions";
-create policy bank_transactions_read on "better_supabase"."bank_transactions"
+create policy bsb_bank_transactions_read on "better_supabase"."bank_transactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 
-create table if not exists "better_supabase"."bank_matches" (
+create table "better_supabase"."bank_matches" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "transaction_id" uuid not null,
-  "target_type" text not null check ("target_type" in ('invoice', 'accounting_entry', 'expense_report', 'payment_batch')),
+  "target_type" text not null constraint bsb_bank_matches_target_type_check check ("target_type" in ('invoice', 'accounting_entry', 'expense_report', 'payment_batch')),
   "target_id" uuid not null,
   -- Minor units with the transaction's sign; a transaction's matches add up to
   -- its amount.
-  "amount" bigint not null check ("amount" <> 0),
+  "amount" bigint not null constraint bsb_bank_matches_amount_check check ("amount" <> 0),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   foreign key ("tenant_id", "transaction_id") references "better_supabase"."bank_transactions" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "bank_matches_parent_idx" on "better_supabase"."bank_matches" ("tenant_id", "transaction_id");
-create index if not exists "bank_matches_target_idx" on "better_supabase"."bank_matches" ("target_type", "target_id");
+create index "bank_matches_parent_idx" on "better_supabase"."bank_matches" ("tenant_id", "transaction_id");
+create index "bank_matches_target_idx" on "better_supabase"."bank_matches" ("target_type", "target_id");
 alter table "better_supabase"."bank_matches" enable row level security;
 revoke all on "better_supabase"."bank_matches" from public, anon, authenticated;
 grant select on "better_supabase"."bank_matches" to authenticated;
 grant all on "better_supabase"."bank_matches" to service_role;
-drop policy if exists bank_matches_read on "better_supabase"."bank_matches";
-create policy bank_matches_read on "better_supabase"."bank_matches"
+create policy bsb_bank_matches_read on "better_supabase"."bank_matches"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 
 
-create table if not exists "better_supabase"."payment_batches" (
+create table "better_supabase"."payment_batches" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "bank_account_id" uuid not null,
-  "reference" text not null check (length("reference") between 1 and 200),
+  "reference" text not null constraint bsb_payment_batches_reference_check check (length("reference") >= 1 and length("reference") <= 200),
   -- The SEPA MsgId of the file: at most 35 characters.
-  "message_id" text not null check (length("message_id") between 1 and 35),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "message_id" text not null constraint bsb_payment_batches_message_id_check check (length("message_id") >= 1 and length("message_id") <= 35),
+  "currency" char(3) not null constraint bsb_payment_batches_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "due_by" date not null,
   "execution_on" date not null,
   -- Minor units paid out: the bills' balances less the discounts taken.
-  "total" bigint not null check ("total" > 0),
-  "item_count" integer not null check ("item_count" > 0),
-  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reconciled', 'cancelled')),
+  "total" bigint not null constraint bsb_payment_batches_total_check check ("total" > 0),
+  "item_count" integer not null constraint bsb_payment_batches_item_count_check check ("item_count" > 0),
+  "status" text not null default 'draft' constraint bsb_payment_batches_status_check check ("status" in ('draft', 'posted', 'reconciled', 'cancelled')),
   -- The bank transaction that reconciled it.
   "bank_transaction_id" uuid,
   "created_by" uuid,
@@ -294,47 +191,45 @@ create table if not exists "better_supabase"."payment_batches" (
   foreign key ("tenant_id", "bank_account_id") references "better_supabase"."bank_accounts" ("tenant_id", "id") on delete restrict,
   foreign key ("tenant_id", "bank_transaction_id") references "better_supabase"."bank_transactions" ("tenant_id", "id") on delete set null ("bank_transaction_id")
 );
-create index if not exists "payment_batches_tenant_idx" on "better_supabase"."payment_batches" ("tenant_id", "status", "created_at");
-create index if not exists "payment_batches_account_idx" on "better_supabase"."payment_batches" ("tenant_id", "bank_account_id");
-create index if not exists "payment_batches_transaction_idx" on "better_supabase"."payment_batches" ("tenant_id", "bank_transaction_id");
+create index "payment_batches_tenant_idx" on "better_supabase"."payment_batches" ("tenant_id", "status", "created_at");
+create index "payment_batches_account_idx" on "better_supabase"."payment_batches" ("tenant_id", "bank_account_id");
+create index "payment_batches_transaction_idx" on "better_supabase"."payment_batches" ("tenant_id", "bank_transaction_id");
 alter table "better_supabase"."payment_batches" enable row level security;
 revoke all on "better_supabase"."payment_batches" from public, anon, authenticated;
 grant select on "better_supabase"."payment_batches" to authenticated;
 grant all on "better_supabase"."payment_batches" to service_role;
-drop policy if exists payment_batches_read on "better_supabase"."payment_batches";
-create policy payment_batches_read on "better_supabase"."payment_batches"
+create policy bsb_payment_batches_read on "better_supabase"."payment_batches"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 
-create table if not exists "better_supabase"."payment_batch_items" (
+create table "better_supabase"."payment_batch_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "batch_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete restrict,
   "party_id" text not null,
-  "creditor_name" text not null check (length("creditor_name") between 1 and 140),
-  "creditor_iban" text not null check ("creditor_iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
-  "creditor_bic" text check ("creditor_bic" is null or "creditor_bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
+  "creditor_name" text not null constraint bsb_payment_batch_items_creditor_name_check check (length("creditor_name") >= 1 and length("creditor_name") <= 140),
+  "creditor_iban" text not null constraint bsb_payment_batch_items_creditor_iban_check check ("creditor_iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
+  "creditor_bic" text constraint bsb_payment_batch_items_creditor_bic_check check ("creditor_bic" is null or "creditor_bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
   -- Minor units paid for the bill, and the early payment discount it takes.
-  "amount" bigint not null check ("amount" > 0),
-  "discount" bigint not null default 0 check ("discount" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null constraint bsb_payment_batch_items_amount_check check ("amount" > 0),
+  "discount" bigint not null default 0 constraint bsb_payment_batch_items_discount_check check ("discount" >= 0),
+  "currency" char(3) not null constraint bsb_payment_batch_items_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   -- The SEPA EndToEndId: at most 35 characters.
-  "end_to_end_id" text not null check (length("end_to_end_id") between 1 and 35),
-  "remittance" text check ("remittance" is null or length("remittance") <= 140),
-  "status" text not null default 'open' check ("status" in ('open', 'posted', 'paid', 'cancelled')),
+  "end_to_end_id" text not null constraint bsb_payment_batch_items_end_to_end_id_check check (length("end_to_end_id") >= 1 and length("end_to_end_id") <= 35),
+  "remittance" text constraint bsb_payment_batch_items_remittance_check check ("remittance" is null or length("remittance") <= 140),
+  "status" text not null default 'open' constraint bsb_payment_batch_items_status_check check ("status" in ('open', 'posted', 'paid', 'cancelled')),
   foreign key ("tenant_id", "batch_id") references "better_supabase"."payment_batches" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "payment_batch_items_parent_idx" on "better_supabase"."payment_batch_items" ("tenant_id", "batch_id");
+create index "payment_batch_items_parent_idx" on "better_supabase"."payment_batch_items" ("tenant_id", "batch_id");
 -- A bill sits in at most one live batch.
-create index if not exists "payment_batch_items_invoice_idx" on "better_supabase"."payment_batch_items" ("invoice_id");
-create unique index if not exists "payment_batch_items_invoice_key" on "better_supabase"."payment_batch_items" ("invoice_id") where "status" in ('open', 'posted');
+create index "payment_batch_items_invoice_idx" on "better_supabase"."payment_batch_items" ("invoice_id");
+create unique index "payment_batch_items_invoice_key" on "better_supabase"."payment_batch_items" ("invoice_id") where "status" in ('open', 'posted');
 alter table "better_supabase"."payment_batch_items" enable row level security;
 revoke all on "better_supabase"."payment_batch_items" from public, anon, authenticated;
 grant select on "better_supabase"."payment_batch_items" to authenticated;
 grant all on "better_supabase"."payment_batch_items" to service_role;
-drop policy if exists payment_batch_items_read on "better_supabase"."payment_batch_items";
-create policy payment_batch_items_read on "better_supabase"."payment_batch_items"
+create policy bsb_payment_batch_items_read on "better_supabase"."payment_batch_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 
@@ -1725,199 +1620,129 @@ revoke execute on function "better_supabase"."accounting_bank_transaction_lines"
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."bank_accounts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."bank_accounts";
 create policy bsb_tenant_scope_select on "better_supabase"."bank_accounts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bank_accounts";
 create policy bsb_tenant_scope_insert on "better_supabase"."bank_accounts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."bank_accounts";
 create policy bsb_tenant_scope_update on "better_supabase"."bank_accounts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bank_accounts";
 create policy bsb_tenant_scope_delete on "better_supabase"."bank_accounts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."bank_rules";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."bank_rules";
 create policy bsb_tenant_scope_select on "better_supabase"."bank_rules" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bank_rules";
 create policy bsb_tenant_scope_insert on "better_supabase"."bank_rules" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."bank_rules";
 create policy bsb_tenant_scope_update on "better_supabase"."bank_rules" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bank_rules";
 create policy bsb_tenant_scope_delete on "better_supabase"."bank_rules" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."bank_statements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."bank_statements";
 create policy bsb_tenant_scope_select on "better_supabase"."bank_statements" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bank_statements";
 create policy bsb_tenant_scope_insert on "better_supabase"."bank_statements" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."bank_statements";
 create policy bsb_tenant_scope_update on "better_supabase"."bank_statements" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bank_statements";
 create policy bsb_tenant_scope_delete on "better_supabase"."bank_statements" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."bank_transactions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."bank_transactions";
 create policy bsb_tenant_scope_select on "better_supabase"."bank_transactions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bank_transactions";
 create policy bsb_tenant_scope_insert on "better_supabase"."bank_transactions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."bank_transactions";
 create policy bsb_tenant_scope_update on "better_supabase"."bank_transactions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bank_transactions";
 create policy bsb_tenant_scope_delete on "better_supabase"."bank_transactions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."bank_matches";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."bank_matches";
 create policy bsb_tenant_scope_select on "better_supabase"."bank_matches" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."bank_matches";
 create policy bsb_tenant_scope_insert on "better_supabase"."bank_matches" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."bank_matches";
 create policy bsb_tenant_scope_update on "better_supabase"."bank_matches" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."bank_matches";
 create policy bsb_tenant_scope_delete on "better_supabase"."bank_matches" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payment_batches";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_batches";
 create policy bsb_tenant_scope_select on "better_supabase"."payment_batches" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_batches";
 create policy bsb_tenant_scope_insert on "better_supabase"."payment_batches" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_batches";
 create policy bsb_tenant_scope_update on "better_supabase"."payment_batches" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_batches";
 create policy bsb_tenant_scope_delete on "better_supabase"."payment_batches" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."payment_batch_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."payment_batch_items";
 create policy bsb_tenant_scope_select on "better_supabase"."payment_batch_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."payment_batch_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."payment_batch_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."payment_batch_items";
 create policy bsb_tenant_scope_update on "better_supabase"."payment_batch_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."payment_batch_items";
 create policy bsb_tenant_scope_delete on "better_supabase"."payment_batch_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.bank_transactions', target_type => 'bank_transaction', event_prefix => 'bank_transaction', deferred => true);
-  perform better_supabase.audit('better_supabase.bank_accounts', target_type => 'bank_account', event_prefix => 'bank_account', deferred => true);
-  perform better_supabase.audit('better_supabase.bank_statements', target_type => 'bank_statement', event_prefix => 'bank_statement', deferred => true);
-  perform better_supabase.audit('better_supabase.bank_matches', target_type => 'bank_match', event_prefix => 'bank_match', deferred => true);
-  perform better_supabase.audit('better_supabase.bank_rules', target_type => 'bank_rule', event_prefix => 'bank_rule', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_transactions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_transaction","event_prefix":"bank_transaction"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_accounts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_account","event_prefix":"bank_account"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_statements deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_statement","event_prefix":"bank_statement"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_matches deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_match","event_prefix":"bank_match"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_rules deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_rule","event_prefix":"bank_rule"}');
 
 -- blocks.banking.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."save_bank_account"(tenant uuid, input jsonb, account_id uuid default null)
 returns jsonb
@@ -2117,16 +1942,3 @@ set search_path = ''
 as $$ select "better_supabase"."bank_reconciliation_board"($1, $2) $$;
 revoke execute on function "api"."bank_reconciliation_board"(uuid, integer) from public, anon;
 grant execute on function "api"."bank_reconciliation_board"(uuid, integer) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

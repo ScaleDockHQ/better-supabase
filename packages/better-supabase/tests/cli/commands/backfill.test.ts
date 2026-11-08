@@ -181,7 +181,7 @@ describe("db backfill", () => {
     });
     expect(lines).toHaveLength(3);
     expect(lines.at(-1)).toContain("2012 rows");
-    expect(result.output).toContain("doctor --fix");
+    expect(result.output).toContain("doctor --yes");
     expect(open.closed()).toBe(1);
   });
 

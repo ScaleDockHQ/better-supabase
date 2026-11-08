@@ -1,5 +1,5 @@
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { AnyCommand, CliValues } from "../core/command.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 
@@ -11,7 +11,7 @@ import { plain } from "../style.ts";
 
 const MIGRATE_ARGS = {} as const;
 
-export type MigrateSchemaFirstArgs = CliArgs<
+export type MigrateSchemaFirstOptions = CliValues<
   typeof MIGRATE_ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
 >;
 
@@ -29,7 +29,7 @@ export interface MigrateDeps {
  */
 async function runMigrateSchemaFirst(
   config: ResolvedConfig,
-  args: MigrateSchemaFirstArgs,
+  args: MigrateSchemaFirstOptions,
   deps: MigrateDeps = {},
 ): Promise<CommandResult> {
   const built = await appTablePlan(

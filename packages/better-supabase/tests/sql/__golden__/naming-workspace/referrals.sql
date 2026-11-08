@@ -1,112 +1,53 @@
 -- ==== schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:ac489f559b0e5cb226ee2aff753091a46188fb3f45417b257d0494b506e4ee92
+-- @bsb-hash sha256:18bdb3a06d81c2230eeb67a3e9db2bf22919c4502cccc689c722fb9d3ad0b9b0
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."referral_codes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referral_codes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."referrals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referrals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Referral codes and the referrals they bring. A code belongs to the member who
 -- shares it, optionally to one invitation. Rewards are bigint minor units of a
 -- ledger unit, posted once per referral.
-create table if not exists "better_supabase"."referral_codes" (
+create table "better_supabase"."referral_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9]{4,32}$'),
+  "code" text not null constraint bsb_referral_codes_code_check check ("code" ~ '^[A-Z0-9]{4,32}$'),
   "referrer_id" uuid not null,
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") between 1 and 32),
-  "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referral_codes_reward_amount_check check ("reward_amount" >= 0),
+  "reward_unit" text constraint bsb_referral_codes_reward_unit_check check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
+  "max_uses" integer constraint bsb_referral_codes_max_uses_check check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
   unique ("tenant_id", "id"),
-  check ("reward_amount" = 0 or "reward_unit" is not null)
+  constraint bsb_referral_codes_check check ("reward_amount" = 0 or "reward_unit" is not null)
 );
-create index if not exists referral_codes_referrer_idx on "better_supabase"."referral_codes" ("tenant_id", "referrer_id");
-create unique index if not exists referral_codes_invitation_key on "better_supabase"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
+create index referral_codes_referrer_idx on "better_supabase"."referral_codes" ("tenant_id", "referrer_id");
+create unique index referral_codes_invitation_key on "better_supabase"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
 alter table "better_supabase"."referral_codes" enable row level security;
 revoke all on "better_supabase"."referral_codes" from public, anon, authenticated;
 grant select on "better_supabase"."referral_codes" to authenticated;
 grant all on "better_supabase"."referral_codes" to service_role;
-drop policy if exists referral_codes_read on "better_supabase"."referral_codes";
-create policy referral_codes_read on "better_supabase"."referral_codes"
+create policy bsb_referral_codes_read on "better_supabase"."referral_codes"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."referrals" (
+create table "better_supabase"."referrals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code_id" uuid not null,
   "referrer_id" uuid not null,
-  "referred_user_id" uuid,
+  "referred_id" uuid,
   "referred_workspace_id" uuid,
-  "referred_email" text check ("referred_email" is null or length("referred_email") <= 320),
-  "status" text not null default 'attributed' check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
+  "referred_email" text constraint bsb_referrals_referred_email_check check ("referred_email" is null or length("referred_email") <= 320),
+  "status" text not null default 'attributed' constraint bsb_referrals_status_check check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
   -- The reward as the code promised it when the referral was attributed.
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referrals_reward_amount_check check ("reward_amount" >= 0),
   "reward_unit" text,
   "qualified_at" timestamptz,
   "qualified_by" text,
@@ -114,19 +55,18 @@ create table if not exists "better_supabase"."referrals" (
   "ledger_transaction_id" uuid,
   "voided_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check ("referred_user_id" is not null or "referred_workspace_id" is not null or "referred_email" is not null),
+  constraint bsb_referrals_check check ("referred_id" is not null or "referred_workspace_id" is not null or "referred_email" is not null),
   foreign key ("tenant_id", "code_id") references "better_supabase"."referral_codes" ("tenant_id", "id") on delete cascade
 );
-create unique index if not exists referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
-create unique index if not exists referrals_workspace_key on "better_supabase"."referrals" ("tenant_id", "referred_workspace_id") where "referred_workspace_id" is not null;
-create index if not exists referrals_code_idx on "better_supabase"."referrals" ("tenant_id", "code_id");
-create index if not exists referrals_referrer_idx on "better_supabase"."referrals" ("tenant_id", "referrer_id", "created_at" desc);
+create unique index referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_id") where "referred_id" is not null;
+create unique index referrals_workspace_key on "better_supabase"."referrals" ("tenant_id", "referred_workspace_id") where "referred_workspace_id" is not null;
+create index referrals_code_idx on "better_supabase"."referrals" ("tenant_id", "code_id");
+create index referrals_referrer_idx on "better_supabase"."referrals" ("tenant_id", "referrer_id", "created_at" desc);
 alter table "better_supabase"."referrals" enable row level security;
 revoke all on "better_supabase"."referrals" from public, anon, authenticated;
 grant select on "better_supabase"."referrals" to authenticated;
 grant all on "better_supabase"."referrals" to service_role;
-drop policy if exists referrals_read on "better_supabase"."referrals";
-create policy referrals_read on "better_supabase"."referrals"
+create policy bsb_referrals_read on "better_supabase"."referrals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
 
@@ -195,10 +135,10 @@ begin
   end if;
   select * into v_ref from "better_supabase"."referrals" x
   where x."tenant_id" = referral_attribute.tenant
-    and ((referral_attribute.referred_user is not null and x."referred_user_id" = referral_attribute.referred_user)
+    and ((referral_attribute.referred_user is not null and x."referred_id" = referral_attribute.referred_user)
       or (referral_attribute.referred_org is not null and x."referred_workspace_id" = referral_attribute.referred_org));
   if found then
-    return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
+    return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
   end if;
   select * into v_code from "better_supabase"."referral_codes" x
   where x."tenant_id" = referral_attribute.tenant and x."code" = upper(trim(referral_attribute.code)) for update;
@@ -209,13 +149,13 @@ begin
   if referral_attribute.referred_user = v_code."referrer_id" then
     raise exception 'a member can''t refer themselves' using errcode = '22023', hint = 'REFERRAL_SELF';
   end if;
-  insert into "better_supabase"."referrals" ("tenant_id", "code_id", "referrer_id", "referred_user_id", "referred_workspace_id", "referred_email", "reward_amount", "reward_unit")
+  insert into "better_supabase"."referrals" ("tenant_id", "code_id", "referrer_id", "referred_id", "referred_workspace_id", "referred_email", "reward_amount", "reward_unit")
   values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_org,
     lower(nullif(trim(referral_attribute.referred_email), '')), v_code."reward_amount", v_code."reward_unit")
   returning * into v_ref;
   update "better_supabase"."referral_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
   null;
-  return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
+  return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."referral_attribute"(uuid, text, uuid, uuid, text) from public, anon, authenticated;
@@ -266,14 +206,14 @@ begin
   end if;
   select * into v_ref from "better_supabase"."referrals" x
   where x."tenant_id" = qualify_referral.tenant
-    and ((qualify_referral.referred_user is not null and x."referred_user_id" = qualify_referral.referred_user)
+    and ((qualify_referral.referred_user is not null and x."referred_id" = qualify_referral.referred_user)
       or (qualify_referral.referred_org is not null and x."referred_workspace_id" = qualify_referral.referred_org))
   for update;
   if not found then
     return null;
   end if;
   if v_ref."status" <> 'attributed' then
-    return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
+    return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
   end if;
   update "better_supabase"."referrals" x set "status" = 'qualified', "qualified_at" = now(), "qualified_by" = left(qualify_referral.source, 200)
   where x."id" = v_ref."id" returning * into v_ref;
@@ -289,7 +229,7 @@ begin
     where x."id" = v_ref."id" returning * into v_ref;
     null;
   end if;
-  return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
+  return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."qualify_referral"(uuid, uuid, uuid, text) from public, anon;
@@ -319,7 +259,7 @@ begin
     raise exception 'not allowed to void referrals' using errcode = '42501', hint = 'REFERRAL_FORBIDDEN';
   end if;
   if v_ref."status" = 'void' then
-    return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
+    return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
   end if;
   if v_ref."ledger_transaction_id" is not null then
     perform "better_supabase"."ledger_post"(v_ref."tenant_id", 'referral.reversal',
@@ -331,7 +271,7 @@ begin
   update "better_supabase"."referrals" x set "status" = 'void', "voided_at" = now()
   where x."id" = v_ref."id" returning * into v_ref;
   null;
-  return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
+  return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."void_referral"(uuid, text) from public, anon;
@@ -353,7 +293,7 @@ declare
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referrals.tenant is not null and coalesce(better_supabase.can('tenant', list_referrals.tenant, 'referrals.read'), false)));
 begin
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'codeId', y."code_id", 'referrerId', y."referrer_id", 'referredUserId', y."referred_user_id", 'referredOrganizationId', y."referred_workspace_id", 'referredEmail', y."referred_email", 'status', y."status", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'qualifiedAt', y."qualified_at", 'rewardedAt', y."rewarded_at", 'ledgerTransactionId', y."ledger_transaction_id", 'createdAt', y."created_at") order by y."created_at" desc)
+    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'codeId', y."code_id", 'referrerId', y."referrer_id", 'referredUserId', y."referred_id", 'referredOrganizationId', y."referred_workspace_id", 'referredEmail', y."referred_email", 'status', y."status", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'qualifiedAt', y."qualified_at", 'rewardedAt', y."rewarded_at", 'ledgerTransactionId', y."ledger_transaction_id", 'createdAt', y."created_at") order by y."created_at" desc)
     from (
       select * from "better_supabase"."referrals" z
       where z."tenant_id" = list_referrals.tenant
@@ -402,73 +342,38 @@ grant execute on function "better_supabase"."list_referral_codes"(uuid, jsonb) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
-    create function better_supabase.member_workspace_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."referral_codes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_select on "better_supabase"."referral_codes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_insert on "better_supabase"."referral_codes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_update on "better_supabase"."referral_codes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referral_codes";
 create policy bsb_tenant_scope_delete on "better_supabase"."referral_codes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."referrals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."referrals";
 create policy bsb_tenant_scope_select on "better_supabase"."referrals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."referrals";
 create policy bsb_tenant_scope_insert on "better_supabase"."referrals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."referrals";
 create policy bsb_tenant_scope_update on "better_supabase"."referrals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."referrals";
 create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals

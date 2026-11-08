@@ -27,9 +27,12 @@ export default defineConfig({
       "docs.pages": { column: "embedding", distance: "inner_product" }, // or 'l2'
     },
   },
-  blocks: ["vector-search"],
 });
 ```
+
+A `vectorSearch` table, or a `-- @bsb vector-search` tag on one, installs the
+`vector-search` block, so the config needs no `blocks` entry. List the block
+only to set its `schema` option.
 
 ```bash
 better-supabase upgrade
@@ -189,7 +192,7 @@ very sparse.
 
 The Next.js example stores a 3-dimensional `notes.embedding` and lists the
 notes nearest to the latest one on its customers page
-(`src/features/notes/note-queries.ts`). It needs no embedding model: the
+(`src/features/notes/notes-queries.ts`). It needs no embedding model: the
 query vector is a stored embedding.
 
 ## Custom executors

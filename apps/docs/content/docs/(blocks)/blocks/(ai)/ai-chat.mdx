@@ -244,9 +244,7 @@ Under the `provider` [access model](/docs/repository/permissions), the provider'
 [`isApprover`](/docs/extending/authorization-providers#approvals) template
 decides instead, with `{kind}` `'ai-tool'`, `{subject}` the tool's name and
 `{tenant}` the chat's tenant. The approval's owner is then always refused
-(`AI_APPROVAL_NOT_FOUND`), so a second person decides every call. A provider
-that still sets the deprecated `canApprove` is read when `isApprover` is
-unset, and there `approvals.distinctApprover: true` refuses the owner. The server side of the same check is the `approverOf`
+(`AI_APPROVAL_NOT_FOUND`), so a second person decides every call. The server side of the same check is the `approverOf`
 [runtime hook](/docs/extending/authorization-providers#runtime-hooks).
 
 With the [approvals](/docs/blocks/approvals#tool-calls-and-support-sessions)
@@ -431,7 +429,7 @@ disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import {
     createAiChat,
     createAiChatsController,
@@ -439,7 +437,7 @@ disposed with the component.
   } from "better-supabase/blocks/ai-chat";
 
   let { organizationId }: { organizationId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const chats = useBlockController(createAiChatsController, {
     client: createAiChat({ transport: rpcTransport(supabase) }),
     query: { organizationId },
@@ -556,21 +554,15 @@ a new pin, never as an edit to a published version. Version 2 adds the AI SDK 7 
 
 ## Your own fields
 
-Every ai-chat table takes extra columns. `extraColumns` adds them to
-`ai_chats`, and the other tables take their own key:
+Every ai-chat table takes extra columns: a column you add to a table with `alter table` in your own schema files is a field of the block.
 
-| Option                                                                                                                                                                                                                                         | Table                  | Write them through                                 |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | -------------------------------------------------- |
-| `projectExtraColumns`                                                                                                                                                                                                                          | `ai_projects`          | `projects.create(org, input, fields)`, `update`    |
-| `participantExtraColumns`                                                                                                                                                                                                                      | `ai_chat_participants` | `participants.add(chatId, userId, { fields })`     |
-| `messageExtraColumns`                                                                                                                                                                                                                          | `ai_messages`          | `appendUser` and `saveAssistant` with `{ fields }` |
-| `moderationExtraColumns`                                                                                                                                                                                                                       | `ai_moderation_events` | `moderation.record(event, fields)`                 |
-| `runExtraColumns`, `stepExtraColumns`, `approvalExtraColumns`, `policyExtraColumns`, `inputExtraColumns`, `sourceExtraColumns`, `feedbackExtraColumns`, `shareExtraColumns`, `modelExtraColumns`, `sandboxExtraColumns`, `harnessExtraColumns` | the rest               | the service role or your own SQL                   |
+| Option | Table | Write them through |
+| ------ | ----- | ------------------ |
 
 The SQL functions return a row's extra columns under `fields`, and so does
 `participants.list`. A column the table already has is refused.
 
-`blocks.ai-chat.options.extraColumns` adds columns to the `ai_chats` table,
+Columns you add to `ai_chats` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createAiChat` a Standard Schema
 for them as `fields`: `chats.create`, `chats.update` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and `chats.get`, `chats.list` return them

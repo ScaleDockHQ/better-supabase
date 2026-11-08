@@ -14,7 +14,7 @@ import {
   accountingSourcesSql,
 } from "../accounting-sources-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import { lockTable, schemaPreamble } from "../shared.ts";
 import { locationsOf } from "./inventory-stock.ts";
 import { QUANTITY } from "./inventory-tracking.ts";
 import { manufacturingAccountingSources } from "./manufacturing-accounting.ts";
@@ -96,7 +96,7 @@ const NAMES: BlockSqlNames = {
     "before_production_order_complete",
     "after_production_order_complete",
   ],
-  options: ["extraColumns", "purchaseSuggestions"],
+  options: ["purchaseSuggestions"],
   tables: {
     boms: {
       name: "boms",
@@ -283,7 +283,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, q.read),
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const ref = (
@@ -422,7 +422,7 @@ create table if not exists ${q.orders} (
   unique (${po("tenant")}, ${po("number")}),
   unique (${po("tenant")}, ${po("id")}),
   foreign key (${po("tenant")}, ${po("bom")}) references ${q.boms} (${b("tenant")}, ${b("id")}) on delete restrict
-);${addExtraColumns(q.orders, q.extras)}${appKey("orders", "tenant_number", `${po("tenant")}, ${po("number")}`)}${appKey("orders", "tenant_id", `${po("tenant")}, ${po("id")}`)}
+);${appKey("orders", "tenant_number", `${po("tenant")}, ${po("number")}`)}${appKey("orders", "tenant_id", `${po("tenant")}, ${po("id")}`)}
 create index if not exists ${name("orders", "tenant_idx")} on ${q.orders} (${po("tenant")}, ${po("status")}, ${po("dueOn")});
 create index if not exists ${name("orders", "version_idx")} on ${q.orders} (${po("tenant")}, ${po("bom")});
 create index if not exists ${name("orders", "variant_idx")} on ${q.orders} (${po("variant")}, ${po("status")});

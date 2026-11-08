@@ -15,12 +15,12 @@ import {
 } from "../../../src/cli/spec/formats.ts";
 import { renderTarget } from "../../../src/cli/spec/render.ts";
 import { resolveTargets } from "../../../src/cli/spec/targets.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { openapiFormat } from "../../../src/openapi/format.ts";
 import { defineApi } from "../../../src/spec/api.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
 
-const api = defineApi(defineSupabase(schema), {
+const api = defineApi(createSupabase(schema), {
   info: { title: "CRM", version: "1.0.0" },
   resources: { customers: true },
 });
@@ -110,7 +110,7 @@ describe("renderTarget", () => {
 });
 
 describe("built-in formats", () => {
-  const events = defineApi(defineSupabase(schema), {
+  const events = defineApi(createSupabase(schema), {
     info: { title: "CRM", version: "1.0.0" },
     resources: { customers: true },
     workflows: [
@@ -122,9 +122,9 @@ describe("built-in formats", () => {
     const targets = resolveTargets(
       [
         { format: "asyncapi" },
-        { format: "asyncapi", version: "3.1", output: "asyncapi-3.1.yaml" },
+        { format: "asyncapi", version: "3.1", file: "asyncapi-3.1.yaml" },
         { format: "arazzo" },
-        { format: "arazzo", version: "1.1", output: "arazzo-1.1.json" },
+        { format: "arazzo", version: "1.1", file: "arazzo-1.1.json" },
       ],
       formatRegistry(),
       {},

@@ -73,7 +73,7 @@ const rows = useGoals({ limit: 50 });
 
 ## Your own columns
 
-Add columns to the target table with `blocks.goals.options.extraColumns`
+Add columns to the target table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `upsert` validates and writes them, and `upsert` and `progress` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

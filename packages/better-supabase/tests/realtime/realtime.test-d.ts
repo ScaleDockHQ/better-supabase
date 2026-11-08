@@ -7,13 +7,13 @@ import type {
   RealtimeClient,
 } from "../../src/realtime/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { useBroadcast } from "../../src/react/index.ts";
 import { defineTopic } from "../../src/realtime/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { buckets, schema, topics } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 declare const client: RealtimeClient;
 

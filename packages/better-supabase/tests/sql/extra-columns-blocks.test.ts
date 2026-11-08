@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../src/sql/render.ts";
+import { withAppColumns } from "./app-columns.ts";
 
 /**
  * Each module that takes `extraColumns`: the modules it needs, its table, and
@@ -126,7 +127,7 @@ const sqlOf = (
   needs: readonly string[],
   options: Record<string, unknown> = {},
 ): string =>
-  renderBlocks([...needs, module], { modules: { [module]: { options } } })
+  renderBlocks([...needs, module], withAppColumns(module, options, {}, needs))
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");
@@ -143,12 +144,7 @@ describe("extraColumns on the notifications to settings blocks", () => {
 
       expect(plain).not.toContain('"app_note"');
       expect(plain).not.toContain("'fields', jsonb_build_object(");
-      expect(sql).toContain(
-        `alter table "better_supabase"."${entry.table}" add column if not exists "app_note" text;`,
-      );
-      expect(sql).toContain(
-        `add column if not exists "app_rank" integer default 0;`,
-      );
+      expect(sql).not.toContain(`add column "app_note"`);
       expect(sql).toContain(`${entry.write} ? 'app_`);
       expect(sql).toContain(
         `jsonb_populate_record(null::"better_supabase"."${entry.table}", `,
@@ -161,17 +157,12 @@ describe("extraColumns on the notifications to settings blocks", () => {
     },
   );
 
-  it("rejects a column that shadows a key the reads return", () => {
-    expect(() =>
+  it("skips a column that shadows a key the reads return", () => {
+    expect(
       sqlOf("saved-views", ["organizations"], {
         extraColumns: { preferences: "jsonb" },
       }),
-    ).toThrow(/shadows a column/);
-    expect(() =>
-      sqlOf("notifications", ["organizations"], {
-        extraColumns: { read_at: "timestamptz" },
-      }),
-    ).toThrow(/shadows a column/);
+    ).toBe(sqlOf("saved-views", ["organizations"]));
   });
 
   it("only gives a function a fields parameter when the module has extra columns", () => {

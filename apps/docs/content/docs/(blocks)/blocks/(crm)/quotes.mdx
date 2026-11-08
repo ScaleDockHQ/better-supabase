@@ -92,7 +92,7 @@ const rows = useQuotes({ limit: 50 });
 | `expired`              | its valid-until date passed (`expire_quotes`, or an answer after the date)  |
 | `withdrawn`            | `withdraw` of a sent or expired quote; it isn't answered until sent again   |
 
-`create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [numbering](/docs/blocks/numbering)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.subjects` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
+`create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [numbering](/docs/blocks/numbering)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.recordTypes` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
 
 Over your own quotes table, a company or contact can be one id column of a fixed type, such as a foreign key to your customers, as on [invoices](/docs/blocks/invoices). Map the type column to `null` and name the type in `options.company` (or `options.contact`): `create` and `update` write the id in the column's own type, refuse another type (`QUOTE_COMPANY_UNSUPPORTED`), and a read returns the fixed type as `company_type`. `fromQuote` on invoices passes the customer on to the invoice.
 
@@ -166,19 +166,15 @@ await db.quotes.publish(quote.id, { actor: { name: "Sam" } }).orThrow(); // revi
 
 With `options.versionLines: true`, each publish also copies the quote's lines to `quote_version_lines`: one row per line with its own id, the version's id and the line's position, amounts, rates, section and option flags. The rows never change (`QUOTE_VERSION_FROZEN`), so a stock hold or the optional lines a customer took can point at them. `view`, `portalView` and `version` return each line's `versionLineId`, and a decision's `selected` takes those ids as well as positions. Map `tables.versionLines` and its `columns` to keep the rows in your own table, as with the other quote tables.
 
-`options.versionLineExtraColumns` names the version lines' own columns, with their SQL type. Each publish copies the line column of the same name from `lineExtraColumns` into it, in the same insert, so a check or a reference on your version lines table holds. A version line column without a line column of that name keeps its default.
+Each publish copies the line column of the same name into the version lines' own columns that your schema files add, in the same insert, so a check or a reference on your version lines table holds. A version line column without a line column of that name keeps its default.
 
-```ts
-blocks: {
-  quotes: {
-    options: {
-      workingCopy: true,
-      versionLines: true,
-      lineExtraColumns: { line_type: "public.quote_line_type", variant_id: "uuid", stock_mode: "text" },
-      versionLineExtraColumns: { line_type: "public.quote_line_type", variant_id: "uuid", stock_mode: "text" },
-    },
-  },
-}
+```sql title="supabase/schemas/your_table.sql"
+alter table "better_supabase"."your_table" add column "line_type" public.quote_line_type;
+alter table "better_supabase"."your_table" add column "variant_id" uuid;
+alter table "better_supabase"."your_table" add column "stock_mode" text;
+alter table "better_supabase"."your_table" add column "line_type" public.quote_line_type;
+alter table "better_supabase"."your_table" add column "variant_id" uuid;
+alter table "better_supabase"."your_table" add column "stock_mode" text;
 ```
 
 ### Discount matrix
@@ -214,22 +210,17 @@ With `pricesIncludeTax`, unit amounts are gross and the tax is counted out of th
 
 A subscription line counts its `periods` (default 1): `{ description: "Hosting", quantity: 2, periods: 12, unitAmount }` adds quantity times periods times the unit amount, and `invoices.fromQuote` copies it as that quantity.
 
+Three more line keys are base columns: `periods: null` is a subscription line with no end (it counts one period in the totals, and the line reads `openEnded: true`), `unit` says what one unit is (`hour`, `month`), and `discountKind` (`percentage` or `fixed`) says how the line's discount is given. Over your own lines table, `discountKind` takes the table's enum type and a key a line leaves out takes the column's default. A line that leaves out `unit` or `discountKind` on an update keeps the value it had. Delete an app column with one of these names from the block's own table and run `better-supabase upgrade`.
+
 The database spreads the document discount over the tax rates in proportion to each rate's amount, then computes the tax per rate. `quote.taxLines` holds the result, one line per tax rate and tax code, with its `net`, `tax`, `gross` and its share of the `discount`. These lines add up exactly to `subtotal`, `taxTotal` and `total`, so an invoice can show the tax breakdown a VAT invoice needs. `pricing.depositDue` is `depositBps` of the total.
 
 ### Totals your app keeps
 
 With `options.totals: "app"`, the block never counts or writes a quote's totals: your app does, for example with a fixed discount per line or a VAT regime such as reverse charge, exempt or a small-business scheme that keeps the line rates but counts no VAT. `setLines` returns the totals the quote holds after your triggers ran, and `depositDue` follows your `total`. The block still guards them: lines and pricing change only while the quote is open, a published version never changes, and a trigger refuses a change to `listTotal`, `discountTotal`, `subtotal`, `taxTotal` or `total` once the quote is accepted, rejected, expired or withdrawn (`QUOTE_TOTALS_FROZEN`). `quote_tax_lines` is then yours to fill. Your table may leave out `listTotal` and `discountTotal` (map them to `null`); reads then return the `subtotal` as the list total and a zero discount, as on invoices.
 
-```ts
-blocks: {
-  quotes: {
-    options: {
-      totals: "app",
-      extraColumns: { vat_regime: "public.document_vat_regime not null default 'standard'" },
-      lineExtraColumns: { discount_amount_cents: "bigint not null default 0" },
-    },
-  },
-}
+```sql title="supabase/schemas/your_table.sql"
+alter table "better_supabase"."your_table" add column "vat_regime" public.document_vat_regime not null default 'standard';
+alter table "better_supabase"."your_table" add column "discount_amount_cents" bigint not null default 0;
 ```
 
 ## Sections and optional lines
@@ -348,19 +339,17 @@ blocks: {
 
 ## Your own fields
 
-`options.extraColumns` adds columns to `quotes`; a published version keeps their values. `create` and `update` write them from `fields`,
+Columns you add to `quotes` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):; a published version keeps their values. `create` and `update` write them from `fields`,
 and every method that returns a quote return them in `fields`. Pass a Standard Schema as `fields`
 to type them: writes are validated before they reach the database (a
 `validation` error), and reads are parsed. `hooks` refuses, rewrites or
 observes any method; see [extending blocks](/docs/extending/blocks).
 
-```ts title="better-supabase.config.ts"
-export default defineConfig({
-  blocks: { quotes: { options: { extraColumns: { region: "text" } } } },
-});
+```sql title="supabase/schemas/line.sql"
+alter table "better_supabase"."line" add column "region" text;
 ```
 
-`options.lineExtraColumns` adds columns to the line table, keyed by column
+Columns you add to `line` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):, keyed by column
 name with their SQL type: each line's `fields` writes them, and lines come back with them under `fields` (untyped,
 since `fields` validates the record's own columns). A line table of yours
 runs the same way; see [line tables](/docs/blocks/own-schemas#line-tables).

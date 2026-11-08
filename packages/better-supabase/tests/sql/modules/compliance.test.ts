@@ -6,6 +6,7 @@ import { COMPLIANCE } from "../../../src/sql/modules/compliance.ts";
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -23,10 +24,12 @@ const sqlOf = (
 describe("compliance module", () => {
   it("links evidence to an attachment only when attachments owns its table", () => {
     const sql = sqlOf();
-    expect(sql).toMatch(
+    expect(unnamedChecks(sql)).toMatch(
       /"attachment_id" uuid references "better_supabase"\."attachments"/,
     );
-    expect(sql).toContain("the attachment isn''t a file in this organization");
+    expect(unnamedChecks(sql)).toContain(
+      "the attachment isn''t a file in this organization",
+    );
 
     const bare = sqlOf({}, ["versions", "compliance"]);
     expect(bare).not.toMatch(/"attachment_id" uuid references/);
@@ -82,15 +85,17 @@ describe("compliance module", () => {
   it("assigns policies to every member through the acknowledgements block", () => {
     const sql = sqlOf();
 
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*', null);`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*');`,
     );
-    expect(sql).toContain(`from "better_supabase"."acknowledgements" ack`);
-    expect(sql).not.toContain("policy_acknowledgements");
-    expect(sql).not.toContain("compliance.acknowledge");
+    expect(unnamedChecks(sql)).toContain(
+      `from "better_supabase"."acknowledgements" ack`,
+    );
+    expect(unnamedChecks(sql)).not.toContain("policy_acknowledgements");
+    expect(unnamedChecks(sql)).not.toContain("compliance.acknowledge");
   });
 
   it("refuses to build on acknowledgements in custom mode", () => {
@@ -133,9 +138,6 @@ describe("compliance module", () => {
     });
 
     expect(customAcknowledgements).not.toContain("policy_acknowledgements");
-    expect(customAcknowledgements).toContain(
-      'alter table "better_supabase"."policies" rename to "compliance_policies"',
-    );
   });
 
   it("contributes the policy's current version to the acknowledgements block", () => {
@@ -144,30 +146,24 @@ describe("compliance module", () => {
       .map((file) => file.contents)
       .join("\n");
 
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `if current_acknowledgement_version.subject_type = 'compliance_policy' then`,
     );
-    expect(sql).toContain(`s."current_version_id"::uuid`);
+    expect(unnamedChecks(sql)).toContain(`s."current_version_id"::uuid`);
   });
 
   it("keeps a framework's kind and a control's source and jurisdiction", () => {
     const sql = sqlOf();
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `"kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract'))`,
     );
-    expect(sql).toContain(
-      `alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") between 1 and 200);`,
+    expect(unnamedChecks(sql)).toContain(
+      `"source" text check ("source" is null or length("source") >= 1 and length("source") <= 200)`,
     );
-    expect(sql).toContain(
-      `add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200);`,
+    expect(unnamedChecks(sql)).toContain(
+      `"jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") >= 1 and length("jurisdiction") <= 200),`,
     );
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."save_control_framework"(uuid, text, text, text, text);`,
-    );
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid);`,
-    );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       "kind must be one of standard, legal, internal, contract",
     );
   });
@@ -176,31 +172,35 @@ describe("compliance module", () => {
     const sql = sqlOf();
 
     it("flattens catalog groups and nested controls, reading the statement prose", () => {
-      expect(sql).toContain(
+      expect(unnamedChecks(sql)).toContain(
         `jsonb_path_query(v_catalog, 'strict $.**.controls[*]')`,
       );
-      expect(sql).toContain(`(@.name == "statement").prose`);
+      expect(unnamedChecks(sql)).toContain(`(@.name == "statement").prose`);
     });
 
     it("applies a profile as the statement of applicability", () => {
-      expect(sql).toContain(`"include-controls"[*]."with-ids"[*]`);
-      expect(sql).toContain(`"exclude-controls"[*]."with-ids"[*]`);
-      expect(sql).toContain("the profile includes no controls");
+      expect(unnamedChecks(sql)).toContain(
+        `"include-controls"[*]."with-ids"[*]`,
+      );
+      expect(unnamedChecks(sql)).toContain(
+        `"exclude-controls"[*]."with-ids"[*]`,
+      );
+      expect(unnamedChecks(sql)).toContain("the profile includes no controls");
     });
 
     it("exports assessment results with a finding per applicable control and its evidence", () => {
-      expect(sql).toContain("'assessment-results'");
-      expect(sql).toContain("'oscal-version', '1.2.3'");
-      expect(sql).toContain("'relevant-evidence'");
-      expect(sql).toContain("'satisfied'");
-      expect(sql).toContain("'not-satisfied'");
+      expect(unnamedChecks(sql)).toContain("'assessment-results'");
+      expect(unnamedChecks(sql)).toContain("'oscal-version', '1.2.3'");
+      expect(unnamedChecks(sql)).toContain("'relevant-evidence'");
+      expect(unnamedChecks(sql)).toContain("'satisfied'");
+      expect(unnamedChecks(sql)).toContain("'not-satisfied'");
     });
 
     it("needs the manage permission to import and the read permission to export", () => {
-      expect(sql).toMatch(
+      expect(unnamedChecks(sql)).toMatch(
         /import_oscal_catalog[\s\S]*?can\('tenant', v_tenant, 'compliance\.manage'\)/,
       );
-      expect(sql).toMatch(
+      expect(unnamedChecks(sql)).toMatch(
         /export_oscal_assessment_results[\s\S]*?'compliance\.read'/,
       );
     });

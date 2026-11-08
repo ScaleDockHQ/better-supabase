@@ -115,7 +115,7 @@ describe.skipIf(!live)("expenses", () => {
 
       await s.service();
       await s.rows(
-        `insert into better_supabase.attachments (organization_id, subject_type, subject_id, name, mime_type, size, status, uploaded_at)
+        `insert into better_supabase.attachments (tenant_id, subject_type, subject_id, name, mime_type, size, status, uploaded_at)
          values ($1, 'expense_line', $2, 'ticket.pdf', 'application/pdf', 1024, 'clean', now())`,
         [tenant, train.id],
       );
@@ -168,7 +168,7 @@ describe.skipIf(!live)("expenses", () => {
       ]);
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type like 'expense_report.%' order by position",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and type like 'expense_report.%' order by position",
         [tenant],
       );
 

@@ -1,6 +1,6 @@
 ---
 title: Customer success
-description: The customer-success preset installs accounts with health scores, metrics, rules, NPS surveys, playbooks as enrollments and engagements.
+description: The customer-success preset installs accounts with health scores, metrics, rules, NPS surveys, playbooks as enrollments and activities.
 ---
 
 The `customer-success` preset is for an app in the style of Gainsight or
@@ -28,7 +28,7 @@ whatever they require:
 | Block                                   | Role in the app                                      |
 | --------------------------------------- | ---------------------------------------------------- |
 | [parties](/docs/blocks/contacts)        | Customer accounts and their contacts                 |
-| [engagements](/docs/blocks/activities)  | Calls, meetings, notes and follow-up tasks           |
+| [activities](/docs/blocks/activities)   | Calls, meetings, notes and follow-up tasks           |
 | [scores](/docs/blocks/scores)           | Account health as a scoring model with bands         |
 | [metrics](/docs/blocks/metrics)         | Usage and adoption charts per account                |
 | [rules](/docs/blocks/automations)       | Triggers such as "health dropped to red"             |
@@ -48,10 +48,10 @@ can store an account's latest answer in a number field the model weighs
 
 When a score moves into a band, a rule names the action your app runs, such
 as enrolling the account in a recovery playbook. A playbook is an enrollment
-program, and each step can be an engagement task for the account's owner.
+program, and each step can be an activity task for the account's owner.
 
 ## With ReUI
 
 - Data Grid for accounts, with the health band as a Badge and Filters on it.
 - Statistic cards for the portfolio's health and renewals.
-- Timeline for an account's engagements and score changes.
+- Timeline for an account's activities and score changes.

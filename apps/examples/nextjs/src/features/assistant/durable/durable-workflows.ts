@@ -1,5 +1,5 @@
 import type {
-  DurableTurnAgentArgs,
+  DurableTurnAgentOptions,
   DurableTurnDeps,
   DurableTurnInput,
   DurableTurnResult,
@@ -64,7 +64,7 @@ export async function researchTurn(
   return turn(input, (args) => researchAgent(input, args).stream(args));
 }
 
-function researchAgent(input: DurableTurnInput, args: DurableTurnAgentArgs) {
+function researchAgent(input: DurableTurnInput, args: DurableTurnAgentOptions) {
   return new WorkflowAgent({
     model: args.model,
     instructions: [

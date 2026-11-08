@@ -20,9 +20,7 @@ describe("automations block", () => {
       "automation_evaluations",
       "automation_fields",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}"`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}"`);
     }
 
     expect(sql).toContain('"rank" text collate "C"');

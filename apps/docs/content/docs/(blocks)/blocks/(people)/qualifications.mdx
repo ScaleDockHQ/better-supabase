@@ -171,7 +171,6 @@ certificate revokes the holding.
 | ------------------- | -------------------------------- | ---------------------------------------------- |
 | `holderTypes`       | `["member", "company", "asset"]` | The holder types a qualification type may name |
 | `renewalWindowDays` | `30`                             | Days before expiry a holding is `expiring`     |
-| `extraColumns`      | none                             | Extra columns on the holdings table            |
 
 Pass a Standard Schema as `fields` to type the extra columns, parse them on
 reads and validate them on `grant`:

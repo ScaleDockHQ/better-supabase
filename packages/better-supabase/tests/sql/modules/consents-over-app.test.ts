@@ -50,10 +50,10 @@ create table public.privacy_consents (
   subject_id text not null,
   given_by text not null default 'self',
   given_by_contact_id uuid,
-  given_by_user_id uuid,
+  grantor_id uuid,
   state public.consent_state not null,
   granted_at timestamptz not null default now(),
-  valid_until timestamptz,
+  expires_at timestamptz,
   withdrawn_at timestamptz,
   created_at timestamptz not null default now()
 );
@@ -163,7 +163,7 @@ begin
     raise exception 'history %', better_supabase.list_consents('customer', '${CUSTOMER}', true);
   end if;
   v_next := better_supabase.record_consent('customer', '${CUSTOMER}', 'marketing.email', 'granted');
-  update public.privacy_consents set valid_until = now() - interval '1 day' where id = (v_next ->> 'id')::uuid;
+  update public.privacy_consents set expires_at = now() - interval '1 day' where id = (v_next ->> 'id')::uuid;
   if better_supabase.expire_consents() <> 1 then
     raise exception 'expire';
   end if;

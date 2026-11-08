@@ -30,7 +30,7 @@ export interface BlockNaming {
   readonly tenant?: string;
   /** Function name to the name the SQL writes it under. */
   readonly functions?: Readonly<Record<string, string>>;
-  /** The block's own entities the config renames, such as `work_item` to `task`. */
+  /** The block's own entities the config renames, such as `task` to `ticket`. */
   readonly entities?: readonly EntityRename[];
   /**
    * Renames event types alone start from, before `entities`: an entity renamed
@@ -115,8 +115,8 @@ function renameArgs(
 /**
  * Transport middleware that calls each block function by the name the SQL wrote
  * it under and translates the payload keys: `create_organization` becomes
- * `create_workspace` with `tenant: "workspace"`, `list_work_items` becomes
- * `list_tasks` with `work_item` renamed to `task`, then `functions` renames
+ * `create_workspace` with `tenant: "workspace"`, `list_tasks` becomes
+ * `list_tickets` with `task` renamed to `ticket`, then `functions` renames
  * single functions. Keys inside the arguments (`projectId`) go out renamed, and
  * the keys of the result come back by their default names, so the block's
  * client reads what it always has. Wrap a block's transport with it when the

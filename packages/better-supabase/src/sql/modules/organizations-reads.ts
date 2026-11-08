@@ -14,17 +14,17 @@ const MEMBERSHIP_KEYS: readonly string[] = [
   "attributes",
 ];
 
-/** `options.extraColumns`, which a managed organizations table gets. */
-export function organizationExtraColumns(
+/** The columns your schema files add, which a managed organizations table gets. */
+function organizationExtraColumns(
   ctx: BlockSqlContext,
 ): readonly ExtraColumn[] {
   return ctx.extraColumns("organizations", MEMBERSHIP_KEYS);
 }
 
 /**
- * The attribute columns, unquoted: `options.attributes` and
- * `options.extraColumns`. `create_organization` and `update_organization` copy
- * them from `attrs`, and `list_my_organizations` returns them.
+ * The attribute columns, unquoted: `options.attributes` and the columns your
+ * schema files add. `create_organization` and `update_organization` copy them
+ * from `attrs`, and `list_my_organizations` returns them.
  */
 export function organizationAttributes(
   ctx: BlockSqlContext,

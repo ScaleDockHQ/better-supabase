@@ -25,13 +25,8 @@ import { initials } from "@/lib/initials";
  * Render inside `<Suspense>`: one member of the active organization with their
  * role, join date and teams. A user outside the organization is a 404.
  */
-export async function MemberDetail({
-  params,
-}: {
-  params: Promise<{ userId: string }>;
-}) {
-  const [{ userId }, session, permissions] = await Promise.all([
-    params,
+export async function MemberDetail({ userId }: { userId: string }) {
+  const [session, permissions] = await Promise.all([
     getSession(),
     getPermissions(),
   ]);

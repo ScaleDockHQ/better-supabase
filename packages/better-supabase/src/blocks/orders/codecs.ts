@@ -276,7 +276,10 @@ export interface Order<F extends object = Record<never, never>> {
   readonly fulfillments: readonly Fulfillment[];
   readonly returns: readonly OrderReturn[];
   readonly refunds: readonly OrderRefund[];
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
 }
 

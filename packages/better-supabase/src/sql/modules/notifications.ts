@@ -7,6 +7,7 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -14,7 +15,6 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { declareRead } from "../reads.ts";
 import {
   addCheck,
-  addExtraColumns,
   ownRowPolicies,
   schemaPreamble,
   updatedAt,
@@ -109,9 +109,9 @@ const NAMES: BlockSqlNames = {
     "partitioned",
     "priorities",
     "realtime",
+    "resolveAddress",
     "topic",
     "updatedEvent",
-    "extraColumns",
   ],
   tables: {
     events: {
@@ -120,7 +120,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         type: "type",
         actor: "actor_id",
         subjectType: "subject_type",
@@ -156,7 +156,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         event: "event_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         user: "user_id",
         readAt: "read_at",
         dismissedAt: "dismissed_at",
@@ -174,7 +174,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         recipient: "recipient_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         channel: "channel",
         status: "status",
         provider: "provider",
@@ -209,7 +209,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         delivery: "delivery_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         kind: "kind",
         provider: "provider",
         providerEventId: "provider_event_id",
@@ -227,7 +227,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         user: "user_id",
         subjectType: "subject_type",
         subjectId: "subject_id",
@@ -245,7 +245,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         user: "user_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         type: "type",
         channel: "channel",
         enabled: "enabled",
@@ -304,8 +304,10 @@ function priorityCheck(ctx: BlockSqlContext, n: NotifyNames): string {
     .map(sqlString)
     .join(", ");
 
-  return `
-do $$
+  // A schema diff replaces a check whose values changed; only a migration
+  // applied in file order has to drop the old one first.
+  const drop = ctx.rerunnable
+    ? `do $$
 begin
   if exists (
     select 1 from pg_constraint k, unnest(array[${values}]::text[]) p
@@ -316,7 +318,11 @@ begin
   end if;
 end;
 $$;
-${addCheck({ table, name, expression: `${n.col("events", "priority")} in (${values})` })}`;
+`
+    : "";
+
+  return `
+${drop}${addCheck({ table, name, expression: `${n.col("events", "priority")} in (${values})` })}`;
 }
 
 /** Columns version 9 added, for managed tables created before it. */
@@ -364,7 +370,7 @@ function tables(ctx: BlockSqlContext, n: NotifyNames): string {
         roles: ["authenticated"],
         ...spec,
       }),
-      { drop: true, target: n.table(table) },
+      { target: n.table(table) },
     )}`;
 
   parts.push(`
@@ -403,7 +409,7 @@ create table if not exists ${n.table("events")} (
       ? `\ncreate index if not exists notification_events_subject_idx on ${n.table("events")} (${c("events", "subjectType")}, ${c("events", "subjectId")});`
       : ""
   }${n.has("events", "actor") ? `\ncreate index if not exists notification_events_actor_idx on ${n.table("events")} (${c("events", "actor")});` : ""}${n.has("events", "createdBy") ? `\ncreate index if not exists notification_events_created_by_idx on ${n.table("events")} (${c("events", "createdBy")});` : ""}
-create index if not exists notification_events_created_at_idx on ${n.table("events")} (${c("events", "createdAt")});${priorityCheck(ctx, n)}${addExtraColumns(n.table("events"), n.extras)}
+create index if not exists notification_events_created_at_idx on ${n.table("events")} (${c("events", "createdAt")});${priorityCheck(ctx, n)}
 alter table ${n.table("events")} enable row level security;
 ${revokeTable(n.table("events"))}
 grant select on ${n.table("events")} to authenticated;
@@ -556,7 +562,6 @@ grant select, insert, update, delete on ${n.table(table)} to authenticated;
 grant all on ${n.table(table)} to service_role;
 ${ownRowPolicies({
   table: n.table(table),
-  legacy: `bsb_notification_${table}_own`,
   name: (command) => `bsb_notification_${table}_own_${command}`,
   using: mine,
   check: `${mine}${
@@ -711,7 +716,7 @@ create trigger ${updateTrigger} after update of ${changed.join(", ")} on ${t}
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: `realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ (${pattern})` }), { drop: true, target: "realtime.messages" })}
+        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: `realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ (${pattern})` }), { target: "realtime.messages" })}
   end if;
 end;
 $$;`;
@@ -728,17 +733,31 @@ $$;`;
 /**
  * `on` with `cascade: true`: deleting a subject row deletes its notifications
  * (recipients and deliveries follow by foreign key) and the subscriptions to
- * it. The deletes match the subject's tenant too, so they use indexes that lead
- * with the tenant column.
+ * it. Without `on`, every registered subject outside the module schema cascades
+ * (ADR 0370). The deletes match the subject's tenant too, so they use indexes
+ * that lead with the tenant column.
  */
 function subjectCleanup(ctx: BlockSqlContext, n: NotifyNames): string {
-  const subjects = subjectsOption(ctx, [], { tenantless: true });
+  const inferred = ctx.on === undefined;
+
+  const subjects = subjectsOption(ctx, [], { tenantless: true }).map(
+    ([type, subject]): [string, Subject] => [
+      type,
+      inferred && !subject.table.startsWith(`${ctx.schemaName}.`)
+        ? { ...subject, cascade: true }
+        : subject,
+    ],
+  );
 
   if (!subjects.some(([, subject]) => subject.cascade)) {
     return "";
   }
 
   if (!n.has("events", "subjectType") || !n.has("events", "subjectId")) {
+    if (inferred) {
+      return "";
+    }
+
     throw new TypeError(
       "blocks.notifications.on with cascade needs the subjectType and subjectId columns of the events table",
     );

@@ -143,7 +143,7 @@ export const MESSAGING: BlockSqlDefinition = {
     "parse_mentions",
     "index_record_mentions",
   ],
-  // delete_message empties a message and stamps deleted_at; nothing clears it.
+  // delete_message empties a message and stamps archived_at; nothing clears it.
   hidingColumns: ["messages.deletedAt"],
   name: "messaging",
   scopes: ["tenant"],

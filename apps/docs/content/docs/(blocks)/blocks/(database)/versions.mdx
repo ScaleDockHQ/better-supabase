@@ -3,7 +3,7 @@ title: Versions
 description: Numbered snapshots of a subject's content, with JSON Patch diffs, restore, debounced auto snapshots, frozen versions and retention.
 ---
 
-`versions` keeps numbered snapshots of any subject: a document, a quote, a board. Each version holds JSON content (or a Storage path), a SHA-256 content hash, an optional label and where it came from (`manual`, `auto` or `restore`). Reading versions needs `versions.read`, taking and labeling one needs `versions.create`, restoring needs `versions.restore` and deleting needs `versions.manage`. Every call also checks the subject's own read permission, and a restore checks its `write` permission from [`config.subjects`](/docs/blocks/sql#subject-registry).
+`versions` keeps numbered snapshots of any subject: a document, a quote, a board. Each version holds JSON content (or a Storage path), a SHA-256 content hash, an optional label and where it came from (`manual`, `auto` or `restore`). Reading versions needs `versions.read`, taking and labeling one needs `versions.create`, restoring needs `versions.restore` and deleting needs `versions.manage`. Every call also checks the subject's own read permission, and a restore checks its `write` permission from [`config.recordTypes`](/docs/blocks/sql#subject-registry).
 
 ```bash
 better-supabase add versions
@@ -43,7 +43,7 @@ A snapshot whose content matches the latest version is not written again: `snaps
 Each subject type lists the `columns` a snapshot copies and a restore writes back. A type with an `apply` function restores through it instead: the function takes `(subject_id text, content jsonb)`.
 
 ```ts title="better-supabase.config.ts"
-subjects: {
+recordTypes: {
   quote: { table: "public.quotes", idType: "uuid", permissions: { read: "quotes.read", write: "quotes.update" } },
   page: { table: "public.pages", idType: "uuid" },
 },
@@ -119,7 +119,7 @@ const rows = await versions.list({ type: "quote", id: quoteId }).orThrow();
 
 ## Your own columns
 
-Add columns to the version table with `blocks.versions.options.extraColumns`
+Add columns to the version table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `snapshot` validates and writes them, and `list` and `get` (`getShared` leaves them out) return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

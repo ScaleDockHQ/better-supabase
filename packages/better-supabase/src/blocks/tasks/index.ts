@@ -5,28 +5,28 @@ export {
   createTasks,
   type Iteration,
   type Project,
-  type WorkItem,
-  type WorkItemChange,
-  type WorkItemChangeResult,
-  type WorkItemField,
-  type WorkItemInput,
-  type WorkItemListOptions,
-  type WorkItemNode,
-  type WorkItemRecurrence,
-  type WorkItemSetResult,
+  type Task,
+  type TaskChange,
+  type TaskChangeResult,
+  type TaskField,
+  type TaskInput,
+  type TaskListOptions,
+  type TaskNode,
+  type TaskRecurrence,
+  type TaskSetResult,
   type Tasks,
   type TasksOptions,
-  type WorkItemState,
-  type WorkItemUpdateOptions,
-  type WorkItemWindow,
-  type WorkItemWatcher,
-  type WorkItemWatchLevel,
+  type TaskState,
+  type TaskUpdateOptions,
+  type TaskWindow,
+  type TaskWatcher,
+  type TaskWatchLevel,
 } from "./tasks.ts";
 
 export {
-  nextWorkItemOccurrence,
-  workItemRecurrenceSink,
-  type WorkItemRecurrenceSinkOptions,
+  nextTaskOccurrence,
+  taskRecurrenceSink,
+  type TaskRecurrenceSinkOptions,
 } from "./recurrence.ts";
 
 export {
@@ -49,15 +49,15 @@ export { tasksBlock } from "./manifest.ts";
 
 export {
   taskChecklistBinding,
-  workItemChecklistOptimistic,
+  taskChecklistOptimistic,
 } from "./record-binding.ts";
 
-export type { WorkItemChecklistOptimisticAction } from "./record-binding.ts";
+export type { TaskChecklistOptimisticAction } from "./record-binding.ts";
 
 export {
-  workItemChangeSchema,
-  workItemInputSchema,
-  workItemListFilterSchema,
+  taskChangeSchema,
+  taskInputSchema,
+  taskListFilterSchema,
 } from "./schemas.ts";
 
 export { tasksEvents } from "./events.ts";

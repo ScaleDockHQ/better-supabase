@@ -11,8 +11,8 @@ const sqlOf = (names: readonly string[]): string =>
 describe("flags module", () => {
   it("writes the tables, the bucket and the evaluation functions", () => {
     const sql = sqlOf(["flags"]);
-    expect(sql).toMatch(/create table if not exists \S+flags/);
-    expect(sql).toMatch(/create table if not exists \S+flag_overrides/);
+    expect(sql).toMatch(/create table \S+flags/);
+    expect(sql).toMatch(/create table \S+flag_overrides/);
     expect(sql).toContain("extensions.digest(flag || '.' || target, 'sha256')");
     expect(sql).toContain("flag_enabled");
     expect(sql).toContain("'{}'::text[]");

@@ -433,16 +433,6 @@ msgid "Customer conversations from the Help widget and chat channels, kept live 
 msgstr "Klantgesprekken uit de Help-widget en chatkanalen, live bijgewerkt via Realtime."
 
 #: src/app/[locale]/(app)/inspections/page.tsx
-msgctxt "inspections.Sl9G4R"
-msgid "Pick an inspection"
-msgstr "Kies een inspectie"
-
-#: src/app/[locale]/(app)/inspections/page.tsx
-msgctxt "inspections.1cJBOV"
-msgid "Open an inspection in the programme to see its team, checklist and findings."
-msgstr "Open een inspectie in het programma om het team, de checklist en de bevindingen te zien."
-
-#: src/app/[locale]/(app)/inspections/page.tsx
 msgctxt "inspections.PcgHMz"
 msgid "Audits and inspections"
 msgstr "Audits en inspecties"
@@ -937,26 +927,6 @@ msgctxt "workflows.F42bEw"
 msgid "Schedules"
 msgstr "Planningen"
 
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.5Wwopw"
-msgid "Pricing"
-msgstr "Prijzen"
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.BzkPrB"
-msgid "One plan per organization, billed monthly."
-msgstr "Eén abonnement per organisatie, maandelijks gefactureerd."
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.I32k58"
-msgid "Upgrade and save"
-msgstr "Upgrade en bespaar"
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.RbnSLQ"
-msgid "The pricing-banner flag is on for your plan."
-msgstr "De pricing-banner-flag staat aan voor je abonnement."
-
 #: src/app/[locale]/islands/page.tsx
 msgctxt "islands.a8EoBn"
 msgid "Islands"
@@ -1405,6 +1375,18 @@ msgctxt "acknowledgements.5vDqi-"
 msgid "Due {date}"
 msgstr "Uiterlijk {date}"
 
+#: src/features/ai-providers/components/ai-provider-section.tsx
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders._3yfCs"
+msgid "AI providers"
+msgstr "AI-providers"
+
+#: src/features/ai-providers/components/ai-provider-section.tsx
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.ItEK0n"
+msgid "The organization's own provider keys, used instead of the app's key for the assistant."
+msgstr "De eigen providersleutels van de organisatie, die de assistent gebruikt in plaats van de sleutel van de app."
+
 #: src/features/ai-providers/components/ai-provider-settings.tsx
 msgctxt "aiProviders.or3Lzc"
 msgid "Key saved"
@@ -1504,16 +1486,6 @@ msgstr "Ingeschakeld"
 msgctxt "aiProviders.tthToS"
 msgid "Disabled"
 msgstr "Uitgeschakeld"
-
-#: src/features/ai-providers/components/ai-provider-settings.tsx
-msgctxt "aiProviders._3yfCs"
-msgid "AI providers"
-msgstr "AI-providers"
-
-#: src/features/ai-providers/components/ai-provider-settings.tsx
-msgctxt "aiProviders.ItEK0n"
-msgid "The organization's own provider keys, used instead of the app's key for the assistant."
-msgstr "De eigen providersleutels van de organisatie, die de assistent gebruikt in plaats van de sleutel van de app."
 
 #: src/features/ai-providers/components/ai-provider-settings.tsx
 msgctxt "aiProviders.y1rlCZ"
@@ -8238,6 +8210,26 @@ msgctxt "flags.OvzONl"
 msgid "Off"
 msgstr "Uit"
 
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.5Wwopw"
+msgid "Pricing"
+msgstr "Prijzen"
+
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.BzkPrB"
+msgid "One plan per organization, billed monthly."
+msgstr "Eén abonnement per organisatie, maandelijks gefactureerd."
+
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.I32k58"
+msgid "Upgrade and save"
+msgstr "Upgrade en bespaar"
+
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.RbnSLQ"
+msgid "The pricing-banner flag is on for your plan."
+msgstr "De pricing-banner-flag staat aan voor je abonnement."
+
 #: src/features/forms/components/create-form-dialog.tsx
 msgctxt "forms.xeWtMD"
 msgid "{title} created"
@@ -8944,6 +8936,7 @@ msgctxt "inbox.tzwHXE"
 msgid "Someone is typing…"
 msgstr "Iemand typt…"
 
+#: src/features/inbox/components/help-sheet-lazy.tsx
 #: src/features/inbox/components/help-sheet.tsx
 msgctxt "inbox.SENRqu"
 msgid "Help"
@@ -9248,6 +9241,16 @@ msgctxt "inspections.BADGBv"
 msgid "Read the inspections guide"
 msgstr "Lees de handleiding voor inspecties"
 
+#: src/features/inspections/components/inspection-run-section.tsx
+msgctxt "inspections.Sl9G4R"
+msgid "Pick an inspection"
+msgstr "Kies een inspectie"
+
+#: src/features/inspections/components/inspection-run-section.tsx
+msgctxt "inspections.1cJBOV"
+msgid "Open an inspection in the programme to see its team, checklist and findings."
+msgstr "Open een inspectie in het programma om het team, de checklist en de bevindingen te zien."
+
 #: src/features/inspections/components/inspection-run.tsx
 msgctxt "inspections.ab2qRi"
 msgid "Case raised"
@@ -9318,6 +9321,18 @@ msgctxt "inspections.PjaypS"
 msgid "Close inspection"
 msgstr "Inspectie sluiten"
 
+#: src/features/integrations/components/integration-section.tsx
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.6cBDhe"
+msgid "Integrations"
+msgstr "Integraties"
+
+#: src/features/integrations/components/integration-section.tsx
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.7lMzB0"
+msgid "Your own accounts the app may use on your behalf, such as the mailbox mail sync reads."
+msgstr "Je eigen accounts die de app namens jou mag gebruiken, zoals de mailbox die de mailsynchronisatie leest."
+
 #: src/features/integrations/components/integration-settings.tsx
 msgctxt "integrations.IvjoDS"
 msgid "Connected"
@@ -9387,16 +9402,6 @@ msgstr "{name} is niet verbonden"
 msgctxt "integrations.o1qevE"
 msgid "Consent was declined or expired. Try connecting again."
 msgstr "De toestemming is geweigerd of verlopen. Probeer opnieuw te verbinden."
-
-#: src/features/integrations/components/integration-settings.tsx
-msgctxt "integrations.6cBDhe"
-msgid "Integrations"
-msgstr "Integraties"
-
-#: src/features/integrations/components/integration-settings.tsx
-msgctxt "integrations.7lMzB0"
-msgid "Your own accounts the app may use on your behalf, such as the mailbox mail sync reads."
-msgstr "Je eigen accounts die de app namens jou mag gebruiken, zoals de mailbox die de mailsynchronisatie leest."
 
 #: src/features/integrations/components/integration-settings.tsx
 msgctxt "integrations.vDGz5L"
@@ -10729,7 +10734,8 @@ msgid "Open the work board"
 msgstr "Open het werkbord"
 
 #: src/features/navigation/components/app-breadcrumbs.tsx
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.D3idYv"
 msgid "Settings"
 msgstr "Instellingen"
@@ -10739,392 +10745,470 @@ msgctxt "navigation.Lv0zJu"
 msgid "Details"
 msgstr "Details"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.hzSNj4"
 msgid "Dashboard"
 msgstr "Dashboard"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.h-qaH6"
 msgid "My work"
 msgstr "Mijn werk"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.TkYZBT"
 msgid "Customers"
 msgstr "Klanten"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.GcPFLS"
 msgid "Work"
 msgstr "Werk"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.5fijhK"
 msgid "Work grid"
 msgstr "Werkraster"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.UxTJRa"
 msgid "Projects"
 msgstr "Projecten"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.nFa1Ms"
 msgid "Approvals"
 msgstr "Goedkeuringen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.kAAlGL"
 msgid "Rules"
 msgstr "Regels"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Tpy00S"
 msgid "People"
 msgstr "Mensen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.XuEwXv"
 msgid "Hiring"
 msgstr "Werving"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.ug01Mk"
 msgid "Time"
 msgstr "Tijd"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Coy6SH"
 msgid "Calendar"
 msgstr "Agenda"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.hOxIeP"
 msgid "Availability"
 msgstr "Beschikbaarheid"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.4S241U"
 msgid "Contacts"
 msgstr "Contacten"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.CQa3R9"
 msgid "Deals"
 msgstr "Deals"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.fqIG9Q"
 msgid "Sequences"
 msgstr "Reeksen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.epJ5ty"
 msgid "Quotes"
 msgstr "Offertes"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Dxd1uB"
 msgid "Shop"
 msgstr "Winkel"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.MlzEfB"
 msgid "Inventory"
 msgstr "Voorraad"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.z3FEm2"
 msgid "Manufacturing"
 msgstr "Productie"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Eh10oP"
 msgid "Production planning"
 msgstr "Productieplanning"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.wWUTla"
 msgid "Banking"
 msgstr "Bank"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.8K_n1E"
 msgid "Legal entities"
 msgstr "Rechtspersonen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.igugQ-"
 msgid "Payroll export"
 msgstr "Loonexport"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.X7jl6w"
 msgid "Orders"
 msgstr "Bestellingen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.g_6veL"
 msgid "Dispatch"
 msgstr "Planning"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.XdSd3o"
 msgid "My day"
 msgstr "Mijn dag"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation._VTdwj"
 msgid "Shipments"
 msgstr "Zendingen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.1YAWJ3"
 msgid "Drive"
 msgstr "Drive"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.vBlT6y"
 msgid "Documents"
 msgstr "Documenten"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.yGsZm0"
 msgid "Forms"
 msgstr "Formulieren"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.R85gsW"
 msgid "Courses"
 msgstr "Cursussen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.4CrCbD"
 msgid "Community"
 msgstr "Community"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.A3ptul"
 msgid "Templates"
 msgstr "Sjablonen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.ofHC1Q"
 msgid "Imports"
 msgstr "Imports"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.j_I5tV"
 msgid "Trash"
 msgstr "Prullenbak"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.HNBpJ4"
 msgid "Metrics"
 msgstr "Statistieken"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.NIi2K2"
 msgid "Compliance"
 msgstr "Compliance"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.9q2Nej"
 msgid "Qualifications"
 msgstr "Kwalificaties"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation._s79W_"
 msgid "Risks"
 msgstr "Risico's"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.TTLDST"
 msgid "Cases"
 msgstr "Cases"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.PcgHMz"
 msgid "Audits and inspections"
 msgstr "Audits en inspecties"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.dMaTpi"
 msgid "Meetings"
 msgstr "Vergaderingen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.d1uESJ"
 msgid "Assets"
 msgstr "Assets"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.U2griC"
 msgid "Laboratory"
 msgstr "Laboratorium"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.nkj_Ln"
 msgid "Requests for quotation"
 msgstr "Offerteaanvragen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.CKpmLI"
 msgid "Tills"
 msgstr "Kassa's"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.dudqv_"
 msgid "Maintenance"
 msgstr "Onderhoud"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.uiZ53z"
 msgid "Appraisals"
 msgstr "Beoordelingen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.jpL4NC"
 msgid "Warehouse"
 msgstr "Magazijn"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.poLbhw"
 msgid "Shifts"
 msgstr "Diensten"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Fm3M-y"
 msgid "Finance"
 msgstr "Financiën"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Yhu2Vp"
 msgid "Payables"
 msgstr "Crediteuren"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.iCpuph"
 msgid "Clients"
 msgstr "Cliënten"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.M_xDHn"
 msgid "Observations"
 msgstr "Observaties"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.gOuYI7"
 msgid "Medications"
 msgstr "Medicatie"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.FuvPAW"
 msgid "Care alerts"
 msgstr "Zorgmeldingen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.a5UKX3"
 msgid "Prescriptions"
 msgstr "Recepten"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.y10hgk"
 msgid "Care plans"
 msgstr "Zorgplannen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.fZb224"
 msgid "Funding"
 msgstr "Financiering"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.NAidKb"
 msgid "Notifications"
 msgstr "Meldingen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.6La3aS"
 msgid "Workflows"
 msgstr "Workflows"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Rm3xgH"
 msgid "Workflow builder"
 msgstr "Workflowbouwer"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.VCMKbt"
 msgid "Inbox"
 msgstr "Inbox"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.WTrOy3"
 msgid "Chat"
 msgstr "Chat"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.wSAvhu"
 msgid "Assistant"
 msgstr "Assistent"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.5OteMI"
 msgid "Knowledge"
 msgstr "Kennis"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.HF49ER"
 msgid "Agent activity"
 msgstr "Agentactiviteit"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.9iOYC0"
 msgid "AI tasks"
 msgstr "AI-taken"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.riw_yc"
 msgid "Beta"
 msgstr "Bèta"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.a8EoBn"
 msgid "Islands"
 msgstr "Eilanden"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.-a-2ug"
 msgid "Members"
 msgstr "Leden"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.DNeuzb"
 msgid "Teams"
 msgstr "Teams"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.c35gM5"
 msgid "Roles"
 msgstr "Rollen"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Tbo377"
 msgid "Billing"
 msgstr "Facturatie"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.yOFPA6"
 msgid "API keys"
 msgstr "API-sleutels"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.ED9RG5"
 msgid "Audit log"
 msgstr "Auditlog"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation._3yfCs"
 msgid "AI providers"
 msgstr "AI-providers"
@@ -11492,25 +11576,28 @@ msgctxt "organization._aWPNo"
 msgid "Owners transfer ownership before they can leave."
 msgstr "Eigenaren dragen het eigendom over voordat ze kunnen vertrekken."
 
-#: src/features/organization/components/organization-switcher-menu.tsx
-msgctxt "organization.qQ6ahH"
-msgid "Switched to {name}"
-msgstr "Overgestapt naar {name}"
-
+#: src/features/organization/components/organization-switcher-lazy.tsx
 #: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.0lmKIf"
 msgid "Switch organization"
 msgstr "Van organisatie wisselen"
 
+#: src/features/organization/components/organization-switcher-lazy.tsx
 #: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.5VHXqC"
 msgid "No organization"
 msgstr "Geen organisatie"
 
+#: src/features/organization/components/organization-switcher-lazy.tsx
 #: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.9ocI0I"
 msgid "Create one to start"
 msgstr "Maak er een om te beginnen"
+
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.qQ6ahH"
+msgid "Switched to {name}"
+msgstr "Overgestapt naar {name}"
 
 #: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.JD2pwH"
@@ -13798,6 +13885,12 @@ msgctxt "rules.OvzONl"
 msgid "Off"
 msgstr "Uit"
 
+#: src/features/search/components/command-search-lazy.tsx
+#: src/features/search/components/command-search.tsx
+msgctxt "search.xmcVZ0"
+msgid "Search"
+msgstr "Zoeken"
+
 #: src/features/search/components/command-search.tsx
 msgctxt "search.SMrXWc"
 msgid "Favorites"
@@ -13812,11 +13905,6 @@ msgstr "Recent"
 msgctxt "search.TkYZBT"
 msgid "Customers"
 msgstr "Klanten"
-
-#: src/features/search/components/command-search.tsx
-msgctxt "search.xmcVZ0"
-msgid "Search"
-msgstr "Zoeken"
 
 #: src/features/search/components/command-search.tsx
 msgctxt "search.sOh6hT"
@@ -16552,6 +16640,7 @@ msgstr "Rol"
 
 #: src/features/user/components/profile-details.tsx
 #: src/features/user/components/user-menu-dropdown.tsx
+#: src/features/user/components/user-menu-lazy.tsx
 msgctxt "user.VQB58n"
 msgid "No role"
 msgstr "Geen rol"
@@ -16667,6 +16756,7 @@ msgid "Set up"
 msgstr "Instellen"
 
 #: src/features/user/components/user-menu-dropdown.tsx
+#: src/features/user/components/user-menu-lazy.tsx
 msgctxt "user.yuQ593"
 msgid "Account menu"
 msgstr "Accountmenu"

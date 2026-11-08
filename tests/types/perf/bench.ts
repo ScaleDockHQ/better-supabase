@@ -9,7 +9,15 @@ import type {
 
 import { fromCatalog } from "better-supabase/cli";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
@@ -47,6 +55,8 @@ interface BaselineEntry extends Profile {
   readonly measurement: Readonly<Record<Mode, Measurement>>;
   readonly gen?: GenTimes;
   readonly mapper?: MapperTimes;
+  /** The server program over the profile's schema (ADR 0450). */
+  readonly server?: Readonly<Record<Compiler, Measurement>>;
 }
 
 interface Baseline {
@@ -56,6 +66,32 @@ interface Baseline {
    */
   readonly calibration: Readonly<Record<Compiler, number>>;
   readonly profiles: Readonly<Record<string, BaselineEntry>>;
+  /** `upgrade` on the CentraKit fixture, by case (ADR 0247). */
+  readonly upgrade?: UpgradeTimes;
+  /** The config program typed against a provider key union (ADR 0323). */
+  readonly config?: Readonly<Record<Compiler, Measurement>>;
+}
+
+/** What one `upgrade` run did. */
+interface UpgradeRun {
+  /** Seconds; machine-dependent, so gated loosely. */
+  readonly seconds: number;
+  /** Modules (and their data and test files) the run rendered. */
+  readonly rendered: number;
+  /** Files whose content changed on disk. */
+  readonly written: number;
+}
+
+/** The three cases of Part 7. */
+interface UpgradeTimes {
+  /** A tree with no module files. */
+  readonly cold: UpgradeRun;
+  /** Again with nothing changed. */
+  readonly warm: UpgradeRun;
+  /** After one check is added to an app file. */
+  readonly edit: UpgradeRun;
+  /** After the app file registers one more audited table (ADR 0362). */
+  readonly audit: UpgradeRun;
 }
 
 const PROFILES = {
@@ -352,11 +388,11 @@ function consumer(profile: Profile, database = "./database.types.ts"): string {
     ...(profile.composite
       ? [`import type { Database } from '${database}';`]
       : []),
-    "import { defineSupabase } from 'better-supabase';",
+    "import { createSupabase } from 'better-supabase';",
     "import { membershipsExtension } from 'better-supabase/blocks/memberships';",
     "import { schema } from './generated.ts';",
     "declare const client: SupabaseClient;",
-    "const db = defineSupabase(schema).use(membershipsExtension()).connect(client);",
+    "const db = createSupabase(schema).use(membershipsExtension()).connect(client);",
     "export async function run(): Promise<void> {",
   ];
 
@@ -436,10 +472,14 @@ function calibrate() {
   } satisfies Readonly<Record<Compiler, number>>;
 }
 
-function measure(tsc: string, flags: readonly string[] = []): Measurement {
+function measure(
+  tsc: string,
+  flags: readonly string[] = [],
+  project = join(work, "tsconfig.json"),
+): Measurement {
   const result = spawnSync(
     process.execPath,
-    [tsc, "-p", join(work, "tsconfig.json"), "--extendedDiagnostics", ...flags],
+    [tsc, "-p", project, "--extendedDiagnostics", ...flags],
     { encoding: "utf-8" },
   );
 
@@ -495,6 +535,7 @@ interface Run {
   readonly measurement: Readonly<Record<Mode, Measurement>>;
   readonly gen: GenTimes;
   readonly mapper: MapperTimes;
+  readonly server: Readonly<Record<Compiler, Measurement>>;
 }
 
 interface Timed<T> {
@@ -531,7 +572,10 @@ function writeConfig(profile: Profile, contentMapper: boolean): void {
       },
       gen: {
         casing: "camel",
-        output: "generated.ts",
+        file: "generated.ts",
+        // The benchmark measures one schema object, so its baselines hold.
+        tableModules: false,
+        blockModules: false,
         tasks: ["types"],
         contentMapper: contentMapper || undefined,
         json: profile.composite
@@ -571,6 +615,55 @@ function writeTsconfig(contentMapper: boolean): void {
   );
 }
 
+/**
+ * The server's program: `createServer` over the generated schema, a context per
+ * request and reads through `ctx.db`. It has its own gate so a change to the
+ * server types (ADR 0450) cannot hide in the client program's numbers.
+ */
+function serverProgram(profile: Profile): string {
+  const lines = [
+    "import { createSupabase } from 'better-supabase';",
+    "import { createServer } from 'better-supabase/server';",
+    "import { schema } from './generated.ts';",
+    "const server = createServer(createSupabase(schema), { env: { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'key' } });",
+    "export async function run(request: Request): Promise<void> {",
+    "  const ctx = await server.context(request);",
+  ];
+
+  for (let i = 1; i <= profile.queried; i += 1) {
+    lines.push(
+      `  await ctx.db.${name(i)}.list({ select: ['id', 'name'], where: { active: true } }).orThrow();`,
+      `  await ctx.db.${name(i)}.create({ organizationId: 'o', name: 'n' }, { select: ['id'] }).orThrow();`,
+    );
+  }
+
+  lines.push("}", "");
+
+  return lines.join("\n");
+}
+
+function benchServer(
+  profile: Profile,
+): Readonly<Record<Compiler, Measurement>> {
+  writeFileSync(join(work, "server.ts"), serverProgram(profile));
+  writeFileSync(
+    join(work, "tsconfig.server.json"),
+    JSON.stringify({
+      extends: "./tsconfig.json",
+      compilerOptions: { lib: ["ES2024", "DOM"] },
+      files: ["server.ts"],
+    }),
+  );
+
+  const project = join(work, "tsconfig.server.json");
+
+  return {
+    ts6: measure(compilers.ts6, [], project),
+    ts7: measure(compilers.ts7, [], project),
+    ts71: measure(compilers.ts71, [], project),
+  };
+}
+
 function run(profile: Profile): Run {
   rmSync(work, { recursive: true, force: true });
   mkdirSync(work, { recursive: true });
@@ -587,6 +680,8 @@ function run(profile: Profile): Run {
     ts7: measure(compilers.ts7),
     ts71: ts71.value,
   };
+
+  const server = benchServer(profile);
 
   const warm = gen();
   writeFileSync(
@@ -616,6 +711,7 @@ function run(profile: Profile): Run {
   return {
     measurement: { ...measurement, ts71Mapper: mapperWarm.value },
     gen: { cold, warm, incremental },
+    server,
     mapper: {
       files: ts71.seconds,
       cold: mapperCold.seconds,
@@ -643,13 +739,19 @@ const compilerOf = (mode: Mode): Compiler =>
 const describe = (measurement: Measurement): string =>
   `${String(measurement.instantiations)} instantiations, ${String(measurement.types)} types, check ${measurement.checkTime.toFixed(2)}s`;
 
-for (const [profileName, profile] of Object.entries(PROFILES)) {
+// `BENCH_ONLY=upgrade` skips the type profiles, for work on the generator alone.
+const only = process.env["BENCH_ONLY"];
+
+for (const [profileName, profile] of Object.entries(
+  only === "upgrade" ? {} : PROFILES,
+)) {
   const current = run(profile);
   next[profileName] = {
     ...profile,
     measurement: current.measurement,
     gen: current.gen,
     mapper: current.mapper,
+    server: current.server,
   };
   console.log(
     `${profileName}: ${String(profile.tables)} tables, ${String(profile.queried)} queried, gen cold ${current.gen.cold.toFixed(2)}s, warm ${current.gen.warm.toFixed(2)}s, incremental ${current.gen.incremental.toFixed(2)}s`,
@@ -658,6 +760,10 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
   for (const mode of MODES) {
     console.log(`  ${mode}: ${describe(current.measurement[mode])}`);
   }
+
+  console.log(
+    `  server program: ${(["ts6", "ts7", "ts71"] as const).map((compiler) => `${compiler} ${String(current.server[compiler].instantiations)} instantiations, ${String(current.server[compiler].types)} types`).join("; ")}`,
+  );
 
   console.log(
     `  ts71 tsc: files ${current.mapper.files.toFixed(2)}s, mapper cold ${current.mapper.cold.toFixed(2)}s, warm ${current.mapper.warm.toFixed(2)}s, incremental ${current.mapper.incremental.toFixed(2)}s`,
@@ -709,6 +815,7 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
     }
   }
 
+  checkServer(profileName, current.server, previous.server);
   checkGen(profileName, current.gen, previous.gen);
   checkMapper(profileName, current.mapper, previous.mapper);
 }
@@ -749,6 +856,32 @@ function checkMapper(
  * Gen runs in Node, so the TypeScript 6 calibration (tsc in JavaScript) is the
  * closer measure of how much slower this machine is.
  */
+function checkServer(
+  profileName: string,
+  now: Readonly<Record<Compiler, Measurement>>,
+  before: Readonly<Record<Compiler, Measurement>> | undefined,
+): void {
+  if (!before) {
+    console.error(
+      `${profileName} has no server baseline. Run \`pnpm --filter @better-supabase/types-perf update\`.`,
+    );
+    process.exitCode = 1;
+
+    return;
+  }
+
+  for (const compiler of ["ts6", "ts7", "ts71"] as const) {
+    for (const metric of ["instantiations", "types"] as const) {
+      if (now[compiler][metric] > before[compiler][metric] * (1 + TOLERANCE)) {
+        console.error(
+          `${profileName} server (${compiler}): ${metric} grew from ${String(before[compiler][metric])} to ${String(now[compiler][metric])} (tolerance ${String(TOLERANCE * 100)}%).`,
+        );
+        process.exitCode = 1;
+      }
+    }
+  }
+}
+
 function checkGen(
   profileName: string,
   now: GenTimes,
@@ -780,10 +913,275 @@ function checkGen(
   }
 }
 
-if (update) {
+/**
+ * `upgrade` on a copy of the CentraKit fixture: a cold run with no module
+ * files, a warm no-op and a run after one edit of an app file. The rendered
+ * count comes from the command's own cache report (module files a fresh render
+ * produced) and the written count from its receipt, so the render cache shows
+ * up as fewer rendered modules, not only as less time.
+ */
+function upgradeRun(directory: string): UpgradeRun {
+  const started = performance.now();
+
+  const result = spawnSync(
+    process.execPath,
+    [cli, "upgrade", "--cwd", directory, "--agent", "no", "--json"],
+    { encoding: "utf-8" },
+  );
+
+  const seconds = Number(((performance.now() - started) / 1000).toFixed(2));
+
+  if (result.status !== 0) {
+    throw new Error(`upgrade failed: ${result.stderr}`);
+  }
+
+  // SAFETY: `upgrade --json` prints the result document with the cache counts.
+  const document = JSON.parse(result.stdout) as {
+    readonly data: { readonly cache: { readonly rendered: number } };
+  };
+
+  const lines = result.stderr
+    .split("\n")
+    .filter((line) => / \(.+\)$/.test(line));
+
+  return {
+    seconds,
+    rendered: document.data.cache.rendered,
+    written: lines.filter((line) => !line.startsWith("Unchanged ")).length,
+  };
+}
+
+function benchUpgrade(): UpgradeTimes {
+  const fixture = join(here, "../../validation-centrakit");
+  const directory = join(work, "upgrade");
+
+  rmSync(directory, { recursive: true, force: true });
+  mkdirSync(work, { recursive: true });
+  cpSync(fixture, directory, {
+    recursive: true,
+    filter: (source) => !source.includes("node_modules"),
+  });
+  symlinkSync(join(fixture, "node_modules"), join(directory, "node_modules"));
+
+  for (const folder of ["schemas", "better-supabase-data", "tests"]) {
+    const path = join(directory, "supabase", folder);
+
+    for (const file of readdirSync(path)) {
+      if (file.startsWith("900_better_supabase_")) {
+        rmSync(join(path, file));
+      }
+    }
+  }
+
+  // The fixture's node_modules is a link into the repo, so its cache outlives a
+  // copy; purging it makes the first run cold.
+  execFileSync(process.execPath, [cli, "cache", "purge", "--cwd", directory], {
+    stdio: "pipe",
+  });
+
+  const cold = upgradeRun(directory);
+
+  // The first run's files change what the second one sees (the tables the
+  // modules own), so one unmeasured run settles the tree; the warm run after
+  // it is a true no-op.
+  upgradeRun(directory);
+  const warm = upgradeRun(directory);
+
+  const app = join(directory, "supabase", "schemas", "000_centrakit.sql");
+  writeFileSync(
+    app,
+    `${readFileSync(app, "utf-8")}\ncomment on schema centrakit is 'bench';\n`,
+  );
+  const edit = upgradeRun(directory);
+
+  // One more audited table in an app file changes the layout's
+  // `auditedTables`, which only a few modules read: the per-module render cache
+  // answers the rest without rendering them again.
+  writeFileSync(
+    app,
+    `${readFileSync(app, "utf-8")}\ncreate table centrakit.bench_note (id uuid primary key);\nselect better_supabase.audit('centrakit.bench_note');\n`,
+  );
+  const audit = upgradeRun(directory);
+
+  if (process.env["BENCH_KEEP"] !== "1") {
+    rmSync(directory, { recursive: true, force: true });
+  }
+
+  return { cold, warm, edit, audit };
+}
+
+function checkUpgrade(
+  now: UpgradeTimes,
+  before: UpgradeTimes | undefined,
+): void {
+  if (!before) {
+    console.error(
+      "upgrade has no baseline. Run `pnpm --filter @better-supabase/types-perf update`.",
+    );
+    process.exitCode = 1;
+
+    return;
+  }
+
+  const speed = Math.max(1, calibration.ts6 / baseline.calibration.ts6);
+
+  for (const phase of ["cold", "warm", "edit", "audit"] as const) {
+    const expected = before[phase].seconds * speed;
+    const limit = Math.max(expected * TIME_FACTOR, expected + TIME_SLACK);
+
+    if (now[phase].seconds > limit) {
+      console.error(
+        `upgrade ${phase} grew from ${expected.toFixed(2)}s to ${now[phase].seconds.toFixed(2)}s (limit ${limit.toFixed(2)}s).`,
+      );
+      process.exitCode = 1;
+    }
+
+    // The counts are exact, and they only shrink: a render cache lowers them.
+    for (const count of ["rendered", "written"] as const) {
+      if (now[phase][count] > before[phase][count]) {
+        console.error(
+          `upgrade ${phase}: ${count} grew from ${String(before[phase][count])} to ${String(now[phase][count])}.`,
+        );
+        process.exitCode = 1;
+      }
+    }
+  }
+}
+
+/**
+ * A `defineConfig` call typed against a provider with a large key union: 300
+ * keys, 40 subjects that name keys, 20 roles that list them and 5 blocks that
+ * rename an action. The permission typing is the one change that can grow the
+ * config's check time, so it has its own gate (ADR 0323).
+ */
+function configProgram(): string {
+  const keys = Array.from(
+    { length: 300 },
+    (_, i) => `"res${String(i % 40)}.act${String(i)}"`,
+  );
+
+  const key = (i: number): string => keys[i % keys.length]!;
+
+  const roles = Array.from(
+    { length: 20 },
+    (_, r) =>
+      `      r${String(r)}: [${Array.from({ length: 15 }, (_, k) => key(r * 15 + k)).join(", ")}],`,
+  );
+
+  const subjects = Array.from(
+    { length: 40 },
+    (_, i) =>
+      `    s${String(i)}: { table: "public.s${String(i)}", permissions: { read: ${key(i)}, write: { key: ${key(i + 40)}, also: ${key(i + 80)} } } },`,
+  );
+
+  return `import type { AuthorizationProvider } from "better-supabase/config";
+
+import { defineConfig } from "better-supabase/config";
+
+type Key = ${keys.join(" | ")};
+
+declare const provider: AuthorizationProvider<Key>;
+
+export default defineConfig({
+  auth: { authorization: provider },
+  blocks: {
+    permissions: {
+      roles: {
+${roles.join("\n")}
+      },
+    },
+    tasks: { permissions: { read: ${key(1)} } },
+  },
+  recordTypes: {
+${subjects.join("\n")}
+  },
+});
+`;
+}
+
+function benchConfig(): Readonly<Record<Compiler, Measurement>> {
+  const directory = join(work, "config");
+  rmSync(directory, { recursive: true, force: true });
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, "config.ts"), configProgram());
+  writeFileSync(
+    join(directory, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        exactOptionalPropertyTypes: true,
+        module: "nodenext",
+        moduleResolution: "nodenext",
+        target: "es2024",
+        lib: ["ES2024"],
+        types: [],
+        allowImportingTsExtensions: true,
+        skipLibCheck: true,
+        noEmit: true,
+      },
+      files: ["config.ts"],
+    }),
+  );
+
+  const project = join(directory, "tsconfig.json");
+
+  return {
+    ts6: measure(compilers.ts6, [], project),
+    ts7: measure(compilers.ts7, [], project),
+    ts71: measure(compilers.ts71, [], project),
+  };
+}
+
+function checkConfig(
+  now: Readonly<Record<Compiler, Measurement>>,
+  before: Readonly<Record<Compiler, Measurement>> | undefined,
+): void {
+  if (!before) {
+    console.error(
+      "config has no baseline. Run `pnpm --filter @better-supabase/types-perf update`.",
+    );
+    process.exitCode = 1;
+
+    return;
+  }
+
+  for (const compiler of ["ts6", "ts7", "ts71"] as const) {
+    for (const metric of ["instantiations", "types"] as const) {
+      if (now[compiler][metric] > before[compiler][metric] * (1 + TOLERANCE)) {
+        console.error(
+          `config (${compiler}): ${metric} grew from ${String(before[compiler][metric])} to ${String(now[compiler][metric])} (tolerance ${String(TOLERANCE * 100)}%).`,
+        );
+        process.exitCode = 1;
+      }
+    }
+  }
+}
+
+const upgradeNow = benchUpgrade();
+
+console.log(
+  `upgrade (centrakit): cold ${upgradeNow.cold.seconds.toFixed(2)}s (${String(upgradeNow.cold.rendered)} rendered, ${String(upgradeNow.cold.written)} written), warm ${upgradeNow.warm.seconds.toFixed(2)}s (${String(upgradeNow.warm.rendered)} rendered, ${String(upgradeNow.warm.written)} written), edit ${upgradeNow.edit.seconds.toFixed(2)}s (${String(upgradeNow.edit.rendered)} rendered, ${String(upgradeNow.edit.written)} written), audit ${upgradeNow.audit.seconds.toFixed(2)}s (${String(upgradeNow.audit.rendered)} rendered, ${String(upgradeNow.audit.written)} written)`,
+);
+
+const configNow = benchConfig();
+
+console.log(
+  `config (300 keys): ${(["ts6", "ts7", "ts71"] as const).map((compiler) => `${compiler} ${String(configNow[compiler].instantiations)} instantiations, ${String(configNow[compiler].types)} types`).join("; ")}`,
+);
+
+if (!update) {
+  checkUpgrade(upgradeNow, baseline.upgrade);
+  checkConfig(configNow, baseline.config);
+}
+
+if (update && only === undefined) {
   writeFileSync(
     baselinePath,
-    `${JSON.stringify({ calibration, profiles: next }, null, 2)}\n`,
+    `${JSON.stringify(
+      { calibration, profiles: next, upgrade: upgradeNow, config: configNow },
+      null,
+      2,
+    )}\n`,
   );
   console.log("baseline updated");
 }

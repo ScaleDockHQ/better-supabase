@@ -11,7 +11,7 @@ import { supportStorage } from "../../src/server/support-storage.ts";
 import { defineBucket, fromStorageError } from "../../src/storage/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { FIXTURE_HELPERS_SQL } from "./fixture-tenant.ts";
-import { stackDbUrl, stackUrl } from "./stack-env.ts";
+import { stackDbUrl, stackUrl, storageReachable } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
@@ -30,17 +30,7 @@ const USER = "00000000-0000-4000-8000-0000000000ff";
 const OTHER_USER = "00000000-0000-4000-8000-0000000000fe";
 const RUN = `s${String(Date.now())}`;
 
-async function reachable(): Promise<boolean> {
-  try {
-    const response = await fetch(`${url}/storage/v1/status`, {
-      signal: AbortSignal.timeout(1000),
-    });
-
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
+const reachable = (): Promise<boolean> => storageReachable(url);
 
 const live = await reachable();
 
@@ -724,7 +714,7 @@ create policy bsb_it_revocable_insert on storage.objects for insert to authentic
 
           return Promise.resolve({
             id: "a1",
-            organization_id: ACME,
+            tenant_id: ACME,
             bucket: files.id,
             object_path: path,
             name: "attachment.txt",
@@ -864,7 +854,7 @@ describe.skipIf(!live)("attachments in a support session", () => {
 
   it("refuses the upload in a read-only session and leaves no record", async () => {
     const before = await pool.query(
-      "select count(*)::int as count from better_supabase.attachments where organization_id = $1",
+      "select count(*)::int as count from better_supabase.attachments where tenant_id = $1",
       [ACME],
     );
 
@@ -877,7 +867,7 @@ describe.skipIf(!live)("attachments in a support session", () => {
     expect(upload.error?.kind).toBe("forbidden");
 
     const after = await pool.query(
-      "select count(*)::int as count from better_supabase.attachments where organization_id = $1",
+      "select count(*)::int as count from better_supabase.attachments where tenant_id = $1",
       [ACME],
     );
 

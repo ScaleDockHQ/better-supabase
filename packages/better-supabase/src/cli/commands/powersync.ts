@@ -7,22 +7,39 @@ import type { BlockSqlLayout } from "../../sql/index.ts";
 import type { AnyCommand } from "../core/command.ts";
 import type { PlanFlags, PlannedFile } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
-import type { PowerSyncInstance } from "../powersync/streams.ts";
+import type {
+  PowerSyncChild,
+  PowerSyncInstance,
+  PowerSyncSubject,
+} from "../powersync/streams.ts";
 import type { Now } from "../sql/migrations.ts";
 
-import { blockReadRoles, renderBlocks } from "../../sql/index.ts";
+import {
+  blockReadRoles,
+  parseBsbComment,
+  tableTagComments,
+} from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { applyPlan, PLAN_ARGS, planResult } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
+import { projectionsOf } from "../powersync/projection.ts";
 import {
   isPowerSyncBlock,
   POWERSYNC_BLOCKS,
   powersyncOutput,
+  publicationDeclaration,
   publicationSql,
 } from "../powersync/streams.ts";
-import { migrationsDir, snapshotColumnTypes } from "../sql-layout.ts";
-import { stampAfter } from "../sql/migrations.ts";
+import {
+  appSchemaTexts,
+  migrationsDir,
+  schemasDirOf,
+  snapshotColumnTypes,
+} from "../sql-layout.ts";
+import { hasMigrationSuffix, migrationFile } from "../sql/migration-names.ts";
 import { layoutFor } from "../sql/providers.ts";
+import { renderBlocksCached } from "../sql/render-cache.ts";
+import { subjectFromTag } from "../subject-tag.ts";
 
 const ARGS = {
   instance: {
@@ -133,7 +150,10 @@ async function publicationMigration(
 ): Promise<PlannedFile | undefined> {
   const dir = resolve(config.root, migrationsDir(config));
   const names = existsSync(dir) ? (await readdir(dir)).toSorted() : [];
-  const earlier = names.filter((name) => name.endsWith(PUBLICATION_SUFFIX));
+
+  const earlier = names.filter((name) =>
+    hasMigrationSuffix(name, PUBLICATION_SUFFIX),
+  );
 
   const published =
     earlier.length === 0
@@ -151,7 +171,10 @@ async function publicationMigration(
   return sql === undefined
     ? undefined
     : {
-        path: join(dir, `${stampAfter(names, now())}${PUBLICATION_SUFFIX}`),
+        path: join(
+          dir,
+          migrationFile(names, now(), PUBLICATION_SUFFIX, sql).name,
+        ),
         contents: sql,
         policy: "create",
         note: "adds the tables to the powersync publication",
@@ -192,6 +215,48 @@ function readRolesOf(
       return [[instance.key, roles] as const];
     }),
   );
+}
+
+/**
+ * The app's subjects by type, from the `@bsb subject` tags of its schema files
+ * (a `subjects.<type>` entry in the config wins over its tag).
+ */
+function subjectsOf(
+  config: ResolvedConfig,
+  app: readonly { readonly text: string }[],
+): Map<string, PowerSyncSubject> {
+  const found = new Map<string, PowerSyncSubject>();
+
+  for (const { text } of app) {
+    for (const comment of tableTagComments(text)) {
+      const tag = parseBsbComment(comment.comment).tags.find(
+        (each) => each.name === "subject",
+      );
+
+      if (tag === undefined) {
+        continue;
+      }
+
+      const type =
+        typeof tag.args["type"] === "string" ? tag.args["type"] : comment.name;
+
+      const subject = {
+        ...subjectFromTag(tag.args, comment.name),
+        ...config.subjects[type],
+      };
+
+      found.set(type, {
+        table: `${comment.schema}.${comment.name}`,
+        id: subject.id ?? "id",
+        tenant: subject.tenant ?? "organization_id",
+        ...(subject.deletedAt === undefined
+          ? {}
+          : { deletedAt: subject.deletedAt }),
+      });
+    }
+  }
+
+  return found;
 }
 
 /**
@@ -250,15 +315,40 @@ export async function runPowerSync(
     ]),
   );
 
+  const childConfig = settings?.children ?? [];
+
+  const childTypes = await snapshotColumnTypes(
+    config,
+    childConfig.map(({ table }) => table),
+  );
+
+  const children: PowerSyncChild[] = childConfig.map((child) => ({
+    ...child,
+    columns: childTypes.get(child.table) ?? new Map(),
+  }));
+
   const layout = await layoutFor(config, {}, config.blockNames);
+  const app = await appSchemaTexts(config);
   let output: ReturnType<typeof powersyncOutput>;
 
   try {
     output = powersyncOutput({
-      files: renderBlocks(config.blockNames, layout),
+      // The app's own files carry the columns it adds to block tables.
+      files: [
+        ...(await renderBlocksCached(config, config.blockNames, layout)),
+        ...app.map(({ path, text }) => ({
+          path,
+          module: "app",
+          kind: "schema" as const,
+          contents: text,
+        })),
+      ],
       instances,
       own,
       readRoles: readRolesOf(config, layout, instances),
+      projections: projectionsOf(app),
+      subjects: subjectsOf(config, app),
+      children,
       importFrom: settings?.import ?? "@powersync/common",
     });
   } catch (cause) {
@@ -272,10 +362,27 @@ export async function runPowerSync(
   const out = resolve(config.root, args.out ?? settings?.out ?? "powersync");
   const migration = await publicationMigration(config, output.published, now);
 
+  const schemasDir = resolve(config.root, await schemasDirOf(config));
+
+  // A repo on declarative schemas declares the publication there too, or the
+  // strict coverage sync would drop it.
+  const declaration: PlannedFile[] =
+    existsSync(schemasDir) && output.published.length > 0
+      ? [
+          {
+            path: join(schemasDir, "powersync_publication.sql"),
+            contents: publicationDeclaration(output.published),
+            policy: "generated",
+            note: "declares the powersync publication",
+          },
+        ]
+      : [];
+
   const plan = {
     root: config.root,
     regenerate: REGENERATE,
     files: [
+      ...declaration,
       { path: join(out, "sync-streams.yaml"), contents: output.streams },
       { path: join(out, "schema.ts"), contents: output.schema },
       ...(migration === undefined ? [] : [migration]),
@@ -285,7 +392,7 @@ export async function runPowerSync(
   const applied = await applyPlan(plan, args);
 
   return planResult(plan, applied, {
-    data: { instances: keys, tables: output.tables },
+    data: { instances: keys, tables: output.tables, children: output.children },
   });
 }
 

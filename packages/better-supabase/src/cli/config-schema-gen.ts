@@ -1,6 +1,6 @@
 import * as v from "valibot";
 
-import type { DataHooksFramework } from "../config/index.ts";
+import type { HooksFramework } from "../config/index.ts";
 
 import { HOOK_FRAMEWORKS } from "./names.ts";
 
@@ -13,10 +13,10 @@ interface SourceInput {
 }
 
 type HooksInput =
-  | DataHooksFramework
+  | HooksFramework
   | false
   | {
-      framework?: DataHooksFramework | undefined;
+      framework?: HooksFramework | undefined;
       select?: { module: string; export: string } | undefined;
     };
 
@@ -30,11 +30,26 @@ export const sourceSchema: v.GenericSchema<SourceInput> = v.strictObject({
 });
 
 /** `gen.hooks`: a framework, `false`, or a framework with a select wrapper. */
-export const hooksSchema: v.GenericSchema<HooksInput> = v.union([
+/**
+ * A built-in name, which the JSON Schema lists for completion, or the name of a
+ * registered binding, which `resolveConfig` checks against the registry.
+ */
+const frameworkName = v.union([
   v.picklist(HOOK_FRAMEWORKS),
+  v.pipe(
+    v.string(),
+    v.regex(
+      /^[a-z][a-z0-9-]*$/,
+      "a framework name is lowercase letters, digits and dashes",
+    ),
+  ),
+]);
+
+export const hooksSchema: v.GenericSchema<HooksInput> = v.union([
+  frameworkName,
   v.literal(false),
   v.strictObject({
-    framework: v.optional(v.picklist(HOOK_FRAMEWORKS)),
+    framework: v.optional(frameworkName),
     select: v.optional(
       v.strictObject({ module: v.string(), export: v.string() }),
     ),

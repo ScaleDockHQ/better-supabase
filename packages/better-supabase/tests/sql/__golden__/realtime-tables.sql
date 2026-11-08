@@ -1,13 +1,10 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:67f7bd100c555d058907f53d57d591c9886140dc3f3ddc83d8a5d598bc8b3be9
+-- @bsb-hash sha256:442d3086291cc3b971681c32c9ed6e8b8f0a3734dff222eed52d881735fc6070
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Clients refetch through RLS, so the payload carries no row data.
 create or replace function better_supabase.broadcast_changes()
@@ -175,7 +172,7 @@ revoke execute on function better_supabase.broadcast_topic() from public, anon, 
 -- tenant_column => null broadcasts on one topic every signed-in user receives;
 -- a tenant column the table lacks is an error, so no tenant table goes global.
 -- user_column broadcasts per user (bsb:t:<table>:u:<user id>) instead.
-drop function if exists better_supabase.track_realtime(regclass, text);
+
 create or replace function better_supabase.track_realtime(
   target regclass,
   tenant_column text default null,
@@ -245,7 +242,6 @@ revoke execute on function better_supabase.untrack_realtime(regclass) from publi
 -- right now (checked live, not from the token claim) and
 -- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
-drop policy if exists bsb_realtime_tables_receive on realtime.messages;
 create policy bsb_realtime_tables_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
@@ -256,19 +252,6 @@ create policy bsb_realtime_tables_receive on realtime.messages
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     ));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
@@ -287,13 +270,10 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:0af558ec917620c5bceb5a0a84bcfef1062ea8c2cccb438cdf48179d2fd7ec84
+-- @bsb-hash sha256:95516d4962f3d5fc1149f1c2a7ba98a4c304639070605d90efb306a0ef1b8394
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Clients refetch through RLS, so the payload carries no row data.
 create or replace function better_supabase.broadcast_changes()
@@ -461,7 +441,7 @@ revoke execute on function better_supabase.broadcast_topic() from public, anon, 
 -- tenant_column => null broadcasts on one topic every signed-in user receives;
 -- a tenant column the table lacks is an error, so no tenant table goes global.
 -- user_column broadcasts per user (bsb:t:<table>:u:<user id>) instead.
-drop function if exists better_supabase.track_realtime(regclass, text);
+
 create or replace function better_supabase.track_realtime(
   target regclass,
   tenant_column text default null,
@@ -531,7 +511,6 @@ revoke execute on function better_supabase.untrack_realtime(regclass) from publi
 -- right now (checked live, not from the token claim) and
 -- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
-drop policy if exists bsb_realtime_tables_receive on realtime.messages;
 create policy bsb_realtime_tables_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
@@ -545,19 +524,6 @@ create policy bsb_realtime_tables_receive on realtime.messages
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     ));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
@@ -576,13 +542,10 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:67f7bd100c555d058907f53d57d591c9886140dc3f3ddc83d8a5d598bc8b3be9
+-- @bsb-hash sha256:442d3086291cc3b971681c32c9ed6e8b8f0a3734dff222eed52d881735fc6070
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Clients refetch through RLS, so the payload carries no row data.
 create or replace function better_supabase.broadcast_changes()
@@ -750,7 +713,7 @@ revoke execute on function better_supabase.broadcast_topic() from public, anon, 
 -- tenant_column => null broadcasts on one topic every signed-in user receives;
 -- a tenant column the table lacks is an error, so no tenant table goes global.
 -- user_column broadcasts per user (bsb:t:<table>:u:<user id>) instead.
-drop function if exists better_supabase.track_realtime(regclass, text);
+
 create or replace function better_supabase.track_realtime(
   target regclass,
   tenant_column text default null,
@@ -820,7 +783,6 @@ revoke execute on function better_supabase.untrack_realtime(regclass) from publi
 -- right now (checked live, not from the token claim) and
 -- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
-drop policy if exists bsb_realtime_tables_receive on realtime.messages;
 create policy bsb_realtime_tables_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
@@ -831,19 +793,6 @@ create policy bsb_realtime_tables_receive on realtime.messages
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     ));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
@@ -862,13 +811,10 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables
 -- @bsb-block realtime-tables@1 managed
--- @bsb-hash sha256:67f7bd100c555d058907f53d57d591c9886140dc3f3ddc83d8a5d598bc8b3be9
+-- @bsb-hash sha256:442d3086291cc3b971681c32c9ed6e8b8f0a3734dff222eed52d881735fc6070
 -- Broadcasts a change signal (no row data) once per statement on bsb:t:<schema>.<table>[:<tenant>], or bsb:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Clients refetch through RLS, so the payload carries no row data.
 create or replace function better_supabase.broadcast_changes()
@@ -1036,7 +982,7 @@ revoke execute on function better_supabase.broadcast_topic() from public, anon, 
 -- tenant_column => null broadcasts on one topic every signed-in user receives;
 -- a tenant column the table lacks is an error, so no tenant table goes global.
 -- user_column broadcasts per user (bsb:t:<table>:u:<user id>) instead.
-drop function if exists better_supabase.track_realtime(regclass, text);
+
 create or replace function better_supabase.track_realtime(
   target regclass,
   tenant_column text default null,
@@ -1106,7 +1052,6 @@ revoke execute on function better_supabase.untrack_realtime(regclass) from publi
 -- right now (checked live, not from the token claim) and
 -- their own user topics (bsb:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
-drop policy if exists bsb_realtime_tables_receive on realtime.messages;
 create policy bsb_realtime_tables_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast'
@@ -1117,19 +1062,6 @@ create policy bsb_realtime_tables_receive on realtime.messages
       or (split_part((select realtime.topic()), ':', 4) = 'u'
         and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     ));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_010_realtime_tables.sql
 -- better-supabase module: realtime-tables

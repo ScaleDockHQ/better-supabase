@@ -3,12 +3,18 @@ import type { BlockOptionsSchema } from "../options.ts";
 import { blockOptions, option } from "../options.ts";
 
 /** `blocks.audit.options.ipHeader`. */
-/** A table left out of audit coverage, with the reason doctor shows. */
-export interface AuditExemption {
-  /** A glob: `*` matches any run of characters. */
-  readonly table: string;
-  readonly reason: string;
-}
+/**
+ * A table, or a class of tables, left out of audit coverage, with the reason
+ * doctor shows. `{ class: "no-tenant-column" }` leaves out every table that has
+ * no tenant column, which the audit helpers can't register.
+ */
+export type AuditExemption =
+  | {
+      /** A glob: `*` matches any run of characters. */
+      readonly table: string;
+      readonly reason: string;
+    }
+  | { readonly class: "no-tenant-column"; readonly reason: string };
 
 export interface AuditIpHeader {
   /** The request header that carries the client address. */

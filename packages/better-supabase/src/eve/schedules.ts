@@ -65,14 +65,14 @@ export interface EveTargetHandle {
  * The part of eve's `ScheduleHandlerArgs` (and route handler args) the dispatch
  * uses. `to` is generic in eve, so its parameters are `never` here.
  */
-export interface EveDispatchArgs {
+export interface EveDispatchOptions {
   readonly to: (channel: never, target: never) => EveTargetHandle;
   /** The app principal, for jobs that record no user. */
   readonly appAuth: EveSessionAuth;
 }
 
 /** Eve's `ScheduleHandlerArgs`. */
-export interface EveScheduleArgs extends EveDispatchArgs {
+export interface EveScheduleOptions extends EveDispatchOptions {
   readonly waitUntil: (task: Promise<unknown>) => void;
 }
 
@@ -135,7 +135,7 @@ export function jobAuth(
 }
 
 const sendTo = (
-  args: EveDispatchArgs,
+  args: EveDispatchOptions,
   channel: object,
   target: unknown,
 ): EveTargetHandle =>
@@ -150,7 +150,7 @@ const sendTo = (
  */
 export function agentJobHandler(
   options: AgentJobOptions,
-  args: EveDispatchArgs,
+  args: EveDispatchOptions,
 ): (payload: EveAgentJob, job: EveQueueJob) => Promise<void> {
   return async (payload, job) => {
     const channel = options.channels[payload.channel];
@@ -184,8 +184,8 @@ export interface QueueSchedulesOptions extends AgentJobOptions {
  */
 export function queueSchedules(
   options: QueueSchedulesOptions,
-): (args: EveScheduleArgs) => void {
-  const run = async (args: EveScheduleArgs) => {
+): (args: EveScheduleOptions) => void {
+  const run = async (args: EveScheduleOptions) => {
     await options.queue.runSchedules().orThrow();
 
     return options.queue.drain({

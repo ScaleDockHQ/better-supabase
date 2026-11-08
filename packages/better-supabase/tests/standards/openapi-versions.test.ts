@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ApiModel } from "../../src/spec/model.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { openapiFormat } from "../../src/openapi/format.ts";
 import { defineApi } from "../../src/spec/api.ts";
@@ -12,7 +12,7 @@ import { problems, validatorFor } from "./validator.ts";
 
 type Json = Record<string, unknown>;
 
-const api = defineApi(defineSupabase(schema), {
+const api = defineApi(createSupabase(schema), {
   info: {
     title: "CRM",
     version: "1.0.0",

@@ -16,11 +16,6 @@ import {
   schemaPreamble,
   triggerGrant,
 } from "../shared.ts";
-import {
-  eventTypeData,
-  storedTypeRenames,
-  typeListRenames,
-} from "./event-type-renames.ts";
 
 const NAMES: BlockSqlNames = {
   options: [
@@ -43,7 +38,7 @@ const NAMES: BlockSqlNames = {
         type: "type",
         source: "source",
         subject: "subject",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         key: "key",
         payload: "payload",
         actor: "actor_id",
@@ -61,7 +56,7 @@ const NAMES: BlockSqlNames = {
         cursor: "cursor_position",
         types: "types",
         leaseOwner: "lease_owner",
-        leaseUntil: "lease_until",
+        leaseUntil: "lease_expires_at",
         attempts: "attempts",
         lastError: "last_error",
         retryAt: "retry_at",
@@ -845,20 +840,6 @@ export const OUTBOX: BlockSqlDefinition = {
   version: 5,
   integrates: ["data-lifecycle"],
   names: NAMES,
-  data: (ctx) =>
-    eventTypeData([
-      storedTypeRenames(ctx, ctx.table("events"), ctx.col("events", "type")),
-      storedTypeRenames(
-        ctx,
-        ctx.table("deadLetters"),
-        ctx.col("deadLetters", "type"),
-      ),
-      typeListRenames(
-        ctx,
-        ctx.table("consumers"),
-        ctx.col("consumers", "types"),
-      ),
-    ]),
   upgrades: [
     {
       from: 1,

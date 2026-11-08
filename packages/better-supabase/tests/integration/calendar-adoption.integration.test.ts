@@ -30,7 +30,7 @@ create table cal_app.calendars (
   organization_id uuid not null,
   name text not null,
   timezone text not null default 'UTC',
-  owner_user_id uuid,
+  owner_id uuid,
   visibility cal_app.visibility not null default 'team',
   created_at timestamptz not null default now()
 );
@@ -46,7 +46,7 @@ create table cal_app.events (
   timezone text not null default 'UTC',
   status text not null default 'confirmed',
   recurrence_id uuid references cal_app.events (id) on delete cascade,
-  original_start timestamptz,
+  original_starts_at timestamptz,
   created_by uuid,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -249,7 +249,7 @@ describe.skipIf(!live)("calendar adoption options", () => {
                 tz: "timezone",
                 color: null,
                 ownerType: null,
-                ownerId: "owner_user_id",
+                ownerId: "owner_id",
               },
               events: {
                 tenant: "organization_id",

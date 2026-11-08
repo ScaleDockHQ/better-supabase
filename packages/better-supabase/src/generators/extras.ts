@@ -82,7 +82,7 @@ function camel(name: string): string {
   );
 }
 
-/** `workItemId` and `work_item_id` → `Work item id`. */
+/** `taskId` and `task_id` → `Task id`. */
 function labelOf(name: string): string {
   return titleOf(name.replaceAll(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase());
 }

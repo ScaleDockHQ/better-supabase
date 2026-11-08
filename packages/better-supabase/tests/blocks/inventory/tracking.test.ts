@@ -266,6 +266,61 @@ describe("inventory tracking", () => {
     ]);
   });
 
+  it("releases or moves one allocation by its id", async () => {
+    const { calls, transport } = recorder(
+      { ...ALLOCATION, status: "released", allocated: "0" },
+      { ...ALLOCATION, documentType: "order", documentId: "o2", lineId: "l7" },
+      { ...ALLOCATION, documentType: "order", documentId: "o3" },
+    );
+
+    const inventory = createInventory({ transport });
+
+    expect(
+      await inventory.releaseAllocation({ allocationId: "a1" }).orThrow(),
+    ).toMatchObject({ id: "a1", status: "released" });
+
+    expect(
+      await inventory
+        .transferAllocation({
+          allocationId: "a1",
+          documentType: "order",
+          documentId: "o2",
+          lineId: "l7",
+        })
+        .orThrow(),
+    ).toMatchObject({ documentType: "order", documentId: "o2", lineId: "l7" });
+
+    await inventory
+      .transferAllocation({
+        allocationId: "a1",
+        documentType: "order",
+        documentId: "o3",
+      })
+      .orThrow();
+
+    expect(calls).toEqual([
+      { fn: "release_allocation", args: { allocation: "a1" } },
+      {
+        fn: "transfer_allocation",
+        args: {
+          allocation: "a1",
+          document_type: "order",
+          document_id: "o2",
+          line_id: "l7",
+        },
+      },
+      {
+        fn: "transfer_allocation",
+        args: {
+          allocation: "a1",
+          document_type: "order",
+          document_id: "o3",
+          line_id: null,
+        },
+      },
+    ]);
+  });
+
   it("allocates, fulfills, restores, releases and lists allocations", async () => {
     const { calls, transport } = recorder(
       ALLOCATION,

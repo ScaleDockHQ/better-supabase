@@ -33,7 +33,7 @@ async function reinstall(
 ): Promise<void> {
   await s.client.query("reset role");
 
-  for (const file of renderBlocks(modules, layout)) {
+  for (const file of renderBlocks(modules, { ...layout, rerunnable: true })) {
     if (file.module === module && file.kind === "schema") {
       await s.client.query(file.contents);
     }

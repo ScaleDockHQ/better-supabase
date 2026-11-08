@@ -4,7 +4,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import {
   DbException,
   dbError,
@@ -76,7 +76,7 @@ interface Ledger {
 }
 
 function ledger(client: SupabaseClient, schema: SchemaMeta = meta): Ledger {
-  return defineSupabase(defineSchema(schema)).connect(client)[
+  return createSupabase(defineSchema(schema)).connect(client)[
     "ledger"
   ] as unknown as Ledger;
 }
@@ -195,7 +195,7 @@ describe("findUnique", () => {
       body: [{ id: "c1", kvk: "123" }],
     }));
 
-    const db = defineSupabase(camel).connect(client);
+    const db = createSupabase(camel).connect(client);
 
     const row = await db.customers
       .get(
@@ -215,7 +215,7 @@ describe("findUnique", () => {
 
   it("returns null when nothing matches and rejects partial keys", async () => {
     const { client } = capturingClient(() => ({ body: [] }));
-    const db = defineSupabase(camel).connect(client);
+    const db = createSupabase(camel).connect(client);
     expect(
       await db.customers.get({ id: "missing" }, { optional: true }).orThrow(),
     ).toBeNull();

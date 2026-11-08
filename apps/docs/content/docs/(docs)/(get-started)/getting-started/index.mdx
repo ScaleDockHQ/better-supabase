@@ -25,7 +25,7 @@ which one. TypeScript 6 and 7 are
 supported, with `nodenext` or
 `bundler` module resolution. On runtimes without a native `Temporal` (Node 24,
 Safari, Hermes), install `temporal-polyfill` and pass its namespace to
-`defineSupabase(schema, { temporal: Temporal })`, or import
+`createSupabase(schema, { temporal: Temporal })`, or import
 `temporal-polyfill/global` once at startup; see
 [Temporal](/docs/concepts/temporal).
 
@@ -43,12 +43,13 @@ the same and prints the install command for your package manager. Or create
 `better-supabase.config.ts` in your project root yourself:
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, valibot } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { valibot } from "better-supabase/generators/valibot";
 
 export default defineConfig({
   gen: {
     casing: "camel",
-    output: "src/lib/supabase/generated.ts",
+    file: "src/lib/supabase/generated.ts",
     generators: [valibot()],
   },
   blocks: { "updated-at": {}, trash: {} },
@@ -89,11 +90,11 @@ one command to run (see [gen tasks](/docs/cli/gen#tasks)).
 
 ```ts
 import { createClient } from "@supabase/supabase-js";
-import { defineSupabase } from "better-supabase";
+import { createSupabase } from "better-supabase";
 
-import { schema } from "./lib/supabase/generated.ts";
+import { schema } from "./lib/supabase/generated-schema.ts";
 
-export const betterSupabase = defineSupabase(schema);
+export const betterSupabase = createSupabase(schema);
 
 const db = betterSupabase.connect(createClient(url, publishableKey));
 
@@ -109,7 +110,7 @@ const customers = await db.customers
 // { id: string; name: string; organization: { name: string } }[]
 ```
 
-`defineSupabase` holds no secrets and no connection. Call `connect()` per
+`createSupabase` holds no secrets and no connection. Call `connect()` per
 request with the client for the current user, so RLS always applies.
 
 </Step>

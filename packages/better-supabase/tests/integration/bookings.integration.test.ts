@@ -245,7 +245,7 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
       "2030-03-05T08:45:00Z",
     ]);
 
-    expect(clash).toMatch(/bookings_no_overlap/);
+    expect(clash).toMatch(/bookings_no_overlap_excl/);
   });
 
   it("books as many overlapping seats as the capacity allows", async () => {

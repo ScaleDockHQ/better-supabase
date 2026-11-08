@@ -134,7 +134,7 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
       ? ctx.of("bookings")
       : undefined;
 
-  const workItems =
+  const tasks =
     ctx.installed("tasks") && ctx.of("tasks").manages
       ? ctx.of("tasks")
       : undefined;
@@ -236,9 +236,9 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
       bookings
         ? `'bookingResources', coalesce((select jsonb_agg(jsonb_build_object('id', y.${bookings.col("resources", "id")}, 'name', y.${bookings.col("resources", "name")}) order by y.${bookings.col("resources", "name")}) from ${bookings.table("resources")} y where y.asset_id = ${asset}), '[]'::jsonb)`
         : `'bookingResources', '[]'::jsonb`,
-      workItems
-        ? `'workItems', coalesce((select jsonb_agg(jsonb_build_object('id', z.id, 'title', z.title) order by z.created_at desc) from (select y.${workItems.col("items", "id")} as id, y.${workItems.col("items", "title")} as title, y.${workItems.col("items", "createdAt")} as created_at from ${workItems.table("items")} y where y.asset_id = ${asset} and y.${workItems.col("items", "closedAt")} is null order by y.${workItems.col("items", "createdAt")} desc limit 50) z), '[]'::jsonb)`
-        : `'workItems', '[]'::jsonb`,
+      tasks
+        ? `'tasks', coalesce((select jsonb_agg(jsonb_build_object('id', z.id, 'title', z.title) order by z.created_at desc) from (select y.${tasks.col("items", "id")} as id, y.${tasks.col("items", "title")} as title, y.${tasks.col("items", "createdAt")} as created_at from ${tasks.table("items")} y where y.asset_id = ${asset} and y.${tasks.col("items", "closedAt")} is null order by y.${tasks.col("items", "createdAt")} desc limit 50) z), '[]'::jsonb)`
+        : `'tasks', '[]'::jsonb`,
     ];
 
     return `jsonb_build_object(${parts.join(", ")})`;
@@ -249,9 +249,9 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
       ? `when 'booking_resource' then
     select y.${bookings.col("resources", "tenant")} into v_tenant from ${bookings.table("resources")} y where y.${bookings.col("resources", "id")} = set_asset_link.target_id;`
       : "",
-    workItems
-      ? `when 'task', 'work_item' then
-    select y.${workItems.col("items", "tenant")} into v_tenant from ${workItems.table("items")} y where y.${workItems.col("items", "id")} = set_asset_link.target_id;`
+    tasks
+      ? `when 'task' then
+    select y.${tasks.col("items", "tenant")} into v_tenant from ${tasks.table("items")} y where y.${tasks.col("items", "id")} = set_asset_link.target_id;`
       : "",
   ].filter((part) => part !== "");
 
@@ -261,9 +261,9 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
     update ${bookings.table("resources")} y set asset_id = set_asset_link.asset_id where y.${bookings.col("resources", "id")} = set_asset_link.target_id;
   end if;`
       : "",
-    workItems
-      ? `if set_asset_link.target_type in ('task', 'work_item') then
-    update ${workItems.table("items")} y set asset_id = set_asset_link.asset_id where y.${workItems.col("items", "id")} = set_asset_link.target_id;
+    tasks
+      ? `if set_asset_link.target_type in ('task') then
+    update ${tasks.table("items")} y set asset_id = set_asset_link.asset_id where y.${tasks.col("items", "id")} = set_asset_link.target_id;
   end if;`
       : "",
   ].filter((part) => part !== "");
@@ -859,7 +859,7 @@ $$;
 ${userGrant(`${fn("asset_locations_at")}(${idType}, double precision, double precision)`)}
 
 -- Names the asset a booking resource or a work item is about; a null
--- asset_id clears it. target_type is booking_resource or work_item.
+-- asset_id clears it. target_type is booking_resource or task.
 create or replace function ${fn("set_asset_link")}(target_type text, target_id uuid, asset_id uuid default null)
 returns jsonb
 language plpgsql
@@ -879,7 +879,7 @@ begin
       : `case set_asset_link.target_type
   ${linkTargets.join("\n  ")}
   else
-    ${invalid("ASSETS_LINK_UNSUPPORTED", "target_type must be booking_resource or work_item")}
+    ${invalid("ASSETS_LINK_UNSUPPORTED", "target_type must be booking_resource or task")}
   end case;
   if v_tenant is null then
     ${fail("ASSETS_LINK_TARGET_NOT_FOUND", "the record to link doesn't exist", "P0002")}

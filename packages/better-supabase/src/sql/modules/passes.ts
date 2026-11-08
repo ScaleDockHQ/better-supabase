@@ -102,7 +102,7 @@ const NAMES: BlockSqlNames = {
         id: "id",
         tenant: "tenant_id",
         kind: "kind",
-        holderUser: "holder_user_id",
+        holderUser: "holder_id",
         holderName: "holder_name",
         holderEmail: "holder_email",
         subjectType: "subject_type",
@@ -111,8 +111,8 @@ const NAMES: BlockSqlNames = {
         resource: "resource_id",
         usesAllowed: "uses_allowed",
         uses: "uses",
-        validFrom: "valid_from",
-        validUntil: "valid_until",
+        validFrom: "starts_at",
+        validUntil: "expires_at",
         status: "status",
         nonce: "nonce",
         issuedBy: "issued_by",
@@ -173,7 +173,7 @@ function passOverlap(ctx: BlockSqlContext): string {
 
   return `\n${ensureExclusion(
     ctx.table("passes"),
-    ctx.naming.rename("passes_no_overlap"),
+    ctx.naming.rename("passes_no_overlap_excl"),
     [
       { expression: p("holderUser"), operator: "=" },
       { expression: p("kind"), operator: "=" },
@@ -336,7 +336,7 @@ function functions(ctx: BlockSqlContext): string {
         "usesAllowed",
         "case when issue_pass.booking_id is not null then coalesce(issue_pass.uses_allowed, 1) else issue_pass.uses_allowed end",
       ],
-      ["validFrom", "coalesce(issue_pass.valid_from, now())"],
+      ["validFrom", "coalesce(issue_pass.starts_at, now())"],
       ["validUntil", "v_until"],
       ["nonce", "encode(extensions.gen_random_bytes(16), 'hex')"],
       ["issuedBy", "auth.uid()"],
@@ -532,9 +532,9 @@ ${userGrant(`${fn("pass_occupancy")}(uuid)`)}
 
   return `
 -- Issues a pass in tenant: a ticket for booking_id (valid until the booking
--- ends unless valid_until says otherwise), a pass for resource_id, or a pass
+-- ends unless expires_at says otherwise), a pass for resource_id, or a pass
 -- for a registered record. Returns the pass with its nonce for the token.
-create or replace function ${fn("issue_pass")}(tenant ${idType}, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, valid_from timestamptz default null, valid_until timestamptz default null)
+create or replace function ${fn("issue_pass")}(tenant ${idType}, kind text default 'ticket', holder_user uuid default null, holder_name text default null, holder_email text default null, subject_type text default null, subject_id text default null, booking_id uuid default null, resource_id uuid default null, uses_allowed integer default null, starts_at timestamptz default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -544,7 +544,7 @@ as $$
 declare
   v_row ${passes}%rowtype;
   v_resource uuid := issue_pass.resource_id;
-  v_until timestamptz := issue_pass.valid_until;${bookingDeclare}
+  v_until timestamptz := issue_pass.expires_at;${bookingDeclare}
 begin
   if not ${allowed("issue_pass.tenant", manage)} then
     ${fail("PASS_FORBIDDEN", "not allowed to issue passes")}
@@ -560,8 +560,8 @@ begin
     ${fail("PASS_HOLDER_NOT_FOUND", "the holder does not exist", "P0002")}
   end if;
 ${issueChecks}
-  if v_until is not null and v_until <= coalesce(issue_pass.valid_from, now()) then
-    ${fail("PASS_VALIDITY_INVALID", "valid_until must be after valid_from and in the future", "22023")}
+  if v_until is not null and v_until <= coalesce(issue_pass.starts_at, now()) then
+    ${fail("PASS_VALIDITY_INVALID", "expires_at must be after starts_at and in the future", "22023")}
   end if;
   insert into ${passes} (${issued.map(([column]) => p(column)).join(", ")})
   values (${
@@ -569,7 +569,7 @@ ${issueChecks}
       ? `issue_pass.tenant, coalesce(issue_pass.kind, 'ticket'), issue_pass.holder_user, issue_pass.holder_name, lower(btrim(issue_pass.holder_email)),
     issue_pass.subject_type, issue_pass.subject_id, issue_pass.booking_id, v_resource,
     case when issue_pass.booking_id is not null then coalesce(issue_pass.uses_allowed, 1) else issue_pass.uses_allowed end,
-    coalesce(issue_pass.valid_from, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid()`
+    coalesce(issue_pass.starts_at, now()), v_until, encode(extensions.gen_random_bytes(16), 'hex'), auth.uid()`
       : issued.map(([, value]) => value).join(",\n    ")
   })
   returning * into v_row;

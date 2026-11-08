@@ -1,93 +1,34 @@
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:1ec4492eb37886b4fbfab57293f0c34bd69002146a80fd9f0021c4c0d431aa5a
+-- @bsb-hash sha256:f856ec9d7882c814ac351880dee999305abeb4823bf55d5f26e5eca653c1204a
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."support_sessions" (
+create table "better_supabase"."support_sessions" (
   "id" uuid primary key default gen_random_uuid(),
   -- Sessions outlive a deleted user, so the record of who viewed whom stays.
   "admin_id" uuid references auth.users (id) on delete set null,
   "target_user_id" uuid references auth.users (id) on delete set null,
   "reason" text not null,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "read_only" boolean not null default true,
   "started_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   "ended_at" timestamptz,
-  "ended_by" text check ("ended_by" in ('admin', 'expired', 'revoked')),
+  "ended_by" text constraint bsb_support_sessions_ended_by_check check ("ended_by" in ('admin', 'expired', 'revoked')),
   -- App data, such as a ticket id.
   "metadata" jsonb not null default '{}',
-  check ("admin_id" <> "target_user_id"),
-  check ("expires_at" > "started_at")
+  constraint bsb_support_sessions_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_sessions_check1 check ("expires_at" > "started_at")
 );
-create index if not exists support_sessions_admin_idx on "better_supabase"."support_sessions" ("admin_id", "started_at" desc);
-create index if not exists support_sessions_target_idx on "better_supabase"."support_sessions" ("target_user_id", "started_at" desc);
-create unique index if not exists support_sessions_one_active_idx on "better_supabase"."support_sessions" ("admin_id") where "ended_at" is null;
+create index support_sessions_admin_idx on "better_supabase"."support_sessions" ("admin_id", "started_at" desc);
+create index support_sessions_target_idx on "better_supabase"."support_sessions" ("target_user_id", "started_at" desc);
+create unique index support_sessions_one_active_idx on "better_supabase"."support_sessions" ("admin_id") where "ended_at" is null;
 alter table "better_supabase"."support_sessions" enable row level security;
 revoke all on "better_supabase"."support_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."support_sessions" to service_role;
 -- Platform staff read every session.
-drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
 create policy bsb_support_read on "better_supabase"."support_sessions"
   for select to authenticated
   using ((select "better_supabase"."is_platform"('platform.users.manage')));
@@ -95,12 +36,12 @@ grant select on "better_supabase"."support_sessions" to authenticated;
 
 -- A support session waits for a second admin: the requester asks here, and
 -- another admin approves. Rows are written only through the functions below.
-create table if not exists "better_supabase"."support_requests" (
+create table "better_supabase"."support_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "admin_id" uuid not null references auth.users (id) on delete cascade,
   "target_user_id" uuid not null references auth.users (id) on delete cascade,
   "reason" text not null,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "read_only" boolean not null default true,
   "metadata" jsonb not null default '{}',
   "requested_at" timestamptz not null default now(),
@@ -109,18 +50,17 @@ create table if not exists "better_supabase"."support_requests" (
   "approved_at" timestamptz,
   -- The session the approval started; an approval starts one session.
   "session_id" uuid,
-  check ("admin_id" <> "target_user_id"),
-  constraint support_requests_distinct_approver check ("approved_by" <> "admin_id"),
-  check (("approved_by" is null) = ("approved_at" is null))
+  constraint bsb_support_requests_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_requests_distinct_approver check ("approved_by" <> "admin_id"),
+  constraint bsb_support_requests_check1 check (("approved_by" is null) = ("approved_at" is null))
 );
-create index if not exists support_requests_admin_idx on "better_supabase"."support_requests" ("admin_id", "target_user_id", "requested_at" desc);
-create index if not exists support_requests_target_idx on "better_supabase"."support_requests" ("target_user_id");
-create index if not exists support_requests_approved_by_idx on "better_supabase"."support_requests" ("approved_by");
+create index support_requests_admin_idx on "better_supabase"."support_requests" ("admin_id", "target_user_id", "requested_at" desc);
+create index support_requests_target_idx on "better_supabase"."support_requests" ("target_user_id");
+create index support_requests_approved_by_idx on "better_supabase"."support_requests" ("approved_by");
 alter table "better_supabase"."support_requests" enable row level security;
 revoke all on "better_supabase"."support_requests" from public, anon, authenticated;
 grant select on "better_supabase"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
-drop policy if exists bsb_support_requests_read on "better_supabase"."support_requests";
 create policy bsb_support_requests_read on "better_supabase"."support_requests"
   for select to authenticated
   using ("admin_id" = (select auth.uid())
@@ -185,7 +125,7 @@ begin
   if not coalesce(read_only, true) then
     raise exception 'Support sessions are read-only (blocks.impersonation.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;
-  insert into "better_supabase"."support_requests" ("admin_id", "target_user_id", "reason", "organization_id", "read_only", "metadata", "expires_at", "approved_by", "approved_at")
+  insert into "better_supabase"."support_requests" ("admin_id", "target_user_id", "reason", "tenant_id", "read_only", "metadata", "expires_at", "approved_by", "approved_at")
   values (admin, target, coalesce(btrim(reason), ''), tenant, coalesce(read_only, true), coalesce(metadata, '{}'),
     now() + '1 hour'::interval, approved_by, case when approved_by is null then null else now() end)
   returning "id" into new_id;
@@ -194,7 +134,7 @@ begin
     'admin_id', x."admin_id",
     'target_user_id', x."target_user_id",
     'reason', x."reason",
-    'tenant', x."organization_id",
+    'tenant', x."tenant_id",
     'read_only', x."read_only",
     'metadata', x."metadata",
     'requested_at', x."requested_at",
@@ -282,7 +222,7 @@ begin
     'admin_id', v_row."admin_id",
     'target_user_id', v_row."target_user_id",
     'reason', v_row."reason",
-    'tenant', v_row."organization_id",
+    'tenant', v_row."tenant_id",
     'read_only', v_row."read_only",
     'metadata', v_row."metadata",
     'requested_at', v_row."requested_at",
@@ -305,7 +245,7 @@ begin
     'admin_id', v_row."admin_id",
     'target_user_id', v_row."target_user_id",
     'reason', v_row."reason",
-    'tenant', v_row."organization_id",
+    'tenant', v_row."tenant_id",
     'read_only', v_row."read_only",
     'metadata', v_row."metadata",
     'requested_at', v_row."requested_at",
@@ -333,7 +273,7 @@ as $$
     'admin_id', x."admin_id",
     'target_user_id', x."target_user_id",
     'reason', x."reason",
-    'tenant', x."organization_id",
+    'tenant', x."tenant_id",
     'read_only', x."read_only",
     'metadata', x."metadata",
     'requested_at', x."requested_at",
@@ -366,7 +306,7 @@ as $$
     'admin_id', x."admin_id",
     'target_user_id', x."target_user_id",
     'reason', x."reason",
-    'tenant', x."organization_id",
+    'tenant', x."tenant_id",
     'read_only', x."read_only",
     'metadata', x."metadata",
     'requested_at', x."requested_at",
@@ -378,7 +318,7 @@ as $$
   from "better_supabase"."support_requests" x
   where x."admin_id" = case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then $4 else auth.uid() end
     and x."target_user_id" = $1
-    and x."organization_id" is not distinct from $2
+    and x."tenant_id" is not distinct from $2
     and (not x."read_only" or coalesce($3, true))
     and x."approved_by" is not null
     and x."approved_by" <> case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then $4 else auth.uid() end
@@ -462,7 +402,7 @@ begin
   end;
   update "better_supabase"."support_sessions" s set "ended_at" = now(), "ended_by" = 'admin'
   where s."admin_id" = admin and s."ended_at" is null;
-  insert into "better_supabase"."support_sessions" ("admin_id", "target_user_id", "reason", "organization_id", "read_only", "expires_at", "metadata")
+  insert into "better_supabase"."support_sessions" ("admin_id", "target_user_id", "reason", "tenant_id", "read_only", "expires_at", "metadata")
   values (admin, target, coalesce(reason, ''), tenant, read_only, now() + ttl, coalesce(metadata, '{}'))
   returning "id" into session_id;
   select jsonb_build_object(
@@ -470,7 +410,7 @@ begin
     'admin_id', s."admin_id",
     'target_user_id', s."target_user_id",
     'reason', s."reason",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'read_only', s."read_only",
     'started_at', s."started_at",
     'expires_at', s."expires_at",
@@ -537,7 +477,7 @@ begin
     'admin_id', s."admin_id",
     'target_user_id', s."target_user_id",
     'reason', s."reason",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'read_only', s."read_only",
     'started_at', s."started_at",
     'expires_at', s."expires_at",
@@ -603,7 +543,7 @@ begin
     'admin_id', s."admin_id",
     'target_user_id', s."target_user_id",
     'reason', s."reason",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'read_only', s."read_only",
     'started_at', s."started_at",
     'expires_at', s."expires_at",
@@ -636,7 +576,7 @@ as $$
     'admin_id', s."admin_id",
     'target_user_id', s."target_user_id",
     'reason', s."reason",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'read_only', s."read_only",
     'started_at', s."started_at",
     'expires_at', s."expires_at",
@@ -671,7 +611,7 @@ as $$
     'admin_id', s."admin_id",
     'target_user_id', s."target_user_id",
     'reason', s."reason",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'read_only', s."read_only",
     'started_at', s."started_at",
     'expires_at', s."expires_at",
@@ -748,71 +688,36 @@ grant execute on function "better_supabase"."expire_support_sessions"() to servi
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_sessions";
 create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ((select "better_supabase"."is_platform"('platform.users.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_sessions";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."support_sessions" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_sessions";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."support_sessions" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."support_requests";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('platform.users.manage')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."support_requests";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."support_requests" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."support_requests";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."support_requests" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));

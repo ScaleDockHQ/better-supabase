@@ -100,7 +100,7 @@ import { Switch } from "@/components/ui/switch";
 import { useStatusLabel } from "@/features/customers/use-status-label";
 import { useRuleBuilder } from "@/hooks/use-automations";
 import { useRouter } from "@/i18n/navigation";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { automationsConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import {
@@ -198,7 +198,7 @@ export function RuleBuilder({
     trigger: RULE_TRIGGER,
     initial: initialConditions,
     locked: LOCKED,
-    schema: blockConfig.automations.api,
+    schema: automationsConfig.api,
   });
 
   const enabled = enabledEdit ?? builder.rule?.enabled ?? false;
@@ -982,7 +982,7 @@ function ValueControl({
   }
 }
 
-export function RuleBuilderSkeleton() {
+function RuleBuilderSkeleton() {
   return (
     <Card aria-busy="true">
       <CardHeader>

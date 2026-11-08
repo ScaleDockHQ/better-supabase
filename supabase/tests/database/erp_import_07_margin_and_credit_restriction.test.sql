@@ -16,22 +16,22 @@ select set_config(
 );
 set local role authenticated;
 select set_config(
-  'bsb.run',
+  'better_supabase.run',
   (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'erp-tax', '{}'::jsonb) ->> 'id'),
   true
 );
 reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
 
 create temporary table batches (name text primary key, result jsonb) on commit drop;
 grant all on batches to authenticated, service_role;
 
-insert into batches values ('tax', better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'tax_code',
+insert into batches values ('tax', better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'tax_code',
   '[{"key":"VAT21","data":{"code":"VAT21","name":"VAT 21%","type":"sales","rateBps":2100,"returnBoxes":["1a"],"validFrom":"2020-01-01"}},
     {"key":"MARGIN","data":{"code":"MARGIN","name":"Margin scheme","type":"margin","rateBps":2100,"returnBoxes":["1a"],"validFrom":"2020-01-01"}}]'::jsonb));
-insert into batches values ('terms', better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'payment_term',
+insert into batches values ('terms', better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'payment_term',
   '[{"key":"CR25","data":{"code":"CR25","name":"Net 30, 25% restricted","days":30,"creditRestrictionBps":2500}}]'::jsonb));
 
 select is(
@@ -46,7 +46,7 @@ select is(
   'the restricted payment term imports'
 );
 
-insert into batches values ('margin', better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice', jsonb_build_array(jsonb_build_object(
+insert into batches values ('margin', better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'invoice', jsonb_build_array(jsonb_build_object(
   'key', 'inv-margin', 'data', jsonb_build_object(
     'number', 'INV-2601', 'status', 'issued', 'issuedOn', '2026-03-10', 'dueOn', '2026-04-09', 'currency', 'EUR',
     'pricesIncludeTax', true,
@@ -55,7 +55,7 @@ insert into batches values ('margin', better_supabase.import_upsert_batch(curren
     'taxLines', jsonb_build_array(jsonb_build_object('taxCode', 'MARGIN', 'taxRateBps', 2100, 'net', 113884, 'tax', 7116, 'gross', 121000, 'showTax', false)),
     'totals', jsonb_build_object('subtotal', 121000, 'tax', 0, 'total', 121000))))));
 
-insert into batches values ('restricted', better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice', jsonb_build_array(jsonb_build_object(
+insert into batches values ('restricted', better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'invoice', jsonb_build_array(jsonb_build_object(
   'key', 'inv-restricted', 'data', jsonb_build_object(
     'number', 'INV-2602', 'status', 'issued', 'issuedOn', '2026-03-12', 'dueOn', '2026-04-11', 'currency', 'EUR',
     'attrs', jsonb_build_object('paymentTermsId', (select id from better_supabase.payment_terms where code = 'CR25')),
@@ -103,7 +103,7 @@ select is(
   'the credit-restricted invoice totals match the source: tax 15750, gross 115750'
 );
 -- A source that disagrees is reported, and the source's figures are kept.
-insert into batches values ('wrong', better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice', jsonb_build_array(jsonb_build_object(
+insert into batches values ('wrong', better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'invoice', jsonb_build_array(jsonb_build_object(
   'key', 'inv-wrong', 'data', jsonb_build_object(
     'number', 'INV-2603', 'status', 'issued', 'issuedOn', '2026-03-14', 'dueOn', '2026-04-13', 'currency', 'EUR',
     'lines', jsonb_build_array(jsonb_build_object('description', 'Equipment', 'quantity', 1, 'unitAmount', 100000, 'taxRateBps', 2100)),

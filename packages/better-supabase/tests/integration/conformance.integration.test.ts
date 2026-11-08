@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, describe, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { postgrestExecutor } from "../../src/core/postgrest-executor.ts";
 import { createPostgres, postgresExecutor } from "../../src/postgres/index.ts";
 import { testAuthorizationProvider } from "../../src/testing/authorization-provider.ts";
@@ -42,7 +42,7 @@ async function reachable(): Promise<boolean> {
 const live = await reachable();
 
 describe.skipIf(!live)("built-in executors conform", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
   const postgres = createPostgres({ connectionString: dbUrl, max: 2 });
 
   afterAll(() => postgres.end());

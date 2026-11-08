@@ -7,10 +7,8 @@ import { renderBlocks } from "../../src/sql/render.ts";
 const VIEW = "public.organization_memberships";
 const QUOTED = '"public"."organization_memberships"';
 
-const OPTIONAL_NULLS: Record<string, string | null> = {
-  updatedAt: null,
-  lastUsedAt: null,
-};
+/** The view lacks `updated_at` and `last_used_at`, which the block leaves out. */
+const OPTIONAL_NULLS: Record<string, string | null> = {};
 
 const layout = (
   columns: readonly string[] = [

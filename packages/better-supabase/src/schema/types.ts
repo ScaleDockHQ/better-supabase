@@ -9,12 +9,14 @@ export interface ColumnMeta {
   readonly db: string;
   /** Postgres type name (`uuid`, `text`, `timestamptz`, `note_kind`). */
   readonly type: string;
-  readonly nullable: boolean;
+  /** `gen` leaves it out when it is `false`. */
+  readonly nullable?: boolean;
   /**
    * An insert may leave the column out: it has a default, a `before insert`
-   * trigger can fill it, or `tables.<t>.insertOptional` lists it.
+   * trigger can fill it, or `tables.<t>.insertOptional` lists it. `gen` leaves
+   * it out when it is `false`, which keeps it out of the bundle of a page.
    */
-  readonly hasDefault: boolean;
+  readonly hasDefault?: boolean;
   readonly generated?: boolean;
   /** Identity column; `'always'` columns can't be written. */
   readonly identity?: "always" | "by default";
@@ -170,6 +172,13 @@ export interface SchemaMeta {
   readonly version: 1;
   readonly casing: Casing;
   readonly tables: Readonly<Record<string, TableMeta>>;
+  /**
+   * The tables are not all listed: a module registers each one it uses
+   * (`client.table(customers)`), so a page only carries the tables it imports.
+   * `defineSchema` copies `tables` so registering never changes a module's
+   * constant. Only the browser client of a split layout sets it.
+   */
+  readonly lazyTables?: true;
   readonly enums: Readonly<Record<string, readonly string[]>>;
   readonly functions: Readonly<Record<string, FunctionMeta>>;
   readonly buckets?: Readonly<Record<string, BucketMeta>>;
@@ -380,7 +389,7 @@ export interface Schema<
   readonly meta: SchemaMeta;
   /**
    * The repository extensions of the installed blocks (`trashExtension()`,
-   * ...). `defineSupabase(schema)` installs them first.
+   * ...). `createSupabase(schema)` installs them first.
    */
   readonly extensions?: readonly AnyPlugin[];
   /** Phantom. Never present at runtime. */

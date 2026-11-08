@@ -7,9 +7,9 @@ export type PayrollExportSqlOptions = {
   /** The IANA zone that assigns an entry or a shift to a day. Default `UTC`. */
   readonly timeZone?: string;
   /**
-   * The blocks a run collects lines from: `time-tracking`, `leave` and
-   * `shifts`. Default `["time-tracking", "leave"]`; scheduled shifts overlap
-   * worked time, so they are opt-in.
+   * The blocks a run collects lines from: `time-entries`, `leave` and `shifts`.
+   * Default `["time-entries", "leave"]`; scheduled shifts overlap worked time,
+   * so they are opt-in.
    */
   readonly sources?: readonly string[];
 };

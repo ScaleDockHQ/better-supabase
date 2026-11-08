@@ -9,7 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { contractsFunctions } from "./contracts-functions.ts";
@@ -74,11 +74,11 @@ const NAMES: BlockSqlNames = {
     contract_obligation: {
       table: "obligations",
       singular: "contract_obligation",
-      formerly: "obligation",
+      keyed: true,
     },
   },
   events: EVENTS,
-  options: ["reminderDays", "extraColumns"],
+  options: ["reminderDays"],
   tables: {
     contracts: {
       name: "contracts",
@@ -154,7 +154,6 @@ function tables(ctx: BlockSqlContext): string {
   const c = (column: string): string => ctx.col("contracts", column);
   const o = (column: string): string => ctx.col("obligations", column);
   const signatures = ctx.of("signatures");
-  const extras = ctx.extraColumns("contracts", CONTRACT_RESERVED);
   const read = ctx.permission("read", moduleOperations("contracts").read);
 
   const name = (logical: string, suffix: string): string =>
@@ -254,7 +253,7 @@ create table if not exists ${contracts} (
   ])}
   check (${c("endsOn")} is null or ${c("startsOn")} is null or ${c("endsOn")} >= ${c("startsOn")}),
   unique (${c("tenant")}, ${c("id")})
-);${addExtraColumns(contracts, extras)}${ctx.owns("contracts") ? "" : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("contracts").name}_tenant_id_key`)} on ${contracts} (${c("tenant")}, ${c("id")});`}
+);${ctx.owns("contracts") ? "" : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("contracts").name}_tenant_id_key`)} on ${contracts} (${c("tenant")}, ${c("id")});`}
 create index if not exists ${name("contracts", "status_idx")} on ${contracts} (${c("tenant")}, ${c("status")}, ${c("endsOn")});
 ${contract("counterpartyType") ? `create index if not exists ${name("contracts", "counterparty_idx")} on ${contracts} (${c("tenant")}, ${c("counterpartyType")}, ${c("counterpartyId")}) where ${c("counterpartyType")} is not null;\n` : ""}create index if not exists ${name("contracts", "owner_idx")} on ${contracts} (${c("tenant")}, ${c("owner")}) where ${c("owner")} is not null;
 create index if not exists ${name("contracts", "signature_idx")} on ${contracts} (${c("signatureRequest")}) where ${c("signatureRequest")} is not null;

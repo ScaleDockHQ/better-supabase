@@ -1,58 +1,19 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:cde3daf8f45729f9f8cda1a370cca60afa19e452b9851fbf4b380ae018dd7e5b
+-- @bsb-hash sha256:7bd7b08065fe300bd8518dcf2879df342c246413d3dcd2396404bb0b7bfb1e9e
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
 -- centrakit.organizations is the app's table, and it has every column this block needs.
 create unique index if not exists organizations_slug_idx on "centrakit"."organizations" (lower("slug"::text));
 alter table "centrakit"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "centrakit"."organizations";
 create trigger bsb_updated_at before update on "centrakit"."organizations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "centrakit"."organizations" enable row level security;
 grant select on "centrakit"."organizations" to authenticated;
 grant all on "centrakit"."organizations" to service_role;
-drop policy if exists bsb_organizations_read on "centrakit"."organizations";
-drop policy if exists bsb_organizations_select on "centrakit"."organizations";
 create policy bsb_organizations_select on "centrakit"."organizations"
   for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
@@ -256,7 +217,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bsb_organization_owner" on "centrakit"."organization_users";
 create constraint trigger "bsb_organization_owner" after update of "role_id", "organization_id" or delete on "centrakit"."organization_users"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
@@ -309,7 +269,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_organization_role_guard" on "centrakit"."organization_users";
 create trigger "bsb_organization_role_guard" before insert or update on "centrakit"."organization_users"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
@@ -530,10 +489,6 @@ begin
 end;
 $$;
 
-
-drop function if exists "better_supabase"."add_member_role"(uuid, uuid, text);
-drop function if exists "better_supabase"."remove_member_role"(uuid, uuid, text);
-
 -- Records that the caller opened the organization (the last_used_at column of
 -- memberships, when it has one), for "recent organizations" lists.
 create or replace function "better_supabase"."mark_used"(organization uuid)
@@ -552,9 +507,6 @@ begin
   return found;
 end;
 $$;
-
-drop function if exists "better_supabase"."suspend_member"(uuid, uuid);
-drop function if exists "better_supabase"."resume_member"(uuid, uuid);
 
 -- Makes organization the caller's active organization (blocks.permissions.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
@@ -582,8 +534,6 @@ begin
   return jsonb_build_object('organization_id', organization, 'refresh', false);
 end;
 $$;
-
-drop function if exists "better_supabase"."list_my_organizations"();
 create or replace function "better_supabase"."list_my_organizations"()
 returns table (
   id uuid,
@@ -604,8 +554,6 @@ as $$
     and not better_supabase.tenant_disabled(o."id")
   order by o."name"
 $$;
-
-drop function if exists "better_supabase"."list_members"(uuid);
 create or replace function "better_supabase"."list_members"(organization uuid)
 returns table (user_id uuid, role text)
 language plpgsql
@@ -721,16 +669,3 @@ revoke execute on function "better_supabase"."organization_overview"(uuid) from 
 grant execute on function "better_supabase"."organization_overview"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."list_organization_invitations"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_organization_invitations"(uuid) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

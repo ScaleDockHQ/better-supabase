@@ -5,8 +5,14 @@ import { useDeferredValue } from "react";
 
 import { logos } from "@/lib/buckets";
 import { useQueries, useSupabase } from "@/lib/hooks";
+import { bsb } from "@/lib/supabase/client";
+import { customersTable } from "@/lib/supabase/tables/customers";
 
 import type { CustomerRow } from "./components/customer-table";
+
+// The browser client registers a table when a module imports it (ADR 0262);
+// `queries.customers` exists only after this.
+bsb.table(customersTable);
 
 /**
  * Searches every customer by name from the browser, beyond the first page the

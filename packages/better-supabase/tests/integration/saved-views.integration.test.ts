@@ -270,7 +270,7 @@ describe.skipIf(!live)("saved views in Postgres", () => {
 
   it("records saved_view.created", async () => {
     const rows = await db.rows<{ payload: Record<string, unknown> }>(
-      "select payload from better_supabase.outbox_events where type = 'saved_view.created' and organization_id = $1",
+      "select payload from better_supabase.outbox_events where type = 'saved_view.created' and tenant_id = $1",
       [org],
     );
 

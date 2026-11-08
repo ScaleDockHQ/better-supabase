@@ -14,11 +14,11 @@ pnpm better-supabase db query --single-transaction a.sql b.sql
 can hold many statements, so a data migration or a fixture file runs as it
 would in `psql -f`, without a `psql` install.
 
-| Flag                   | Effect                                                                            |
-| ---------------------- | --------------------------------------------------------------------------------- |
-| `--single-transaction` | Wraps every file in one transaction, so a failure keeps none.                     |
-| `--stack <name>`       | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`). |
-| `--db-url-stdin`       | Reads the connection string from stdin, so it never reaches argv.                 |
+| Flag                   | Effect                                                                                        |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `--single-transaction` | Wraps every file in one transaction, so a failure keeps none.                                 |
+| `--stack <name>`       | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
+| `--db-url-stdin`       | Reads the connection string from stdin, so it never reaches argv.                             |
 
 Without `--db-url-stdin`, the command connects through `$DATABASE_URL`,
 `$SUPABASE_DB_URL`, or the local stack. Against a database that is not local,
@@ -57,12 +57,12 @@ The plan is checked before anything is written:
   column type) stops the diff with a `check_failed` error and writes nothing.
   Run it again with `--allow-data-loss` once you have read the list.
 
-| Flag                | Effect                                                                                 |
-| ------------------- | -------------------------------------------------------------------------------------- |
-| `-f, --file`        | Saves the diff as `supabase/migrations/<timestamp>_<name>.sql` instead of printing it. |
-| `--in-stack`        | Plans with the library on the running stack, without the Supabase CLI.                 |
-| `--allow-data-loss` | Writes the migration even when it destroys data.                                       |
-| `--stack <name>`    | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`).      |
+| Flag                | Effect                                                                                        |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| `-f, --file`        | Saves the diff as `supabase/migrations/<timestamp>_<name>.sql` instead of printing it.        |
+| `--in-stack`        | Plans with the library on the running stack, without the Supabase CLI.                        |
+| `--allow-data-loss` | Writes the migration even when it destroys data.                                              |
+| `--stack <name>`    | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
 
 A migration from the library plan starts with a comment that asks you to
 review it: it compares two databases, so check the order of the statements
@@ -102,12 +102,12 @@ export const seed = defineSeed(betterSupabase, {
 ```bash
 pnpm better-supabase db seed          # writes supabase/seeds/000_better_supabase.sql
 pnpm better-supabase db seed --check  # fails in CI when the SQL is stale
-pnpm better-supabase db seed --apply  # also inserts into the local database
+pnpm better-supabase db seed --yes  # also inserts into the local database
 ```
 
 `--entry <file>` and `--out <file>` override `database.seed.entry` and
-`database.seed.output`. `--dry-run` prints the diff and writes nothing; neither it nor
-`--check` runs `--apply`. `--apply` connects to `$DATABASE_URL` or `$SUPABASE_DB_URL`, or to the local stack;
+`database.seed.file`. `--dry-run` prints the diff and writes nothing; neither it nor
+`--check` runs `--yes`. `--yes` connects to `$DATABASE_URL` or `$SUPABASE_DB_URL`, or to the local stack;
 to seed another database, pipe its connection string in with
 `--db-url-stdin`.
 
@@ -148,7 +148,7 @@ pnpm better-supabase db seed --tenant '*'   # every organization
 [organizations block](/docs/blocks/organizations) and inserts the rows for
 all of them in one transaction, so a failure leaves none behind. `--entry`
 overrides `database.seed.perTenant`. The database and consent rules are the ones
-`--apply` follows: the local stack needs no consent, any other database
+`--yes` follows: the local stack needs no consent, any other database
 does, and `--dry-run` connects to nothing. `tenant.slug` and `tenant.name`
 are set when the organization has them. Every insert is
 `on conflict do nothing`, so give rows a key when the seed may run twice
@@ -194,7 +194,7 @@ block's starting set (repeat it for more blocks) over
 (`database.seed.defaults.locale`, `en` by default). A variant that the block
 does not declare is refused. Setting `database.seed.defaults.onCreate` to
 `false` stops new organizations from getting defaults. The database and
-consent rules are the ones `--apply` follows.
+consent rules are the ones `--yes` follows.
 
 Blocks that declare defaults today are `risks`, `cases`, `leave`, `tax`,
 `pipelines` and `accounting`. `pipelines` offers the variants `b2b-sales` and
@@ -217,11 +217,11 @@ Say where the rows go with `--tenant <slug>` or `--demo-org`, which creates a
 demo organization. `--size` is `s`, `m` or `l`, and the same `--seed` gives the
 same rows. `--out <file>` writes the statements to a file instead of running
 them, and `--dry-run` shows how many would run. Without a Pro plan the cloud
-answers 402 and the command exits with code 3 and the upgrade address.
+answers 402 and the command exits with code 2 and the upgrade address.
 `database.seed.sample` holds the defaults for `size`, `seed`, `locale` and
 `output`.
 
-Side effects: Writes files, writes to the database with `--apply`, writes to the database with `--tenant`, writes to the database with `--defaults`, calls the Better Supabase cloud with `--sample`.
+Side effects: Writes files, writes to the database with `--yes`, writes to the database with `--tenant`, writes to the database with `--defaults`, calls the Better Supabase cloud with `--sample`.
 
 ## backfill
 
@@ -246,19 +246,19 @@ the column is null, so a run that stops can start again, and a second run
 fills nothing. Rows whose source value is null, or that have no source row,
 stay null; the result counts them in `remaining`.
 
-| Flag                 | Effect                                                                             |
-| -------------------- | ---------------------------------------------------------------------------------- |
-| `--from <table.col>` | Copies the value from this column, joined through `via <column>`.                  |
-| `--via <column>`     | The foreign key column of the target table, the same as a trailing `via <column>`. |
-| `--value <literal>`  | Writes this SQL literal instead of `--from`.                                       |
-| `--array <path>`     | Changes the elements of the jsonb array at this key path instead of filling nulls. |
-| `--match <json>`     | With `--array`: the JSON object an element must contain to change.                 |
-| `--delete`           | With `--array`: removes the matching elements.                                     |
-| `--merge <json>`     | With `--array`: merges this JSON object into each matching element.                |
-| `--batch-size <n>`   | Rows per statement (default 1000).                                                 |
-| `--dry-run`          | Counts the rows (and elements) it would change and writes nothing.                 |
-| `--stack <name>`     | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`).  |
-| `--db-url-stdin`     | Reads the connection string from stdin, so it never reaches argv.                  |
+| Flag                 | Effect                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| `--from <table.col>` | Copies the value from this column, joined through `via <column>`.                             |
+| `--via <column>`     | The foreign key column of the target table, the same as a trailing `via <column>`.            |
+| `--value <literal>`  | Writes this SQL literal instead of `--from`.                                                  |
+| `--array <path>`     | Changes the elements of the jsonb array at this key path instead of filling nulls.            |
+| `--match <json>`     | With `--array`: the JSON object an element must contain to change.                            |
+| `--delete`           | With `--array`: removes the matching elements.                                                |
+| `--merge <json>`     | With `--array`: merges this JSON object into each matching element.                           |
+| `--batch-size <n>`   | Rows per statement (default 1000).                                                            |
+| `--dry-run`          | Counts the rows (and elements) it would change and writes nothing.                            |
+| `--stack <name>`     | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
+| `--db-url-stdin`     | Reads the connection string from stdin, so it never reaches argv.                             |
 
 ### Array elements
 
@@ -305,7 +305,7 @@ needs the user's consent first. The JSON envelope returns `data.filled`,
 Each update fires the table's triggers, so audit, version and event triggers
 record every backfilled row. When nothing is left null, add the not-null check
 as `not valid` in a migration, then run
-[`doctor --fix`](/docs/cli/doctor#bs236), which validates it. Then
+[`doctor --yes`](/docs/cli/doctor#bs236), which validates it. Then
 `set not null` needs no scan:
 
 ```sql
@@ -318,35 +318,5 @@ to the scope column itself, so the order there is the other way round: new
 rows must name an owner at once, and `db backfill` fills the existing rows
 that [doctor reports as BS238](/docs/cli/doctor#bs238). See
 [Your own schemas](/docs/blocks/own-schemas#fill-the-owner-with-db-backfill).
-
-Side effects: Writes to the database.
-
-## prune-workflows
-
-```bash
-pnpm better-supabase db prune-workflows --older-than 30d
-pnpm better-supabase db prune-workflows --older-than 7d --status failed --dry-run
-```
-
-`db prune-workflows` deletes the [Workflow SDK](/docs/blocks/workflow-sdk)
-runs that ended longer ago than `--older-than`, with their events, steps,
-waits, stream chunks and hooks. It calls `workflow_purge_runs` in batches
-until a batch comes back short, so each statement holds its locks only
-briefly. Running runs are never deleted. Run it on a schedule when the
-database has no pg_cron, or set the block's
-[`retention`](/docs/blocks/workflow-sdk#retention) option instead.
-
-| Flag                 | Effect                                                                            |
-| -------------------- | --------------------------------------------------------------------------------- |
-| `--older-than <age>` | `30d`, `12h`, `7 days` or `12 hours` (default `30d`).                             |
-| `--status <list>`    | Comma-separated: `completed`, `failed`, `cancelled` (default all three).          |
-| `--batch-size <n>`   | Runs per statement, 1 to 10000 (default 500).                                     |
-| `--dry-run`          | Counts the runs it would delete and writes nothing.                               |
-| `--stack <name>`     | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BSB_STACK`). |
-| `--db-url-stdin`     | Reads the connection string from stdin, so it never reaches argv.                 |
-
-Against a database that is not local, an agent needs the user's consent
-first. The JSON envelope returns `data.deleted`, or `data.pending` with
-`--dry-run`.
 
 Side effects: Writes to the database.

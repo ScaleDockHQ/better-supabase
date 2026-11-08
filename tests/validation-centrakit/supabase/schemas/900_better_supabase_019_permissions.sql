@@ -1,12 +1,10 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:8ae96366fcaa73406cbba54439004f81fde79a994d1688d2a001b65fe06bd660
+-- @bsb-hash sha256:6e9b14c16bc5effc5860855a8e1e8fb1d2370fd52a83c73910418ece804603ac
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Disabled tenants and users get no permissions and no membership claims
@@ -119,8 +117,6 @@ as $$
     when 'audit.read' then 'audit.view'
     when 'audit.readAll' then 'platform.users.manage'
     when 'audit.revert' then 'audit.revert'
-    when 'audit.view' then 'audit.view'
-    when 'audit.viewAll' then 'platform.users.manage'
     when 'comments.create' then 'comments.create'
     when 'comments.moderate' then 'comments.moderate'
     when 'comments.read' then 'comments.read'
@@ -136,13 +132,11 @@ as $$
     when 'impersonation.read' then 'platform.users.manage'
     when 'impersonation.revoke' then 'impersonation.revoke'
     when 'impersonation.start' then 'platform.users.manage'
-    when 'impersonation.view' then 'platform.users.manage'
     when 'imports.manage' then 'imports.manage'
     when 'invitations.invite' then 'members.invite'
     when 'invitations.invitePlatform' then 'platform.invite'
     when 'invitations.read' then 'members.invite'
     when 'invitations.revoke' then 'members.invite'
-    when 'invitations.view' then 'members.invite'
     when 'messaging.moderate' then 'comments.moderate'
     when 'messaging.read' then 'comments.read'
     when 'messaging.send' then 'comments.create'
@@ -175,10 +169,8 @@ as $$
     when 'webhooks-in.delete' then 'webhook.manage'
     when 'webhooks-in.read' then 'webhook.view'
     when 'webhooks-in.update' then 'webhook.manage'
-    when 'webhooks-in.view' then 'webhook.view'
     when 'webhooks-out.manage' then 'webhook.manage'
     when 'webhooks-out.read' then 'webhook.view'
-    when 'webhooks-out.view' then 'webhook.view'
   end
 $$;
 
@@ -403,8 +395,6 @@ as $$
     ), '{}'::text[])
   end
 $$;
-drop function if exists "better_supabase"."list_roles"(uuid);
-drop function if exists "better_supabase"."set_permission_override"(uuid, text, text, boolean);
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -452,16 +442,3 @@ grant execute on function better_supabase.permission_claims(uuid, uuid) to servi
 --       keys := '{}'::jsonb;
 --     end if;
 --     return jsonb_set(event, '{claims,permissions}', keys);
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

@@ -46,8 +46,9 @@ export interface CliContext {
   /** The coding agent running the CLI, in agent mode; `undefined` for a person. */
   readonly agent: string | undefined;
   /**
-   * In agent mode, throws `consent_required` until the run passes `--confirm`
-   * with this request's token; does nothing for a person.
+   * In agent mode, throws `confirmation_required` until the run passes `--yes`
+   * with `--effects-digest` set to this request's digest; does nothing for a
+   * person.
    */
   readonly requireConsent: (request: ConsentRequest) => void;
 }
@@ -69,25 +70,30 @@ export const GLOBAL_ARGS = {
   json: {
     type: "boolean",
     description:
-      "Print one JSON document on stdout; errors as Problem Details. On by default in agent mode",
+      "Print one JSON document on stdout; a failure prints an error document on stderr. On by default in agent mode",
     negativeDescription: "Print text, also in agent mode",
   },
   agent: {
     type: "string",
     description:
-      "Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto",
+      "Agent mode (JSON output, no prompts, confirmation for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto",
     valueHint: "auto|yes|no",
   },
-  confirm: {
+  "effects-digest": {
     type: "string",
     description:
-      "The token from a consent_required result, passed once the user agreed",
-    valueHint: "token",
+      "The digest from a confirmation_required result; with --yes, confirms exactly those effects",
+    valueHint: "digest",
   },
   yes: {
     type: "boolean",
     alias: "y",
-    description: "Ask nothing; use the flags and the defaults",
+    description: "Answer yes to every confirmation; ask nothing",
+  },
+  "non-interactive": {
+    type: "boolean",
+    description:
+      "Never prompt; fail with input_required when a value is missing. On in CI and agent mode",
   },
   color: {
     type: "boolean",
@@ -102,14 +108,14 @@ export const GLOBAL_ARGS = {
   },
 } as const;
 
-export type CliArgs<T extends ArgsDef> = ParsedArgs<T & typeof GLOBAL_ARGS>;
+export type CliValues<T extends ArgsDef> = ParsedArgs<T & typeof GLOBAL_ARGS>;
 
 /**
  * What a runner reads from a command's flags: any subset of them, so another
  * command's runner can call it without parsing argv.
  */
 export type CliOptions<T extends ArgsDef> = {
-  readonly [K in keyof T | keyof typeof GLOBAL_ARGS]?: CliArgs<T>[K];
+  readonly [K in keyof T | keyof typeof GLOBAL_ARGS]?: CliValues<T>[K];
 } & { readonly _?: readonly string[] };
 
 /**
@@ -139,7 +145,7 @@ export interface CliCommandDef<T extends ArgsDef> {
    */
   readonly readsLegacyTables?: boolean;
   readonly run: (
-    args: CliArgs<T>,
+    args: CliValues<T>,
     context: CliContext,
   ) => Promise<CommandResult>;
 }

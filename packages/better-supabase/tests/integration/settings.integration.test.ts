@@ -137,7 +137,7 @@ describe.skipIf(!live)("settings", () => {
       // trigger's errors map to a validation error.
       await s.service();
 
-      const insert = `insert into better_supabase.organization_settings (organization_id, key, value)
+      const insert = `insert into better_supabase.organization_settings (tenant_id, key, value)
            values ('${organization}', 'seats', '"many"')`;
 
       expect(await s.hint(insert)).toBe("JSON_SCHEMA_INVALID");

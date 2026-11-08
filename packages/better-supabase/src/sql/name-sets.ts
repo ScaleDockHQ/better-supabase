@@ -1,7 +1,6 @@
 import type { BlockSqlContext } from "./context.ts";
 import type { BlockSql } from "./module-types.ts";
 
-import { ENTITY_KEY_RENAMES } from "../core/renames.ts";
 import { moduleContext } from "./module-context.ts";
 import {
   isOperationModule,
@@ -20,8 +19,6 @@ export interface BlockSqlNameSet {
   /** Entity to the default column names of its table. */
   readonly entities: Readonly<Record<string, readonly string[]>>;
   readonly primary: string | undefined;
-  /** Entity keys before the 0.47 renames, which still resolve. */
-  readonly formerKeys: readonly string[];
 }
 
 /**
@@ -91,7 +88,6 @@ export function moduleNameSet(module: BlockSql): BlockSqlNameSet {
       ]),
     ),
     primary: entities.find(([, spec]) => spec.primary === true)?.[0],
-    formerKeys: Object.keys(ENTITY_KEY_RENAMES[module.name] ?? {}),
   };
 }
 
@@ -137,7 +133,6 @@ export function formatNameRegistry(modules: readonly BlockSql[]): string {
         `    readonly hooks: ${union(names.hooks)};`,
         entityLines(names.entities),
         `    readonly primary: ${names.primary === undefined ? "never" : JSON.stringify(names.primary)};`,
-        `    readonly formerKeys: ${union(names.formerKeys)};`,
         "  };",
       ].join("\n");
     });

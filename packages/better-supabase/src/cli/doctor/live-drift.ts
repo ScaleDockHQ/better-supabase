@@ -6,7 +6,7 @@ import { moduleFiles } from "./module-files.ts";
 import { catalogOf } from "./shared.ts";
 
 const PARTIAL_INDEX =
-  /^create\s+(?:unique\s+)?index\s+if\s+not\s+exists\s+("[^"]+"|\w+)\s+on\s+("[^"]+"|\w+)\.("[^"]+"|\w+)\s+\([^\n]*\)\s+where\s+([^\n;]+);/gim;
+  /^create\s+(?:unique\s+)?index\s+(?:if\s+not\s+exists\s+)?("[^"]+"|\w+)\s+on\s+("[^"]+"|\w+)\.("[^"]+"|\w+)\s+\([^\n]*\)\s+where\s+([^\n;]+);/gim;
 
 const LITERAL = /'((?:[^']|'')*)'/g;
 

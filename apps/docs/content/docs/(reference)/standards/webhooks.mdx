@@ -14,7 +14,7 @@ import { authHook, hookError } from "better-supabase/blocks/webhooks";
 
 export const POST = authHook(
   "custom_access_token",
-  process.env.AUTH_HOOK_SECRET!,
+  process.env.BETTER_SUPABASE_AUTH_HOOK_SECRET!,
   async ({ user_id, claims }) => {
     const [membership] = await admin.memberships
       .list({ where: { userId: user_id }, limit: 1 })

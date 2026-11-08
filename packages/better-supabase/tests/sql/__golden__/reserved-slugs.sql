@@ -1,22 +1,18 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
--- @bsb-hash sha256:908e242fdb5d1934024d7d752f364de6227640eff5ef345fface800d89c63ead
+-- @bsb-hash sha256:eb53087b0db758e41032343bcf0590469c9bea4938ac2ce90b483db4ee624dc0
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
-create table if not exists "better_supabase"."reserved_slugs" (
+create table "better_supabase"."reserved_slugs" (
   "slug" text primary key,
   "reason" text
 );
 alter table "better_supabase"."reserved_slugs" enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on "better_supabase"."reserved_slugs" to anon, authenticated, service_role;
-drop policy if exists bsb_reserved_slugs_read on "better_supabase"."reserved_slugs";
 create policy bsb_reserved_slugs_read on "better_supabase"."reserved_slugs"
   for select to anon, authenticated, service_role
   using (true);
@@ -77,19 +73,6 @@ $$;
 revoke execute on function better_supabase.slug_problem(text) from public, anon;
 grant execute on function better_supabase.slug_problem(text) to authenticated, service_role;
 revoke execute on function better_supabase.track_slug(regclass, text) from public, anon, authenticated;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
@@ -119,22 +102,18 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
--- @bsb-hash sha256:908e242fdb5d1934024d7d752f364de6227640eff5ef345fface800d89c63ead
+-- @bsb-hash sha256:eb53087b0db758e41032343bcf0590469c9bea4938ac2ce90b483db4ee624dc0
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
-create table if not exists "better_supabase"."reserved_slugs" (
+create table "better_supabase"."reserved_slugs" (
   "slug" text primary key,
   "reason" text
 );
 alter table "better_supabase"."reserved_slugs" enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on "better_supabase"."reserved_slugs" to anon, authenticated, service_role;
-drop policy if exists bsb_reserved_slugs_read on "better_supabase"."reserved_slugs";
 create policy bsb_reserved_slugs_read on "better_supabase"."reserved_slugs"
   for select to anon, authenticated, service_role
   using (true);
@@ -196,19 +175,6 @@ revoke execute on function better_supabase.slug_problem(text) from public, anon;
 grant execute on function better_supabase.slug_problem(text) to authenticated, service_role;
 revoke execute on function better_supabase.track_slug(regclass, text) from public, anon, authenticated;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block-data reserved-slugs
@@ -237,27 +203,24 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
--- @bsb-hash sha256:c634729a228269219d2c82af6bb01708f4531173b85c2eda56542b8f7b7a936a
+-- @bsb-hash sha256:09983b5941d1ea01069a8cc575daa791594e8b7418f87617ae3cfe81b2c3bb17
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 
-create table if not exists "app_private"."reserved_slugs" (
+create table "app_private"."reserved_slugs" (
   "slug" text primary key,
   "reason" text
 );
 alter table "app_private"."reserved_slugs" enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on "app_private"."reserved_slugs" to anon, authenticated, service_role;
-drop policy if exists bsb_reserved_slugs_read on "app_private"."reserved_slugs";
 create policy bsb_reserved_slugs_read on "app_private"."reserved_slugs"
   for select to anon, authenticated, service_role
   using (true);
@@ -319,19 +282,6 @@ revoke execute on function better_supabase.slug_problem(text) from public, anon;
 grant execute on function better_supabase.slug_problem(text) to authenticated, service_role;
 revoke execute on function better_supabase.track_slug(regclass, text) from public, anon, authenticated;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block-data reserved-slugs
@@ -360,22 +310,18 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
--- @bsb-hash sha256:3c704ecce66fc2673b18953d62c7a10daf5d472536036c35916c1814a89329cc
+-- @bsb-hash sha256:8efcb09b1f1dc9316613c941ec86edff65e57035f67a3f839483a60ae4c71e64
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
-create table if not exists "better_supabase"."reserved_slugs" (
+create table "better_supabase"."reserved_slugs" (
   "slug" text primary key,
   "reason" text
 );
 alter table "better_supabase"."reserved_slugs" enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on "better_supabase"."reserved_slugs" to anon, authenticated, service_role;
-drop policy if exists bsb_reserved_slugs_read on "better_supabase"."reserved_slugs";
 create policy bsb_reserved_slugs_read on "better_supabase"."reserved_slugs"
   for select to anon, authenticated, service_role
   using (true);
@@ -451,19 +397,6 @@ as $$ select "better_supabase"."slug_problem"($1) $$;
 revoke execute on function "api"."slug_problem"(text) from public, anon;
 grant execute on function "api"."slug_problem"(text) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block-data reserved-slugs
@@ -492,13 +425,10 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
--- @bsb-hash sha256:1a9691f72bfd15de01011079ba3418395318074a3b6d12bc1119ee2ee812ffbd
+-- @bsb-hash sha256:8fb39e47f813d46e5b70421cf0a6e88f3f83e997c054ab83b4bf253937d5445c
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- better_supabase.reserved_slugs is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."reserved_slugs" add column if not exists "slug" text;
@@ -507,7 +437,6 @@ create unique index if not exists "bsb_reserved_slugs_slug_key" on "better_supab
 alter table "better_supabase"."reserved_slugs" enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on "better_supabase"."reserved_slugs" to anon, authenticated, service_role;
-drop policy if exists bsb_reserved_slugs_read on "better_supabase"."reserved_slugs";
 create policy bsb_reserved_slugs_read on "better_supabase"."reserved_slugs"
   for select to anon, authenticated, service_role
   using (true);
@@ -568,19 +497,6 @@ $$;
 revoke execute on function better_supabase.slug_problem(text) from public, anon;
 grant execute on function better_supabase.slug_problem(text) to authenticated, service_role;
 revoke execute on function better_supabase.track_slug(regclass, text) from public, anon, authenticated;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs

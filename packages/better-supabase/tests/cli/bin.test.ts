@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { VERSION } from "../../src/cli/version.ts";
+import { errorDoc } from "./error-doc.ts";
 
 const bin = join(import.meta.dirname, "../../bin/better-supabase.js");
 
@@ -51,20 +52,22 @@ describe("the built bin", () => {
     expect(usage.stdout).toContain("Usage: better-supabase");
   });
 
-  it("exits 2 with Problem Details for a mistyped command under --json", async () => {
+  it("exits 2 with an error document on stderr for a mistyped command under --json", async () => {
     const result = await spawn(["genn", "--json"], dir);
     expect(result.code).toBe(2);
-    expect(JSON.parse(result.stdout)).toMatchObject({
+    expect(errorDoc(result)).toMatchObject({
       status: "error",
-      error: { code: "unknown_command", suggestion: "gen" },
+      reason: "unknown_command",
+      data: { suggestion: "gen" },
     });
   });
 
   it("reads the connection string from stdin", async () => {
     const result = await spawn(["db", "seed", "--db-url-stdin", "--json"], dir);
     expect(result.code).toBe(2);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      error: { code: "missing_value", flag: "--db-url-stdin" },
+    expect(errorDoc(result)).toMatchObject({
+      reason: "missing_value",
+      data: { flag: "--db-url-stdin" },
     });
   });
 });

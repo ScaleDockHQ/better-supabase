@@ -733,10 +733,14 @@ function adoptedKey(
   table: string,
   key: readonly string[],
   scope: string,
+  rerunnable: boolean,
 ): string {
   const columns = key.join(", ");
 
-  return `do $$
+  // The app's files declare the table's constraints, so a schema diff never
+  // drops one; only a migration applied over an older table replaces them.
+  const replaced = rerunnable
+    ? `do $$
 declare
   v_constraint record;
 begin
@@ -757,7 +761,10 @@ begin
   end loop;
 end
 $$;
-create unique index if not exists number_sequences_series_key on ${table} (${columns});
+`
+    : "";
+
+  return `${replaced}create unique index if not exists number_sequences_series_key on ${table} (${columns});
 `;
 }
 
@@ -775,7 +782,7 @@ export function sequencesTable(ctx: BlockSqlContext): string {
 
   const key = ctx.owns("sequences")
     ? ""
-    : adoptedKey(table, [tenant, entity, scope, period], scope);
+    : adoptedKey(table, [tenant, entity, scope, period], scope, ctx.rerunnable);
 
   return `create table if not exists ${table} (
   ${tenant} ${ctx.idType} not null,

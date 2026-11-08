@@ -46,7 +46,7 @@ const item = (id: string, input: unknown, expected?: unknown) => ({
 const runRow = (status = "running") => ({
   id: "r1",
   dataset_id: "d1",
-  organization_id: null,
+  tenant_id: null,
   prompt_name: "greet",
   prompt_version: 2,
   model: "m",
@@ -307,7 +307,7 @@ describe("createEvalJob", () => {
 describe("createAiEvals reads and writes", () => {
   const fullRun = {
     ...runRow("failed"),
-    organization_id: "o1",
+    tenant_id: "o1",
     scorers: [
       { name: "tone", kind: "llm_judge", criteria: "polite", threshold: 0.4 },
       { name: "layout", kind: "json_schema", jsonSchema: { type: "object" } },
@@ -345,7 +345,7 @@ describe("createAiEvals reads and writes", () => {
     const { transport, calls } = fake({
       create_eval_dataset: () => ({
         id: "d1",
-        organization_id: "o1",
+        tenant_id: "o1",
         name: "support",
         description: "d",
         created_at: AT,

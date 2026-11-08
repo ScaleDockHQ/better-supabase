@@ -1,134 +1,73 @@
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:e6cb561f05c5fc233360c7ba555f756a098dc7473dfd5ee4bc68b9d80339789d
+-- @bsb-hash sha256:1398b23b70c38de8b1da1b844070f842c80f5208b0156ea4f5d9bc3459fe343b
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."legal_entities";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."legal_entities";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."legal_entities";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."legal_entities";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."legal_entities";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."legal_entity_settings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."legal_entity_settings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."legal_entity_settings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."legal_entity_settings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."legal_entity_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Legal entities inside one organization (ADR 0142): their details, the
 -- default entity, per-entity settings, and the optional legal_entity_id
 -- column on the tables blocks.legal-entities.options.on names.
 
 -- The legal entities of an organization: the companies that issue documents,
 -- keep books and pay tax. Contacts, products and members stay shared.
-create table if not exists "better_supabase"."legal_entities" (
+create table "better_supabase"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "vat_number" text check ("vat_number" is null or length("vat_number") between 1 and 50),
-  "coc_number" text check ("coc_number" is null or length("coc_number") between 1 and 50),
-  "iban" text check ("iban" is null or length("iban") between 1 and 34),
-  "bic" text check ("bic" is null or length("bic") between 1 and 11),
+  "code" text not null constraint bsb_legal_entities_code_check check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
+  "name" text not null constraint bsb_legal_entities_name_check check (length("name") >= 1 and length("name") <= 200),
+  "address" jsonb not null default '{}'::jsonb constraint bsb_legal_entities_address_check check (jsonb_typeof("address") = 'object'),
+  "vat_number" text constraint bsb_legal_entities_vat_number_check check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
+  "coc_number" text constraint bsb_legal_entities_coc_number_check check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
+  "iban" text constraint bsb_legal_entities_iban_check check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
+  "bic" text constraint bsb_legal_entities_bic_check check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
   "logo_attachment_id" uuid references "better_supabase"."attachments" ("id") on delete set null,
-  "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
+  "default_currency" text constraint bsb_legal_entities_default_currency_check check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
   -- { "fiscalYearStartMonth": 1 to 12, "taxPeriod": "monthly" or "quarterly" }.
-  "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb check (jsonb_typeof("fiscal") = 'object'),
+  "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb constraint bsb_legal_entities_fiscal_check check (jsonb_typeof("fiscal") = 'object'),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
   unique ("tenant_id", "id"),
-  check (not ("is_default" and "archived_at" is not null))
+  constraint bsb_legal_entities_check check (not ("is_default" and "archived_at" is not null))
 );
 -- One default entity per organization.
-create unique index if not exists "legal_entities_default_idx" on "better_supabase"."legal_entities" ("tenant_id") where "is_default";
-create index if not exists "legal_entities_logo_idx" on "better_supabase"."legal_entities" ("logo_attachment_id") where "logo_attachment_id" is not null;
+create unique index "legal_entities_default_idx" on "better_supabase"."legal_entities" ("tenant_id") where "is_default";
+create index "legal_entities_logo_idx" on "better_supabase"."legal_entities" ("logo_attachment_id") where "logo_attachment_id" is not null;
 alter table "better_supabase"."legal_entities" enable row level security;
 revoke all on "better_supabase"."legal_entities" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entities" to authenticated;
 grant all on "better_supabase"."legal_entities" to service_role;
-drop policy if exists legal_entities_read on "better_supabase"."legal_entities";
-create policy legal_entities_read on "better_supabase"."legal_entities"
+create policy bsb_legal_entities_read on "better_supabase"."legal_entities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
 -- Settings that differ per legal entity; resolve_setting falls back to the
 -- organization's setting, then to the code default.
-create table if not exists "better_supabase"."legal_entity_settings" (
+create table "better_supabase"."legal_entity_settings" (
   "tenant_id" uuid not null,
   "legal_entity_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_legal_entity_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
   primary key ("legal_entity_id", "key"),
   foreign key ("tenant_id", "legal_entity_id") references "better_supabase"."legal_entities" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "legal_entity_settings_tenant_idx" on "better_supabase"."legal_entity_settings" ("tenant_id", "legal_entity_id");
-create index if not exists "legal_entity_settings_updated_by_idx" on "better_supabase"."legal_entity_settings" ("updated_by") where "updated_by" is not null;
+create index "legal_entity_settings_tenant_idx" on "better_supabase"."legal_entity_settings" ("tenant_id", "legal_entity_id");
+create index "legal_entity_settings_updated_by_idx" on "better_supabase"."legal_entity_settings" ("updated_by") where "updated_by" is not null;
 alter table "better_supabase"."legal_entity_settings" enable row level security;
 revoke all on "better_supabase"."legal_entity_settings" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entity_settings" to authenticated;
 grant all on "better_supabase"."legal_entity_settings" to service_role;
-drop policy if exists legal_entity_settings_read on "better_supabase"."legal_entity_settings";
-create policy legal_entity_settings_read on "better_supabase"."legal_entity_settings"
+create policy bsb_legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
-alter table "better_supabase"."invoices" add column if not exists legal_entity_id uuid;
-alter table "better_supabase"."invoices" drop constraint if exists "bsb_invoices_legal_entity_fk";
+alter table "better_supabase"."invoices" add column legal_entity_id uuid;
 alter table "better_supabase"."invoices" add constraint "bsb_invoices_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
-create index if not exists "bsb_invoices_legal_entity_idx" on "better_supabase"."invoices" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
+create index "bsb_invoices_legal_entity_idx" on "better_supabase"."invoices" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
 do $$
 declare
   v_key record;
@@ -201,27 +140,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."bsb_invoices_entity_numbers"() from public, anon, authenticated;
-drop trigger if exists "bsb_invoices_entity_numbers" on "better_supabase"."invoices";
 create trigger "bsb_invoices_entity_numbers" before insert or update of "number", "identifier", "direction", "kind", legal_entity_id on "better_supabase"."invoices"
   for each row execute function "better_supabase"."bsb_invoices_entity_numbers"();
--- Documents that already share a number across the null and default spellings
--- stay as they are; the guard only checks new and changed rows. They are
--- listed by legal_entities_disable_check.
-do $$
-begin
-  if exists (
-    select 1 from "better_supabase"."invoices" x
-    join "better_supabase"."legal_entities" d on d."tenant_id" = x."tenant_id" and d."is_default" and x.legal_entity_id = d."id"
-    join "better_supabase"."invoices" y on y."tenant_id" = x."tenant_id" and y.legal_entity_id is null and (x."number" = y."number" or x."identifier" = y."identifier") and x."direction" is not distinct from y."direction" and x."kind" is not distinct from y."kind"
-  ) then
-    raise warning 'invoices holds numbers twice for the default legal entity and for documents without one; list them with legal_entities_disable_check and renumber one of each pair'
-      using hint = 'LEGAL_ENTITY_NUMBER_DUPLICATE';
-  end if;
-end $$;
-alter table "better_supabase"."quotes" add column if not exists legal_entity_id uuid;
-alter table "better_supabase"."quotes" drop constraint if exists "bsb_quotes_legal_entity_fk";
+alter table "better_supabase"."quotes" add column legal_entity_id uuid;
 alter table "better_supabase"."quotes" add constraint "bsb_quotes_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
-create index if not exists "bsb_quotes_legal_entity_idx" on "better_supabase"."quotes" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
+create index "bsb_quotes_legal_entity_idx" on "better_supabase"."quotes" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
 do $$
 declare
   v_key record;
@@ -283,27 +206,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."bsb_quotes_entity_numbers"() from public, anon, authenticated;
-drop trigger if exists "bsb_quotes_entity_numbers" on "better_supabase"."quotes";
 create trigger "bsb_quotes_entity_numbers" before insert or update of "number", "revision", legal_entity_id on "better_supabase"."quotes"
   for each row execute function "better_supabase"."bsb_quotes_entity_numbers"();
--- Documents that already share a number across the null and default spellings
--- stay as they are; the guard only checks new and changed rows. They are
--- listed by legal_entities_disable_check.
-do $$
-begin
-  if exists (
-    select 1 from "better_supabase"."quotes" x
-    join "better_supabase"."legal_entities" d on d."tenant_id" = x."tenant_id" and d."is_default" and x.legal_entity_id = d."id"
-    join "better_supabase"."quotes" y on y."tenant_id" = x."tenant_id" and y.legal_entity_id is null and (x."number" = y."number") and x."revision" is not distinct from y."revision"
-  ) then
-    raise warning 'quotes holds numbers twice for the default legal entity and for documents without one; list them with legal_entities_disable_check and renumber one of each pair'
-      using hint = 'LEGAL_ENTITY_NUMBER_DUPLICATE';
-  end if;
-end $$;
-alter table "better_supabase"."orders" add column if not exists legal_entity_id uuid;
-alter table "better_supabase"."orders" drop constraint if exists "bsb_orders_legal_entity_fk";
+alter table "better_supabase"."orders" add column legal_entity_id uuid;
 alter table "better_supabase"."orders" add constraint "bsb_orders_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
-create index if not exists "bsb_orders_legal_entity_idx" on "better_supabase"."orders" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
+create index "bsb_orders_legal_entity_idx" on "better_supabase"."orders" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
 do $$
 declare
   v_key record;
@@ -376,43 +283,23 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."bsb_orders_entity_numbers"() from public, anon, authenticated;
-drop trigger if exists "bsb_orders_entity_numbers" on "better_supabase"."orders";
 create trigger "bsb_orders_entity_numbers" before insert or update of "number", "invoice_number", legal_entity_id on "better_supabase"."orders"
   for each row execute function "better_supabase"."bsb_orders_entity_numbers"();
--- Documents that already share a number across the null and default spellings
--- stay as they are; the guard only checks new and changed rows. They are
--- listed by legal_entities_disable_check.
-do $$
-begin
-  if exists (
-    select 1 from "better_supabase"."orders" x
-    join "better_supabase"."legal_entities" d on d."tenant_id" = x."tenant_id" and d."is_default" and x.legal_entity_id = d."id"
-    join "better_supabase"."orders" y on y."tenant_id" = x."tenant_id" and y.legal_entity_id is null and (x."number" = y."number" or x."invoice_number" = y."invoice_number")
-  ) then
-    raise warning 'orders holds numbers twice for the default legal entity and for documents without one; list them with legal_entities_disable_check and renumber one of each pair'
-      using hint = 'LEGAL_ENTITY_NUMBER_DUPLICATE';
-  end if;
-end $$;
-alter table "better_supabase"."number_sequences" add column if not exists legal_entity_id uuid;
-alter table "better_supabase"."number_sequences" drop constraint if exists "bsb_number_sequences_legal_entity_fk";
+alter table "better_supabase"."number_sequences" add column legal_entity_id uuid;
 alter table "better_supabase"."number_sequences" add constraint "bsb_number_sequences_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
-create index if not exists "bsb_number_sequences_legal_entity_idx" on "better_supabase"."number_sequences" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
-alter table "better_supabase"."accounting_journals" add column if not exists legal_entity_id uuid;
-alter table "better_supabase"."accounting_journals" drop constraint if exists "bsb_accounting_journals_legal_entity_fk";
+create index "bsb_number_sequences_legal_entity_idx" on "better_supabase"."number_sequences" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
+alter table "better_supabase"."accounting_journals" add column legal_entity_id uuid;
 alter table "better_supabase"."accounting_journals" add constraint "bsb_accounting_journals_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
-create index if not exists "bsb_accounting_journals_legal_entity_idx" on "better_supabase"."accounting_journals" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
-alter table "better_supabase"."accounting_entries" add column if not exists legal_entity_id uuid;
-alter table "better_supabase"."accounting_entries" drop constraint if exists "bsb_accounting_entries_legal_entity_fk";
+create index "bsb_accounting_journals_legal_entity_idx" on "better_supabase"."accounting_journals" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
+alter table "better_supabase"."accounting_entries" add column legal_entity_id uuid;
 alter table "better_supabase"."accounting_entries" add constraint "bsb_accounting_entries_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
-create index if not exists "bsb_accounting_entries_legal_entity_idx" on "better_supabase"."accounting_entries" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
-alter table "better_supabase"."inventory_locations" add column if not exists legal_entity_id uuid;
-alter table "better_supabase"."inventory_locations" drop constraint if exists "bsb_inventory_locations_legal_entity_fk";
+create index "bsb_accounting_entries_legal_entity_idx" on "better_supabase"."accounting_entries" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
+alter table "better_supabase"."inventory_locations" add column legal_entity_id uuid;
 alter table "better_supabase"."inventory_locations" add constraint "bsb_inventory_locations_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
-create index if not exists "bsb_inventory_locations_legal_entity_idx" on "better_supabase"."inventory_locations" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
-alter table "better_supabase"."organization_settings" add column if not exists legal_entity_id uuid;
-alter table "better_supabase"."organization_settings" drop constraint if exists "bsb_organization_settings_legal_entity_fk";
-alter table "better_supabase"."organization_settings" add constraint "bsb_organization_settings_legal_entity_fk" foreign key ("organization_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
-create index if not exists "bsb_organization_settings_legal_entity_idx" on "better_supabase"."organization_settings" ("organization_id", legal_entity_id) where legal_entity_id is not null;
+create index "bsb_inventory_locations_legal_entity_idx" on "better_supabase"."inventory_locations" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
+alter table "better_supabase"."organization_settings" add column legal_entity_id uuid;
+alter table "better_supabase"."organization_settings" add constraint "bsb_organization_settings_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
+create index "bsb_organization_settings_legal_entity_idx" on "better_supabase"."organization_settings" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
 
 -- Making an entity the default merges its numbers with those of documents that
 -- have no legal entity, so the switch needs them to be distinct.
@@ -479,7 +366,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."legal_entity_default_guard"() from public, anon, authenticated;
-drop trigger if exists bsb_legal_entity_default_guard on "better_supabase"."legal_entities";
 create trigger bsb_legal_entity_default_guard after update of "is_default" on "better_supabase"."legal_entities"
   for each row when (new."is_default" and not old."is_default") execute function "better_supabase"."legal_entity_default_guard"();
 
@@ -581,26 +467,10 @@ end;
 $$;
 revoke execute on function "better_supabase"."legal_entities_disable_check"(uuid) from public, anon;
 grant execute on function "better_supabase"."legal_entities_disable_check"(uuid) to authenticated, service_role;
-
-alter table "better_supabase"."field_values" add column if not exists legal_entity_id uuid;
-alter table "better_supabase"."field_values" drop constraint if exists "bsb_field_values_legal_entity_fk";
+alter table "better_supabase"."field_values" add column legal_entity_id uuid;
 alter table "better_supabase"."field_values" add constraint "bsb_field_values_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
-create index if not exists "bsb_field_values_legal_entity_idx" on "better_supabase"."field_values" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
-do $$
-declare
-  v_constraint name;
-begin
-  for v_constraint in
-    select c.conname from pg_constraint c
-    where c.conrelid = '"better_supabase"."field_values"'::regclass and c.contype = 'u'
-      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = c.conrelid and a.attnum = any (c.conkey))
-        @> array['tenant_id', 'subject_type', 'subject_id', 'definition_id']
-      and cardinality(c.conkey) = 4
-  loop
-    execute format('alter table "better_supabase"."field_values" drop constraint %I', v_constraint);
-  end loop;
-end $$;
-create unique index if not exists "bsb_field_values_entity_key_idx" on "better_supabase"."field_values" ("tenant_id", "subject_type", "subject_id", "definition_id", coalesce(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid));
+create index "bsb_field_values_legal_entity_idx" on "better_supabase"."field_values" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
+create unique index "bsb_field_values_entity_key_idx" on "better_supabase"."field_values" ("tenant_id", "subject_type", "subject_id", "definition_id", coalesce(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 
 -- Checks the fiscal settings and fills the defaults: the first month of the
@@ -1047,7 +917,7 @@ begin
     end if;
   end if;
   select s."value" into v_value from "better_supabase"."organization_settings" s
-    where s."organization_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
+    where s."tenant_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
   if found then
     return jsonb_build_object('value', v_value, 'source', 'organization', 'legalEntityId', v_entity);
   end if;
@@ -1060,91 +930,46 @@ grant execute on function "better_supabase"."resolve_setting"(uuid, text, uuid) 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."legal_entities";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."legal_entities";
 create policy bsb_tenant_scope_select on "better_supabase"."legal_entities" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."legal_entities";
 create policy bsb_tenant_scope_insert on "better_supabase"."legal_entities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."legal_entities";
 create policy bsb_tenant_scope_update on "better_supabase"."legal_entities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."legal_entities";
 create policy bsb_tenant_scope_delete on "better_supabase"."legal_entities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."legal_entity_settings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."legal_entity_settings";
 create policy bsb_tenant_scope_select on "better_supabase"."legal_entity_settings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."legal_entity_settings";
 create policy bsb_tenant_scope_insert on "better_supabase"."legal_entity_settings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."legal_entity_settings";
 create policy bsb_tenant_scope_update on "better_supabase"."legal_entity_settings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."legal_entity_settings";
 create policy bsb_tenant_scope_delete on "better_supabase"."legal_entity_settings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.legal_entities', target_type => 'legal_entity', event_prefix => 'legal_entity', deferred => true);
-  perform better_supabase.audit('better_supabase.legal_entity_settings', target_type => 'legal_entity_setting', event_prefix => 'legal_entity_setting', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.legal_entities deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"legal_entity","event_prefix":"legal_entity"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.legal_entity_settings deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"legal_entity_setting","event_prefix":"legal_entity_setting"}');
 
 -- blocks.legal-entities.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."legal_entities_disable_check"(tenant uuid)
 returns jsonb
@@ -1259,16 +1084,3 @@ set search_path = ''
 as $$ select "better_supabase"."resolve_setting"($1, $2, $3) $$;
 revoke execute on function "api"."resolve_setting"(uuid, text, uuid) from public, anon;
 grant execute on function "api"."resolve_setting"(uuid, text, uuid) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

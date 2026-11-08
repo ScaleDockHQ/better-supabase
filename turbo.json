@@ -204,6 +204,28 @@
     "//#check:adrs": {
       "inputs": ["scripts/check-adrs.ts", "AGENTS.md", "docs/decisions/**"]
     },
+    "//#check:app-architecture": {
+      "inputs": [
+        "scripts/check-app-architecture.ts",
+        "scripts/app-architecture-allow.json",
+        "apps/examples/nextjs/src/**"
+      ]
+    },
+    "//#check:naming": {
+      "inputs": [
+        "scripts/check-naming.ts",
+        "packages/better-supabase/api/naming.json",
+        "packages/better-supabase/package.json",
+        "packages/better-supabase/src/**",
+        "packages/better-supabase/tests/**",
+        "packages/better-supabase/skills/**",
+        "apps/**",
+        "scripts/**",
+        "tests/**",
+        "supabase/**",
+        "docs/agents/**"
+      ]
+    },
     "//#check:no-permdock": {
       "inputs": [
         "scripts/check-no-permdock.ts",

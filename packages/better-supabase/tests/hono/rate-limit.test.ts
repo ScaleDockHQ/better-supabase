@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RateLimiter } from "../../src/hono/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
 import { createHono } from "../../src/hono/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -31,7 +31,7 @@ describe("createHono().rateLimit", () => {
     },
   };
 
-  const bsb = createHono(defineSupabase(schema), { env });
+  const bsb = createHono(createSupabase(schema), { env });
 
   const app = bsb
     .app()

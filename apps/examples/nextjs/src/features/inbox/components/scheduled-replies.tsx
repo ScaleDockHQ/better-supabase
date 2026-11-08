@@ -4,7 +4,6 @@ import { useAction } from "better-supabase/react";
 import { ClockIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useEffect, useEffectEvent } from "react";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -14,6 +13,7 @@ import {
 } from "@/components/reui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { cancelScheduled, loadScheduled } from "../inbox-actions";

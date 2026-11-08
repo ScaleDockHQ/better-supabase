@@ -1,63 +1,13 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:b6c66b7f814244f48ddd07a5f172f1912c18585d17a24b0636160f09572e98a3
+-- @bsb-hash sha256:b07103f1466872b72c0428a724a5f671f12b0133a80b2b1b056bf1c4b6c06894
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
-create table if not exists "better_supabase"."search_documents" (
+create table "better_supabase"."search_documents" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -74,12 +24,11 @@ alter table "better_supabase"."search_documents" enable row level security;
 revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
-create index if not exists search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
-create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
+create index search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
+create index search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
+create index search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
 
-drop policy if exists search_documents_read on "better_supabase"."search_documents";
-create policy search_documents_read on "better_supabase"."search_documents"
+create policy bsb_search_documents_read on "better_supabase"."search_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
 
@@ -128,7 +77,7 @@ begin
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."messages" s
         where s."id" = (search_refresh.subject_id)::uuid
-        and s."deleted_at" is null;
+        and s."archived_at" is null;
       v_found := found;
     when 'channel' then
       select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."topic"::text, s."purpose"::text), ''), null
@@ -255,7 +204,7 @@ begin
         from "better_supabase"."drive_nodes" s
         join "better_supabase"."drive_node_search" f on f."id"::text = s."id"::text
         where s."id" = (search_refresh.subject_id)::uuid
-        and s."deleted_at" is null;
+        and s."archived_at" is null;
       v_found := found;
     when 'project' then
       select s."organization_id", s."name"::text, null, '/projects/' || s."id"::text
@@ -512,28 +461,18 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."search_index_row"() from public, anon, authenticated;
-
-drop trigger if exists "bsb_search_product_index" on "better_supabase"."products";
 create trigger "bsb_search_product_index"
   after insert or delete or update of "id", "tenant_id", "title", "description", "slug" on "better_supabase"."products"
   for each row execute function "better_supabase"."search_index_row"('product', 'id');
-
-drop trigger if exists "bsb_search_product_variant_index" on "better_supabase"."product_variants";
 create trigger "bsb_search_product_variant_index"
   after insert or delete or update of "id", "tenant_id", "sku", "title", "barcode" on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."search_index_row"('product_variant', 'id');
-
-drop trigger if exists "bsb_search_customer_index" on "public"."customers";
 create trigger "bsb_search_customer_index"
   after insert or delete or update of "id", "organization_id", "name", "archived_at" on "public"."customers"
   for each row execute function "better_supabase"."search_index_row"('customer', 'id');
-
-drop trigger if exists "bsb_search_drive_node_index" on "better_supabase"."drive_nodes";
 create trigger "bsb_search_drive_node_index"
   after insert or delete or update on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."search_index_row"('drive_node', 'id');
-
-drop trigger if exists "bsb_search_project_index" on "public"."projects";
 create trigger "bsb_search_project_index"
   after insert or delete or update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
   for each row execute function "better_supabase"."search_index_row"('project', 'id');
@@ -767,36 +706,19 @@ grant execute on function "better_supabase"."search_star"(text, text, boolean) t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."search_documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_select on "better_supabase"."search_documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."search_documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_update on "better_supabase"."search_documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."search_documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -806,27 +728,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."search_normalize"(text);
-drop function if exists "api"."search_user_state"();
 
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."search_refresh"(subject_type text, subject_id text)
 returns boolean
@@ -902,16 +804,3 @@ set search_path = ''
 as $$ select "better_supabase"."search_star"($1, $2, $3) $$;
 revoke execute on function "api"."search_star"(text, text, boolean) from public, anon;
 grant execute on function "api"."search_star"(text, text, boolean) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

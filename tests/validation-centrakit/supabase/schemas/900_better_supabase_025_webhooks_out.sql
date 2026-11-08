@@ -1,95 +1,24 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:c8fe0cfeff4a880507dadbead0fdad387fdae0b77eb8531634474cfe7523680f
+-- @bsb-hash sha256:5b875cba873a60e547ad7b9fcc4aeb06c3b3345c925166ac330d1608f92a4a0c
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."webhook_destinations";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."webhook_destinations";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."webhook_destinations";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."webhook_destinations";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."webhook_destinations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."webhook_destination_secrets";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."webhook_destination_secrets";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."webhook_destination_secrets";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."webhook_destination_secrets";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."webhook_destination_secrets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."webhook_deliveries";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."webhook_deliveries";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."webhook_deliveries";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."webhook_deliveries";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."webhook_deliveries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- centrakit.webhook_destinations is the app's table, and it has every column this block needs.
 create index if not exists webhook_endpoints_types_idx on "centrakit"."webhook_destinations" using gin ("event_kinds");
 create index if not exists webhook_endpoints_tenant_idx on "centrakit"."webhook_destinations" ("organization_id");
 create index if not exists webhook_endpoints_created_by_idx on "centrakit"."webhook_destinations" ("created_by");
 alter table "centrakit"."webhook_destinations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "centrakit"."webhook_destinations";
 create trigger bsb_updated_at before update on "centrakit"."webhook_destinations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "centrakit"."webhook_destinations" enable row level security;
 grant all on "centrakit"."webhook_destinations" to service_role;
 grant select, insert, update, delete on "centrakit"."webhook_destinations" to authenticated;
-drop policy if exists bsb_webhook_endpoints_read on "centrakit"."webhook_destinations";
 -- centrakit.webhook_destinations: the app's policy webhook_destinations_select already allows what bsb_webhook_endpoints_read would, so the block adds none.
-drop policy if exists bsb_webhook_endpoints_write on "centrakit"."webhook_destinations";
-drop policy if exists bsb_webhook_endpoints_insert on "centrakit"."webhook_destinations";
 -- centrakit.webhook_destinations: the app's policy webhook_destinations_insert already allows what bsb_webhook_endpoints_insert would, so the block adds none.
-drop policy if exists bsb_webhook_endpoints_update on "centrakit"."webhook_destinations";
 -- centrakit.webhook_destinations: the app's policy webhook_destinations_update already allows what bsb_webhook_endpoints_update would, so the block adds none.
-drop policy if exists bsb_webhook_endpoints_delete on "centrakit"."webhook_destinations";
 -- centrakit.webhook_destinations: the app's policy webhook_destinations_delete already allows what bsb_webhook_endpoints_delete would, so the block adds none.
 
 -- centrakit.webhook_destination_secrets is the app's table, and it has every column this block needs.
@@ -107,14 +36,9 @@ create unique index if not exists webhook_deliveries_endpoint_event_idx on "cent
 alter table "centrakit"."webhook_deliveries" enable row level security;
 grant all on "centrakit"."webhook_deliveries" to service_role;
 grant select on "centrakit"."webhook_deliveries" to authenticated;
-drop policy if exists bsb_webhook_deliveries_read on "centrakit"."webhook_deliveries";
 create policy bsb_webhook_deliveries_read on "centrakit"."webhook_deliveries"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('webhook.view')));
-drop trigger if exists "bsb_webhook_endpoint_reenable" on "centrakit"."webhook_destinations";
-drop trigger if exists "bsb_webhook_secret_vault" on "centrakit"."webhook_destination_secrets";
-
-drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text);
 -- Queues the event for every enabled endpoint subscribed to its type:
 -- the exact type, '*', or a prefix pattern such as 'invoice.*'. The
 -- patterns that can match are built from the type, so && uses the GIN
@@ -270,8 +194,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;
-
-drop function if exists "better_supabase"."claim_webhook_deliveries"(integer, interval);
 -- Leases due deliveries to one worker and counts the attempt, so a worker
 -- that dies mid-send still uses one up. The attempt is the lease token that
 -- complete_webhook_delivery checks. Deliveries of disabled endpoints are
@@ -685,34 +607,18 @@ grant execute on function "better_supabase"."delete_webhook_endpoint"(uuid) to a
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "centrakit"."webhook_destinations";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."webhook_destinations";
 create policy bsb_tenant_scope_select on "centrakit"."webhook_destinations" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhook.view')))
   );
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."webhook_destinations";
 create policy bsb_tenant_scope_insert on "centrakit"."webhook_destinations" as restrictive
   for insert to public
   with check (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhook.manage')))
   );
-drop policy if exists bsb_tenant_scope_update on "centrakit"."webhook_destinations";
 create policy bsb_tenant_scope_update on "centrakit"."webhook_destinations" as restrictive
   for update to public
   using (
@@ -723,44 +629,25 @@ create policy bsb_tenant_scope_update on "centrakit"."webhook_destinations" as r
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhook.manage')))
   );
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."webhook_destinations";
 create policy bsb_tenant_scope_delete on "centrakit"."webhook_destinations" as restrictive
   for delete to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhook.manage')))
   );
-drop policy if exists bsb_tenant_scope on "centrakit"."webhook_deliveries";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."webhook_deliveries";
 create policy bsb_tenant_scope_select on "centrakit"."webhook_deliveries" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('webhook.view')))
   );
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."webhook_deliveries";
 create policy bsb_tenant_scope_insert on "centrakit"."webhook_deliveries" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "centrakit"."webhook_deliveries";
 create policy bsb_tenant_scope_update on "centrakit"."webhook_deliveries" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."webhook_deliveries";
 create policy bsb_tenant_scope_delete on "centrakit"."webhook_deliveries" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

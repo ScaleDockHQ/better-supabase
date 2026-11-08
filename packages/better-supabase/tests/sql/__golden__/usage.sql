@@ -1,162 +1,79 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:27c241378c979089f929878e33fe814769823b9e3728cf7ca0163f126309bc19
+-- @bsb-hash sha256:29739f52488e74a516e9e5a1fca2268194bbdde09b6e0000121492bd871607ae
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
-create table if not exists "better_supabase"."usage_counters" (
-  "organization_id" uuid not null,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+create table "better_supabase"."usage_counters" (
+  "tenant_id" uuid not null,
+  "meter" text not null constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
-  "value" numeric not null default 0 check ("value" >= 0),
-  "reported_value" numeric not null default 0 check ("reported_value" >= 0),
+  "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0),
+  "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0),
   "updated_at" timestamptz not null default now(),
-  primary key ("organization_id", "meter", "day")
+  primary key ("tenant_id", "meter", "day")
 );
 -- Quantities are numeric, so a meter can count fractions (GB-hours, credits).
 alter table "better_supabase"."usage_counters" alter column "value" type numeric;
 alter table "better_supabase"."usage_counters" alter column "reported_value" type numeric;
-create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
+create index usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
-create policy usage_counters_read on "better_supabase"."usage_counters"
+create policy bsb_usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
-create table if not exists "better_supabase"."usage_events" (
-  "organization_id" uuid not null,
+create table "better_supabase"."usage_events" (
+  "tenant_id" uuid not null,
   "meter" text not null,
   "idempotency_key" text not null,
   "quantity" numeric not null,
   "recorded_at" timestamptz not null default now(),
-  primary key ("organization_id", "meter", "idempotency_key")
+  primary key ("tenant_id", "meter", "idempotency_key")
 );
 alter table "better_supabase"."usage_events" alter column "quantity" type numeric;
 
-create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
+create index usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
 revoke all on "better_supabase"."usage_events" from public, anon, authenticated;
 grant all on "better_supabase"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
 -- limit wins. A null limit is unlimited, so it wins over every limit.
-create table if not exists "better_supabase"."usage_quotas" (
+create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "plan" text,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
-  "limit" numeric check ("limit" >= 0),
-  "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing')),
+  "meter" text not null constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0),
+  "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing')),
   "created_at" timestamptz not null default now(),
-  check (("organization_id" is null) <> ("plan" is null)),
-  unique nulls not distinct ("organization_id", "plan", "meter")
+  constraint bsb_usage_quotas_check check (("tenant_id" is null) <> ("plan" is null)),
+  unique nulls not distinct ("tenant_id", "plan", "meter")
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
 alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
-alter table "better_supabase"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
-alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
-create policy usage_quotas_read on "better_supabase"."usage_quotas"
+create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
-  using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
+  using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
-drop function if exists "better_supabase"."usage_quota"(uuid, text);
-drop function if exists "better_supabase"."usage_used"(uuid, text, text);
-drop function if exists "better_supabase"."record_usage"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."mark_usage_reported"(uuid, text, date, bigint);
+
 -- The signatures before usage carried a source, metadata and actor.
-drop function if exists "better_supabase"."record_usage"(uuid, text, numeric, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, numeric, text);
+
 -- The signature before the report could skip meters and tenants.
-drop function if exists "better_supabase"."unreported_usage"(integer);
+
 
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
@@ -170,8 +87,8 @@ as $$
   select q."limit", q."period"
   from "better_supabase"."usage_quotas" q
   where q."meter" = usage_quota.meter
-    and (q."organization_id" = usage_quota.tenant or (q."organization_id" is null and (q."plan" = '*')))
-  order by (q."organization_id" is not null) desc, q."limit" desc nulls first
+    and (q."tenant_id" = usage_quota.tenant or (q."tenant_id" is null and (q."plan" = '*')))
+  order by (q."tenant_id" is not null) desc, q."limit" desc nulls first
   limit 1
 $$;
 
@@ -199,10 +116,10 @@ begin
   update "better_supabase"."usage_quotas" q
   set "limit" = quota_limit, "period" = coalesce(period, 'month')
   where q."meter" = meter
-    and q."organization_id" is not distinct from tenant
+    and q."tenant_id" is not distinct from tenant
     and q."plan" is not distinct from plan;
   if not found then
-    insert into "better_supabase"."usage_quotas" ("organization_id", "plan", "meter", "limit", "period")
+    insert into "better_supabase"."usage_quotas" ("tenant_id", "plan", "meter", "limit", "period")
     values (tenant, plan, meter, quota_limit, coalesce(period, 'month'));
   end if;
 end
@@ -222,7 +139,7 @@ begin
   end if;
   delete from "better_supabase"."usage_quotas" q
   where q."meter" = meter
-    and q."organization_id" is not distinct from tenant
+    and q."tenant_id" is not distinct from tenant
     and q."plan" is not distinct from plan;
   return found;
 end
@@ -308,7 +225,7 @@ set search_path = ''
 as $$
   select coalesce(sum(c."value"), 0)::numeric
   from "better_supabase"."usage_counters" c, "better_supabase"."usage_window"(usage_used.tenant, usage_used.period) w
-  where c."organization_id" = usage_used.tenant
+  where c."tenant_id" = usage_used.tenant
     and c."meter" = usage_used.meter
     and c."day" >= (w.starts_at at time zone 'utc')::date
     and c."day" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)
@@ -375,11 +292,11 @@ begin
       select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
       union
       select q."meter" from "better_supabase"."usage_quotas" q
-      where q."organization_id" = usage_overview.tenant
-        or (q."organization_id" is null and (q."plan" = '*'))
+      where q."tenant_id" = usage_overview.tenant
+        or (q."tenant_id" is null and (q."plan" = '*'))
       union
       select distinct c."meter" from "better_supabase"."usage_counters" c
-      where c."organization_id" = usage_overview.tenant
+      where c."tenant_id" = usage_overview.tenant
     ) m
   );
 end;
@@ -442,16 +359,16 @@ begin
     raise exception 'quantity must be zero or more' using errcode = '22023', hint = 'USAGE_QUANTITY';
   end if;
   if idempotency_key is not null then
-    insert into "better_supabase"."usage_events" ("organization_id", "meter", "idempotency_key", "quantity")
+    insert into "better_supabase"."usage_events" ("tenant_id", "meter", "idempotency_key", "quantity")
     values (tenant, meter, idempotency_key, quantity)
     on conflict do nothing;
     if not found then
       return jsonb_build_object('recorded', false, 'used', "better_supabase"."usage_used"(tenant, meter, coalesce((select q.period from "better_supabase"."usage_quota"(tenant, meter) q), 'month')), 'today', "better_supabase"."usage_used"(tenant, meter, 'day'));
     end if;
   end if;
-  insert into "better_supabase"."usage_counters" as c ("organization_id", "meter", "day", "value")
+  insert into "better_supabase"."usage_counters" as c ("tenant_id", "meter", "day", "value")
   values (tenant, meter, today, quantity)
-  on conflict ("organization_id", "meter", "day") do update
+  on conflict ("tenant_id", "meter", "day") do update
     set "value" = c."value" + excluded."value", "updated_at" = now();
   return jsonb_build_object('recorded', true, 'used', "better_supabase"."usage_used"(tenant, meter, coalesce((select q.period from "better_supabase"."usage_quota"(tenant, meter) q), 'month')), 'today', "better_supabase"."usage_used"(tenant, meter, 'day'));
 end;
@@ -487,7 +404,7 @@ begin
   perform pg_advisory_xact_lock(hashtext('better_supabase.consume_quota'), hashtext(tenant::text || '/' || meter));
   if idempotency_key is not null and exists (
     select 1 from "better_supabase"."usage_events" e
-    where e."organization_id" = consume_quota.tenant and e."meter" = consume_quota.meter and e."idempotency_key" = consume_quota.idempotency_key
+    where e."tenant_id" = consume_quota.tenant and e."meter" = consume_quota.meter and e."idempotency_key" = consume_quota.idempotency_key
   ) then
     return jsonb_build_object('recorded', false, 'used', "better_supabase"."usage_used"(tenant, meter, coalesce((select q.period from "better_supabase"."usage_quota"(tenant, meter) q), 'month')), 'today', "better_supabase"."usage_used"(tenant, meter, 'day'));
   end if;
@@ -581,7 +498,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
-    'organization_id', c."organization_id",
+    'organization_id', c."tenant_id",
     'meter', c."meter",
     'day', c."day",
     'value', c."value",
@@ -591,7 +508,7 @@ as $$
     'window_before', (
       select coalesce(sum(o."value"), 0)
       from "better_supabase"."usage_counters" o
-      where o."organization_id" = c."organization_id" and o."meter" = c."meter"
+      where o."tenant_id" = c."tenant_id" and o."meter" = c."meter"
         and o."day" < c."day"
         and o."day" >= w.since
     )
@@ -600,13 +517,13 @@ as $$
     select * from "better_supabase"."usage_counters" c
     where c."value" > c."reported_value"
       and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
-      and c."organization_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
+      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
     order by c."day"
     limit max_rows
   ) c
-  left join lateral "better_supabase"."usage_quota"(c."organization_id", c."meter") q on true
+  left join lateral "better_supabase"."usage_quota"(c."tenant_id", c."meter") q on true
   cross join lateral (
-    select "better_supabase"."usage_window_start"(c."organization_id", q.period, c."day") as since
+    select "better_supabase"."usage_window_start"(c."tenant_id", q.period, c."day") as since
   ) w
 $$;
 
@@ -619,7 +536,7 @@ set search_path = ''
 as $$
   with updated as (
     update "better_supabase"."usage_counters" c set "reported_value" = greatest(c."reported_value", mark_usage_reported.value)
-    where c."organization_id" = mark_usage_reported.tenant
+    where c."tenant_id" = mark_usage_reported.tenant
       and c."meter" = mark_usage_reported.meter
       and c."day" = mark_usage_reported.day
     returning 1
@@ -689,8 +606,8 @@ set search_path = ''
 as $$
   with gone as (
     delete from "better_supabase"."usage_events" x
-    where (x."organization_id", x."meter", x."idempotency_key") in (
-      select e."organization_id", e."meter", e."idempotency_key" from "better_supabase"."usage_events" e
+    where (x."tenant_id", x."meter", x."idempotency_key") in (
+      select e."tenant_id", e."meter", e."idempotency_key" from "better_supabase"."usage_events" e
       where e."recorded_at" < now() - coalesce(older_than, '30 days')
       order by e."recorded_at" limit coalesce(batch, 10000)
     )
@@ -741,73 +658,38 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_counters" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_counters" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."usage_counters" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_counters" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."usage_quotas" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_quotas" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."usage_quotas" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
@@ -826,192 +708,100 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:5573c9294160adc856d899d6985510121980ba7cac015923d075c16b9c51ef13
+-- @bsb-hash sha256:c1eb5ccdddaeb7a879f02388d2e16f5a8de4e0ea5bbf1e9882787ca087dc2248
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_billed_periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_billed_periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_billed_periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_billed_periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_billed_periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
-create table if not exists "better_supabase"."usage_counters" (
-  "organization_id" uuid not null,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+create table "better_supabase"."usage_counters" (
+  "tenant_id" uuid not null,
+  "meter" text not null constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
-  "value" numeric not null default 0 check ("value" >= 0),
-  "reported_value" numeric not null default 0 check ("reported_value" >= 0),
+  "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0),
+  "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0),
   "updated_at" timestamptz not null default now(),
-  primary key ("organization_id", "meter", "day")
+  primary key ("tenant_id", "meter", "day")
 );
 -- Quantities are numeric, so a meter can count fractions (GB-hours, credits).
 alter table "better_supabase"."usage_counters" alter column "value" type numeric;
 alter table "better_supabase"."usage_counters" alter column "reported_value" type numeric;
-create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
+create index usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
-create policy usage_counters_read on "better_supabase"."usage_counters"
+create policy bsb_usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
-create table if not exists "better_supabase"."usage_events" (
-  "organization_id" uuid not null,
+create table "better_supabase"."usage_events" (
+  "tenant_id" uuid not null,
   "meter" text not null,
   "idempotency_key" text not null,
   "quantity" numeric not null,
   "recorded_at" timestamptz not null default now(),
-  primary key ("organization_id", "meter", "idempotency_key")
+  primary key ("tenant_id", "meter", "idempotency_key")
 );
 alter table "better_supabase"."usage_events" alter column "quantity" type numeric;
 
 -- options.history: one row per recorded quantity, with who (actor_id) and
 -- what (source, metadata) used it, for a usage page.
-create table if not exists "better_supabase"."usage_history" (
+create table "better_supabase"."usage_history" (
   "id" bigint generated always as identity primary key,
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "meter" text not null,
   "quantity" numeric not null,
   "actor_id" uuid,
-  "source" text check (length("source") <= 200),
+  "source" text constraint bsb_usage_history_source_check check (length("source") <= 200),
   "metadata" jsonb not null default '{}',
   "recorded_at" timestamptz not null default now()
 );
-create index if not exists usage_history_tenant_idx on "better_supabase"."usage_history" ("organization_id", "recorded_at" desc, "id" desc);
+create index usage_history_tenant_idx on "better_supabase"."usage_history" ("tenant_id", "recorded_at" desc, "id" desc);
 alter table "better_supabase"."usage_history" enable row level security;
 revoke all on "better_supabase"."usage_history" from public, anon, authenticated;
 grant select on "better_supabase"."usage_history" to authenticated;
 grant all on "better_supabase"."usage_history" to service_role;
-drop policy if exists usage_history_read on "better_supabase"."usage_history";
-create policy usage_history_read on "better_supabase"."usage_history"
+create policy bsb_usage_history_read on "better_supabase"."usage_history"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
-create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
+create index usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
 revoke all on "better_supabase"."usage_events" from public, anon, authenticated;
 grant all on "better_supabase"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
 -- limit wins. A null limit is unlimited, so it wins over every limit.
-create table if not exists "better_supabase"."usage_quotas" (
+create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "plan" text,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
-  "limit" numeric check ("limit" >= 0),
-  "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing')),
+  "meter" text not null constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0),
+  "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing')),
   "created_at" timestamptz not null default now(),
-  check (("organization_id" is null) <> ("plan" is null)),
-  unique nulls not distinct ("organization_id", "plan", "meter")
+  constraint bsb_usage_quotas_check check (("tenant_id" is null) <> ("plan" is null)),
+  unique nulls not distinct ("tenant_id", "plan", "meter")
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
 alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
-alter table "better_supabase"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
-alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
-create policy usage_quotas_read on "better_supabase"."usage_quotas"
+create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
-  using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
+  using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
-drop function if exists "better_supabase"."usage_quota"(uuid, text);
-drop function if exists "better_supabase"."usage_used"(uuid, text, text);
-drop function if exists "better_supabase"."record_usage"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."mark_usage_reported"(uuid, text, date, bigint);
+
 -- The signatures before usage carried a source, metadata and actor.
-drop function if exists "better_supabase"."record_usage"(uuid, text, numeric, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, numeric, text);
+
 -- The signature before the report could skip meters and tenants.
-drop function if exists "better_supabase"."unreported_usage"(integer);
+
 
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
@@ -1025,8 +815,8 @@ as $$
   select q."limit", q."period"
   from "better_supabase"."usage_quotas" q
   where q."meter" = usage_quota.meter
-    and (q."organization_id" = usage_quota.tenant or (q."organization_id" is null and (q."plan" = '*' or q."plan" = any (better_supabase.tenant_entitlements(tenant)))))
-  order by (q."organization_id" is not null) desc, q."limit" desc nulls first
+    and (q."tenant_id" = usage_quota.tenant or (q."tenant_id" is null and (q."plan" = '*' or q."plan" = any (better_supabase.tenant_entitlements(tenant)))))
+  order by (q."tenant_id" is not null) desc, q."limit" desc nulls first
   limit 1
 $$;
 
@@ -1054,10 +844,10 @@ begin
   update "better_supabase"."usage_quotas" q
   set "limit" = quota_limit, "period" = coalesce(period, 'month')
   where q."meter" = meter
-    and q."organization_id" is not distinct from tenant
+    and q."tenant_id" is not distinct from tenant
     and q."plan" is not distinct from plan;
   if not found then
-    insert into "better_supabase"."usage_quotas" ("organization_id", "plan", "meter", "limit", "period")
+    insert into "better_supabase"."usage_quotas" ("tenant_id", "plan", "meter", "limit", "period")
     values (tenant, plan, meter, quota_limit, coalesce(period, 'month'));
   end if;
 end
@@ -1077,7 +867,7 @@ begin
   end if;
   delete from "better_supabase"."usage_quotas" q
   where q."meter" = meter
-    and q."organization_id" is not distinct from tenant
+    and q."tenant_id" is not distinct from tenant
     and q."plan" is not distinct from plan;
   return found;
 end
@@ -1163,7 +953,7 @@ set search_path = ''
 as $$
   select coalesce(sum(c."value"), 0)::numeric
   from "better_supabase"."usage_counters" c, "better_supabase"."usage_window"(usage_used.tenant, usage_used.period) w
-  where c."organization_id" = usage_used.tenant
+  where c."tenant_id" = usage_used.tenant
     and c."meter" = usage_used.meter
     and c."day" >= (w.starts_at at time zone 'utc')::date
     and c."day" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)
@@ -1230,11 +1020,11 @@ begin
       select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
       union
       select q."meter" from "better_supabase"."usage_quotas" q
-      where q."organization_id" = usage_overview.tenant
-        or (q."organization_id" is null and (q."plan" = '*' or q."plan" = any (better_supabase.tenant_entitlements(usage_overview.tenant))))
+      where q."tenant_id" = usage_overview.tenant
+        or (q."tenant_id" is null and (q."plan" = '*' or q."plan" = any (better_supabase.tenant_entitlements(usage_overview.tenant))))
       union
       select distinct c."meter" from "better_supabase"."usage_counters" c
-      where c."organization_id" = usage_overview.tenant
+      where c."tenant_id" = usage_overview.tenant
     ) m
   );
 end;
@@ -1297,18 +1087,18 @@ begin
     raise exception 'quantity must be zero or more' using errcode = '22023', hint = 'USAGE_QUANTITY';
   end if;
   if idempotency_key is not null then
-    insert into "better_supabase"."usage_events" ("organization_id", "meter", "idempotency_key", "quantity")
+    insert into "better_supabase"."usage_events" ("tenant_id", "meter", "idempotency_key", "quantity")
     values (tenant, meter, idempotency_key, quantity)
     on conflict do nothing;
     if not found then
       return jsonb_build_object('recorded', false, 'used', "better_supabase"."usage_used"(tenant, meter, coalesce((select q.period from "better_supabase"."usage_quota"(tenant, meter) q), 'month')), 'today', "better_supabase"."usage_used"(tenant, meter, 'day'));
     end if;
   end if;
-  insert into "better_supabase"."usage_counters" as c ("organization_id", "meter", "day", "value")
+  insert into "better_supabase"."usage_counters" as c ("tenant_id", "meter", "day", "value")
   values (tenant, meter, today, quantity)
-  on conflict ("organization_id", "meter", "day") do update
+  on conflict ("tenant_id", "meter", "day") do update
     set "value" = c."value" + excluded."value", "updated_at" = now();
-  insert into "better_supabase"."usage_history" ("organization_id", "meter", "quantity", "actor_id", "source", "metadata")
+  insert into "better_supabase"."usage_history" ("tenant_id", "meter", "quantity", "actor_id", "source", "metadata")
   values (tenant, meter, quantity,
     case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then coalesce(record_usage.actor, auth.uid()) else auth.uid() end,
     record_usage.source, coalesce(record_usage.metadata, '{}'));
@@ -1346,7 +1136,7 @@ begin
   perform pg_advisory_xact_lock(hashtext('better_supabase.consume_quota'), hashtext(tenant::text || '/' || meter));
   if idempotency_key is not null and exists (
     select 1 from "better_supabase"."usage_events" e
-    where e."organization_id" = consume_quota.tenant and e."meter" = consume_quota.meter and e."idempotency_key" = consume_quota.idempotency_key
+    where e."tenant_id" = consume_quota.tenant and e."meter" = consume_quota.meter and e."idempotency_key" = consume_quota.idempotency_key
   ) then
     return jsonb_build_object('recorded', false, 'used', "better_supabase"."usage_used"(tenant, meter, coalesce((select q.period from "better_supabase"."usage_quota"(tenant, meter) q), 'month')), 'today', "better_supabase"."usage_used"(tenant, meter, 'day'));
   end if;
@@ -1440,7 +1230,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
-    'organization_id', c."organization_id",
+    'organization_id', c."tenant_id",
     'meter', c."meter",
     'day', c."day",
     'value', c."value",
@@ -1450,7 +1240,7 @@ as $$
     'window_before', (
       select coalesce(sum(o."value"), 0)
       from "better_supabase"."usage_counters" o
-      where o."organization_id" = c."organization_id" and o."meter" = c."meter"
+      where o."tenant_id" = c."tenant_id" and o."meter" = c."meter"
         and o."day" < c."day"
         and o."day" >= w.since
     )
@@ -1459,13 +1249,13 @@ as $$
     select * from "better_supabase"."usage_counters" c
     where c."value" > c."reported_value"
       and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
-      and c."organization_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
+      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
     order by c."day"
     limit max_rows
   ) c
-  left join lateral "better_supabase"."usage_quota"(c."organization_id", c."meter") q on true
+  left join lateral "better_supabase"."usage_quota"(c."tenant_id", c."meter") q on true
   cross join lateral (
-    select "better_supabase"."usage_window_start"(c."organization_id", q.period, c."day") as since
+    select "better_supabase"."usage_window_start"(c."tenant_id", q.period, c."day") as since
   ) w
 $$;
 
@@ -1478,7 +1268,7 @@ set search_path = ''
 as $$
   with updated as (
     update "better_supabase"."usage_counters" c set "reported_value" = greatest(c."reported_value", mark_usage_reported.value)
-    where c."organization_id" = mark_usage_reported.tenant
+    where c."tenant_id" = mark_usage_reported.tenant
       and c."meter" = mark_usage_reported.meter
       and c."day" = mark_usage_reported.day
     returning 1
@@ -1507,7 +1297,7 @@ begin
     ) order by h."id" desc), '[]'::jsonb)
     from (
       select * from "better_supabase"."usage_history" h
-      where h."organization_id" = usage_history.tenant
+      where h."tenant_id" = usage_history.tenant
         and (usage_history.meter is null or h."meter" = usage_history.meter)
         and (before_id is null or h."id" < before_id)
       order by h."id" desc
@@ -1540,7 +1330,7 @@ begin
     from (
       select h."actor_id" as actor, h."source" as source, sum(h."quantity") as quantity
       from "better_supabase"."usage_history" h
-      where h."organization_id" = usage_breakdown.tenant and h."meter" = usage_breakdown.meter
+      where h."tenant_id" = usage_breakdown.tenant and h."meter" = usage_breakdown.meter
         and h."recorded_at" >= win.starts_at and h."recorded_at" < win.ends_at
       group by 1, 2
     ) b
@@ -1562,8 +1352,8 @@ begin
     delete from "better_supabase"."usage_history" where "id" in (
       select h."id" from "better_supabase"."usage_history" h
       where (h."recorded_at" < now() - least(older_than, "better_supabase"."retention_floor"('usage'))
-      and h."recorded_at" < now() - coalesce("better_supabase"."retention_for"('usage', (h."organization_id")::text), older_than)
-      and not "better_supabase"."is_held"('usage', (h."organization_id")::text))
+      and h."recorded_at" < now() - coalesce("better_supabase"."retention_for"('usage', (h."tenant_id")::text), older_than)
+      and not "better_supabase"."is_held"('usage', (h."tenant_id")::text))
       order by h."id" limit batch
     )
     returning 1
@@ -1584,8 +1374,8 @@ set search_path = ''
 as $$
   with gone as (
     delete from "better_supabase"."usage_events" x
-    where (x."organization_id", x."meter", x."idempotency_key") in (
-      select e."organization_id", e."meter", e."idempotency_key" from "better_supabase"."usage_events" e
+    where (x."tenant_id", x."meter", x."idempotency_key") in (
+      select e."tenant_id", e."meter", e."idempotency_key" from "better_supabase"."usage_events" e
       where e."recorded_at" < now() - coalesce(older_than, '30 days')
       order by e."recorded_at" limit coalesce(batch, 10000)
     )
@@ -1635,12 +1425,12 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 
 -- What one unit of a meter costs: unit_amount in minor units of currency
 -- (ADR 0024), and how many units each billing period includes for free.
-create table if not exists "better_supabase"."usage_meter_prices" (
-  "meter" text not null check (length("meter") between 1 and 100),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "included" numeric not null default 0 check ("included" >= 0),
-  "label" text check (length("label") <= 200),
+create table "better_supabase"."usage_meter_prices" (
+  "meter" text not null constraint bsb_usage_meter_prices_meter_check check (length("meter") >= 1 and length("meter") <= 100),
+  "currency" text not null constraint bsb_usage_meter_prices_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "unit_amount" bigint not null constraint bsb_usage_meter_prices_unit_amount_check check ("unit_amount" >= 0),
+  "included" numeric not null default 0 constraint bsb_usage_meter_prices_included_check check ("included" >= 0),
+  "label" text constraint bsb_usage_meter_prices_label_check check (length("label") <= 200),
   primary key ("meter", "currency")
 );
 alter table "better_supabase"."usage_meter_prices" enable row level security;
@@ -1649,13 +1439,13 @@ grant all on "better_supabase"."usage_meter_prices" to service_role;
 
 -- One row per tenant and billed period, so billing a period twice returns the
 -- first invoice.
-create table if not exists "better_supabase"."usage_billed_periods" (
-  "organization_id" uuid not null,
+create table "better_supabase"."usage_billed_periods" (
+  "tenant_id" uuid not null,
   "period_start" date not null,
   "period_end" date not null,
   "invoice_id" uuid not null,
   "billed_at" timestamptz not null default now(),
-  constraint "bsb_usage_billed_periods_period_key" primary key ("organization_id", "period_start", "period_end")
+  constraint "bsb_usage_billed_periods_period_key" primary key ("tenant_id", "period_start", "period_end")
 );
 alter table "better_supabase"."usage_billed_periods" enable row level security;
 revoke all on "better_supabase"."usage_billed_periods" from public, anon, authenticated;
@@ -1711,7 +1501,7 @@ begin
   end if;
   perform pg_advisory_xact_lock(hashtextextended(bill_usage_period.tenant::text || bill_usage_period.period_start::text || bill_usage_period.period_end::text, 0));
   select b."invoice_id" into v_existing from "better_supabase"."usage_billed_periods" b
-  where b."organization_id" = bill_usage_period.tenant
+  where b."tenant_id" = bill_usage_period.tenant
     and b."period_start" = bill_usage_period.period_start
     and b."period_end" = bill_usage_period.period_end;
   if found then
@@ -1726,7 +1516,7 @@ begin
   from (
     select h."meter" as meter, sum(h."quantity") as total
     from "better_supabase"."usage_history" h
-    where h."organization_id" = bill_usage_period.tenant
+    where h."tenant_id" = bill_usage_period.tenant
       and h."recorded_at" >= (bill_usage_period.period_start::timestamp at time zone 'UTC')
       and h."recorded_at" < (bill_usage_period.period_end::timestamp at time zone 'UTC')
     group by h."meter"
@@ -1742,7 +1532,7 @@ begin
     coalesce(bill_usage_period.attrs, '{}'::jsonb) || jsonb_build_object('title', v_title, 'currency', v_currency),
     v_lines
   );
-  insert into "better_supabase"."usage_billed_periods" ("organization_id", "period_start", "period_end", "invoice_id")
+  insert into "better_supabase"."usage_billed_periods" ("tenant_id", "period_start", "period_end", "invoice_id")
   values (bill_usage_period.tenant, bill_usage_period.period_start, bill_usage_period.period_end, (v_invoice ->> 'id')::uuid);
   return jsonb_build_object('invoice_id', (v_invoice ->> 'id')::uuid, 'created', true, 'lines', jsonb_array_length(v_lines));
 end;
@@ -1756,94 +1546,54 @@ grant execute on function "better_supabase"."bill_usage_period"(uuid, date, date
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_counters" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_counters" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."usage_counters" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_counters" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."usage_history" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_history" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."usage_history" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_history" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."usage_quotas" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_quotas" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."usage_quotas" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
@@ -1862,167 +1612,84 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:f56e292f66888ab98c57201724fa0fec2ec3e8817a89760d6e09917c5ef2cdda
+-- @bsb-hash sha256:259fa6db936b5d36a51358b1af50938082198001535ee6df8ccc295c5bcccff5
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."usage_counters";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."usage_counters";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."usage_counters";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."usage_counters";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."usage_counters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."usage_events";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."usage_events";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."usage_events";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."usage_events";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."usage_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."usage_history";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."usage_history";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."usage_history";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."usage_history";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."usage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."usage_quotas";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
-create table if not exists "app_private"."usage_counters" (
-  "organization_id" uuid not null,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+create table "app_private"."usage_counters" (
+  "tenant_id" uuid not null,
+  "meter" text not null constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
-  "value" numeric not null default 0 check ("value" >= 0),
-  "reported_value" numeric not null default 0 check ("reported_value" >= 0),
+  "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0),
+  "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0),
   "updated_at" timestamptz not null default now(),
-  primary key ("organization_id", "meter", "day")
+  primary key ("tenant_id", "meter", "day")
 );
 -- Quantities are numeric, so a meter can count fractions (GB-hours, credits).
 alter table "app_private"."usage_counters" alter column "value" type numeric;
 alter table "app_private"."usage_counters" alter column "reported_value" type numeric;
-create index if not exists usage_counters_unreported_idx on "app_private"."usage_counters" ("day")
+create index usage_counters_unreported_idx on "app_private"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "app_private"."usage_counters" enable row level security;
 revoke all on "app_private"."usage_counters" from public, anon, authenticated;
 grant select on "app_private"."usage_counters" to authenticated;
 grant all on "app_private"."usage_counters" to service_role;
-drop policy if exists usage_counters_read on "app_private"."usage_counters";
-create policy usage_counters_read on "app_private"."usage_counters"
+create policy bsb_usage_counters_read on "app_private"."usage_counters"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
-create table if not exists "app_private"."usage_events" (
-  "organization_id" uuid not null,
+create table "app_private"."usage_events" (
+  "tenant_id" uuid not null,
   "meter" text not null,
   "idempotency_key" text not null,
   "quantity" numeric not null,
   "recorded_at" timestamptz not null default now(),
-  primary key ("organization_id", "meter", "idempotency_key")
+  primary key ("tenant_id", "meter", "idempotency_key")
 );
 alter table "app_private"."usage_events" alter column "quantity" type numeric;
 
-create index if not exists usage_events_recorded_at_idx on "app_private"."usage_events" ("recorded_at");
+create index usage_events_recorded_at_idx on "app_private"."usage_events" ("recorded_at");
 alter table "app_private"."usage_events" enable row level security;
 revoke all on "app_private"."usage_events" from public, anon, authenticated;
 grant all on "app_private"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
 -- limit wins. A null limit is unlimited, so it wins over every limit.
-create table if not exists "app_private"."usage_quotas" (
+create table "app_private"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "plan" text,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
-  "limit" numeric check ("limit" >= 0),
-  "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing')),
+  "meter" text not null constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0),
+  "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing')),
   "created_at" timestamptz not null default now(),
-  check (("organization_id" is null) <> ("plan" is null)),
-  unique nulls not distinct ("organization_id", "plan", "meter")
+  constraint bsb_usage_quotas_check check (("tenant_id" is null) <> ("plan" is null)),
+  unique nulls not distinct ("tenant_id", "plan", "meter")
 );
 alter table "app_private"."usage_quotas" alter column "limit" type numeric;
 alter table "app_private"."usage_quotas" alter column "limit" drop not null;
-alter table "app_private"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
-alter table "app_private"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "app_private"."usage_quotas" enable row level security;
 revoke all on "app_private"."usage_quotas" from public, anon, authenticated;
 grant select on "app_private"."usage_quotas" to authenticated;
 grant all on "app_private"."usage_quotas" to service_role;
-drop policy if exists usage_quotas_read on "app_private"."usage_quotas";
-create policy usage_quotas_read on "app_private"."usage_quotas"
+create policy bsb_usage_quotas_read on "app_private"."usage_quotas"
   for select to authenticated
-  using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
+  using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
-drop function if exists "app_private"."usage_quota"(uuid, text);
-drop function if exists "app_private"."usage_used"(uuid, text, text);
-drop function if exists "app_private"."record_usage"(uuid, text, bigint, text);
-drop function if exists "app_private"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "app_private"."mark_usage_reported"(uuid, text, date, bigint);
+
 -- The signatures before usage carried a source, metadata and actor.
-drop function if exists "app_private"."record_usage"(uuid, text, numeric, text);
-drop function if exists "app_private"."consume_quota"(uuid, text, numeric, text);
+
 -- The signature before the report could skip meters and tenants.
-drop function if exists "app_private"."unreported_usage"(integer);
+
 
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
@@ -2036,8 +1703,8 @@ as $$
   select q."limit", q."period"
   from "app_private"."usage_quotas" q
   where q."meter" = usage_quota.meter
-    and (q."organization_id" = usage_quota.tenant or (q."organization_id" is null and (q."plan" = '*')))
-  order by (q."organization_id" is not null) desc, q."limit" desc nulls first
+    and (q."tenant_id" = usage_quota.tenant or (q."tenant_id" is null and (q."plan" = '*')))
+  order by (q."tenant_id" is not null) desc, q."limit" desc nulls first
   limit 1
 $$;
 
@@ -2065,10 +1732,10 @@ begin
   update "app_private"."usage_quotas" q
   set "limit" = quota_limit, "period" = coalesce(period, 'month')
   where q."meter" = meter
-    and q."organization_id" is not distinct from tenant
+    and q."tenant_id" is not distinct from tenant
     and q."plan" is not distinct from plan;
   if not found then
-    insert into "app_private"."usage_quotas" ("organization_id", "plan", "meter", "limit", "period")
+    insert into "app_private"."usage_quotas" ("tenant_id", "plan", "meter", "limit", "period")
     values (tenant, plan, meter, quota_limit, coalesce(period, 'month'));
   end if;
 end
@@ -2088,7 +1755,7 @@ begin
   end if;
   delete from "app_private"."usage_quotas" q
   where q."meter" = meter
-    and q."organization_id" is not distinct from tenant
+    and q."tenant_id" is not distinct from tenant
     and q."plan" is not distinct from plan;
   return found;
 end
@@ -2174,7 +1841,7 @@ set search_path = ''
 as $$
   select coalesce(sum(c."value"), 0)::numeric
   from "app_private"."usage_counters" c, "app_private"."usage_window"(usage_used.tenant, usage_used.period) w
-  where c."organization_id" = usage_used.tenant
+  where c."tenant_id" = usage_used.tenant
     and c."meter" = usage_used.meter
     and c."day" >= (w.starts_at at time zone 'utc')::date
     and c."day" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)
@@ -2241,11 +1908,11 @@ begin
       select jsonb_object_keys("app_private"."usage_meters"()) as meter
       union
       select q."meter" from "app_private"."usage_quotas" q
-      where q."organization_id" = usage_overview.tenant
-        or (q."organization_id" is null and (q."plan" = '*'))
+      where q."tenant_id" = usage_overview.tenant
+        or (q."tenant_id" is null and (q."plan" = '*'))
       union
       select distinct c."meter" from "app_private"."usage_counters" c
-      where c."organization_id" = usage_overview.tenant
+      where c."tenant_id" = usage_overview.tenant
     ) m
   );
 end;
@@ -2308,16 +1975,16 @@ begin
     raise exception 'quantity must be zero or more' using errcode = '22023', hint = 'USAGE_QUANTITY';
   end if;
   if idempotency_key is not null then
-    insert into "app_private"."usage_events" ("organization_id", "meter", "idempotency_key", "quantity")
+    insert into "app_private"."usage_events" ("tenant_id", "meter", "idempotency_key", "quantity")
     values (tenant, meter, idempotency_key, quantity)
     on conflict do nothing;
     if not found then
       return jsonb_build_object('recorded', false, 'used', "app_private"."usage_used"(tenant, meter, coalesce((select q.period from "app_private"."usage_quota"(tenant, meter) q), 'month')), 'today', "app_private"."usage_used"(tenant, meter, 'day'));
     end if;
   end if;
-  insert into "app_private"."usage_counters" as c ("organization_id", "meter", "day", "value")
+  insert into "app_private"."usage_counters" as c ("tenant_id", "meter", "day", "value")
   values (tenant, meter, today, quantity)
-  on conflict ("organization_id", "meter", "day") do update
+  on conflict ("tenant_id", "meter", "day") do update
     set "value" = c."value" + excluded."value", "updated_at" = now();
   return jsonb_build_object('recorded', true, 'used', "app_private"."usage_used"(tenant, meter, coalesce((select q.period from "app_private"."usage_quota"(tenant, meter) q), 'month')), 'today', "app_private"."usage_used"(tenant, meter, 'day'));
 end;
@@ -2353,7 +2020,7 @@ begin
   perform pg_advisory_xact_lock(hashtext('better_supabase.consume_quota'), hashtext(tenant::text || '/' || meter));
   if idempotency_key is not null and exists (
     select 1 from "app_private"."usage_events" e
-    where e."organization_id" = consume_quota.tenant and e."meter" = consume_quota.meter and e."idempotency_key" = consume_quota.idempotency_key
+    where e."tenant_id" = consume_quota.tenant and e."meter" = consume_quota.meter and e."idempotency_key" = consume_quota.idempotency_key
   ) then
     return jsonb_build_object('recorded', false, 'used', "app_private"."usage_used"(tenant, meter, coalesce((select q.period from "app_private"."usage_quota"(tenant, meter) q), 'month')), 'today', "app_private"."usage_used"(tenant, meter, 'day'));
   end if;
@@ -2447,7 +2114,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
-    'organization_id', c."organization_id",
+    'organization_id', c."tenant_id",
     'meter', c."meter",
     'day', c."day",
     'value', c."value",
@@ -2457,7 +2124,7 @@ as $$
     'window_before', (
       select coalesce(sum(o."value"), 0)
       from "app_private"."usage_counters" o
-      where o."organization_id" = c."organization_id" and o."meter" = c."meter"
+      where o."tenant_id" = c."tenant_id" and o."meter" = c."meter"
         and o."day" < c."day"
         and o."day" >= w.since
     )
@@ -2466,13 +2133,13 @@ as $$
     select * from "app_private"."usage_counters" c
     where c."value" > c."reported_value"
       and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
-      and c."organization_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
+      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
     order by c."day"
     limit max_rows
   ) c
-  left join lateral "app_private"."usage_quota"(c."organization_id", c."meter") q on true
+  left join lateral "app_private"."usage_quota"(c."tenant_id", c."meter") q on true
   cross join lateral (
-    select "app_private"."usage_window_start"(c."organization_id", q.period, c."day") as since
+    select "app_private"."usage_window_start"(c."tenant_id", q.period, c."day") as since
   ) w
 $$;
 
@@ -2485,7 +2152,7 @@ set search_path = ''
 as $$
   with updated as (
     update "app_private"."usage_counters" c set "reported_value" = greatest(c."reported_value", mark_usage_reported.value)
-    where c."organization_id" = mark_usage_reported.tenant
+    where c."tenant_id" = mark_usage_reported.tenant
       and c."meter" = mark_usage_reported.meter
       and c."day" = mark_usage_reported.day
     returning 1
@@ -2555,8 +2222,8 @@ set search_path = ''
 as $$
   with gone as (
     delete from "app_private"."usage_events" x
-    where (x."organization_id", x."meter", x."idempotency_key") in (
-      select e."organization_id", e."meter", e."idempotency_key" from "app_private"."usage_events" e
+    where (x."tenant_id", x."meter", x."idempotency_key") in (
+      select e."tenant_id", e."meter", e."idempotency_key" from "app_private"."usage_events" e
       where e."recorded_at" < now() - coalesce(older_than, '30 days')
       order by e."recorded_at" limit coalesce(batch, 10000)
     )
@@ -2607,73 +2274,38 @@ grant execute on function "app_private"."mark_usage_reported"(uuid, text, date, 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."usage_counters";
-drop policy if exists bsb_tenant_scope_select on "app_private"."usage_counters";
 create policy bsb_tenant_scope_select on "app_private"."usage_counters" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."usage_counters";
 create policy bsb_tenant_scope_insert on "app_private"."usage_counters" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."usage_counters";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "app_private"."usage_counters" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."usage_counters";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "app_private"."usage_counters" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."usage_quotas";
-drop policy if exists bsb_tenant_scope_select on "app_private"."usage_quotas";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "app_private"."usage_quotas" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."usage_quotas";
 create policy bsb_tenant_scope_insert on "app_private"."usage_quotas" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."usage_quotas";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "app_private"."usage_quotas" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."usage_quotas";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "app_private"."usage_quotas" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
@@ -2692,162 +2324,79 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:95d44b9270314038ca6c61b912cde3e482bc9f87511af370ae01bd511a8716b3
+-- @bsb-hash sha256:28a7284589d23fdcec3facf69d8a9acef760b29d35f2d610512d4ff54ec1eee5
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
-create table if not exists "better_supabase"."usage_counters" (
-  "organization_id" uuid not null,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+create table "better_supabase"."usage_counters" (
+  "tenant_id" uuid not null,
+  "meter" text not null constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
-  "value" numeric not null default 0 check ("value" >= 0),
-  "reported_value" numeric not null default 0 check ("reported_value" >= 0),
+  "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0),
+  "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0),
   "updated_at" timestamptz not null default now(),
-  primary key ("organization_id", "meter", "day")
+  primary key ("tenant_id", "meter", "day")
 );
 -- Quantities are numeric, so a meter can count fractions (GB-hours, credits).
 alter table "better_supabase"."usage_counters" alter column "value" type numeric;
 alter table "better_supabase"."usage_counters" alter column "reported_value" type numeric;
-create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
+create index usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
-create policy usage_counters_read on "better_supabase"."usage_counters"
+create policy bsb_usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
-create table if not exists "better_supabase"."usage_events" (
-  "organization_id" uuid not null,
+create table "better_supabase"."usage_events" (
+  "tenant_id" uuid not null,
   "meter" text not null,
   "idempotency_key" text not null,
   "quantity" numeric not null,
   "recorded_at" timestamptz not null default now(),
-  primary key ("organization_id", "meter", "idempotency_key")
+  primary key ("tenant_id", "meter", "idempotency_key")
 );
 alter table "better_supabase"."usage_events" alter column "quantity" type numeric;
 
-create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
+create index usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
 revoke all on "better_supabase"."usage_events" from public, anon, authenticated;
 grant all on "better_supabase"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
 -- limit wins. A null limit is unlimited, so it wins over every limit.
-create table if not exists "better_supabase"."usage_quotas" (
+create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "plan" text,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
-  "limit" numeric check ("limit" >= 0),
-  "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing')),
+  "meter" text not null constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0),
+  "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing')),
   "created_at" timestamptz not null default now(),
-  check (("organization_id" is null) <> ("plan" is null)),
-  unique nulls not distinct ("organization_id", "plan", "meter")
+  constraint bsb_usage_quotas_check check (("tenant_id" is null) <> ("plan" is null)),
+  unique nulls not distinct ("tenant_id", "plan", "meter")
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
 alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
-alter table "better_supabase"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
-alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
-create policy usage_quotas_read on "better_supabase"."usage_quotas"
+create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
-  using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
+  using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
-drop function if exists "better_supabase"."usage_quota"(uuid, text);
-drop function if exists "better_supabase"."usage_used"(uuid, text, text);
-drop function if exists "better_supabase"."record_usage"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."mark_usage_reported"(uuid, text, date, bigint);
+
 -- The signatures before usage carried a source, metadata and actor.
-drop function if exists "better_supabase"."record_usage"(uuid, text, numeric, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, numeric, text);
+
 -- The signature before the report could skip meters and tenants.
-drop function if exists "better_supabase"."unreported_usage"(integer);
+
 
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
@@ -2861,8 +2410,8 @@ as $$
   select q."limit", q."period"
   from "better_supabase"."usage_quotas" q
   where q."meter" = usage_quota.meter
-    and (q."organization_id" = usage_quota.tenant or (q."organization_id" is null and (q."plan" = '*')))
-  order by (q."organization_id" is not null) desc, q."limit" desc nulls first
+    and (q."tenant_id" = usage_quota.tenant or (q."tenant_id" is null and (q."plan" = '*')))
+  order by (q."tenant_id" is not null) desc, q."limit" desc nulls first
   limit 1
 $$;
 
@@ -2890,10 +2439,10 @@ begin
   update "better_supabase"."usage_quotas" q
   set "limit" = quota_limit, "period" = coalesce(period, 'month')
   where q."meter" = meter
-    and q."organization_id" is not distinct from tenant
+    and q."tenant_id" is not distinct from tenant
     and q."plan" is not distinct from plan;
   if not found then
-    insert into "better_supabase"."usage_quotas" ("organization_id", "plan", "meter", "limit", "period")
+    insert into "better_supabase"."usage_quotas" ("tenant_id", "plan", "meter", "limit", "period")
     values (tenant, plan, meter, quota_limit, coalesce(period, 'month'));
   end if;
 end
@@ -2913,7 +2462,7 @@ begin
   end if;
   delete from "better_supabase"."usage_quotas" q
   where q."meter" = meter
-    and q."organization_id" is not distinct from tenant
+    and q."tenant_id" is not distinct from tenant
     and q."plan" is not distinct from plan;
   return found;
 end
@@ -2999,7 +2548,7 @@ set search_path = ''
 as $$
   select coalesce(sum(c."value"), 0)::numeric
   from "better_supabase"."usage_counters" c, "better_supabase"."usage_window"(usage_used.tenant, usage_used.period) w
-  where c."organization_id" = usage_used.tenant
+  where c."tenant_id" = usage_used.tenant
     and c."meter" = usage_used.meter
     and c."day" >= (w.starts_at at time zone 'utc')::date
     and c."day" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)
@@ -3066,11 +2615,11 @@ begin
       select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
       union
       select q."meter" from "better_supabase"."usage_quotas" q
-      where q."organization_id" = usage_overview.tenant
-        or (q."organization_id" is null and (q."plan" = '*'))
+      where q."tenant_id" = usage_overview.tenant
+        or (q."tenant_id" is null and (q."plan" = '*'))
       union
       select distinct c."meter" from "better_supabase"."usage_counters" c
-      where c."organization_id" = usage_overview.tenant
+      where c."tenant_id" = usage_overview.tenant
     ) m
   );
 end;
@@ -3133,16 +2682,16 @@ begin
     raise exception 'quantity must be zero or more' using errcode = '22023', hint = 'USAGE_QUANTITY';
   end if;
   if idempotency_key is not null then
-    insert into "better_supabase"."usage_events" ("organization_id", "meter", "idempotency_key", "quantity")
+    insert into "better_supabase"."usage_events" ("tenant_id", "meter", "idempotency_key", "quantity")
     values (tenant, meter, idempotency_key, quantity)
     on conflict do nothing;
     if not found then
       return jsonb_build_object('recorded', false, 'used', "better_supabase"."usage_used"(tenant, meter, coalesce((select q.period from "better_supabase"."usage_quota"(tenant, meter) q), 'month')), 'today', "better_supabase"."usage_used"(tenant, meter, 'day'));
     end if;
   end if;
-  insert into "better_supabase"."usage_counters" as c ("organization_id", "meter", "day", "value")
+  insert into "better_supabase"."usage_counters" as c ("tenant_id", "meter", "day", "value")
   values (tenant, meter, today, quantity)
-  on conflict ("organization_id", "meter", "day") do update
+  on conflict ("tenant_id", "meter", "day") do update
     set "value" = c."value" + excluded."value", "updated_at" = now();
   return jsonb_build_object('recorded', true, 'used', "better_supabase"."usage_used"(tenant, meter, coalesce((select q.period from "better_supabase"."usage_quota"(tenant, meter) q), 'month')), 'today', "better_supabase"."usage_used"(tenant, meter, 'day'));
 end;
@@ -3178,7 +2727,7 @@ begin
   perform pg_advisory_xact_lock(hashtext('better_supabase.consume_quota'), hashtext(tenant::text || '/' || meter));
   if idempotency_key is not null and exists (
     select 1 from "better_supabase"."usage_events" e
-    where e."organization_id" = consume_quota.tenant and e."meter" = consume_quota.meter and e."idempotency_key" = consume_quota.idempotency_key
+    where e."tenant_id" = consume_quota.tenant and e."meter" = consume_quota.meter and e."idempotency_key" = consume_quota.idempotency_key
   ) then
     return jsonb_build_object('recorded', false, 'used', "better_supabase"."usage_used"(tenant, meter, coalesce((select q.period from "better_supabase"."usage_quota"(tenant, meter) q), 'month')), 'today', "better_supabase"."usage_used"(tenant, meter, 'day'));
   end if;
@@ -3272,7 +2821,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
-    'organization_id', c."organization_id",
+    'organization_id', c."tenant_id",
     'meter', c."meter",
     'day', c."day",
     'value', c."value",
@@ -3282,7 +2831,7 @@ as $$
     'window_before', (
       select coalesce(sum(o."value"), 0)
       from "better_supabase"."usage_counters" o
-      where o."organization_id" = c."organization_id" and o."meter" = c."meter"
+      where o."tenant_id" = c."tenant_id" and o."meter" = c."meter"
         and o."day" < c."day"
         and o."day" >= w.since
     )
@@ -3291,13 +2840,13 @@ as $$
     select * from "better_supabase"."usage_counters" c
     where c."value" > c."reported_value"
       and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
-      and c."organization_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
+      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
     order by c."day"
     limit max_rows
   ) c
-  left join lateral "better_supabase"."usage_quota"(c."organization_id", c."meter") q on true
+  left join lateral "better_supabase"."usage_quota"(c."tenant_id", c."meter") q on true
   cross join lateral (
-    select "better_supabase"."usage_window_start"(c."organization_id", q.period, c."day") as since
+    select "better_supabase"."usage_window_start"(c."tenant_id", q.period, c."day") as since
   ) w
 $$;
 
@@ -3310,7 +2859,7 @@ set search_path = ''
 as $$
   with updated as (
     update "better_supabase"."usage_counters" c set "reported_value" = greatest(c."reported_value", mark_usage_reported.value)
-    where c."organization_id" = mark_usage_reported.tenant
+    where c."tenant_id" = mark_usage_reported.tenant
       and c."meter" = mark_usage_reported.meter
       and c."day" = mark_usage_reported.day
     returning 1
@@ -3380,8 +2929,8 @@ set search_path = ''
 as $$
   with gone as (
     delete from "better_supabase"."usage_events" x
-    where (x."organization_id", x."meter", x."idempotency_key") in (
-      select e."organization_id", e."meter", e."idempotency_key" from "better_supabase"."usage_events" e
+    where (x."tenant_id", x."meter", x."idempotency_key") in (
+      select e."tenant_id", e."meter", e."idempotency_key" from "better_supabase"."usage_events" e
       where e."recorded_at" < now() - coalesce(older_than, '30 days')
       order by e."recorded_at" limit coalesce(batch, 10000)
     )
@@ -3432,92 +2981,42 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_counters" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_counters" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."usage_counters" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_counters" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."usage_quotas" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_quotas" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."usage_quotas" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.usage.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."usage_quota"(uuid, text);
-drop function if exists "api"."usage_used"(uuid, text, text);
-drop function if exists "api"."record_usage"(uuid, text, bigint, text);
-drop function if exists "api"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "api"."mark_usage_reported"(uuid, text, date, bigint);
-drop function if exists "api"."record_usage"(uuid, text, numeric, text);
-drop function if exists "api"."consume_quota"(uuid, text, numeric, text);
-drop function if exists "api"."unreported_usage"(integer);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."usage_history"(tenant uuid, meter text default null, max_rows integer default 100, before_id bigint default null)
 returns jsonb
@@ -3701,19 +3200,6 @@ as $$ select "better_supabase"."mark_usage_reported"($1, $2, $3, $4) $$;
 revoke execute on function "api"."mark_usage_reported"(uuid, text, date, numeric) from public, anon, authenticated;
 grant execute on function "api"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block-data usage
@@ -3731,112 +3217,37 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:af9a2147e3924f6845c5b3c7e543ef8269a55ae5087ba92fb8296bb6ef90d0b1
+-- @bsb-hash sha256:0301b775f7e1e0c068f0150f17ba81ec60fc28fa655cfe8bf2aa034408ffbd2c
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 -- better_supabase.usage_counters is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."usage_counters" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."usage_counters" add column if not exists "meter" text check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$');
+alter table "better_supabase"."usage_counters" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."usage_counters" add column if not exists "meter" text constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$');
 alter table "better_supabase"."usage_counters" add column if not exists "day" date;
-alter table "better_supabase"."usage_counters" add column if not exists "value" numeric not null default 0 check ("value" >= 0);
-alter table "better_supabase"."usage_counters" add column if not exists "reported_value" numeric not null default 0 check ("reported_value" >= 0);
+alter table "better_supabase"."usage_counters" add column if not exists "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0);
+alter table "better_supabase"."usage_counters" add column if not exists "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0);
 alter table "better_supabase"."usage_counters" add column if not exists "updated_at" timestamptz not null default now();
-create unique index if not exists "bsb_usage_counters_day_key" on "better_supabase"."usage_counters" ("organization_id", "meter", "day");
+create unique index if not exists "bsb_usage_counters_day_key" on "better_supabase"."usage_counters" ("tenant_id", "meter", "day");
 create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists bsb_usage_counters_select on "better_supabase"."usage_counters";
 create policy bsb_usage_counters_select on "better_supabase"."usage_counters"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
 -- better_supabase.usage_events is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."usage_events" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."usage_events" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."usage_events" add column if not exists "meter" text;
 alter table "better_supabase"."usage_events" add column if not exists "idempotency_key" text;
 alter table "better_supabase"."usage_events" add column if not exists "quantity" numeric;
 alter table "better_supabase"."usage_events" add column if not exists "recorded_at" timestamptz not null default now();
-create unique index if not exists "bsb_usage_events_key_key" on "better_supabase"."usage_events" ("organization_id", "meter", "idempotency_key");
+create unique index if not exists "bsb_usage_events_key_key" on "better_supabase"."usage_events" ("tenant_id", "meter", "idempotency_key");
 
 create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
@@ -3846,31 +3257,25 @@ grant all on "better_supabase"."usage_events" to service_role;
 -- limit wins. A null limit is unlimited, so it wins over every limit.
 -- better_supabase.usage_quotas is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."usage_quotas" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."usage_quotas" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."usage_quotas" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."usage_quotas" add column if not exists "plan" text;
-alter table "better_supabase"."usage_quotas" add column if not exists "meter" text check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$');
-alter table "better_supabase"."usage_quotas" add column if not exists "limit" numeric check ("limit" >= 0);
-alter table "better_supabase"."usage_quotas" add column if not exists "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing'));
+alter table "better_supabase"."usage_quotas" add column if not exists "meter" text constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$');
+alter table "better_supabase"."usage_quotas" add column if not exists "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0);
+alter table "better_supabase"."usage_quotas" add column if not exists "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."usage_quotas" enable row level security;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists bsb_usage_quotas_select on "better_supabase"."usage_quotas";
 create policy bsb_usage_quotas_select on "better_supabase"."usage_quotas"
   for select to authenticated
-  using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
+  using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
-drop function if exists "better_supabase"."usage_quota"(uuid, text);
-drop function if exists "better_supabase"."usage_used"(uuid, text, text);
-drop function if exists "better_supabase"."record_usage"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."mark_usage_reported"(uuid, text, date, bigint);
+
 -- The signatures before usage carried a source, metadata and actor.
-drop function if exists "better_supabase"."record_usage"(uuid, text, numeric, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, numeric, text);
+
 -- The signature before the report could skip meters and tenants.
-drop function if exists "better_supabase"."unreported_usage"(integer);
+
 
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
@@ -3884,8 +3289,8 @@ as $$
   select q."limit", q."period"::text
   from "better_supabase"."usage_quotas" q
   where q."meter" = usage_quota.meter
-    and (q."organization_id" = usage_quota.tenant or (q."organization_id" is null and (q."plan" = '*')))
-  order by (q."organization_id" is not null) desc, q."limit" desc nulls first
+    and (q."tenant_id" = usage_quota.tenant or (q."tenant_id" is null and (q."plan" = '*')))
+  order by (q."tenant_id" is not null) desc, q."limit" desc nulls first
   limit 1
 $$;
 
@@ -3912,13 +3317,13 @@ begin
   end if;
   -- The app's period column can be an enum, which a text value can't be assigned to.
   execute format(
-    'update "better_supabase"."usage_quotas" q set "limit" = $1, "period" = %L where q."meter" = $2 and q."organization_id" is not distinct from $3 and q."plan" is not distinct from $4',
+    'update "better_supabase"."usage_quotas" q set "limit" = $1, "period" = %L where q."meter" = $2 and q."tenant_id" is not distinct from $3 and q."plan" is not distinct from $4',
     coalesce(period, 'month')
   ) using quota_limit, meter, tenant, plan;
   get diagnostics changed = row_count;
   if changed = 0 then
     execute format(
-      'insert into "better_supabase"."usage_quotas" ("organization_id", "plan", "meter", "limit", "period") values ($1, $2, $3, $4, %L)',
+      'insert into "better_supabase"."usage_quotas" ("tenant_id", "plan", "meter", "limit", "period") values ($1, $2, $3, $4, %L)',
       coalesce(period, 'month')
     ) using tenant, plan, meter, quota_limit;
   end if;
@@ -3939,7 +3344,7 @@ begin
   end if;
   delete from "better_supabase"."usage_quotas" q
   where q."meter" = meter
-    and q."organization_id" is not distinct from tenant
+    and q."tenant_id" is not distinct from tenant
     and q."plan" is not distinct from plan;
   return found;
 end
@@ -4025,7 +3430,7 @@ set search_path = ''
 as $$
   select coalesce(sum(c."value"), 0)::numeric
   from "better_supabase"."usage_counters" c, "better_supabase"."usage_window"(usage_used.tenant, usage_used.period) w
-  where c."organization_id" = usage_used.tenant
+  where c."tenant_id" = usage_used.tenant
     and c."meter" = usage_used.meter
     and c."day" >= (w.starts_at at time zone 'utc')::date
     and c."day" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)
@@ -4092,11 +3497,11 @@ begin
       select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
       union
       select q."meter" from "better_supabase"."usage_quotas" q
-      where q."organization_id" = usage_overview.tenant
-        or (q."organization_id" is null and (q."plan" = '*'))
+      where q."tenant_id" = usage_overview.tenant
+        or (q."tenant_id" is null and (q."plan" = '*'))
       union
       select distinct c."meter" from "better_supabase"."usage_counters" c
-      where c."organization_id" = usage_overview.tenant
+      where c."tenant_id" = usage_overview.tenant
     ) m
   );
 end;
@@ -4159,16 +3564,16 @@ begin
     raise exception 'quantity must be zero or more' using errcode = '22023', hint = 'USAGE_QUANTITY';
   end if;
   if idempotency_key is not null then
-    insert into "better_supabase"."usage_events" ("organization_id", "meter", "idempotency_key", "quantity")
+    insert into "better_supabase"."usage_events" ("tenant_id", "meter", "idempotency_key", "quantity")
     values (tenant, meter, idempotency_key, quantity)
     on conflict do nothing;
     if not found then
       return jsonb_build_object('recorded', false, 'used', "better_supabase"."usage_used"(tenant, meter, coalesce((select q.period from "better_supabase"."usage_quota"(tenant, meter) q), 'month')), 'today', "better_supabase"."usage_used"(tenant, meter, 'day'));
     end if;
   end if;
-  insert into "better_supabase"."usage_counters" as c ("organization_id", "meter", "day", "value")
+  insert into "better_supabase"."usage_counters" as c ("tenant_id", "meter", "day", "value")
   values (tenant, meter, today, quantity)
-  on conflict ("organization_id", "meter", "day") do update
+  on conflict ("tenant_id", "meter", "day") do update
     set "value" = c."value" + excluded."value", "updated_at" = now();
   return jsonb_build_object('recorded', true, 'used', "better_supabase"."usage_used"(tenant, meter, coalesce((select q.period from "better_supabase"."usage_quota"(tenant, meter) q), 'month')), 'today', "better_supabase"."usage_used"(tenant, meter, 'day'));
 end;
@@ -4204,7 +3609,7 @@ begin
   perform pg_advisory_xact_lock(hashtext('better_supabase.consume_quota'), hashtext(tenant::text || '/' || meter));
   if idempotency_key is not null and exists (
     select 1 from "better_supabase"."usage_events" e
-    where e."organization_id" = consume_quota.tenant and e."meter" = consume_quota.meter and e."idempotency_key" = consume_quota.idempotency_key
+    where e."tenant_id" = consume_quota.tenant and e."meter" = consume_quota.meter and e."idempotency_key" = consume_quota.idempotency_key
   ) then
     return jsonb_build_object('recorded', false, 'used', "better_supabase"."usage_used"(tenant, meter, coalesce((select q.period from "better_supabase"."usage_quota"(tenant, meter) q), 'month')), 'today', "better_supabase"."usage_used"(tenant, meter, 'day'));
   end if;
@@ -4298,7 +3703,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object(
-    'organization_id', c."organization_id",
+    'organization_id', c."tenant_id",
     'meter', c."meter",
     'day', c."day",
     'value', c."value",
@@ -4308,7 +3713,7 @@ as $$
     'window_before', (
       select coalesce(sum(o."value"), 0)
       from "better_supabase"."usage_counters" o
-      where o."organization_id" = c."organization_id" and o."meter" = c."meter"
+      where o."tenant_id" = c."tenant_id" and o."meter" = c."meter"
         and o."day" < c."day"
         and o."day" >= w.since
     )
@@ -4317,13 +3722,13 @@ as $$
     select * from "better_supabase"."usage_counters" c
     where c."value" > c."reported_value"
       and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
-      and c."organization_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
+      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
     order by c."day"
     limit max_rows
   ) c
-  left join lateral "better_supabase"."usage_quota"(c."organization_id", c."meter") q on true
+  left join lateral "better_supabase"."usage_quota"(c."tenant_id", c."meter") q on true
   cross join lateral (
-    select "better_supabase"."usage_window_start"(c."organization_id", q.period, c."day") as since
+    select "better_supabase"."usage_window_start"(c."tenant_id", q.period, c."day") as since
   ) w
 $$;
 
@@ -4336,7 +3741,7 @@ set search_path = ''
 as $$
   with updated as (
     update "better_supabase"."usage_counters" c set "reported_value" = greatest(c."reported_value", mark_usage_reported.value)
-    where c."organization_id" = mark_usage_reported.tenant
+    where c."tenant_id" = mark_usage_reported.tenant
       and c."meter" = mark_usage_reported.meter
       and c."day" = mark_usage_reported.day
     returning 1
@@ -4406,8 +3811,8 @@ set search_path = ''
 as $$
   with gone as (
     delete from "better_supabase"."usage_events" x
-    where (x."organization_id", x."meter", x."idempotency_key") in (
-      select e."organization_id", e."meter", e."idempotency_key" from "better_supabase"."usage_events" e
+    where (x."tenant_id", x."meter", x."idempotency_key") in (
+      select e."tenant_id", e."meter", e."idempotency_key" from "better_supabase"."usage_events" e
       where e."recorded_at" < now() - coalesce(older_than, '30 days')
       order by e."recorded_at" limit coalesce(batch, 10000)
     )
@@ -4458,73 +3863,38 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_counters" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_counters" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."usage_counters" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_counters" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."usage_quotas" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_quotas" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."usage_quotas" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
@@ -4543,111 +3913,36 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:00f3fc4c6654b119e0de813670954faed61c8f0b8ce09f93d7ce65f69699648d
+-- @bsb-hash sha256:b213cbc6e2f447d2dec7eba7e2ecb683788deb884e2613534b7335f292136b81
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_history";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
-create table if not exists "better_supabase"."usage_counters" (
+create table "better_supabase"."usage_counters" (
   "org_id" uuid not null,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "meter" text not null constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
-  "value" numeric not null default 0 check ("value" >= 0),
-  "reported_value" numeric not null default 0 check ("reported_value" >= 0),
+  "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0),
+  "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0),
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "meter", "day")
 );
 -- Quantities are numeric, so a meter can count fractions (GB-hours, credits).
 alter table "better_supabase"."usage_counters" alter column "value" type numeric;
 alter table "better_supabase"."usage_counters" alter column "reported_value" type numeric;
-create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
+create index usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
   where "value" > "reported_value";
 alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-drop policy if exists usage_counters_read on "better_supabase"."usage_counters";
-create policy usage_counters_read on "better_supabase"."usage_counters"
+create policy bsb_usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- One row per idempotency key, so a retried increment counts once.
-create table if not exists "better_supabase"."usage_events" (
+create table "better_supabase"."usage_events" (
   "org_id" uuid not null,
   "meter" text not null,
   "idempotency_key" text not null,
@@ -4657,48 +3952,40 @@ create table if not exists "better_supabase"."usage_events" (
 );
 alter table "better_supabase"."usage_events" alter column "quantity" type numeric;
 
-create index if not exists usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
+create index usage_events_recorded_at_idx on "better_supabase"."usage_events" ("recorded_at");
 alter table "better_supabase"."usage_events" enable row level security;
 revoke all on "better_supabase"."usage_events" from public, anon, authenticated;
 grant all on "better_supabase"."usage_events" to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
 -- limit wins. A null limit is unlimited, so it wins over every limit.
-create table if not exists "better_supabase"."usage_quotas" (
+create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
   "plan" text,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
-  "limit" numeric check ("limit" >= 0),
-  "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing')),
+  "meter" text not null constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0),
+  "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing')),
   "created_at" timestamptz not null default now(),
-  check (("org_id" is null) <> ("plan" is null)),
+  constraint bsb_usage_quotas_check check (("org_id" is null) <> ("plan" is null)),
   unique nulls not distinct ("org_id", "plan", "meter")
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
 alter table "better_supabase"."usage_quotas" alter column "limit" drop not null;
-alter table "better_supabase"."usage_quotas" drop constraint if exists "usage_quotas_period_check";
-alter table "better_supabase"."usage_quotas" add constraint "usage_quotas_period_check" check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-drop policy if exists usage_quotas_read on "better_supabase"."usage_quotas";
-create policy usage_quotas_read on "better_supabase"."usage_quotas"
+create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
   using ("org_id" is null or "org_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
 -- The bigint signatures and return types before quantities were numeric.
-drop function if exists "better_supabase"."usage_quota"(uuid, text);
-drop function if exists "better_supabase"."usage_used"(uuid, text, text);
-drop function if exists "better_supabase"."record_usage"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, bigint, text);
-drop function if exists "better_supabase"."mark_usage_reported"(uuid, text, date, bigint);
+
 -- The signatures before usage carried a source, metadata and actor.
-drop function if exists "better_supabase"."record_usage"(uuid, text, numeric, text);
-drop function if exists "better_supabase"."consume_quota"(uuid, text, numeric, text);
+
 -- The signature before the report could skip meters and tenants.
-drop function if exists "better_supabase"."unreported_usage"(integer);
+
 
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
@@ -5283,73 +4570,38 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_counters";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_counters" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_counters" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_counters" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_counters";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_counters" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."usage_quotas";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_select on "better_supabase"."usage_quotas" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" is null or "org_id" in (select better_supabase.tenant_ids_with('usage.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_insert on "better_supabase"."usage_quotas" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_update on "better_supabase"."usage_quotas" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."usage_quotas";
 create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage

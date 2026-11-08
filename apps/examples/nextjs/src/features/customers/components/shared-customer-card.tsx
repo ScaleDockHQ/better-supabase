@@ -13,17 +13,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
-import { getSharedCustomer } from "../shared-customer-queries";
+import { getSharedCustomer } from "../customers-queries";
 import { CustomerStatus } from "./customer-status";
 
 /** Render inside `<Suspense>`: reads the `token` param. */
-export async function SharedCustomerCard({
-  params,
-}: {
-  params: Promise<{ token: string }>;
-}) {
-  const { token } = await params;
-
+export async function SharedCustomerCard({ token }: { token: string }) {
   const [customer, t, format] = await Promise.all([
     getSharedCustomer(token),
     getExtracted("customers"),

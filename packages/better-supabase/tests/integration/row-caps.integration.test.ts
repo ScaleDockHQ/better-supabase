@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { openPg } from "../fixtures/pg.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
@@ -22,7 +22,7 @@ const source = await openPg(dbUrl);
 describe.skipIf(!source)("row caps against the local stack", () => {
   const db = source!;
 
-  const betterSupabase = defineSupabase(schema, {
+  const betterSupabase = createSupabase(schema, {
     maxRows: 1000,
     logger: { debug() {}, info() {}, warn() {}, error() {} },
   });

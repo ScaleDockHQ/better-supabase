@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { AuthSession } from "../../src/auth/view.ts";
 
 import { createClient } from "../../src/client/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import {
   BetterSupabaseProvider,
   createHooks,
@@ -18,7 +18,7 @@ import {
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const browser = createClient(betterSupabase, {
   client: capturingClient().client,

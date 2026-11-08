@@ -10,28 +10,28 @@ import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
 import type {
   CursorPage,
-  CursorPageArgs,
+  CursorPageParams,
   Db,
-  DeleteArgs,
+  DeleteOptions,
   DeleteExt,
   FindExt,
   GetKey,
   OffsetPage,
-  OffsetPageArgs,
-  OffsetRangeArgs,
+  OffsetPageOptions,
+  OffsetRangeOptions,
   Returned,
-  UpdateArgs,
-  UpsertArgs,
-  WriteArgs,
+  UpdateOptions,
+  UpsertOptions,
+  WriteOptions,
 } from "../core/repository-types.ts";
 import type { AsyncResult } from "../core/result.ts";
 import type { InferResult, QuerySpec } from "../core/spec.ts";
 import type {
-  AggregateArgs,
+  AggregateOptions,
   AggregateResult,
-  CountArgs,
-  GetArgs,
-  ListArgs,
+  CountOptions,
+  GetOptions,
+  ListParams,
   Payload,
 } from "../ir/args.ts";
 import type {
@@ -158,16 +158,16 @@ export interface MutationOptionsOf<V, R> {
 export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
   /** Prefix of every key for this table's own queries. */
   readonly key: readonly ["bsb", T];
-  list<const A extends ListArgs<M, T> & FindExt<E, M, T>>(
+  list<const A extends ListParams<M, T> & FindExt<E, M, T>>(
     args?: A | SkipToken,
   ): QueryOptionsOf<Payload<M, T, A>[]>;
   page<
-    const A extends (OffsetPageArgs<M, T> | OffsetRangeArgs<M, T>) &
+    const A extends (OffsetPageOptions<M, T> | OffsetRangeOptions<M, T>) &
       FindExt<E, M, T>,
   >(
     args: A | SkipToken,
   ): QueryOptionsOf<OffsetPage<Payload<M, T, A>>>;
-  get<const A extends GetArgs<M, T> & FindExt<E, M, T>>(
+  get<const A extends GetOptions<M, T> & FindExt<E, M, T>>(
     key: GetKey<M, T> | SkipToken,
     args?: A,
   ): QueryOptionsOf<
@@ -176,37 +176,37 @@ export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
       : Payload<M, T, A>
   >;
   count(
-    args?: (CountArgs<M, T> & FindExt<E, M, T>) | SkipToken,
+    args?: (CountOptions<M, T> & FindExt<E, M, T>) | SkipToken,
   ): QueryOptionsOf<number>;
-  aggregate<const A extends AggregateArgs<M, T> & FindExt<E, M, T>>(
+  aggregate<const A extends AggregateOptions<M, T> & FindExt<E, M, T>>(
     args: A | SkipToken,
   ): QueryOptionsOf<AggregateResult<M, T, A>>;
   /** Cursor pages for `useInfiniteQuery`. */
   infinite<
-    const A extends Omit<CursorPageArgs<M, T>, "after"> & FindExt<E, M, T>,
+    const A extends Omit<CursorPageParams<M, T>, "after"> & FindExt<E, M, T>,
   >(
     args: A,
     options?: InfiniteExtras,
   ): InfiniteOptionsOf<CursorPage<Payload<M, T, A>>, string | null>;
   /** Numbered pages for `useInfiniteQuery`, starting at `args.page` (default 1). */
-  infinitePages<const A extends OffsetPageArgs<M, T> & FindExt<E, M, T>>(
+  infinitePages<const A extends OffsetPageOptions<M, T> & FindExt<E, M, T>>(
     args: A,
     options?: InfiniteExtras,
   ): InfiniteOptionsOf<OffsetPage<Payload<M, T, A>>, number>;
-  create<const A extends WriteArgs<M, T> = {}>(
+  create<const A extends WriteOptions<M, T> = {}>(
     args?: A,
   ): MutationOptionsOf<Insert<M, T>, Returned<M, T, A>>;
-  update<const A extends UpdateArgs<M, T> = {}>(
+  update<const A extends UpdateOptions<M, T> = {}>(
     args?: A,
   ): MutationOptionsOf<
     { readonly id: PrimaryKeyValue<M, T>; readonly patch: Update<M, T> },
     Returned<M, T, A>
   >;
-  upsert<const A extends UpsertArgs<M, T> = {}>(
+  upsert<const A extends UpsertOptions<M, T> = {}>(
     args?: A,
   ): MutationOptionsOf<Insert<M, T>, Returned<M, T, A>>;
   delete(
-    args?: DeleteArgs & DeleteExt<E, M, T>,
+    args?: DeleteOptions & DeleteExt<E, M, T>,
   ): MutationOptionsOf<PrimaryKeyValue<M, T>, void>;
 }
 
@@ -630,21 +630,42 @@ export function createQueries<
     }),
   };
 
-  for (const table of Object.keys(betterSupabase.meta.tables)) {
+  const defineTable = (table: string): void => {
     let built: Record<string, unknown> | undefined;
     Object.defineProperty(queries, table, {
       enumerable: true,
+      configurable: true,
       get: () => {
         built ??= tableQueries(runtime, table);
 
         return built;
       },
     });
+  };
+
+  for (const table of Object.keys(betterSupabase.meta.tables)) {
+    defineTable(table);
   }
+
+  // A `lazyTables` schema starts without tables and gains one each time a
+  // module registers it, after this object was built.
+  const lateTables = new Proxy(queries, {
+    get: (target, name) => {
+      if (
+        typeof name === "string" &&
+        !(name in target) &&
+        name in betterSupabase.meta.tables
+      ) {
+        defineTable(name);
+      }
+
+      return typeof name === "string" ? target[name] : undefined;
+    },
+  });
 
   // SAFETY: queries has one entry per table and procedure, which is the shape
   // of BetterQueries<M, E, F>.
-  return queries as BetterQueries<M, E, F>;
+  return lateTables as BetterQueries<M, E, F>;
 }
 
 /** Invalidates every query that read a table in the target. */

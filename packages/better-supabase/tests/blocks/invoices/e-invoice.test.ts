@@ -122,7 +122,7 @@ const buyer = { scheme: "0106", id: "12345678" };
 
 function client(over: Record<string, (args: Row) => unknown> = {}) {
   const t = transport({
-    invoice_e_endpoints: () => ({ seller: { scheme: "0106", id: "1" }, buyer }),
+    e_invoice_endpoints: () => ({ seller: { scheme: "0106", id: "1" }, buyer }),
     list_e_invoice_deliveries: () => null,
     record_e_invoice_delivery: () => ({ created: true, delivery: delivery() }),
     ...over,
@@ -175,7 +175,7 @@ describe("sendEInvoice", () => {
   });
 
   it("needs a participant id on the buyer", async () => {
-    const { invoices } = client({ invoice_e_endpoints: () => ({}) });
+    const { invoices } = client({ e_invoice_endpoints: () => ({}) });
     const { channel } = memoryChannel();
 
     const result = await invoices.sendEInvoice({
@@ -423,7 +423,7 @@ describe("error paths", () => {
     const { channel, sent } = memoryChannel();
 
     for (const over of [
-      { invoice_e_endpoints: down },
+      { e_invoice_endpoints: down },
       { list_e_invoice_deliveries: down },
     ]) {
       const result = await client(over).invoices.sendEInvoice({

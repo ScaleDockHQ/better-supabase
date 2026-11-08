@@ -14,24 +14,27 @@ import {
   type ChecklistItemInput as DefaultChecklistItemInput,
   type Iteration as DefaultIteration,
   type Project as DefaultProject,
-  type WorkItem,
-  type WorkItemChange,
-  type WorkItemChangeResult,
-  type WorkItemChecklistOptimisticAction,
-  type WorkItemField,
-  type WorkItemInput,
-  type WorkItemListOptions,
-  type WorkItemNode,
-  type WorkItemRecurrence,
-  type WorkItemRecurrenceSinkOptions,
-  type WorkItemSetResult,
-  type WorkItemState,
-  type WorkItemUpdateOptions,
-  type WorkItemWatcher,
-  type WorkItemWatchLevel,
-  type WorkItemWindow,
-  type TasksEvents as DefaultTasksEvents,
-  tasksBlock as defaultTasksBlock,
+  type Task,
+  type TaskChange,
+  type TaskChangeResult,
+  type TaskChecklistOptimisticAction,
+  type TaskField,
+  type TaskFromConversationClients,
+  type TaskFromConversationOptions,
+  type TaskInput,
+  type TaskListOptions,
+  type TaskNode,
+  type TaskRecurrence,
+  type TaskRecurrenceSinkOptions,
+  type Tasks,
+  type TaskSetResult,
+  type TasksEvents,
+  type TaskState,
+  type TaskUpdateOptions,
+  type TaskWatcher,
+  type TaskWatchLevel,
+  type TaskWindow,
+  tasksBlock,
 } from "better-supabase/blocks/tasks";
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { AttachmentsEvents } from "better-supabase/blocks/attachments";
@@ -90,7 +93,7 @@ type MaintenanceRenamesEvents = EventRenamesOf<(typeof blockConfig)["maintenance
  * The `tasks` block under the names `blocks.maintenance.entities` gives it.
  * @public
  */
-export const maintenanceBlock = renameBlock(defaultTasksBlock, blockConfig["maintenance"].names);
+export const maintenanceBlock = renameBlock(tasksBlock, blockConfig["maintenance"].names);
 
 /** @public */
 export type ChecklistItem = RenamedType<DefaultChecklistItem, MaintenanceRenames>;
@@ -105,55 +108,64 @@ export type Iteration = RenamedType<DefaultIteration, MaintenanceRenames>;
 export type Project = RenamedType<DefaultProject, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequest<F extends object = Record<never, never>> = RenamedType<WorkItem<F>, MaintenanceRenames>;
+export type MaintenanceRequest<F extends object = Record<never, never>> = RenamedType<Task<F>, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestChange<F extends object = Record<never, never>> = RenamedType<WorkItemChange<F>, MaintenanceRenames>;
+export type MaintenanceRequestChange<F extends object = Record<never, never>> = RenamedType<TaskChange<F>, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestChangeResult = RenamedType<WorkItemChangeResult, MaintenanceRenames>;
+export type MaintenanceRequestChangeResult = RenamedType<TaskChangeResult, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestChecklistOptimisticAction = RenamedType<WorkItemChecklistOptimisticAction, MaintenanceRenames>;
+export type MaintenanceRequestChecklistOptimisticAction = RenamedType<TaskChecklistOptimisticAction, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestField = RenamedType<WorkItemField, MaintenanceRenames>;
+export type MaintenanceRequestField = RenamedType<TaskField, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestInput<F extends object = Record<never, never>> = RenamedType<WorkItemInput<F>, MaintenanceRenames>;
+export type MaintenanceRequestFromConversationClients = RenamedType<TaskFromConversationClients, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestListOptions = RenamedType<WorkItemListOptions, MaintenanceRenames>;
+export type MaintenanceRequestFromConversationOptions = RenamedType<TaskFromConversationOptions, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestNode = RenamedType<WorkItemNode, MaintenanceRenames>;
+export type MaintenanceRequestInput<F extends object = Record<never, never>> = RenamedType<TaskInput<F>, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestRecurrence = RenamedType<WorkItemRecurrence, MaintenanceRenames>;
+export type MaintenanceRequestListOptions = RenamedType<TaskListOptions, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestRecurrenceSinkOptions = RenamedType<WorkItemRecurrenceSinkOptions, MaintenanceRenames>;
+export type MaintenanceRequestNode = RenamedType<TaskNode, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestSetResult = RenamedType<WorkItemSetResult, MaintenanceRenames>;
+export type MaintenanceRequestRecurrence = RenamedType<TaskRecurrence, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestState = RenamedType<WorkItemState, MaintenanceRenames>;
+export type MaintenanceRequestRecurrenceSinkOptions = RenamedType<TaskRecurrenceSinkOptions, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestUpdateOptions = RenamedType<WorkItemUpdateOptions, MaintenanceRenames>;
+export type MaintenanceRequests<F extends object = Record<never, never>> = RenamedType<Tasks<F>, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestWatcher = RenamedType<WorkItemWatcher, MaintenanceRenames>;
+export type MaintenanceRequestSetResult = RenamedType<TaskSetResult, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceRequestWatchLevel = RenamedType<WorkItemWatchLevel, MaintenanceRenames>;
+export type MaintenanceEvents = RenamedEvents<TasksEvents, MaintenanceRenamesEvents>;
 
 /** @public */
-export type MaintenanceRequestWindow = RenamedType<WorkItemWindow, MaintenanceRenames>;
+export type MaintenanceRequestState = RenamedType<TaskState, MaintenanceRenames>;
 
 /** @public */
-export type MaintenanceEvents = RenamedEvents<DefaultTasksEvents, MaintenanceRenamesEvents>;
+export type MaintenanceRequestUpdateOptions = RenamedType<TaskUpdateOptions, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestWatcher = RenamedType<TaskWatcher, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestWatchLevel = RenamedType<TaskWatchLevel, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestWindow = RenamedType<TaskWindow, MaintenanceRenames>;
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -272,6 +284,13 @@ export const blockEvents: Events<BlockEvents> = {
     "ledger_hold.released",
     "ledger_transaction.posted",
     "ledger_transaction.reversed",
+    "maintenance_request.archived",
+    "maintenance_request.assigned",
+    "maintenance_request.closed",
+    "maintenance_request.created",
+    "maintenance_request.deleted",
+    "maintenance_request.reopened",
+    "maintenance_request.updated",
     "message.deleted",
     "message.edited",
     "message.pinned",
@@ -319,20 +338,13 @@ export const blockEvents: Events<BlockEvents> = {
     "subject.accessed",
     "subject_member.added",
     "subject_member.ended",
-    "task.archived",
-    "task.assigned",
-    "task.closed",
-    "task.created",
-    "task.deleted",
-    "task.reopened",
-    "task.updated",
     "team.archived",
     "team.created",
     "team.deleted",
     "team.restored",
     "team.updated",
     "team_member.added",
-    "team_member.removed",
+    "team_member.deleted",
   ],
 };
 
@@ -409,6 +421,13 @@ export const blockEventSchemas = {
   "ledger_hold.released": true,
   "ledger_transaction.posted": true,
   "ledger_transaction.reversed": true,
+  "maintenance_request.archived": true,
+  "maintenance_request.assigned": true,
+  "maintenance_request.closed": true,
+  "maintenance_request.created": true,
+  "maintenance_request.deleted": true,
+  "maintenance_request.reopened": true,
+  "maintenance_request.updated": true,
   "message.deleted": true,
   "message.edited": true,
   "message.pinned": true,
@@ -456,20 +475,13 @@ export const blockEventSchemas = {
   "subject.accessed": true,
   "subject_member.added": true,
   "subject_member.ended": true,
-  "task.archived": true,
-  "task.assigned": true,
-  "task.closed": true,
-  "task.created": true,
-  "task.deleted": true,
-  "task.reopened": true,
-  "task.updated": true,
   "team.archived": true,
   "team.created": true,
   "team.deleted": true,
   "team.restored": true,
   "team.updated": true,
   "team_member.added": true,
-  "team_member.removed": true,
+  "team_member.deleted": true,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

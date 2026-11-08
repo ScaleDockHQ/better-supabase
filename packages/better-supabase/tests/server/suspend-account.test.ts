@@ -101,7 +101,7 @@ describe("endSessions", () => {
   });
 
   it("is exported from the server entry", async () => {
-    const server = await import("../../src/server/index.ts");
+    const server = await import("../../src/server/accounts/index.ts");
     expect(server.endSessions).toBe(endSessions);
     expect(server.suspendAccount).toBe(suspendAccount);
   });

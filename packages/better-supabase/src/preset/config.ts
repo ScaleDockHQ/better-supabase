@@ -131,7 +131,7 @@ export function conventionConfig(
  */
 export function presetConfig(
   resolved: ResolvedPreset,
-): Pick<FlatConfig, "casing" | "sql" | "integrations"> & {
+): Pick<FlatConfig, "casing" | "sql" | "adapters"> & {
   readonly blocks: BlocksConfig;
 } {
   const { preset } = resolved;
@@ -140,9 +140,7 @@ export function presetConfig(
   return {
     ...(preset.casing === "snake" ? {} : { casing: preset.casing }),
     ...(sql === undefined ? {} : { sql }),
-    ...(preset.integrations.length === 0
-      ? {}
-      : { integrations: preset.integrations }),
+    ...(preset.adapters.length === 0 ? {} : { adapters: preset.adapters }),
     blocks: asBlocksConfig(instanceEntries(resolved)),
   };
 }

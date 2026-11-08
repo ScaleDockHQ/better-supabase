@@ -194,7 +194,7 @@ describe.skipIf(!live)("purchasing", () => {
       expect(
         (
           await s.rows<{ type: string }>(
-            "select type from better_supabase.outbox_events where organization_id = $1 and type in ('purchase_requisition.created', 'purchase_requisition.approved', 'inventory_receipt.created', 'invoice.match_checked') order by position",
+            "select type from better_supabase.outbox_events where tenant_id = $1 and type in ('purchase_requisition.created', 'purchase_requisition.approved', 'inventory_receipt.created', 'invoice.match_checked') order by position",
             [org],
           )
         ).map((row) => row.type),

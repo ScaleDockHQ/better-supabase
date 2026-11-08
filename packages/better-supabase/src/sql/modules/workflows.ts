@@ -16,7 +16,6 @@ import {
   pageSize,
   fail,
   ensureCheck,
-  addExtraColumns,
   extraFieldsJson,
 } from "../shared.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
@@ -89,7 +88,7 @@ const NAMES: BlockSqlNames = {
     "before_workflow_start_request",
     "after_workflow_start_request",
   ],
-  options: ["runExtraColumns"],
+  options: [],
   tables: {
     runs: {
       name: "workflow_runs",
@@ -117,7 +116,7 @@ const NAMES: BlockSqlNames = {
         mode: "mode",
         triggerNode: "trigger_node",
         idempotencyKey: "idempotency_key",
-        dispatchUntil: "dispatch_until",
+        dispatchUntil: "dispatch_expires_at",
       },
       optional: [
         "subjectType",
@@ -146,7 +145,7 @@ const NAMES: BlockSqlNames = {
         timezone: "timezone",
         nextRunAt: "next_run_at",
         lastRunAt: "last_run_at",
-        lockedUntil: "locked_until",
+        lockedUntil: "lock_expires_at",
         paused: "paused",
         createdBy: "created_by",
         createdAt: "created_at",
@@ -178,8 +177,8 @@ const NAMES: BlockSqlNames = {
         actor: "actor_id",
         concurrency: "concurrency",
         status: "status",
-        notBefore: "not_before",
-        claimedUntil: "claimed_until",
+        notBefore: "not_before_at",
+        claimedUntil: "claim_expires_at",
         runId: "run_id",
         createdAt: "created_at",
         startedAt: "started_at",
@@ -212,7 +211,7 @@ function build(ctx: BlockSqlContext): string {
   const q = requestsOn ? ctx.table("startRequests") : "";
   const keyed = ctx.has("runs", "idempotencyKey");
   const leased = keyed && ctx.has("runs", "dispatchUntil");
-  const extras = ctx.extraColumns("runs", RUN_KEYS, "runExtraColumns");
+  const extras = ctx.extraColumns("runs", RUN_KEYS);
   const cr = (column: string): string => ctx.col("runs", column);
   const cs = (column: string): string => ctx.col("schedules", column);
   const cm = (column: string): string => ctx.col("semaphores", column);
@@ -350,7 +349,7 @@ alter table ${r} add column if not exists ${cr("subjectId")} text check (length(
       ? `
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
--- ${PENDING_EXTERNAL_PREFIX}; dispatch_until leases it to the process that starts it.
+-- ${PENDING_EXTERNAL_PREFIX}; dispatch_expires_at leases it to the process that starts it.
 alter table ${r} add column if not exists ${cr("idempotencyKey")} text check (length(${cr("idempotencyKey")}) between 1 and 500);
 create unique index if not exists workflow_runs_idempotency_key on ${r} (${cr("tenant")}, ${cr("idempotencyKey")}) nulls not distinct where ${cr("idempotencyKey")} is not null;${
           leased
@@ -359,7 +358,7 @@ alter table ${r} add column if not exists ${cr("dispatchUntil")} timestamptz;`
             : ""
         }`
       : ""
-  }${addExtraColumns(r, extras)}${
+  }${
     linked
       ? `${app ? "" : `\n${ensureCheck(r, "workflow_runs_subject_check", `(${cr("subjectType")} is null) = (${cr("subjectId")} is null)`)}`}
 create index if not exists workflow_runs_subject_idx on ${r} (${cr("tenant")}, ${cr("subjectType")}, ${cr("subjectId")}, ${cr("createdAt")} desc) where ${cr("subjectType")} is not null;`
@@ -375,7 +374,7 @@ ${renderPolicy(
     using: `${cr("actor")} = (select auth.uid())
     or ${ctx.scope.check(cr("tenant"), ctx.permission("read", permissions.read))}`,
   }),
-  { drop: true, target: r },
+  { target: r },
 )}
 
 ${
@@ -411,7 +410,7 @@ create unique index if not exists ${sqlIdent(`${ctx.tableName("schedules").name}
 create index if not exists workflow_schedules_due_idx on ${s} (${cs("nextRunAt")}) where not ${cs("paused")};
 create index if not exists workflow_schedules_created_by_idx on ${s} (${cs("createdBy")});
 ${lockModuleTable(ctx, "schedules", { read: true })}
-${renderPolicy(makePolicy({ table: s, name: "workflow_schedules_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(cs("tenant"), ctx.permission("read", permissions.read)) }), { drop: true, target: s })}
+${renderPolicy(makePolicy({ table: s, name: "workflow_schedules_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(cs("tenant"), ctx.permission("read", permissions.read)) }), { target: s })}
 `
     : ""
 }
@@ -939,7 +938,7 @@ begin
           )
         )`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
   end if;
 end;
@@ -973,7 +972,7 @@ export const WORKFLOWS: BlockSqlDefinition = {
     {
       from: 3,
       description:
-        "workflow_runs gains idempotency_key (unique per tenant) and dispatch_until; record_workflow_run takes an idempotency_key and the run's extra fields; claim_workflow_run_dispatch and set_workflow_run_engine start a queued run once; schedules, semaphores and start requests can be left out with tables: null.",
+        "workflow_runs gains idempotency_key (unique per tenant) and dispatch_expires_at; record_workflow_run takes an idempotency_key and the run's extra fields; claim_workflow_run_dispatch and set_workflow_run_engine start a queued run once; schedules, semaphores and start requests can be left out with tables: null.",
       sql: () => "",
     },
   ],

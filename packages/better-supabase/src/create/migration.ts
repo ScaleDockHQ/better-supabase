@@ -63,10 +63,13 @@ export function migrationBetween(
   }
 
   const before = new Map(
-    previewFiles(preset, base).map((file) => [file.path, file.contents]),
+    previewFiles(preset, base, { rerunnable: true }).map((file) => [
+      file.path,
+      file.contents,
+    ]),
   );
 
-  const differing = previewFiles(preset, next).filter(
+  const differing = previewFiles(preset, next, { rerunnable: true }).filter(
     (file) => before.get(file.path) !== file.contents,
   );
 

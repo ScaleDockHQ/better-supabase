@@ -12,6 +12,7 @@ export const DOCUMENT_TYPES = [
   "dunning_letter",
   "delivery_note",
   "statement",
+  "purchase_order",
 ] as const;
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
@@ -229,6 +230,7 @@ export const DOCUMENT_VARIABLES: Readonly<
     v("document.asOf", "date", "Date the balances are counted at"),
   ]),
   delivery_note: base([...SHIPPING]),
+  purchase_order: base([...SHIPPING]),
   statement: base([
     v("document.asOf", "date", "Date the balances are counted at"),
   ]),

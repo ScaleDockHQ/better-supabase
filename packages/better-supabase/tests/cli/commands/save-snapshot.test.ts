@@ -17,7 +17,7 @@ describe("gen --save-snapshot", () => {
   });
 
   it.each([
-    [["--save-snapshot", "--watch"], "it takes no --watch"],
+    [["--save-snapshot", "--force"], "it takes no --force"],
     [["--save-snapshot", "--only", "types"], "it takes no --only"],
     [["--out", "s.json"], "--out works with --save-snapshot"],
     [["--kind", "snapshot"], "--kind works with --save-snapshot"],

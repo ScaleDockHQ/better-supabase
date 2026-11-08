@@ -4,7 +4,6 @@ import { useActionForm } from "better-supabase/react";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -39,12 +38,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { MemberOption, ProjectOption, TaskStatus } from "../project-types";
 
-import { createTask } from "../project-actions";
 import { TASK_STATUSES } from "../project-types";
+import { createTask } from "../projects-actions";
 import { useStatusLabel } from "../use-task-labels";
 
 // #region recipe:record-form

@@ -1,4 +1,4 @@
-export { BetterSupabase, defineSupabase } from "./core/define.ts";
+export { BetterSupabase, createSupabase } from "./core/define.ts";
 
 export type {
   ConnectOptions,
@@ -7,22 +7,6 @@ export type {
 } from "./core/define-types.ts";
 
 export { EMPTY_STATS, recordStats, StatsRecorder } from "./core/stats.ts";
-
-export {
-  currentEventTypes,
-  ENTITY_KEY_RENAMES,
-  ENTITY_RENAMES_CODEMOD,
-  EVENT_TYPE_RENAMES,
-  EVENT_TYPE_SPLITS,
-  HINT_RENAMES,
-  isOldEventType,
-  legacyEventType,
-  legacyHintOf,
-  PROGRAM_EVENT_MOVES,
-  renamed,
-  SUBJECT_TYPE_RENAMES,
-  TABLE_RENAMES,
-} from "./core/renames.ts";
 
 export type { DbStats } from "./core/stats.ts";
 
@@ -159,7 +143,7 @@ export type {
   NoExtension,
   WithExtension,
   HasFlag,
-  HookArgs,
+  HookParams,
   MutationEvent,
   MutationIntent,
   MutationKind,
@@ -223,29 +207,29 @@ export type { Policy, PolicyDecision } from "./core/policy.ts";
 export type {
   ConflictTarget,
   CursorPage,
-  CursorPageArgs,
+  CursorPageParams,
   Db,
   DbHelpers,
-  DeleteArgs,
+  DeleteOptions,
   DeleteExt,
   FindExt,
   GetKey,
   ManyResult,
-  ManyWriteArgs,
+  ManyWriteOptions,
   OffsetPage,
-  OffsetPageArgs,
-  OffsetRangeArgs,
+  OffsetPageOptions,
+  OffsetRangeOptions,
   PageOf,
   Repository,
   RepositoryOf,
   Returned,
   RowFilter,
   RpcOptions,
-  UpdateArgs,
-  UpsertArgs,
-  UpsertManyArgs,
-  WriteArgs,
-  WriteManyArgs,
+  UpdateOptions,
+  UpsertOptions,
+  UpsertManyOptions,
+  WriteOptions,
+  WriteManyOptions,
 } from "./core/repository-types.ts";
 
 export { encodeCursor, decodeCursor } from "./core/cursor.ts";
@@ -282,7 +266,9 @@ export type {
 
 export { SPEC_PINS } from "./core/spec-pins.ts";
 
-export { defineSchema, tableMeta } from "./schema/define.ts";
+export { defineSchema, defineTable, tableMeta } from "./schema/define.ts";
+
+export type { TableModule } from "./schema/define.ts";
 
 export type { EnrichDatabase } from "./schema/enrich.ts";
 
@@ -290,7 +276,7 @@ export type { StoragePath } from "./storage/path.ts";
 
 export type * from "./schema/types.ts";
 
-export type { SearchArgs } from "./core/search.ts";
+export type { TextSearchParams } from "./core/search.ts";
 
 export type * from "./ir/args.ts";
 

@@ -1,6 +1,6 @@
 import type { SchemaMeta } from "better-supabase";
 
-import { defineSchema, defineSupabase } from "better-supabase";
+import { defineSchema, createSupabase } from "better-supabase";
 import { defineListQuery } from "better-supabase/list";
 
 const column = (db: string, type: string, nullable = false) => ({
@@ -64,7 +64,7 @@ type Models = {
   };
 };
 
-const betterSupabase = defineSupabase(defineSchema<Models>(meta));
+const betterSupabase = createSupabase(defineSchema<Models>(meta));
 
 /**
  * The admin order grid: search by number or email, a status facet, newest

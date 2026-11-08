@@ -355,6 +355,99 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0242: Compute deadlines from approved, versioned rule sets.
 - 0243: Option sets, lane archiving with a move target and brand starters.
 - 0244: Store templates as rows of the record they create.
+- 0245: Upgrades start at 0.53, and removed names have no alias.
+- 0246: One naming convention from api/naming.json.
+- 0247: Measure upgrade before splitting it, and hold SQL to the naming and Supabase practices.
+- 0248: Split the generator into stages and cache renders.
+- 0249: Define shared helpers once in a prelude file.
+- 0250: Emit declarative DDL and keep rerunnable SQL for the migrations workflow.
+- 0251: Resolve the remaining do blocks and block overlaps at generation time.
+- 0252: Declare row audit triggers in the schema files.
+- 0253: Name migrations by stamp and content hash.
+- 0254: Keep unscoped statements in one file and grant sequences by name.
+- 0255: Check coverage in both directions and duplicate policies.
+- 0256: Read app columns as fields and move extraColumns into app files.
+- 0257: Remove the extraColumns options and the Create design's extraColumns.
+- 0258: Refuse null entries the catalog already implies.
+- 0259: Exempt a class of tables from audit coverage.
+- 0260: Default a block's permission to the resource key the provider lists.
+- 0261: Remove refused config entries with a codemod, and report them in doctor.
+- 0262: Write one module per table and register the tables a client uses.
+- 0263: Write block config slices as exports of one module and import them per record.
+- 0264: Write table and block modules by default.
+- 0265: Read tables in every framework's hooks, name AppDb, and keep Insert and Update written out.
+- 0266: Copy mutation rows on first read.
+- 0267: Inventory gets a reorder quantity, a serial pick and composite keys.
+- 0268: Close the parties and documents gaps of the base layer.
+- 0269: Close the fields and work gaps of the base layer.
+- 0270: Close the platform and runtime gaps of the base layer.
+- 0271: Name every generated trigger bsb_*, and end unique and exclusion names in `_key` and `_excl`.
+- 0272: Name every generated policy bsb_*.
+- 0273: Name every generated check constraint bsb_*.
+- 0290: CLI contract 3 follows the Vercel CLI design guidelines.
+- 0291: Memoize the adoption scan on disk, watch with `dev`, and purge the cache with `cache purge`.
+- 0292: Give each first-party generator a subpath and declare its library as a peer.
+- 0310: Check the example app's feature-sliced RSC architecture in `pnpm verify`.
+- 0311: Keep tags in pure `<domain>-cache.ts` files built on `tagFor`.
+- 0312: Use `cacheLife("max")` where every write calls `updateTag`.
+- 0313: Prefetch record rows and gate their heavy body behind `navigation()`.
+- 0314: Mark key pages `instant` and lock each loading sequence in a test.
+- 0315: Keep interaction state in `useOptimistic`, the URL and the action state.
+- 0316: Record the Part 11 library work as specs.
+- 0320: Check same-tenant references from the foreign keys by default.
+- 0321: Infer the numbering table and column.
+- 0322: Install vector-search from the tables that use it.
+- 0323: Gate the config type-check on a provider key union.
+- 0324: Protect the options the config codemod must not touch.
+- 0325: Declare block columns on owned tables in the app's files.
+- 0330: Run generators as plugins at apiVersion 2, with a public kit.
+- 0331: Move the generators out of better-supabase/config.
+- 0332: Register framework bindings with defineFramework.
+- 0340: Ship the proxy as its own subpath, `better-supabase/next/proxy`.
+- 0341: Give bsb.cached a render stage and a max life.
+- 0342: Gate the app layout with AuthGate and bsb.user.
+- 0343: Taint tokens and server contexts.
+- 0344: Pause block controllers offline and write the Next.js layout from init.
+- 0345: Timestamp columns end in _at.
+- 0346: Soft-deleted block rows carry archived_at.
+- 0347: User references are named by their role.
+- 0348: Block tables name their tenant column tenant_id.
+- 0349: Three block tables take their convention names, and settings live in better_supabase.
+- 0350: Prune ended workflow runs with workflows prune.
+- 0360: Framework bindings supply init templates and name the server adapter.
+- 0361: Keep the parse cache of the schema model on disk.
+- 0362: Cache each module render on the inputs it read.
+- 0363: Run workerSafe generators on a worker pool.
+- 0370: Cascade notifications for every registered subject.
+- 0371: Type jsonb columns from the Standard Schema setup.
+- 0372: Let a provider choose the wildcard grants permission_matches honours.
+- 0373: Keep the owned-column default flip deferred.
+- 0374: The naming engine separates the block key from the entity plural.
+- 0390: Hold the declarative base layer to a fixture of its own.
+- 0391: Check the projection shape in a Lienlink fixture, and fix two gaps it found.
+- 0392: Generate PowerSync streams from the app's projection views.
+- 0380: Engagements are activities, and events use the lifecycle verbs.
+- 0381: One confirm flag and one out flag.
+- 0385: The naming catalog rules have no thresholds.
+- 0386: Config keys name a directory `dir`, a file `file` and the record types `recordTypes`.
+- 0387: The time-tracking block is time-entries.
+- 0388: The bulk block is bulk-actions.
+- 0393: Close the declarative base layer release and record what is deferred.
+- 0394: Infer the notifications block and the settings schemas.
+- 0400: Count the remaining do blocks and let the webhook fan-out honour the provider's wildcards.
+- 0420: Pause data hooks and record pages offline, and stream child tables with their parent subject.
+- 0430: Upgrade writes no schema migration, and app triggers replace block triggers.
+- 0440: Seeds are a declarative data layer.
+- 0450: Resolve auth once per scope and split the server entry.
+- 0451: Ship the server-imports codemod and the server gates, and record why the rest of the layout waits.
+- 0460: Check storage, initplan and policy-index practices in doctor, prefer `db advisors`, pin the audience.
+- 0470: Hold the app stages to three fixtures.
+- 0471: Serve reads from projection views and invalidate them from the table.
+- 0480: Keep the data client out of the sign-in routes and load heavy UI on first use.
+- 0481: Enforce a static shell for every route group and measure with the Turbopack analyzer.
+- 0482: Use the runtime's Temporal in the browser and load the polyfill only when it is missing.
+- 0483: Load header dialogs on intent, render the side navigation on the server and load the chat panel after paint.
+- 0484: Ship bucket definitions to the browser from `better-supabase/storage/client`.
 
 ## Pre-release pins
 

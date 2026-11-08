@@ -36,12 +36,6 @@ export function designIssues(
     ),
   );
 
-  const modules = new Set(
-    data.tables
-      .filter((table) => data.extraColumns.includes(table.id))
-      .map((table) => table.module),
-  );
-
   const subjectTypes = new Map<string, string>();
 
   for (const [name, table] of Object.entries(design.appTables ?? {})) {
@@ -218,19 +212,6 @@ export function designIssues(
           message: `${name}.${column} is required, so deleting the row it references can't set it to null.`,
         });
       }
-    }
-  }
-
-  for (const block of Object.keys(design.extraColumns ?? {})) {
-    if (!modules.has(block)) {
-      issues.push({
-        severity: "error",
-        source: "rules",
-        code: "block_not_installed",
-        path: jsonPointer("extraColumns", block),
-        table: block,
-        message: `The extra columns for ${block} have no table: the block is not installed or takes no extra columns.`,
-      });
     }
   }
 

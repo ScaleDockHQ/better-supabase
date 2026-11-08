@@ -5,8 +5,8 @@ import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { tagsBlock } from "better-supabase/blocks/tags";
 import { defineRecordType } from "better-supabase/records";
 
-import { blockConfig } from "../blocks.config.ts";
-import { permissions } from "../blocks.generated.ts";
+import { commentsConfig, tagsConfig } from "../blocks/slices.ts";
+import { permissions } from "../blocks/permissions.ts";
 
 /**
  * The project record type: each installed block that binds to it. Pass it to
@@ -18,7 +18,10 @@ export const projectRecord = defineRecordType({
     comments: commentsBlock,
     tags: tagsBlock,
   },
-  config: blockConfig,
+  config: {
+    comments: commentsConfig,
+    tags: tagsConfig,
+  },
   permissions,
   access: permissionsBlock,
 });

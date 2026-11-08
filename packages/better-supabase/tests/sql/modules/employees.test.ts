@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { SQL_MODULES } from "../../../src/sql/registry.ts";
-import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const body = (
   modules: readonly string[],
@@ -69,15 +69,8 @@ describe("employees module", () => {
     });
 
     expect(sql).toContain("array['permanent', 'freelance']::text[]");
-    expect(sql).toContain('add column if not exists "shoe_size" integer');
+    expect(sql).toContain('add column "shoe_size" integer');
     expect(sql).toContain("when 'shoe_size' then");
-    expect(() =>
-      body(["employees"], {
-        modules: {
-          employees: { options: { extraColumns: { depth: "integer" } } },
-        },
-      }),
-    ).toThrow(/depth/);
   });
 
   it("runs over the app's employees table without the optional columns and tables", () => {
@@ -187,13 +180,13 @@ describe("employees module", () => {
     ).not.toContain("create_employee");
   });
 
-  it("keys time entries to employees with time-tracking", () => {
+  it("keys time entries to employees with time-entries", () => {
     expect(body(["employees"])).not.toContain(
       "add column if not exists employee_id",
     );
-    const sql = body(["approvals", "time-tracking", "employees"]);
+    const sql = body(["approvals", "time-entries", "employees"]);
     expect(sql).toContain(
-      'alter table "better_supabase"."time_entries" add column if not exists employee_id uuid references "better_supabase"."employees" ("id") on delete set null;',
+      'alter table "better_supabase"."time_entries" add column employee_id uuid references "better_supabase"."employees" ("id") on delete set null;',
     );
     expect(sql).toContain(
       'create trigger bsb_time_entries_employee before insert or update of "user_id" on "better_supabase"."time_entries"',
@@ -205,7 +198,7 @@ describe("employees module", () => {
 
     const plan = upgradePlan([
       { module: "approvals", version: 99 },
-      { module: "time-tracking", version: 99 },
+      { module: "time-entries", version: 99 },
       { module: "employees", version: 1 },
     ]).find((entry) => entry.module === "employees");
 

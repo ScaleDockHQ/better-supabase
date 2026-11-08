@@ -17,7 +17,7 @@ const column = (
   extra: Partial<ColumnMeta> = {},
 ): ColumnMeta => ({ db, type, nullable: false, hasDefault: false, ...extra });
 
-const workItems = PRESET_CATALOG.manifests.find(
+const tasks = PRESET_CATALOG.manifests.find(
   (manifest) => manifest.name === "tasks",
 );
 
@@ -33,15 +33,12 @@ const taskBlock: GeneratorBlock = {
       primary: true,
       table: "tasks",
       url: undefined,
-      schemas: workItems?.entitySchemas?.["task"] ?? {},
+      schemas: tasks?.entitySchemas?.["task"] ?? {},
     },
   ],
 };
 
-const config = resolveConfig(
-  { gen: { output: "src/generated.ts" } },
-  "/project",
-);
+const config = resolveConfig({ gen: { file: "src/generated.ts" } }, "/project");
 
 const input: GeneratorInput = {
   meta: {
@@ -99,8 +96,7 @@ const input: GeneratorInput = {
   introspection: snapshotFixture.generator,
   extras: { tables: [], buckets: [], realtime: [] },
   config,
-  output: "/project/src/generated.ts",
-  importPath: () => "./generated.ts",
+  imports: { runtime: "better-supabase" },
   model: {
     tables: [],
     enums: [],
@@ -164,7 +160,7 @@ const lines = (text: string) => text.split("\n");
 
 describe("function and block schemas", () => {
   it("has the tasks input schemas in the catalog", () => {
-    expect(taskBlock.entities[0]?.schemas.input?.title).toBe("WorkItemInput");
+    expect(taskBlock.entities[0]?.schemas.input?.title).toBe("TaskInput");
   });
 
   it("writes zod schemas for arguments, results and renamed block inputs", async () => {

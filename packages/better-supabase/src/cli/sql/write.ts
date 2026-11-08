@@ -12,9 +12,9 @@ import { CONFIG_DEFAULTS } from "../../config/index.ts";
 import {
   APP_TABLES_MARKER,
   APP_TABLES_MODULE,
-  currentBlockName,
   moduleTopics,
-  renderBlocks,
+  PRELUDE_MODULE,
+  UNSCOPED_MODULE,
   resolveBlocks,
   sameBlockFile,
 } from "../../sql/index.ts";
@@ -41,6 +41,7 @@ import {
   writeLatestMigration,
 } from "./module-migration.ts";
 import { orphanedBlockFiles } from "./orphans.ts";
+import { cacheOf, renderBlocksCached } from "./render-cache.ts";
 
 const MODULE_TEST_MARKER =
   /^-- @(?:bsb-block-test|bs-module-test) ([a-z0-9-]+)$/m;
@@ -87,7 +88,7 @@ export async function staleModuleTests(
     const text = await readFile(resolve(config.root, path), "utf-8");
     const module = MODULE_TEST_MARKER.exec(text)?.[1];
 
-    if (module !== undefined && modules.has(currentBlockName(module))) {
+    if (module !== undefined && modules.has(module)) {
       stale.push(path);
     }
   }
@@ -148,16 +149,25 @@ export async function write(
   now: Now,
   only?: readonly string[],
   upgrade: readonly string[] = [],
-  former: readonly string[] = [],
 ): Promise<SqlWrite> {
   const workflow = sqlWorkflow(config, await readSupabaseToml(config.root));
   const migrations = workflow === "migrations";
   const lines: string[] = [];
   const dryRun = args["dry-run"] === true;
-  const rendered = renderBlocks(names, sqlLayout);
+
+  const rendered = await renderBlocksCached(
+    config,
+    names,
+    sqlLayout,
+    cacheOf(args),
+  );
 
   const files = rendered.filter(
-    (file) => only === undefined || only.includes(file.module),
+    (file) =>
+      only === undefined ||
+      only.includes(file.module) ||
+      file.module === PRELUDE_MODULE ||
+      file.module === UNSCOPED_MODULE,
   );
 
   const written = files.filter((file) => !migrations || file.kind === "test");
@@ -177,7 +187,6 @@ export async function write(
       files: written.map((file) => moduleFile(file)),
       remove: [
         ...new Set([
-          ...former,
           ...orphans,
           ...(await staleModuleTests(
             config,
@@ -286,7 +295,7 @@ export async function unlistedModuleFiles(
   const listed = new Set(order.files.filter((path) => !unlisted.has(path)));
   const dir = `${config.sql.dir.replace(/\/$/, "")}/`;
 
-  const missing = renderBlocks(names, sqlLayout)
+  const missing = (await renderBlocksCached(config, names, sqlLayout))
     .filter((file) => file.kind !== "data")
     .map((file) => file.path)
     .filter((path) => path.startsWith(dir) && !listed.has(path));

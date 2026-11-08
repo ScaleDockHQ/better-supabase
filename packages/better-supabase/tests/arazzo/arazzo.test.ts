@@ -6,7 +6,7 @@ import type {
   ResourceOperationIds,
 } from "../../src/spec/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { defineApi } from "../../src/spec/api.ts";
 import {
@@ -24,7 +24,7 @@ import { problems, validatorFor } from "../standards/validator.ts";
 
 type Json = Record<string, unknown>;
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const info = { title: "CRM", version: "1.0.0" };
 
 const onboarding = defineWorkflow<ResourceOperationIds<"customers">>({

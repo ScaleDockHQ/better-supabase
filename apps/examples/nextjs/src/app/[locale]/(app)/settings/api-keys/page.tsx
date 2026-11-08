@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 
 import {
-  ApiKeysSection,
   ApiKeysSectionSkeleton,
+  ApiKeysSection,
 } from "@/features/api-keys/components/api-keys-section";
 import {
   ServicePrincipalsTable,

@@ -39,7 +39,7 @@ const NAMES: BlockSqlNames = {
         tenant: "tenant_id",
         metric: "metric",
         grain: "grain",
-        bucketStart: "bucket_start",
+        bucketStart: "bucket_started_at",
         dims: "dims",
         value: "value",
         count: "count",

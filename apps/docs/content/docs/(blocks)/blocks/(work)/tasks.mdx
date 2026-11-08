@@ -43,7 +43,7 @@ export default defineConfig({
 });
 ```
 
-The block registers the subject under the entity's final name, so after `names: { work_item: "task" }` it registers `task`. A `config.subjects.task` entry then clashes with it and the config is refused. Keep one of the two: remove the `records` entry, or set `names: { work_item: { name: "task", subject: false } }` and register the type yourself in `config.subjects`.
+The block registers the subject under the entity's final name, so after `names: { work_item: "task" }` it registers `task`. A `config.subjects.task` entry then clashes with it and the config is refused. Keep one of the two: remove the `records` entry, or set `names: { work_item: { name: "task", subject: false } }` and register the type yourself in `config.recordTypes`.
 
 ## Create, edit and assign
 
@@ -73,8 +73,8 @@ const task = await db.tasks
 const { accepted, rejected } = await db.tasks
   .update({
     changes: [
-      { workItemId: task.id, field: "stageId", value: inProgressStageId },
-      { workItemId: task.id, field: "endAt", value: friday },
+      { taskId: task.id, field: "stageId", value: inProgressStageId },
+      { taskId: task.id, field: "endAt", value: friday },
     ],
   })
   .orThrow();
@@ -88,6 +88,8 @@ import { useTasks } from "@/lib/supabase/hooks";
 const rows = useTasks({ limit: 50 });
 ```
 
+`create` takes the extra columns of your table under `fields`, as `update` does. The `locked` column is optional: map it to `null` in `blocks.tasks.columns.items` and the table has no lock, so dates always change.
+
 `update({ changes })` applies grid edits and Gantt drags one by one and returns the refused ones with their hint. The table refuses a parent that would put an item under itself (`TASK_PARENT_CYCLE`) and date changes on a locked item (`TASK_LOCKED`). Moving to a completed or canceled stage stamps `closedAt` and a close reason (`completed`, or `not_planned` for canceled; pass `closeReason: "duplicate"` with the move to mark a duplicate) and records `task.closed`. Moving back to an open stage clears both and records `task.reopened`.
 
 A Gantt drag that moves both ends sends one `window` change, `{ startAt, endAt }`, which writes the two dates in one update. Two separate changes would fail the `endAt >= startAt` check halfway when the bar moves past its old end. Either key can be left out or `null`. Pass `atomic: true` when a batch must apply in full or not at all: the first refused change then fails the whole call with its hint, and nothing is written.
@@ -95,9 +97,7 @@ A Gantt drag that moves both ends sends one `window` change, `{ startAt, endAt }
 ```ts title="src/features/tasks/gantt.ts"
 await db.tasks
   .update({
-    changes: [
-      { workItemId: task.id, field: "window", value: { startAt, endAt } },
-    ],
+    changes: [{ taskId: task.id, field: "window", value: { startAt, endAt } }],
     atomic: true,
   })
   .orThrow();
@@ -105,7 +105,7 @@ await db.tasks
 
 Without `atomic`, a refused change comes back in `rejected` and the others stay applied. Pass `strict: true` to get the first refused change as the error instead, with its hint as the `raised` code, so an action can return it as it is.
 
-`move({ workItemId, stageId })` is `update` with one `stageId` change and `strict`, so a refused board drag comes back as the error.
+`move({ taskId, stageId })` is `update` with one `stageId` change and `strict`, so a refused board drag comes back as the error.
 
 `assign(id, userIds)` replaces the assignees. Each one watches the item, and the people newly assigned get a `work_item.assigned` notification. The `task.assigned` event is recorded only when the call adds someone: `assigneeIds` holds everyone assigned now and `addedIds` the people the call added. `options.maxAssignees` caps the list (`TASK_ASSIGNEES_LIMIT`), and `1` gives the single-assignee shape of Linear and Jira.
 
@@ -125,10 +125,10 @@ await tasks
 
 ### Archive or remove many items
 
-`archive({ workItemIds, archived })` and `remove(workItemIds)` take a list and run as one statement each, so the access check runs once for the whole set and each records its events as before. They return `{ ids, skipped }`: `ids` are the items that changed, and `skipped` are the ids that don't exist or that you can't edit. Calling with an id list in a loop is no longer needed. In SQL they are `archive_tasks(ids uuid[], archived boolean)` and `delete_tasks(ids uuid[])`, which return the same shape as jsonb.
+`archive({ taskIds, archived })` and `remove(taskIds)` take a list and run as one statement each, so the access check runs once for the whole set and each records its events as before. They return `{ ids, skipped }`: `ids` are the items that changed, and `skipped` are the ids that don't exist or that you can't edit. Calling with an id list in a loop is no longer needed. In SQL they are `archive_tasks(ids uuid[], archived boolean)` and `delete_tasks(ids uuid[])`, which return the same shape as jsonb.
 
 ```ts
-const { ids, skipped } = await tasks.archive({ workItemIds }).orThrow();
+const { ids, skipped } = await tasks.archive({ taskIds }).orThrow();
 ```
 
 ## Lists, trees, projects and iterations
@@ -149,23 +149,20 @@ await items.saveChecklistItem(task.id, { done: true }, draft.id).orThrow();
 const steps = await items.checklist(task.id).orThrow();
 ```
 
-`saveChecklistItem(workItemId, input, checklistItemId?)` adds a step at the end, or edits the one you name: its `title`, `done` (which stamps `doneAt` and `doneBy`) or `rank`. `removeChecklistItem(id)` deletes one, and `checklist(workItemId)` lists them in rank order. Every item a read returns carries `checklist: { total, done }`, and `get(id)` reads one item. An app that keeps its own subtasks maps `tables.checklist` to `null`: the module then creates no checklist table or functions, reads return `checklist: null`, and `repeat` copies no steps. A checklist change records `task.updated` with `fields: ["checklist"]`.
+`saveChecklistItem(taskId, input, checklistItemId?)` adds a step at the end, or edits the one you name: its `title`, `done` (which stamps `doneAt` and `doneBy`) or `rank`. `removeChecklistItem(id)` deletes one, and `checklist(taskId)` lists them in rank order. Every item a read returns carries `checklist: { total, done }`, and `get(id)` reads one item. An app that keeps its own subtasks maps `tables.checklist` to `null`: the module then creates no checklist table or functions, reads return `checklist: null`, and `repeat` copies no steps. A checklist change records `task.updated` with `fields: ["checklist"]`.
 
-On the work item's own page, the block's record binding (`taskChecklistBinding`) loads the steps for the item as the subject (`{ type: "task", id }`, or the renamed type) and reads again on `task.updated`. `workItemChecklistOptimistic` is its `useOptimistic` reducer: `{ type: "save", item }` adds or replaces a step in rank order and `{ type: "remove", id }` drops one.
+On the work item's own page, the block's record binding (`taskChecklistBinding`) loads the steps for the item as the subject (`{ type: "task", id }`, or the renamed type) and reads again on `task.updated`. `taskChecklistOptimistic` is its `useOptimistic` reducer: `{ type: "save", item }` adds or replaces a step in rank order and `{ type: "remove", id }` drops one.
 
 With the [attachments](/docs/blocks/attachments) block installed, `create` takes `attachmentIds` and `update` takes an `attachments` change with a list of ids. Upload the files first without a subject, then link them: the block links only files the caller uploaded that have no subject yet (`TASK_ATTACHMENTS_INVALID`). A bucket whose path template uses `{subject_type}` or `{subject_id}` can't move a file after upload, so link through `attachments.upload` with the item as the subject instead (`TASK_ATTACHMENTS_PATH`).
 
-With the [reminders](/docs/blocks/reminders) block installed, `setRecurrence(id, { rrule, tzid })` gives an item a repeat rule, such as `FREQ=MONTHLY;BYMONTHDAY=1`, and `setRecurrence(id, null)` removes it. Items carry the rule as `recurrence`. A repeating item makes its next copy when it is completed, like Asana and Todoist: relay the block's events to `workItemRecurrenceSink`, built on a service transport.
+With the [reminders](/docs/blocks/reminders) block installed, `setRecurrence(id, { rrule, tzid })` gives an item a repeat rule, such as `FREQ=MONTHLY;BYMONTHDAY=1`, and `setRecurrence(id, null)` removes it. Items carry the rule as `recurrence`. A repeating item makes its next copy when it is completed, like Asana and Todoist: relay the block's events to `taskRecurrenceSink`, built on a service transport.
 
 ```ts
-import {
-  createTasks,
-  workItemRecurrenceSink,
-} from "better-supabase/blocks/tasks";
+import { createTasks, taskRecurrenceSink } from "better-supabase/blocks/tasks";
 
 const serviceItems = createTasks({ transport: serviceTransport });
 
-outbox.relay("tasks", workItemRecurrenceSink(serviceItems));
+outbox.relay("tasks", taskRecurrenceSink(serviceItems));
 ```
 
 The sink calls `repeat(id, dueAt)` with the rule's first occurrence after the completed item's due date. `repeat` copies the title, body, parent, team, project, priority, estimate, assignees, extra columns and an unchecked checklist, shifts the start and end dates by the same amount, and moves the rule to the copy, so a `COUNT` keeps counting. The copy's `recursFromId` names the item it repeats, and a second `repeat` of the same item returns the same copy, so a redelivered event changes nothing. After `names: { work_item: "task" }`, pass `{ type: "task.closed" }`.
@@ -174,14 +171,14 @@ With the [notifications](/docs/blocks/notifications) block installed, `watch(id,
 
 ## Extra columns
 
-`options.extraColumns` adds columns to `tasks`, such as a `customer_id`. Every item a read returns carries them in `fields`.
+Columns you add to `tasks` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):, such as a `customer_id`. Every item a read returns carries them in `fields`.
 
 ## Events
 
-| Event                                                                                             | Data                                                                                                     |
-| ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `task.created`, `task.updated`, `task.assigned`, `task.reopened`, `task.archived`, `task.deleted` | `organizationId`, `workItemId`, `subjectType`, `subjectId`, `title`, `fields`, `assigneeIds`, `addedIds` |
-| `task.closed`                                                                                     | the same, with `state` and `closeReason`                                                                 |
+| Event                                                                                             | Data                                                                                                 |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `task.created`, `task.updated`, `task.assigned`, `task.reopened`, `task.archived`, `task.deleted` | `organizationId`, `taskId`, `subjectType`, `subjectId`, `title`, `fields`, `assigneeIds`, `addedIds` |
+| `task.closed`                                                                                     | the same, with `state` and `closeReason`                                                             |
 
 ## Hooks
 
@@ -214,7 +211,7 @@ The ReUI Kanban blocks commit a drag through `onValueCommit`: call `rank.move("t
 
 ## Your own columns
 
-Add columns to the work item table with `blocks.tasks.options.extraColumns`
+Add columns to the work item table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `create`, and `update` with the column name as `field` validates and writes them, and every method that returns an item return them parsed under
 `fields`. The block also takes `hooks` around its methods; see
@@ -252,8 +249,8 @@ const task = await items
 const { accepted, rejected } = await items
   .update({
     changes: [
-      { workItemId: task.id, field: "stageId", value: inProgressStageId },
-      { workItemId: task.id, field: "endAt", value: friday },
+      { taskId: task.id, field: "stageId", value: inProgressStageId },
+      { taskId: task.id, field: "endAt", value: friday },
     ],
   })
   .orThrow();
@@ -261,16 +258,16 @@ const { accepted, rejected } = await items
 
 ## Close and reopen an item
 
-`complete`, `cancel` and `reopen` take `{ workItemId, stageId }`. Each one moves the item (a refused move comes back as the error) and then reads it, so a stage of the wrong category fails with `invalid_input` instead of leaving the board in a state the app didn't mean.
+`complete`, `cancel` and `reopen` take `{ taskId, stageId }`. Each one moves the item (a refused move comes back as the error) and then reads it, so a stage of the wrong category fails with `invalid_input` instead of leaving the board in a state the app didn't mean.
 
 ```ts
-await tasks.complete({ workItemId, stageId: doneStageId }).orThrow();
-await tasks.reopen({ workItemId, stageId: todoStageId }).orThrow();
+await tasks.complete({ taskId, stageId: doneStageId }).orThrow();
+await tasks.reopen({ taskId, stageId: todoStageId }).orThrow();
 ```
 
 ## Assign to yourself
 
-`tasks.assignToMe({ workItemId, userId })` adds a user to the item's assignees and keeps the others, where
+`tasks.assignToMe({ taskId, userId })` adds a user to the item's assignees and keeps the others, where
 `assign` replaces them. The client has no signed-in user of its own, so the caller passes the id, for
 example `ctx.user.id` in an action. It returns the assignee count and does nothing when the user is
 already assigned.

@@ -9,7 +9,6 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   fail,
   schemaPreamble,
@@ -65,7 +64,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["extraColumns"],
+  options: [],
   tables: {
     definitions: {
       name: "workflow_definitions",
@@ -100,6 +99,7 @@ const NAMES: BlockSqlNames = {
     },
     optOuts: {
       name: "workflow_opt_outs",
+      optionalTable: true,
       app: {},
       lifecycle: { user: "createdBy", tenant: "tenant" },
       columns: {
@@ -183,7 +183,7 @@ const NAMES: BlockSqlNames = {
       },
     },
     steps: {
-      name: "workflow_step_library",
+      name: "workflow_step_templates",
       app: {},
       columns: {
         name: "name",
@@ -341,11 +341,13 @@ create index if not exists ${ctx.naming.rename("workflow_definitions_created_by_
 -- forked_from: the definition and version a fork copied.
 -- restricted: running or editing it also needs a workflow_definition_grants
 -- row (or workflow.admin).
-${definitionColumnsSql(ctx, s)}${addExtraColumns(d, extras)}
+${definitionColumnsSql(ctx, s)}
 ${lockModuleTable(ctx, "definitions", { read: true })}
-${renderPolicy(makePolicy({ table: d, name: ctx.naming.rename("workflow_definitions_read"), command: "select", roles: ["authenticated"], using: scoped ? `${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select ${ctx.scope.ids(s.permission("read"))}))` : readable(cd("tenant")) }), { drop: true, target: d })}
+${renderPolicy(makePolicy({ table: d, name: ctx.naming.rename("workflow_definitions_read"), command: "select", roles: ["authenticated"], using: scoped ? `${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select ${ctx.scope.ids(s.permission("read"))}))` : readable(cd("tenant")) }), { target: d })}
 
--- The tenants that opted out of a definition, usually a system one: its
+${
+  ctx.hasTable("optOuts")
+    ? `-- The tenants that opted out of a definition, usually a system one: its
 -- triggers and starts skip them (WORKFLOW_OPTED_OUT).
 create table if not exists ${o} (
   ${co("tenant")} ${id} not null,
@@ -357,8 +359,10 @@ create table if not exists ${o} (
 create index if not exists workflow_opt_outs_definition_idx on ${o} (${co("definition")});
 create index if not exists workflow_opt_outs_created_by_idx on ${o} (${co("createdBy")});
 ${lockModuleTable(ctx, "optOuts", { read: true })}
-${renderPolicy(makePolicy({ table: o, name: "workflow_opt_outs_read", command: "select", roles: ["authenticated"], using: readable(co("tenant")) }), { drop: true, target: o })}
-
+${renderPolicy(makePolicy({ table: o, name: "workflow_opt_outs_read", command: "select", roles: ["authenticated"], using: readable(co("tenant")) }), { target: o })}
+`
+    : ""
+}
 -- Who may run or edit a restricted definition: a user, a team or an
 -- organization role. An edit grant also runs it.
 create table if not exists ${g} (
@@ -374,7 +378,7 @@ create table if not exists ${g} (
 create index if not exists ${ctx.naming.rename("workflow_definition_grants_principal_idx")} on ${g} (${cg("principalKind")}, ${cg("principalId")});
 create index if not exists ${ctx.naming.rename("workflow_definition_grants_created_by_idx")} on ${g} (${cg("createdBy")});
 ${lockModuleTable(ctx, "grants", { read: true })}
-${renderPolicy(makePolicy({ table: g, name: ctx.naming.rename("workflow_definition_grants_read"), command: "select", roles: ["authenticated"], using: definitionReadable(cg("definition")) }), { drop: true, target: g })}
+${renderPolicy(makePolicy({ table: g, name: ctx.naming.rename("workflow_definition_grants_read"), command: "select", roles: ["authenticated"], using: definitionReadable(cg("definition")) }), { target: g })}
 
 create table if not exists ${v} (
   ${cv("id")} uuid primary key default gen_random_uuid(),
@@ -404,7 +408,7 @@ create unique index if not exists workflow_versions_one_draft_idx on ${v} (${cv(
 create unique index if not exists workflow_versions_one_published_idx on ${v} (${cv("definition")}) where ${cv("status")} = 'published';
 create index if not exists workflow_versions_created_by_idx on ${v} (${cv("createdBy")});
 ${lockModuleTable(ctx, "versions", { read: true })}
-${renderPolicy(makePolicy({ table: v, name: "workflow_versions_read", command: "select", roles: ["authenticated"], using: definitionReadable(cv("definition")) }), { drop: true, target: v })}
+${renderPolicy(makePolicy({ table: v, name: "workflow_versions_read", command: "select", roles: ["authenticated"], using: definitionReadable(cv("definition")) }), { target: v })}
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
 -- SHA-256 only; schedule, form and chat triggers keep their settings
@@ -420,7 +424,7 @@ create table if not exists ${t} (
 );
 create index if not exists workflow_triggers_definition_idx on ${t} (${ct("definition")});${s.tableExtras.triggers}
 ${lockModuleTable(ctx, "triggers", { read: true })}
-${renderPolicy(makePolicy({ table: t, name: "workflow_triggers_read", command: "select", roles: ["authenticated"], using: definitionReadable(ct("definition")) }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: "workflow_triggers_read", command: "select", roles: ["authenticated"], using: definitionReadable(ct("definition")) }), { target: t })}
 
 create table if not exists ${w} (
   ${cw("tokenHash")} bytea primary key,
@@ -445,7 +449,7 @@ create table if not exists ${c} (
 );${s.tableExtras.credentials}
 create index if not exists workflow_credentials_created_by_idx on ${c} (${cc("createdBy")});
 ${lockModuleTable(ctx, "credentials", { read: true })}
-${renderPolicy(makePolicy({ table: c, name: "workflow_credentials_read", command: "select", roles: ["authenticated"], using: readable(cc("tenant")) }), { drop: true, target: c })}
+${renderPolicy(makePolicy({ table: c, name: "workflow_credentials_read", command: "select", roles: ["authenticated"], using: readable(cc("tenant")) }), { target: c })}
 
 -- The steps the deployment provides, synced from code: the palette of the
 -- builder and the names a published graph may use.
@@ -465,7 +469,7 @@ create table if not exists ${l} (
 alter table ${l} add column if not exists ${cl("operation")} text
   check (length(${cl("operation")}) between 1 and 200);
 ${lockModuleTable(ctx, "steps", { read: true })}
-${renderPolicy(makePolicy({ table: l, name: "workflow_step_library_read", command: "select", roles: ["authenticated"], using: "true" }), { drop: true, target: l })}
+${renderPolicy(makePolicy({ table: l, name: "workflow_step_templates_read", command: "select", roles: ["authenticated"], using: "true" }), { target: l })}
 
 ${nodeKindsDdl(ctx)}
 
@@ -482,7 +486,7 @@ create table if not exists ${n} (
   primary key (${cn("run")}, ${cn("node")})
 );${appUniqueIndex(ctx, "nodeRuns", ["run", "node"])}
 ${lockModuleTable(ctx, "nodeRuns", { read: true })}
-${renderPolicy(makePolicy({ table: n, name: "workflow_node_runs_read", command: "select", roles: ["authenticated"], using: `${cn("run")} in (select x.${cr("id")} from ${r} x)` }), { drop: true, target: n })}
+${renderPolicy(makePolicy({ table: n, name: "workflow_node_runs_read", command: "select", roles: ["authenticated"], using: `${cn("run")} in (select x.${cr("id")} from ${r} x)` }), { target: n })}
 
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
 -- run is still unfinished after threshold (check_workflow_alerts). Each
@@ -500,7 +504,7 @@ create table if not exists ${a} (
 create index if not exists workflow_alerts_definition_idx on ${a} (${ca("definition")});
 create index if not exists workflow_alerts_created_by_idx on ${a} (${ca("createdBy")});
 ${lockModuleTable(ctx, "alerts", { read: true })}
-${renderPolicy(makePolicy({ table: a, name: "workflow_alerts_read", command: "select", roles: ["authenticated"], using: definitionReadable(ca("definition")) }), { drop: true, target: a })}
+${renderPolicy(makePolicy({ table: a, name: "workflow_alerts_read", command: "select", roles: ["authenticated"], using: definitionReadable(ca("definition")) }), { target: a })}
 
 create table if not exists ${f} (
   ${cf("alert")} uuid not null references ${a} (${ca("id")}) on delete cascade,
@@ -520,7 +524,7 @@ ${nodeKindsSql(ctx, s)}
 -- 'system') has no tenant and only the service role saves it; the scope of
 -- a saved definition never changes.
 drop function if exists ${fn("save_workflow_definition")}(${id}, text, text, text);
--- fields: the extra columns (blocks["workflow-editor"].options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 ${extra.drop(fn("save_workflow_definition"), `${id}, text, text, text, text[], text, boolean`)}
 create or replace function ${fn("save_workflow_definition")}(
   tenant ${id},
@@ -900,11 +904,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "{id}", "text"],
       returns: "jsonb",
     },
-    {
-      name: "set_workflow_opt_out",
-      args: ["{id}", "uuid", "boolean"],
-      returns: "boolean",
-    },
+    ...(ctx.hasTable("optOuts")
+      ? [
+          {
+            name: "set_workflow_opt_out",
+            args: ["{id}", "uuid", "boolean"],
+            returns: "boolean",
+          },
+        ]
+      : []),
     {
       name: "set_workflow_definition_grant",
       args: ["uuid", "text", "text", "text", "boolean"],

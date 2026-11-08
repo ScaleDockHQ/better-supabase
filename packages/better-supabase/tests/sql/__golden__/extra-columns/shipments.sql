@@ -1,180 +1,103 @@
 -- ==== schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:cfa93d1dd9738e9b16697e67a094edf6d688a111ec56c05d1a4c14f0038f35ae
+-- @bsb-hash sha256:0698b6d4c377d29c22f817998a304a43b9b1fa3b73aea4573f7b87eb694c1889
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shipments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_packages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipment_packages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_packages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_packages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_packages";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_tracking_events";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipment_tracking_events";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_tracking_events";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_tracking_events";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_tracking_events";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipment_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Shipments: packages, addresses, carrier labels and a tracking timeline
 -- whose latest event sets the shipment's status.
 
 -- Shipments: packages going from one address to another, labeled through a
 -- carrier, with a status that follows the latest tracking event.
-create table if not exists "better_supabase"."shipments" (
+create table "better_supabase"."shipments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 100),
-  "status" text not null default 'draft' check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')),
-  "from_address" jsonb not null check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000),
-  "to_address" jsonb not null check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000),
+  "reference" text not null constraint bsb_shipments_reference_check check (length("reference") >= 1 and length("reference") <= 100),
+  "status" text not null default 'draft' constraint bsb_shipments_status_check check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')),
+  "from_address" jsonb not null constraint bsb_shipments_from_address_check check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000),
+  "to_address" jsonb not null constraint bsb_shipments_to_address_check check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000),
+  "direction" text not null default 'outbound' constraint bsb_shipments_direction check ("direction" in ('outbound', 'inbound')),
   "from_location_id" uuid,
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
-  "carrier" text check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100),
-  "service" text check ("service" is null or length("service") >= 1 and length("service") <= 100),
-  "tracking_number" text check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100),
-  "tracking_url" text check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000),
-  "label_id" text check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200),
-  "label_url" text check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000),
-  "label_format" text check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl')),
-  "label_cost" bigint check ("label_cost" is null or "label_cost" >= 0),
-  "currency" text check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "subject_type" text constraint bsb_shipments_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_shipments_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "carrier" text constraint bsb_shipments_carrier_check check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100),
+  "service" text constraint bsb_shipments_service_check check ("service" is null or length("service") >= 1 and length("service") <= 100),
+  "tracking_number" text constraint bsb_shipments_tracking_number_check check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100),
+  "tracking_url" text constraint bsb_shipments_tracking_url_check check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000),
+  "label_id" text constraint bsb_shipments_label_id_check check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200),
+  "label_url" text constraint bsb_shipments_label_url_check check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000),
+  "label_format" text constraint bsb_shipments_label_format_check check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl')),
+  "label_cost" bigint constraint bsb_shipments_label_cost_check check ("label_cost" is null or "label_cost" >= 0),
+  "currency" text constraint bsb_shipments_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "labeled_at" timestamptz,
   "delivered_at" timestamptz,
   "cancelled_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check (("label_cost" is null) = ("currency" is null)),
-  check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
+  constraint bsb_shipments_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_shipments_check1 check (("label_cost" is null) = ("currency" is null)),
+  constraint bsb_shipments_check2 check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
 );
-alter table "better_supabase"."shipments" add column if not exists "app_note" text;
-create index if not exists "shipments_tenant_idx" on "better_supabase"."shipments" ("tenant_id", "created_at" desc);
-create index if not exists "shipments_status_idx" on "better_supabase"."shipments" ("tenant_id", "status");
-create unique index if not exists "shipments_tracking_key" on "better_supabase"."shipments" ("carrier", "tracking_number") where "tracking_number" is not null;
-create index if not exists "shipments_subject_idx" on "better_supabase"."shipments" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "shipments_location_idx" on "better_supabase"."shipments" ("from_location_id");
+create index "shipments_tenant_idx" on "better_supabase"."shipments" ("tenant_id", "created_at" desc);
+create index "shipments_status_idx" on "better_supabase"."shipments" ("tenant_id", "status");
+create unique index "shipments_tracking_key" on "better_supabase"."shipments" ("carrier", "tracking_number") where "tracking_number" is not null;
+create index "shipments_subject_idx" on "better_supabase"."shipments" ("tenant_id", "subject_type", "subject_id");
+create index "shipments_location_idx" on "better_supabase"."shipments" ("from_location_id");
 alter table "better_supabase"."shipments" enable row level security;
 revoke all on "better_supabase"."shipments" from public, anon, authenticated;
 grant select on "better_supabase"."shipments" to authenticated;
 grant all on "better_supabase"."shipments" to service_role;
-drop policy if exists "shipments_read" on "better_supabase"."shipments";
-create policy shipments_read on "better_supabase"."shipments"
+create policy bsb_shipments_read on "better_supabase"."shipments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
-create table if not exists "better_supabase"."shipment_packages" (
+create table "better_supabase"."shipment_packages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
-  "weight_grams" integer not null check ("weight_grams" > 0),
-  "length_mm" integer check ("length_mm" is null or "length_mm" > 0),
-  "width_mm" integer check ("width_mm" is null or "width_mm" > 0),
-  "height_mm" integer check ("height_mm" is null or "height_mm" > 0),
-  "reference" text check ("reference" is null or length("reference") <= 100),
+  "position" integer not null constraint bsb_shipment_packages_position_check check ("position" >= 1),
+  "weight_grams" integer not null constraint bsb_shipment_packages_weight_grams_check check ("weight_grams" > 0),
+  "length_mm" integer constraint bsb_shipment_packages_length_mm_check check ("length_mm" is null or "length_mm" > 0),
+  "width_mm" integer constraint bsb_shipment_packages_width_mm_check check ("width_mm" is null or "width_mm" > 0),
+  "height_mm" integer constraint bsb_shipment_packages_height_mm_check check ("height_mm" is null or "height_mm" > 0),
+  "reference" text constraint bsb_shipment_packages_reference_check check ("reference" is null or length("reference") <= 100),
   unique ("shipment_id", "position")
 );
 alter table "better_supabase"."shipment_packages" enable row level security;
 revoke all on "better_supabase"."shipment_packages" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_packages" to authenticated;
 grant all on "better_supabase"."shipment_packages" to service_role;
-drop policy if exists "shipment_packages_read" on "better_supabase"."shipment_packages";
-create policy shipment_packages_read on "better_supabase"."shipment_packages"
+create policy bsb_shipment_packages_read on "better_supabase"."shipment_packages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 
-alter table "better_supabase"."shipments" add column if not exists "delivered_to" text;
-alter table "better_supabase"."shipments" add column if not exists "proof_reference" text;
-alter table "better_supabase"."shipments" add column if not exists "proof_attachment_id" uuid;
-alter table "better_supabase"."shipments" add column if not exists "proof_recorded_at" timestamptz;
+alter table "better_supabase"."shipments" add column "delivered_to" text;
+alter table "better_supabase"."shipments" add column "proof_reference" text;
+alter table "better_supabase"."shipments" add column "proof_attachment_id" uuid;
+alter table "better_supabase"."shipments" add column "proof_recorded_at" timestamptz;
 -- The tracking timeline. A carrier event id is recorded once per shipment, so
 -- a redelivered webhook or a repeated poll changes nothing.
-create table if not exists "better_supabase"."shipment_tracking_events" (
+create table "better_supabase"."shipment_tracking_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
-  "status" text not null check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')),
+  "external_id" text not null constraint bsb_shipment_tracking_events_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "status" text not null constraint bsb_shipment_tracking_events_status_check check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')),
   "occurred_at" timestamptz not null,
-  "description" text check ("description" is null or length("description") <= 1000),
-  "location" text check ("location" is null or length("location") <= 200),
-  "source" text not null check ("source" in ('carrier', 'webhook', 'manual')),
+  "description" text constraint bsb_shipment_tracking_events_description_check check ("description" is null or length("description") <= 1000),
+  "location" text constraint bsb_shipment_tracking_events_location_check check ("location" is null or length("location") <= 200),
+  "source" text not null constraint bsb_shipment_tracking_events_source_check check ("source" in ('carrier', 'webhook', 'manual')),
   "created_at" timestamptz not null default now(),
   unique ("shipment_id", "external_id")
 );
-create index if not exists "shipment_tracking_events_timeline_idx" on "better_supabase"."shipment_tracking_events" ("shipment_id", "occurred_at");
+create index "shipment_tracking_events_timeline_idx" on "better_supabase"."shipment_tracking_events" ("shipment_id", "occurred_at");
 alter table "better_supabase"."shipment_tracking_events" enable row level security;
 revoke all on "better_supabase"."shipment_tracking_events" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_tracking_events" to authenticated;
 grant all on "better_supabase"."shipment_tracking_events" to service_role;
-drop policy if exists "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events";
-create policy shipment_tracking_events_read on "better_supabase"."shipment_tracking_events"
+create policy bsb_shipment_tracking_events_read on "better_supabase"."shipment_tracking_events"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 -- Tracking events are append-only: a correction is a later event.
@@ -188,44 +111,40 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."shipment_events_append_only"() from public, anon, authenticated;
-drop trigger if exists "bsb_shipment_events_append_only" on "better_supabase"."shipment_tracking_events";
 create trigger "bsb_shipment_events_append_only" before update or delete on "better_supabase"."shipment_tracking_events"
   for each row execute function "better_supabase"."shipment_events_append_only"('tenant_id');
 
 -- The stock a shipment carries out, and what comes back. An outbound line
 -- leaves stock when the shipment gets its label; a return line comes back
 -- with a disposition.
-create table if not exists "better_supabase"."shipment_lines" (
+create table "better_supabase"."shipment_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
-  "direction" text not null default 'outbound' check ("direction" in ('outbound', 'return')),
+  "position" integer not null constraint bsb_shipment_lines_position_check check ("position" >= 1),
+  "direction" text not null default 'outbound' constraint bsb_shipment_lines_direction_check check ("direction" in ('outbound', 'return')),
   "variant_id" uuid not null,
   "location_id" uuid not null,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_shipment_lines_quantity_check check ("quantity" > 0),
   "allocation_id" uuid,
-  "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
-  "disposition" text check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap')),
+  "detail" jsonb constraint bsb_shipment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
+  "disposition" text constraint bsb_shipment_lines_disposition_check check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap')),
   "movement_id" uuid,
   "moved_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check (("direction" = 'return') = ("disposition" is not null)),
+  constraint bsb_shipment_lines_check check (("direction" = 'return') = ("disposition" is not null)),
   unique ("shipment_id", "position")
 );
-create index if not exists "shipment_lines_variant_idx" on "better_supabase"."shipment_lines" ("variant_id", "location_id");
-create index if not exists "shipment_lines_location_idx" on "better_supabase"."shipment_lines" ("location_id");
-create index if not exists "shipment_lines_allocation_idx" on "better_supabase"."shipment_lines" ("allocation_id");
+create index "shipment_lines_variant_idx" on "better_supabase"."shipment_lines" ("variant_id", "location_id");
+create index "shipment_lines_location_idx" on "better_supabase"."shipment_lines" ("location_id");
+create index "shipment_lines_allocation_idx" on "better_supabase"."shipment_lines" ("allocation_id");
 alter table "better_supabase"."shipment_lines" enable row level security;
 revoke all on "better_supabase"."shipment_lines" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_lines" to authenticated;
 grant all on "better_supabase"."shipment_lines" to service_role;
-drop policy if exists "shipment_lines_read" on "better_supabase"."shipment_lines";
-create policy shipment_lines_read on "better_supabase"."shipment_lines"
+create policy bsb_shipment_lines_read on "better_supabase"."shipment_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
-
-drop function if exists "better_supabase"."create_shipment"(uuid, jsonb, jsonb, jsonb, text, uuid, text, text);
 -- Creates a draft shipment in tenant from from_address to to_address with its
 -- packages: a jsonb array of { weightGrams, lengthMm?, widthMm?, heightMm?,
 -- reference? }. reference defaults to a generated code.
@@ -287,7 +206,7 @@ begin
   where x."id" = v_ship."id"
   returning x.* into v_ship;
   null;
-  return (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
+  return (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'direction', v_ship."direction", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
     'variantId', sl."variant_id", 'locationId', sl."location_id", 'quantity', sl."quantity"::text, 'allocationId', sl."allocation_id",
     'detail', sl."detail", 'disposition', sl."disposition", 'movementId', sl."movement_id", 'movedAt', sl."moved_at")
     order by sl."position"), '[]'::jsonb) from "better_supabase"."shipment_lines" sl where sl."shipment_id" = v_ship."id")) || jsonb_build_object('fields', jsonb_build_object('app_note', v_ship."app_note")));
@@ -312,7 +231,7 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_ship."tenant_id", 'shipments.read'), false)) then
     return null;
   end if;
-  return (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
+  return (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'direction', v_ship."direction", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
     'variantId', sl."variant_id", 'locationId', sl."location_id", 'quantity', sl."quantity"::text, 'allocationId', sl."allocation_id",
     'detail', sl."detail", 'disposition', sl."disposition", 'movementId', sl."movement_id", 'movedAt', sl."moved_at")
     order by sl."position"), '[]'::jsonb) from "better_supabase"."shipment_lines" sl where sl."shipment_id" = v_ship."id")) || jsonb_build_object('fields', jsonb_build_object('app_note', v_ship."app_note")));
@@ -337,7 +256,7 @@ begin
   return (
     select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
     from (
-      select (jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'reference', x."reference", 'status', x."status", 'from', x."from_address", 'to', x."to_address", 'fromLocationId', x."from_location_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'carrier', x."carrier", 'service', x."service", 'trackingNumber', x."tracking_number", 'trackingUrl', x."tracking_url", 'labelId', x."label_id", 'labelUrl', x."label_url", 'labelFormat', x."label_format", 'labelCost', x."label_cost"::text, 'currency', x."currency", 'labeledAt', x."labeled_at", 'deliveredAt', x."delivered_at", 'deliveredTo', x."delivered_to", 'proofReference', x."proof_reference", 'proofAttachmentId', x."proof_attachment_id", 'proofRecordedAt', x."proof_recorded_at", 'cancelledAt', x."cancelled_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = x."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
+      select (jsonb_build_object('id', x."id", 'organizationId', x."tenant_id"::text, 'reference', x."reference", 'status', x."status", 'from', x."from_address", 'to', x."to_address", 'direction', x."direction", 'fromLocationId', x."from_location_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'carrier', x."carrier", 'service', x."service", 'trackingNumber', x."tracking_number", 'trackingUrl', x."tracking_url", 'labelId', x."label_id", 'labelUrl', x."label_url", 'labelFormat', x."label_format", 'labelCost', x."label_cost"::text, 'currency', x."currency", 'labeledAt', x."labeled_at", 'deliveredAt', x."delivered_at", 'deliveredTo', x."delivered_to", 'proofReference', x."proof_reference", 'proofAttachmentId', x."proof_attachment_id", 'proofRecordedAt', x."proof_recorded_at", 'cancelledAt', x."cancelled_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = x."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
     'variantId', sl."variant_id", 'locationId', sl."location_id", 'quantity', sl."quantity"::text, 'allocationId', sl."allocation_id",
     'detail', sl."detail", 'disposition', sl."disposition", 'movementId', sl."movement_id", 'movedAt', sl."moved_at")
     order by sl."position"), '[]'::jsonb) from "better_supabase"."shipment_lines" sl where sl."shipment_id" = x."id")) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note"))) as item, x."created_at" as created, x."id" as id
@@ -425,7 +344,7 @@ begin
     returning * into v_ship;
     null;
   end if;
-  return (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
+  return (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'direction', v_ship."direction", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
     'variantId', sl."variant_id", 'locationId', sl."location_id", 'quantity', sl."quantity"::text, 'allocationId', sl."allocation_id",
     'detail', sl."detail", 'disposition', sl."disposition", 'movementId', sl."movement_id", 'movedAt', sl."moved_at")
     order by sl."position"), '[]'::jsonb) from "better_supabase"."shipment_lines" sl where sl."shipment_id" = v_ship."id")) || jsonb_build_object('fields', jsonb_build_object('app_note', v_ship."app_note")));
@@ -494,7 +413,7 @@ begin
     returning * into v_ship;
     null;
   end if;
-  return jsonb_build_object('recorded', v_count, 'shipment', (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
+  return jsonb_build_object('recorded', v_count, 'shipment', (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'direction', v_ship."direction", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
     'variantId', sl."variant_id", 'locationId', sl."location_id", 'quantity', sl."quantity"::text, 'allocationId', sl."allocation_id",
     'detail', sl."detail", 'disposition', sl."disposition", 'movementId', sl."movement_id", 'movedAt', sl."moved_at")
     order by sl."position"), '[]'::jsonb) from "better_supabase"."shipment_lines" sl where sl."shipment_id" = v_ship."id")) || jsonb_build_object('fields', jsonb_build_object('app_note', v_ship."app_note"))));
@@ -592,7 +511,7 @@ begin
   where x."id" = v_ship."id"
   returning * into v_ship;
   null;
-  return (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
+  return (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'direction', v_ship."direction", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
     'variantId', sl."variant_id", 'locationId', sl."location_id", 'quantity', sl."quantity"::text, 'allocationId', sl."allocation_id",
     'detail', sl."detail", 'disposition', sl."disposition", 'movementId', sl."movement_id", 'movedAt', sl."moved_at")
     order by sl."position"), '[]'::jsonb) from "better_supabase"."shipment_lines" sl where sl."shipment_id" = v_ship."id")) || jsonb_build_object('fields', jsonb_build_object('app_note', v_ship."app_note")));
@@ -600,6 +519,43 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_shipment"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_shipment"(uuid) to authenticated, service_role;
+
+-- Sets whether a draft shipment leaves the organization (outbound) or comes
+-- to it (inbound). Lines keep their own direction.
+create or replace function "better_supabase"."set_shipment_direction"(shipment_id uuid, direction text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_ship "better_supabase"."shipments"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_ship from "better_supabase"."shipments" x where x."id" = set_shipment_direction.shipment_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_ship."tenant_id", 'shipments.manage'), false)) then
+    raise exception 'shipment not found' using errcode = 'P0002', hint = 'SHIPMENT_NOT_FOUND';
+  end if;
+  if set_shipment_direction.direction is null or set_shipment_direction.direction not in ('outbound', 'inbound') then
+    raise exception 'a shipment is outbound or inbound' using errcode = '22023', hint = 'SHIPMENT_DIRECTION_INVALID';
+  end if;
+  if v_ship."status" <> 'draft' then
+    raise exception 'only a draft changes direction' using errcode = '55000', hint = 'SHIPMENT_SHIPPED';
+  end if;
+  update "better_supabase"."shipments" x set "direction" = set_shipment_direction.direction, "updated_at" = now()
+  where x."id" = v_ship."id"
+  returning * into v_ship;
+  return (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'direction', v_ship."direction", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
+    'variantId', sl."variant_id", 'locationId', sl."location_id", 'quantity', sl."quantity"::text, 'allocationId', sl."allocation_id",
+    'detail', sl."detail", 'disposition', sl."disposition", 'movementId', sl."movement_id", 'movedAt', sl."moved_at")
+    order by sl."position"), '[]'::jsonb) from "better_supabase"."shipment_lines" sl where sl."shipment_id" = v_ship."id")) || jsonb_build_object('fields', jsonb_build_object('app_note', v_ship."app_note")));
+end;
+$$;
+revoke execute on function "better_supabase"."set_shipment_direction"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_shipment_direction"(uuid, text) to authenticated, service_role;
 
 -- Records the proof of a delivered shipment: who received it, the carrier's
 -- reference and the attachment that holds the receipt. It can be set once.
@@ -638,7 +594,7 @@ begin
   where x."id" = v_ship."id"
   returning * into v_ship;
   null;
-  return (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
+  return (jsonb_build_object('id', v_ship."id", 'organizationId', v_ship."tenant_id"::text, 'reference', v_ship."reference", 'status', v_ship."status", 'from', v_ship."from_address", 'to', v_ship."to_address", 'direction', v_ship."direction", 'fromLocationId', v_ship."from_location_id", 'subjectType', v_ship."subject_type", 'subjectId', v_ship."subject_id", 'carrier', v_ship."carrier", 'service', v_ship."service", 'trackingNumber', v_ship."tracking_number", 'trackingUrl', v_ship."tracking_url", 'labelId', v_ship."label_id", 'labelUrl', v_ship."label_url", 'labelFormat', v_ship."label_format", 'labelCost', v_ship."label_cost"::text, 'currency', v_ship."currency", 'labeledAt', v_ship."labeled_at", 'deliveredAt', v_ship."delivered_at", 'deliveredTo', v_ship."delivered_to", 'proofReference', v_ship."proof_reference", 'proofAttachmentId', v_ship."proof_attachment_id", 'proofRecordedAt', v_ship."proof_recorded_at", 'cancelledAt', v_ship."cancelled_at", 'createdBy', v_ship."created_by", 'createdAt', v_ship."created_at", 'updatedAt', v_ship."updated_at", 'packages', (select coalesce(jsonb_agg(jsonb_build_object('id', pk."id", 'position', pk."position", 'weightGrams', pk."weight_grams", 'lengthMm', pk."length_mm", 'widthMm', pk."width_mm", 'heightMm', pk."height_mm", 'reference', pk."reference") order by pk."position"), '[]'::jsonb) from "better_supabase"."shipment_packages" pk where pk."shipment_id" = v_ship."id"), 'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', sl."id", 'position', sl."position", 'direction', sl."direction",
     'variantId', sl."variant_id", 'locationId', sl."location_id", 'quantity', sl."quantity"::text, 'allocationId', sl."allocation_id",
     'detail', sl."detail", 'disposition', sl."disposition", 'movementId', sl."movement_id", 'movedAt', sl."moved_at")
     order by sl."position"), '[]'::jsonb) from "better_supabase"."shipment_lines" sl where sl."shipment_id" = v_ship."id")) || jsonb_build_object('fields', jsonb_build_object('app_note', v_ship."app_note")));
@@ -701,115 +657,70 @@ grant execute on function "better_supabase"."list_tracking_events"(uuid) to auth
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."shipments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipments";
 create policy bsb_tenant_scope_select on "better_supabase"."shipments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipments";
 create policy bsb_tenant_scope_insert on "better_supabase"."shipments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipments";
 create policy bsb_tenant_scope_update on "better_supabase"."shipments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipments";
 create policy bsb_tenant_scope_delete on "better_supabase"."shipments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_packages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipment_packages";
 create policy bsb_tenant_scope_select on "better_supabase"."shipment_packages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_packages";
 create policy bsb_tenant_scope_insert on "better_supabase"."shipment_packages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_packages";
 create policy bsb_tenant_scope_update on "better_supabase"."shipment_packages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_packages";
 create policy bsb_tenant_scope_delete on "better_supabase"."shipment_packages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_tracking_events";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipment_tracking_events";
 create policy bsb_tenant_scope_select on "better_supabase"."shipment_tracking_events" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_tracking_events";
 create policy bsb_tenant_scope_insert on "better_supabase"."shipment_tracking_events" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_tracking_events";
 create policy bsb_tenant_scope_update on "better_supabase"."shipment_tracking_events" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_tracking_events";
 create policy bsb_tenant_scope_delete on "better_supabase"."shipment_tracking_events" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."shipment_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipment_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."shipment_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipment_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."shipment_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipment_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."shipment_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipment_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."shipment_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments

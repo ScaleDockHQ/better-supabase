@@ -1,14 +1,14 @@
 import type { EntitySchema, EntitySchemaSpec } from "../entity-schema.ts";
-import type { EngagementInput } from "./activities.ts";
+import type { ActivityInput } from "./activities.ts";
 
 import { entitySchema } from "../entity-schema.ts";
 
-type EngagementLog = EngagementInput & {
+type ActivityLog = ActivityInput & {
   readonly type: string;
   readonly title: string;
 };
 
-const CHANGE: EntitySchemaSpec<EngagementInput>["fields"] = {
+const CHANGE: EntitySchemaSpec<ActivityInput>["fields"] = {
   type: { kind: "string", optional: true, minLength: 1 },
   title: { kind: "string", optional: true, minLength: 1, maxLength: 500 },
   body: { kind: "string", optional: true, nullable: true },
@@ -45,9 +45,9 @@ const CHANGE: EntitySchemaSpec<EngagementInput>["fields"] = {
 };
 
 /** What `log` takes: a type and a title, with the bounds the SQL checks. */
-export const engagementInputSchema: EntitySchema<EngagementLog> =
-  entitySchema<EngagementLog>({
-    title: "EngagementInput",
+export const activityInputSchema: EntitySchema<ActivityLog> =
+  entitySchema<ActivityLog>({
+    title: "ActivityInput",
     fields: {
       ...CHANGE,
       type: { kind: "string", minLength: 1 },
@@ -56,5 +56,5 @@ export const engagementInputSchema: EntitySchema<EngagementLog> =
   });
 
 /** What `update` takes: left out keeps the value, `null` clears it. */
-export const engagementChangeSchema: EntitySchema<EngagementInput> =
-  entitySchema<EngagementInput>({ title: "EngagementChange", fields: CHANGE });
+export const activityChangeSchema: EntitySchema<ActivityInput> =
+  entitySchema<ActivityInput>({ title: "ActivityChange", fields: CHANGE });

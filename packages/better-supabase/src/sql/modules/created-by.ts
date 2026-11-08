@@ -1,8 +1,5 @@
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { ACTING_MEMBER, actorWriteFunctions } from "../actor-guard.ts";
-import { SCHEMA } from "../shared.ts";
-
 export const ACTOR: BlockSqlDefinition = {
   name: "created-by",
   title: "Actor stamping",
@@ -15,11 +12,7 @@ export const ACTOR: BlockSqlDefinition = {
     tables: {},
     options: ["createdBy", "updatedBy", "impersonatedBy", "stamp"],
   },
-  build: () => `${SCHEMA}
-
-${ACTING_MEMBER}
-
-create or replace function better_supabase.set_actor()
+  build: () => `create or replace function better_supabase.set_actor()
 returns trigger
 language plpgsql
 security definer
@@ -88,7 +81,6 @@ revoke execute on function better_supabase.track_actor(regclass, text, text, tex
 
 -- False for a support or impersonation act, and for an act that only carries
 -- session_id, unless act.read_only is false. A token without act may write.
-${actorWriteFunctions()}
 
 -- using (better_supabase.token_scope_allows('posts:write'))
 -- True for a token no OAuth client or agent acts with. A delegated token

@@ -626,7 +626,7 @@ export function createInbox(options: InboxOptions): Inbox {
       {
         conversation: conversationId,
         status,
-        snoozed_until: instantArg(snoozedUntil),
+        snooze_expires_at: instantArg(snoozedUntil),
       },
       conversationOf,
     );
@@ -920,7 +920,7 @@ export function createInbox(options: InboxOptions): Inbox {
           {
             conversation: conversationId,
             input: compact(messageArg(input)),
-            scheduled_for: instantArg(at),
+            scheduled_at: instantArg(at),
           },
           scheduledOf,
         ),
@@ -933,7 +933,7 @@ export function createInbox(options: InboxOptions): Inbox {
       reschedule: ({ scheduledId, at }) =>
         call(
           "reschedule_inbox_message",
-          { scheduled: scheduledId, scheduled_for: instantArg(at) },
+          { scheduled: scheduledId, scheduled_at: instantArg(at) },
           scheduledOf,
         ),
       cancelScheduled: (scheduledId) =>

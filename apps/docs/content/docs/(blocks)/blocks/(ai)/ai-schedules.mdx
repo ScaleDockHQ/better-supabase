@@ -103,8 +103,7 @@ that [`createBlocks`](/docs/blocks/create-blocks#ports) passes:
 
 ## Your own fields
 
-`blocks["ai-schedules"].options.extraColumns` adds columns to the `ai_scheduled_tasks` table,
-keyed by column name with their SQL type. Pass `createAiSchedules` a Standard Schema
+Columns you add to the `ai_scheduled_tasks` table in your own schema files are fields of the block. Pass `createAiSchedules` a Standard Schema
 for them as `fields`: `create`, `update` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and `create`, `update`, `pause`, `resume`, `list` return them
 parsed. A column the module already uses is refused. See

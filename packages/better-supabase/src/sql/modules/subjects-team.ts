@@ -452,7 +452,7 @@ ${renderPolicy(
     or ${c("tenant")} in (select ${ctx.scope.ids(manage)})
     or coalesce(${fn("can_subject")}(${c("subjectType")}, ${c("subjectId")}, 'read'), false)`,
   }),
-  { drop: true, target: t },
+  { target: t },
 )}
 
 -- Puts a user or a team on a record's team, or reopens their membership in

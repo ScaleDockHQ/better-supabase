@@ -35,7 +35,7 @@ describe("loadProject", () => {
       join(root, "better-supabase.config.json"),
       JSON.stringify({
         database: { source: { snapshot: source } },
-        gen: { casing, output: "src/generated.ts", contentMapper: true },
+        gen: { casing, file: "src/generated.ts", contentMapper: true },
       }),
     );
 

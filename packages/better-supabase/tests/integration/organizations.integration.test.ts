@@ -164,6 +164,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
 
       for (const who of Object.keys(USERS) as Who[]) {
         await client.query(
@@ -173,10 +175,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
         );
       }
 
-      for (const file of renderBlocks(
-        ["organizations", "invitations"],
-        LAYOUT,
-      )) {
+      for (const file of renderBlocks(["organizations", "invitations"], {
+        ...LAYOUT,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -332,6 +334,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
 
       for (const who of ["owner", "admin", "member"] as const) {
         await client.query(
@@ -354,7 +358,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderBlocks(["organizations"], layout)) {
+      for (const file of renderBlocks(["organizations"], {
+        ...layout,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -458,6 +465,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
 
       for (const who of ["owner", "member"] as const) {
         await client.query(
@@ -476,10 +485,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderBlocks(
-        ["organizations", "invitations"],
-        layout,
-      )) {
+      for (const file of renderBlocks(["organizations", "invitations"], {
+        ...layout,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -533,7 +542,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
       ]);
       expect(
         await s.value(
-          `(select (select count(*) from ${schema}.memberships where organization_id = $1) + (select count(*) from ${schema}.invitations where organization_id = $1))::int`,
+          `(select (select count(*) from ${schema}.memberships where organization_id = $1) + (select count(*) from ${schema}.invitations where tenant_id = $1))::int`,
           [organization],
         ),
       ).toBe(0);
@@ -565,6 +574,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
 
       for (const who of ["owner", "member"] as const) {
         await client.query(
@@ -617,10 +628,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderBlocks(
-        ["organizations", "invitations"],
-        layout,
-      )) {
+      for (const file of renderBlocks(["organizations", "invitations"], {
+        ...layout,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -684,6 +695,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
 
       for (const who of ["owner", "member"] as const) {
         await client.query(
@@ -717,7 +730,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderBlocks(["organizations"], layout)) {
+      for (const file of renderBlocks(["organizations"], {
+        ...layout,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -758,6 +774,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
 
       for (const who of ["owner", "member", "outsider"] as const) {
         await client.query(
@@ -821,7 +839,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderBlocks(["invitations"], layout)) {
+      for (const file of renderBlocks(["invitations"], {
+        ...layout,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -874,6 +895,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
 
       for (const who of ["owner", "admin", "member", "outsider"] as const) {
         await client.query(
@@ -950,7 +973,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderBlocks(["invitations"], layout)) {
+      for (const file of renderBlocks(["invitations"], {
+        ...layout,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -1066,6 +1092,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
 
       for (const who of ["owner", "admin", "member"] as const) {
         await client.query(
@@ -1124,7 +1152,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderBlocks(["invitations"], layout)) {
+      for (const file of renderBlocks(["invitations"], {
+        ...layout,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -1169,6 +1200,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
       await client.query(
         `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
          values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
@@ -1179,6 +1212,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           language sql as $$ select $$;`);
 
       for (const file of renderBlocks(["organizations", "invitations"], {
+        rerunnable: true,
         modules: { organizations: { api }, invitations: { api } },
       })) {
         await client.query(file.contents);
@@ -1217,6 +1251,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
 
       for (const who of Object.keys(USERS) as Who[]) {
         await client.query(
@@ -1226,10 +1262,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
         );
       }
 
-      for (const file of renderBlocks(
-        ["organizations", "invitations"],
-        LAYOUT,
-      )) {
+      for (const file of renderBlocks(["organizations", "invitations"], {
+        ...LAYOUT,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -1357,6 +1393,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
 
       for (const who of ["owner", "member", "outsider"] as const) {
         await client.query(
@@ -1386,7 +1424,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       for (const file of renderBlocks(
         ["organizations", "invitations", "reserved-slugs", "profiles"],
-        layout,
+        { ...layout, rerunnable: true },
       )) {
         await client.query(file.contents);
       }
@@ -1501,6 +1539,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
 
       for (const who of ["owner", "outsider"] as const) {
         await client.query(
@@ -1519,10 +1559,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderBlocks(
-        ["organizations", "invitations"],
-        layout,
-      )) {
+      for (const file of renderBlocks(["organizations", "invitations"], {
+        ...layout,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -1635,6 +1675,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
     try {
       await client.query("begin");
+      // The fixture's seeded invitations reference organizations a render replaces.
+      await client.query("delete from better_supabase.invitations");
 
       for (const who of ["owner", "member"] as const) {
         await client.query(
@@ -1644,10 +1686,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
         );
       }
 
-      for (const file of renderBlocks(
-        ["organizations", "invitations"],
-        LAYOUT,
-      )) {
+      for (const file of renderBlocks(["organizations", "invitations"], {
+        ...LAYOUT,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 

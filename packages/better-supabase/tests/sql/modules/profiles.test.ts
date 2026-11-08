@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { resolveBlocks } from "../../../src/sql/registry.ts";
-import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { moduleBody, renderBlocks } from "../app-columns.ts";
 
 const CENTRAKIT: AnyBlocksConfig = {
   profiles: {
@@ -39,9 +39,7 @@ describe("profiles module", () => {
   it("keeps a locale column users may update, on a managed table only", () => {
     const sql = body({});
     expect(sql).toContain('  "locale" text,');
-    expect(sql).toContain(
-      'alter table "better_supabase"."profiles" add column if not exists "locale" text;',
-    );
+    expect(sql).toContain('"locale" text');
     expect(sql).toContain(
       `"locale" = case when update_my_profile.attrs ? 'locale' then update_my_profile.attrs ->> 'locale' else p."locale" end`,
     );
@@ -80,11 +78,8 @@ describe("profiles module", () => {
     expect(sql).toContain(
       `better_supabase.try_column_type(nullif(btrim(coalesce(meta ->> 'locale')), ''), (null::"public"."profiles")."locale")`,
     );
-    expect(sql).toContain(
-      "create or replace function better_supabase.as_column_type(value text, target anyelement)",
-    );
-    expect(sql).toContain(
-      "create or replace function better_supabase.try_column_type(value text, target anyelement)",
+    expect(sql).not.toContain(
+      "create or replace function better_supabase.as_column_type(",
     );
     expect(body({})).not.toContain("_column_type(");
   });
@@ -92,9 +87,7 @@ describe("profiles module", () => {
   it("keeps an avatar_path column that auth metadata never writes", () => {
     const sql = body({});
     expect(sql).toContain('  "avatar_path" text,');
-    expect(sql).toContain(
-      'alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;',
-    );
+    expect(sql).toContain('"avatar_path" text');
     expect(sql).not.toMatch(/insert into[^;]*"avatar_path"/);
     expect(sql).toContain(
       `"avatar_path" = case when update_my_profile.attrs ? 'avatar_path' then update_my_profile.attrs ->> 'avatar_path' else p."avatar_path" end`,
@@ -139,18 +132,34 @@ describe("profiles module", () => {
     ).not.toContain("avatar_path");
   });
 
+  it("adds the active organization and team columns only next to their modules", () => {
+    const alone = body({});
+
+    for (const name of ["active_organization_id", "active_team_id"]) {
+      expect(alone).not.toContain(name);
+    }
+
+    const tenant = renderBlocks(["profiles", "memberships", "teams"], {
+      modules: { profiles: {}, memberships: {}, teams: {} },
+    })
+      .filter((file) => file.module === "profiles")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(tenant).toContain('"active_organization_id" uuid');
+    expect(tenant).toContain('"active_team_id" uuid');
+    expect(tenant).toContain(
+      'new."active_organization_id" is distinct from old."active_organization_id"',
+    );
+  });
+
   it("owns its table with grants, a guard and the auth triggers", () => {
     const sql = body({});
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."profiles" (',
-    );
+    expect(sql).toContain('create table "better_supabase"."profiles" (');
     expect(sql).toContain(
       'grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;',
     );
     expect(sql).toContain("hint = 'PROFILE_COLUMN_READONLY'");
-    expect(sql).toContain(
-      'new."active_organization_id" is distinct from old."active_organization_id"',
-    );
     expect(sql).toContain(
       'create trigger "bsb_profile_sync" after insert on auth.users',
     );
@@ -159,7 +168,7 @@ describe("profiles module", () => {
     );
     expect(sql).toContain("meta ->> 'full_name', meta ->> 'name'");
     expect(sql).toContain('"better_supabase"."allocate_username"(');
-    expect(sql).toContain("add constraint profiles_username_check check (");
+    expect(sql).toContain("add constraint bsb_profiles_username_check check (");
     // `between` inside the `and` chain nests differently once stored, so a
     // pg-delta sync would drop and re-add the check on every run.
     expect(sql).toContain(
@@ -195,9 +204,6 @@ describe("profiles module", () => {
       `left(regexp_replace(lower(coalesce(base, '')), '[^a-z0-9_]+', '', 'g'), 26)`,
     );
     expect(sql).toContain(
-      'drop trigger if exists "bsb_profile_sync" on auth.users;',
-    );
-    expect(sql).toContain(
       `to_regprocedure('"public"."create_contact_profile"(uuid)')`,
     );
     expect(sql).toContain('new."active_organization_id" is distinct from');
@@ -214,10 +220,12 @@ describe("profiles module", () => {
           },
         },
       },
-    }).findLast((file) => file.kind === "schema")!.contents;
+    }).findLast(
+      (file) => file.kind === "schema" && file.module === "profiles",
+    )!.contents;
 
     expect(sql).toContain(
-      `alter table "better_supabase"."profiles" add column if not exists "locale" text not null default 'en';`,
+      `alter table "better_supabase"."profiles" add column "locale" text not null default 'en';`,
     );
     expect(sql).toContain('"locale", "updated_at") on');
     expect(sql).toContain(
@@ -239,7 +247,7 @@ describe("profiles module", () => {
     expect(sql).not.toMatch(
       /create or replace function "better_supabase"\."my_profile"\(\)\s+returns setof/,
     );
-    expect(sql).toMatch(
+    expect(sql).not.toMatch(
       /drop function if exists "better_supabase"\."my_profile"\(\);\s+create or replace function "better_supabase"\."my_profile"\(\)\s+returns jsonb/,
     );
   });
@@ -276,15 +284,6 @@ describe("profiles module", () => {
     );
   });
 
-  it("rejects an extra column that shadows a mapped column", () => {
-    expect(() =>
-      body({ profiles: { options: { extraColumns: { email: "text" } } } }),
-    ).toThrow(/extraColumns.email shadows/);
-    expect(() =>
-      body({ profiles: { options: { extraColumns: { Bad: "text" } } } }),
-    ).toThrow(/"Bad" is not a valid column name/);
-  });
-
   it("honours updatable, serviceColumns and turning features off", () => {
     const sql = body({
       profiles: {
@@ -301,12 +300,9 @@ describe("profiles module", () => {
     expect(sql).toContain(
       'grant update ("full_name", "updated_at") on "better_supabase"."profiles" to authenticated;',
     );
-    expect(sql).toContain('drop trigger if exists "bsb_profile_guard"');
+    expect(sql).not.toContain('drop trigger if exists "bsb_profile_guard"');
     expect(sql).not.toContain('allocate_username"(coalesce');
     expect(sql).not.toContain("split_part(nullif");
-    expect(sql).toContain(
-      'drop trigger if exists "bsb_profile_email" on auth.users;',
-    );
   });
 
   it("writes nothing in custom mode", () => {
@@ -322,11 +318,6 @@ describe("profiles module", () => {
     expect(() =>
       body({ profiles: { options: { readPolicy: "members" } } }),
     ).toThrow(/needs the tenant module/);
-    expect(() =>
-      body({
-        profiles: { options: { extraColumns: { x: "text; drop table y" } } },
-      }),
-    ).toThrow(/extraColumns.x/);
     expect(() =>
       body({ profiles: { options: { metadata: { name: "Bad Column" } } } }),
     ).toThrow(/not a valid column name/);

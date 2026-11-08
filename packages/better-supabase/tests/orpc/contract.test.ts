@@ -10,7 +10,7 @@ import type { Result } from "../../src/core/result.ts";
 import type { OrpcRequestContext } from "../../src/orpc/index.ts";
 
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { createOrpc } from "../../src/orpc/index.ts";
@@ -59,7 +59,7 @@ const failed = (
 ): Result<Customer> => err(dbError(kind, message));
 
 describe("a contract-first router under Hono", () => {
-  const bsb = createOrpc(defineSupabase(schema), {
+  const bsb = createOrpc(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
   });
@@ -156,7 +156,7 @@ describe("a permission on one contract procedure", () => {
     },
   };
 
-  const bsb = createOrpc(defineSupabase(schema), {
+  const bsb = createOrpc(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     authorizer: staticAuthorizer({
@@ -215,7 +215,7 @@ describe("a permission on one contract procedure", () => {
 describe("a resource loader on a contract procedure", () => {
   const loaded: unknown[] = [];
 
-  const bsb = createOrpc(defineSupabase(schema), {
+  const bsb = createOrpc(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     authorizer: defineAuthorizer({

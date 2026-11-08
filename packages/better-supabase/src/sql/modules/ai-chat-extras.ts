@@ -538,7 +538,7 @@ function sharing(ctx: BlockSqlContext, names: AiChatNames): string {
   const hash = (token: string): string =>
     `encode(sha256(convert_to(${token}, 'UTF8')), 'hex')`;
 
-  return `-- Rates a reply: 1 or -1, with an optional reason and comment; rating null
+  const text = `-- Rates a reply: 1 or -1, with an optional reason and comment; rating null
 -- removes the caller's rating. Anyone who can read the chat may rate.
 create or replace function ${fn("rate_ai_message")}(chat uuid, message_id text, rating integer, reason text default null, comment text default null)
 returns jsonb
@@ -684,7 +684,17 @@ end;
 $$;
 revoke execute on function ${fn("get_shared_ai_chat")}(text) from public;
 grant execute on function ${fn("get_shared_ai_chat")}(text) to anon, authenticated, service_role;`;
+
+  // With share-links installed, its file declares the four share functions on
+  // share_links, so this module leaves them out.
+  const links = ctx.installed("share-links")
+    ? ctx.of("share-links").mode !== "custom"
+    : false;
+
+  return links ? text.slice(0, text.indexOf(SHARE_MARKER)).trimEnd() : text;
 }
+
+const SHARE_MARKER = "-- Creates a read-only link to the branch ending at leaf";
 
 function catalog(ctx: BlockSqlContext, names: AiChatNames): string {
   const fn = (name: string): string => ctx.fn(name);

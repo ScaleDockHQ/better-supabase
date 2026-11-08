@@ -4,8 +4,8 @@ description: Generate database types, typed models, relation metadata and valida
 ---
 
 ```bash
-better-supabase gen [--only <list>] [--check] [--watch] [--snapshot <file>] [--db-url-stdin | --project-ref <ref>]
-better-supabase gen --metadata <path|-> [--emit <file> | --out-dir <dir> [--check]]
+better-supabase gen [--only <list>] [--check] [--snapshot <file>] [--db-url-stdin | --project-ref <ref>]
+better-supabase gen --metadata <path|-> [--only <file> | --out <dir> [--check]]
 ```
 
 `gen` is the one command to run after a schema or config change. It writes
@@ -74,15 +74,19 @@ the same generator behind `supabase gen types typescript`, and writes:
    [`betterSupabase.blocks()`](/docs/blocks/create-blocks#block-instances-on-db):
    import it from server code only. With `gen.clientBlocks` set, `blocks.client.ts`
    holds `clientBlocks`, `defineBlocks` over just the listed instances, so the
-   browser bundle carries those clients and no others. None of this needs a
+   browser bundle carries those clients and no others. The `reads` constant
+   lists, next to each table a read touches, the typed key of every view your schema
+   files project over it (`job_attachments` over `attachments`), so a cached read
+   served from the view is invalidated by a write to the table. None of this needs a
    database, only the config;
 5. with blocks that have a record binding installed, a
    [record type](/docs/repository/record-bindings#generated-record-types) per type in
-   `config.subjects`, in `records/<type>.ts` next to the main module, unless
-   `gen.recordTypes` is `false`;
+   `config.recordTypes`, in `records/<type>.ts` next to the main module, unless
+   `gen.records` is `false`;
 6. with `gen.hooks` set, `hooks.ts` next to the main module: a list hook and a
    record hook per table (`useCustomers`, `useCustomer`) for the
-   [data hooks](/docs/frontend/data-hooks) of that framework;
+   [data hooks](/docs/frontend/data-hooks) of that framework. A block table that
+   one of your views projects gets no hooks; its view's hooks read it;
 7. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`,
    `standardSchema()`);
 8. with `readSets` configured, the `read-sets` SQL module file: one function per
@@ -120,19 +124,12 @@ last run, it reuses the
 snapshot cached in `node_modules/.cache/better-supabase` and skips
 introspection. Deleting that folder clears the cache.
 
-`--watch` keeps one connection open and runs that query every `--interval`
-milliseconds (`gen.watchInterval` in the config, default 2000), so it reads
-the full schema only after a change. It also checks the config file's
-modification time, and when the file changes it loads it again and runs every
-task again. A change to the spec entry, its overlays or the seed entry reruns
-the tasks after `types`, without reading the schema; a config that fails to load is reported once and kept
-until the next edit fixes it. Each run imports the `readSets` and `realtime.policies`
-modules again, with the project files they import (such as the main module
-the run wrote); packages in `node_modules` load once. With `--json`, each
-run prints one envelope on its own line
-([NDJSON](/docs/cli#exit-codes-and-json-output)). Ctrl-C ends the
-connection, including a query in flight. Connecting gives up after 10 seconds,
-and each introspection query after 2 minutes.
+[`dev`](/docs/cli/dev#watching) keeps one connection open and runs that query
+whenever a file changes or the polling interval passes, so it reads the full
+schema only after a change. `gen --watch` was removed in favor of `dev`;
+`--no-cache` skips the cache for one run and
+[`cache purge`](/docs/cli/cache) deletes it. Connecting gives up after 10
+seconds, and each introspection query after 2 minutes.
 
 ## Content mapper
 
@@ -141,8 +138,85 @@ With `gen.contentMapper: true`, `gen` writes `schema.bsb` and a
 TypeScript 7.1 gets the types from the
 [content mapper](/docs/content-mapper). The `types` task also writes the
 mapper's cache, and when the types change, a stamp file in
-`node_modules/.cache/better-supabase` that the editor watches, so `--watch`
+`node_modules/.cache/better-supabase` that the editor watches, so [`dev`](/docs/cli/dev#watching)
 reloads the types in the editor too. `--check` checks the mapper-mode files.
+
+## Table modules
+
+By default `gen` writes one module per table, `tables/<table>.ts`, next to the
+generated module (`gen.tableModules: false` writes the single module instead). Each one exports the table's runtime metadata as
+`<key>Table` (`customersTable`), and `generated.meta.js` lists no table. The
+server's schema moves to `generated-schema.ts`, which imports every table. The
+generated module keeps the types, `buckets`, the extensions and `clientSchema`,
+a schema with no tables for a browser client.
+
+A client on `clientSchema` registers the tables it uses. Pass the module to
+`bsb.table`, which returns the repository, or to a generated hook, which reads
+through it. A table you embed with `with` is registered the same way before the
+query.
+
+```ts
+import { createSupabase } from "better-supabase";
+import { createClient } from "better-supabase/client";
+
+import { clientSchema } from "./generated";
+import { customersTable } from "./tables/customers";
+
+const bsb = createClient(createSupabase(clientSchema), { env });
+
+const customers = bsb.table(customersTable);
+await customers.list({ where: { status: "active" } });
+```
+
+The generated `hooks.ts` does this for every `gen.hooks` framework (React, Vue,
+Solid and Svelte): each hook is made with the table module and reads through
+`client.table`. The file also exports `AppDb`, an interface over the app's
+`db`, so each hook resolves one named type. Doctor reports a `"use client"` file
+that imports `generated-schema`, `blocks.generated` or `blocks.config`
+([BS621](/docs/cli/doctor#bs621)).
+
+`defineListQuery` takes a table module in place of a table name, so a module
+that defines a list for a client component loads one table. Keep server code on
+`schema` from `generated-schema.ts`: a page that imports it loads every table.
+`tests/next-build` in this repository holds the Next.js example to that rule.
+
+`--metadata` output and the content mapper write the single-module output. An
+existing project moves to this layout with `better-supabase codemod table-modules`:
+it imports `schema` from `generated-schema` and, in a `"use client"` file,
+rewrites `bsb.db.customers` to `bsb.table(customersTable)` with the import.
+
+## Block modules
+
+By default `gen` writes `blocks/slices.ts`, one export per
+installed block instance (`commentsConfig`, `customFieldsConfig`), and
+`blocks/permissions.ts` with `permissions` and `PermissionKey`. A slice is the
+instance's schema, API schema, function names and options as plain data.
+`blocks.config.ts` composes the slices into `blockConfig` for server code, and
+each `records/<type>.ts` imports only the slices of the blocks it binds, so a
+record no longer carries the config of every installed block.
+
+Client code imports the slices it uses and passes them to the client:
+
+```ts
+import { commentsConfig, tagsConfig } from "@/lib/supabase/blocks/slices";
+
+export const bsb = createClient(clientApp, {
+  env,
+  blocks: { comments: commentsConfig, tags: tagsConfig },
+});
+```
+
+A client component that imported `blockConfig` loads every slice, so import the
+slice instead (`commentsConfig.api`). A record's own slices fill in the blocks
+the client's `blocks` option leaves out. The slices live in one module because a
+bundler drops the exports a page doesn't import, and a module per instance adds
+a wrapper to the chunk for each one. `gen.blockModules: false` writes
+`blockConfig` as one object.
+
+The slices are plain data. The block API types stay in `blocks.generated.ts`
+as aliases over the block packages, because writing a concrete interface per
+instance needs a type extraction step that `gen` does not have. Import those
+types with `import type`, which costs nothing at runtime.
 
 ## Options
 
@@ -152,14 +226,12 @@ reloads the types in the editor too. `--check` checks the mapper-mode files.
 | `--check`              | Writes nothing; exits 1 when a generated file is out of date and prints a diff of each one. Use it in CI.                                                        |
 | `--dry-run`            | Prints a diff of each file that would change, and writes nothing.                                                                                                |
 | `--force`              | Overwrites a generated file that lost its `Generated by better-supabase` header.                                                                                 |
-| `--watch`              | Runs again when the schema, the config file or a task's input changes (polls every `--interval` ms).                                                             |
-| `--interval <ms>`      | Milliseconds between checks in `--watch`. Defaults to `gen.watchInterval`, then 2000.                                                                            |
 | `--snapshot <file>`    | Reads a saved snapshot instead of connecting.                                                                                                                    |
 | `--db-url-stdin`       | Reads the connection string from stdin; overrides the config, `$DATABASE_URL` and `$SUPABASE_DB_URL`.                                                            |
 | `--project-ref <ref>`  | Reads a hosted project through the Management API.                                                                                                               |
 | `--metadata <path\|->` | Reads a `GeneratorMetadata` document (`-` for stdin) and prints one file on stdout. See [From a GeneratorMetadata document](#from-a-generatormetadata-document). |
-| `--emit <file>`        | With `--metadata`, the file to print: `schema` (default), `types`, `zod`, `valibot`, `json-schema` or `standard-schema`.                                         |
-| `--out-dir <dir>`      | With `--metadata`, writes every generated file into this directory instead of printing one.                                                                      |
+| `--only <file>`        | With `--metadata`, the file to print: `schema` (default), `types`, `zod`, `valibot`, `json-schema` or `standard-schema`.                                         |
+| `--out <dir>`          | With `--metadata`, writes every generated file into this directory instead of printing one.                                                                      |
 
 With `--json`, the envelope's `data` is `{ "tables", "written" }` for `gen`
 and `{ "upToDate", "stale" }` for `gen --check`. When several tasks run,
@@ -507,7 +579,7 @@ characters; otherwise it comes from the column name.
 
 ## Search params for nuqs
 
-`nuqs()` from `better-supabase/config` writes `<output>.nuqs.ts`, with
+`nuqs()` from `better-supabase/generators/nuqs` writes `<output>.nuqs.ts`, with
 search-param parsers for a list of each table: a filter for every column
 with a closed set of values, `orderBy` over the sortable columns,
 `direction`, `cursor` and `limit`. Each set comes with a cache for Server
@@ -515,7 +587,8 @@ Components, a loader and a serializer for links. The file imports
 `nuqs/server`, an optional peer the app installs.
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, nuqs } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { nuqs } from "better-supabase/generators/nuqs";
 
 export default defineConfig({
   gen: { generators: [nuqs({ tables: ["tasks", "customers"], limit: 50 })] },
@@ -568,11 +641,12 @@ Standard Schema does: the [validation extension](/docs/repository/validation),
 `validate()`, form libraries, oRPC and MCP tool inputs.
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, standardSchema } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { standardSchema } from "better-supabase/generators/standard-schema";
 
 export default defineConfig({
   gen: {
-    output: "src/lib/supabase/generated.ts",
+    file: "src/lib/supabase/generated.ts",
     generators: [
       standardSchema({
         json: { "customers.metadata": "./schemas.ts#metadata" },
@@ -695,9 +769,9 @@ It follows the registry's contract for an out-of-process tool:
   is one (`casing`, `schemas`, `tables`, `codecs`, generator options), and the
   defaults otherwise.
 
-`--emit` picks the file:
+`--only` picks the file:
 
-| `--emit`          | Prints                                                                                                                                                    |
+| `--only`          | Prints                                                                                                                                                    |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `schema`          | The `defineSchema` module, with the metadata written into it instead of a separate `generated.meta.js`. It imports `Database` from `databaseTypesOutput`. |
 | `types`           | `database.types.ts`, formatted when oxfmt is installed.                                                                                                   |
@@ -706,7 +780,7 @@ It follows the registry's contract for an out-of-process tool:
 | `json-schema`     | The `jsonSchema()` generator's document, likewise.                                                                                                        |
 | `standard-schema` | The `standardSchema()` generator's file, likewise.                                                                                                        |
 
-`--out-dir <dir>` writes the usual files (`database.types.ts`, the main module,
+`--out <dir>` writes the usual files (`database.types.ts`, the main module,
 its metadata module and each configured generator's file) into one directory
 instead, and `--check` compares them there. A generator with its own `output`
 keeps that path. It leaves the read-set SQL module
@@ -761,7 +835,7 @@ export const betterSupabase = externalLanguage(
       "gen",
       "--metadata",
       "-",
-      "--emit",
+      "--only",
       String(options.emit),
     ],
     installHint:
@@ -788,7 +862,7 @@ export const betterSupabase = externalLanguage(
 ```
 
 Once the entry is in the registry's `languages`, `user` options become flags
-of `supabase gen types`, so `supabase gen types --lang better-supabase --emit zod`
-prints what `better-supabase gen --metadata - --emit zod` prints for the same
+of `supabase gen types`, so `supabase gen types --lang better-supabase --only zod`
+prints what `better-supabase gen --metadata - --only zod` prints for the same
 database. The upstream registry doesn't ship this entry, so without it, pipe
 the document to `better-supabase gen --metadata -` yourself.

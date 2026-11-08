@@ -11,7 +11,8 @@ repository root works when the CLI runs from a package. `--config` overrides
 the search. TypeScript configs load natively on Node 24.
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, zod } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { zod } from "better-supabase/generators/zod";
 import { CustomerMetadata } from "./src/types.ts";
 
 export default defineConfig({
@@ -22,7 +23,7 @@ export default defineConfig({
   },
   gen: {
     casing: "camel",
-    output: "src/lib/supabase/generated.ts",
+    file: "src/lib/supabase/generated.ts",
     codecs: { int8: "bigint", numeric: "string", timestamptz: "instant" },
     json: {
       "customers.metadata": {
@@ -57,7 +58,7 @@ export default defineConfig({
 | `database.schemas`      | `['public']`                                                                                        | Tables in other schemas get prefixed keys                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `gen.casing`            | `'snake'`                                                                                           | `'camel'` maps columns in queries; see [casing](/docs/concepts/casing)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `gen.tables`            | `{}`                                                                                                | Per-table `casing`, `exclude`, `serviceRole`, relation renames and `insertOptional`, keyed by table name or `schema.table`. `serviceRole` keeps the models but tells [doctor](/docs/cli/doctor#bs106) the table is for `service_role` only; `insertOptional` lists not-null columns the database fills on insert, for fillers `gen` can't read from a `before insert` trigger's body                                                                                                                                                                                                                                                                                                                    |
-| `gen.output`            | `src/lib/supabase/generated.ts`                                                                     | `database.types.ts` and `generated.meta.js` are written next to it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `gen.file`              | `src/lib/supabase/generated.ts`                                                                     | `database.types.ts` and `generated.meta.js` are written next to it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `gen.postgrestVersion`  | `'13'`                                                                                              | Written to `__InternalSupabase` in `database.types.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `gen.codecs`            | JSON types                                                                                          | `int8: 'bigint' \| 'string'`, `numeric: 'string'`, `timestamptz: 'instant'` read values exactly; `timestamptz: 'utc'` keeps strings, always in UTC with a `Z`. See [Temporal](/docs/concepts/temporal)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `gen.relations`         | `{ nullableUnderRls: false }`                                                                       | `nullableUnderRls: true` types to-one includes of tables with RLS as `\| null`; see [includes](/docs/repository/includes#row-level-security)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -74,10 +75,12 @@ export default defineConfig({
 | `auth.entitlements`     | `{ key: 'id' }`; `customer` defaults to the organizations module's `stripe_customer_id`             | Where the [`entitlements` SQL module](/docs/blocks/entitlements) finds each tenant's Stripe customer, or `source` (`{ plans }` or `"custom"`) for entitlements without the Stripe Sync Engine. `memberships` (`"tenant"` or `"provider"`) picks where it reads memberships from                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `auth.authorization`    | none                                                                                                | An [authorization provider](/docs/extending/authorization-providers) the `provider` access model, the entitlements module, bucket and topic policies and doctor delegate to                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `database.vectorSearch` | `{}`                                                                                                | Embedding columns (`{ chunks: 'embedding' }`) the [`vector-search` SQL module](/docs/blocks/vector-search) writes `search_<table>` for                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `subjects`              | `{}`                                                                                                | The app's [subject registry](/docs/blocks/sql#subject-registry): each subject type's table, id, tenant, title, URL template, permission keys, scope, rank and search columns. Modules that take subjects fall back to it, and `gen` emits a `SubjectType` union                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `recordTypes`           | `{}`                                                                                                | The app's [subject registry](/docs/blocks/sql#subject-registry): each subject type's table, id, tenant, title, URL template, permission keys, scope, rank and search columns. Modules that take subjects fall back to it, and `gen` emits a `SubjectType` union                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `gen.readSets`          | `[]`                                                                                                | Modules exporting [read sets](/docs/repository/read-sets); `gen` compiles them into the `read-sets` SQL module                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `gen.recordTypes`       | `true`                                                                                              | Writes a [record type](/docs/repository/record-bindings#generated-record-types) to `records/<type>.ts` next to `output` for each type in `config.subjects` that a block binds to; `false` writes none                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `gen.records`           | `true`                                                                                              | Writes a [record type](/docs/repository/record-bindings#generated-record-types) to `records/<type>.ts` next to `gen.file` for each type in `config.recordTypes` that a block binds to; `false` writes none                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `gen.contentMapper`     | `false`                                                                                             | Serves the schema types to TypeScript 7.1 through the [content mapper](/docs/content-mapper): `gen` writes `schema.bsb` and no `database.types.ts`, and `tsconfig.json` lists the mapper in `contentMappers`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `gen.tableModules`      | `true`                                                                                              | Writes one module per table, `tables/<table>.ts`, and `generated-schema.ts` for the server; the generated module adds `clientSchema` for a browser client that registers the tables it uses. See [Table modules](/docs/cli/gen#table-modules)                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `gen.blockModules`      | `true`                                                                                              | Writes `blocks/slices.ts` with one config slice per block instance and `blocks/permissions.ts`; records import the slices of the blocks they bind. See [Block modules](/docs/cli/gen#block-modules)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `gen.hooks`             | `"react"` with the `next`, `react` or `expo` adapter, otherwise `false`                             | Writes `hooks.ts` next to `output` with a list and a record [data hook](/docs/frontend/data-hooks) per table for `"react"`, `"vue"`, `"svelte"` or `"solid"`; `false` writes none; `{ framework, select: { module, export } }` wraps each select in that export                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `gen.clientBlocks`      | none                                                                                                | Block instances the browser client uses. `gen` writes `blocks.client.ts` with `clientBlocks`, `defineBlocks` over only those instances; without the key the browser client carries no block code                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `preset`                | unset                                                                                               | A [named preset](/docs/presets), a code from Create or its URL. `defineConfig` expands it into `blocks`, with the blocks they require, and its conventions (`casing`, `database.sql.api`, `integrations`); the keys you set win                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -108,14 +111,14 @@ picked in this order:
 | Command          | Config key                                  |
 | ---------------- | ------------------------------------------- |
 | `gen`            | `gen.tasks`, `gen.watchInterval`            |
-| `dev env`        | `tooling.env.output`, `tooling.env.prefix`  |
+| `dev env`        | `tooling.env.file`, `tooling.env.prefix`    |
 | `doctor`         | `tooling.doctor.only`, `.format`, `.output` |
 | `spec`           | `api.specs.manifest`, `gen.watchInterval`   |
 | `add`            | `adapters`                                  |
 | `skills install` | `tooling.skills.agents`                     |
-| `dev keys`       | `tooling.keys.output`                       |
+| `dev keys`       | `tooling.keys.file`                         |
 
-`tooling.doctor.output` applies when the report uses `tooling.doctor.format`, so
+`tooling.doctor.file` applies when the report uses `tooling.doctor.format`, so
 `doctor --json` prints to stdout even when the config writes SARIF to a
 file. `add` prints the config entry for the flags you passed, so you can
 paste it once instead of repeating them.
@@ -133,7 +136,7 @@ export default defineConfig({
   $ci: {
     gen: { tasks: ["types", "sql", "spec"] },
     tooling: {
-      doctor: { format: "sarif", output: "doctor.sarif", strict: true },
+      doctor: { format: "sarif", file: "doctor.sarif", strict: true },
     },
   },
   $env: {
@@ -243,12 +246,16 @@ Side effects: None.
 
 ## Custom generators
 
-```ts
-import type { Generator } from "better-supabase/config";
+A generator is a plugin at `apiVersion: 2`. Build it with `defineGenerator` from
+[`better-supabase/generators`](/docs/extending/generators):
 
-export const tableList: Generator = {
-  apiVersion: 1,
+```ts
+import { defineGenerator } from "better-supabase/generators";
+
+export const tableList = defineGenerator({
   name: "table-list",
+  version: "1.0.0",
+  pure: true,
   generate: ({ model }) => [
     {
       path: "src/lib/tables.json",
@@ -260,23 +267,27 @@ export const tableList: Generator = {
       ),
     },
   ],
-};
+});
 ```
 
 A generator receives the schema metadata (`meta`), the typegen introspection,
-the resolved config, an `importPath` helper and `model`: the tables and enums
-`gen` emitted, with the TypeScript type it wrote for each column after `json`
-overrides, codecs and enum unions. `model` is frozen. The generator returns
-files, and `gen --check` covers them too.
+`config` (the output paths, the casing and the `json` overrides, as plain data),
+`imports.runtime` and `model`: the tables and enums `gen` emitted, with the
+TypeScript type it wrote for each column after `json` overrides, codecs and enum
+unions. Everything in the input is frozen data that `structuredClone` copies. The
+generator returns files, and `gen --check` covers them too.
 
-`apiVersion: 1` names the generator contract it targets. `gen` refuses a
-generator that declares a version it doesn't know, so a generator written for
-a later contract fails with a message instead of misreading its input.
-Leaving it out means version 1.
+`gen` refuses a generator that targets another `apiVersion`, and the message
+names what changed from version 1: `config` is a view instead of the resolved
+config, `imports.runtime` replaces `runtimeImport`, `relativeImport` replaces
+`importPath`, and `provides: ["validators"]` replaces the `validators` flag on a
+file. A `pure` generator's files are cached in
+`node_modules/.cache/better-supabase/generators` under its name, version, options
+and input, so a second `gen` with the same schema doesn't run it again.
 
 `gen` records the files it wrote in
 `node_modules/.cache/better-supabase/gen-manifest.json`. When a later run no
 longer writes one of them (you removed a generator or changed `output`), it
 deletes the file and lists it as removed, and `gen --check` reports it as no
 longer generated. Files that no earlier run wrote are never touched. Prove a
-generator with [`testGenerator`](/docs/extending/conformance).
+generator with [`testGeneratorPlugin`](/docs/extending/conformance).

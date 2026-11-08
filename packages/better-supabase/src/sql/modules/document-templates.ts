@@ -16,6 +16,7 @@ import {
   documentTemplateImportFunctions,
   documentTemplateImportTargets,
 } from "./document-templates-import.ts";
+import { documentTemplateSeeds } from "./document-templates-seeds.ts";
 import {
   DOCUMENT_BODY_MAX,
   DOCUMENT_LANGUAGE_PATTERN,
@@ -201,7 +202,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const fn = (logical: string): string => ctx.fn(logical);
@@ -430,8 +431,11 @@ export const DOCUMENT_TEMPLATES: BlockSqlDefinition = {
   description:
     "Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.",
   requires: ["memberships", "permissions", "legal-entities"],
+  seeds: documentTemplateSeeds,
   integrates: [
     "invoices",
+    "inventory",
+    "catalog",
     "quotes",
     "orders",
     "shipments",

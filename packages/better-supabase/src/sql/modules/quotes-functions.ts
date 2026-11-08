@@ -58,10 +58,13 @@ export interface QuoteNames {
   /** Days a new quote stays valid. */
   readonly validDays: number;
   readonly service: string;
-  /** `options.extraColumns` of the quotes table, written from `attrs.fields`. */
+  /**
+   * The columns your schema files add of the quotes table, written from
+   * `attrs.fields`.
+   */
   readonly extras: readonly ExtraColumn[];
   readonly lineExtras: readonly ExtraColumn[];
-  /** `options.versionLineExtraColumns`, copied from the line of the same name. */
+  /** The columns your schema files add, copied from the line of the same name. */
   readonly versionLineExtras: readonly ExtraColumn[];
   /** `options.totals: "app"`: the app keeps the totals, the block reads them. */
   readonly appTotals: boolean;
@@ -213,6 +216,8 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
       "quantity",
       "unitAmount",
       "periods",
+      "unit",
+      "discountKind",
       "discountBps",
       "taxRateBps",
       "taxCode",
@@ -227,7 +232,7 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
     );
 
     const value = (column: string): string =>
-      column === "productType"
+      column === "productType" || column === "discountKind"
         ? ctx.cast("versionLines", column, `ql.${l(column)}::text`)
         : `ql.${l(column)}`;
 

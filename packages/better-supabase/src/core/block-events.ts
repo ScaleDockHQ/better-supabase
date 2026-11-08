@@ -601,6 +601,9 @@ export interface CommerceEventData {
    */
   readonly documentType?: string;
   readonly documentId?: string;
+  /** For `allocation.transferred`: the document the allocation moved to. */
+  readonly toDocumentType?: string;
+  readonly toDocumentId?: string;
   /** For allocation events: the quantity the event allocated. */
   readonly allocated?: string;
   readonly supplierType?: string | null;
@@ -787,8 +790,8 @@ export interface TemplateApplicationEventData extends SubjectEventData {
 }
 
 /**
- * Time entry events from the time-tracking module. `subjectType` and
- * `subjectId` are null for time not tracked on a record.
+ * Time entry events from the time-entries module. `subjectType` and `subjectId`
+ * are null for time not tracked on a record.
  */
 export interface TimeEntryEventData {
   readonly organizationId: string;
@@ -811,7 +814,7 @@ export interface TimeEntryEventData {
   readonly rateCurrency?: string | null;
 }
 
-/** Timesheet events from the time-tracking module. */
+/** Timesheet events from the time-entries module. */
 export interface TimesheetEventData {
   readonly organizationId: string;
   /** The timesheet. */
@@ -837,23 +840,6 @@ export {
 } from "./event-map.ts";
 
 export type BlockEventType<M extends EventMap = EventMap> = keyof M & string;
-
-/**
- * Event types that changed name in 0.6, old to new, for sinks and consumers
- * that still receive the old ones (`BLOCK_EVENT_RENAMES[type] ?? type`).
- * `better-supabase codemod 0.6` rewrites the string literals.
- */
-export const BLOCK_EVENT_RENAMES: Readonly<Record<string, string>> = {
-  "org.created": "organization.created",
-  "org.updated": "organization.updated",
-  "org.deleted": "organization.deleted",
-  "org.member_added": "organization.member_added",
-  "org.member_removed": "organization.member_removed",
-  "org.member_left": "organization.member_left",
-  "org.role_changed": "organization.role_changed",
-  "org.ownership_transferred": "organization.ownership_transferred",
-  "org.switched": "organization.switched",
-};
 
 /** Where an event came from, beyond its data. */
 export interface BlockEventMeta {
@@ -1020,10 +1006,10 @@ export type {
   ConversationEventData,
   EmployeeEventData,
   DealEventData,
-  EngagementAmendedEventData,
-  EngagementErrorMarkedEventData,
-  EngagementEventData,
-  EngagementRecordingEventData,
+  ActivityAmendedEventData,
+  ActivityErrorMarkedEventData,
+  ActivityEventData,
+  ActivityRecordingEventData,
   InvoiceEventData,
   JobEventData,
   MailAccountEventData,
@@ -1040,7 +1026,7 @@ export type {
   PipelineStageEventData,
   QuoteEventData,
   SlaEventData,
-  WorkItemEventData,
+  TaskEventData,
 } from "./block-events-records.ts";
 
 /** `guardrail.blocked`, written to the outbox by the ai-guardrails module. */

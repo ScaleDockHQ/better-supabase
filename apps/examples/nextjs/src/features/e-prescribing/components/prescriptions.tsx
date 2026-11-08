@@ -40,11 +40,10 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
-import type { Loaded, PrescriptionRow } from "../prescriptions-queries";
+import type { Loaded, PrescriptionRow } from "../e-prescribing-queries";
 
-import { cancelPrescription, signPrescription } from "../prescriptions-actions";
+import { cancelPrescription, signPrescription } from "../e-prescribing-actions";
 
 type PrescriptionCell = CellContext<DataGridFeatures, PrescriptionRow>;
 
@@ -319,20 +318,6 @@ export function Prescriptions({
             onCancel={cancel}
           />
         )}
-      </FramePanel>
-    </Frame>
-  );
-}
-
-export function PrescriptionsSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-36" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-48" />
       </FramePanel>
     </Frame>
   );

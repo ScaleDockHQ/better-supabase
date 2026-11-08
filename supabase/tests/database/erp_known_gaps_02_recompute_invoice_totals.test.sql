@@ -17,22 +17,22 @@ set local role authenticated;
 select better_supabase.setup_accounting('00000000-0000-4000-8000-000000000001', 'EUR');
 select better_supabase.open_fiscal_year('00000000-0000-4000-8000-000000000001', 2026);
 select set_config(
-  'bsb.run',
+  'better_supabase.run',
   (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'gap-repair', '{}'::jsonb) ->> 'id'),
   true
 );
 reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
 
-select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'tax_code',
+select better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'tax_code',
   '[{"key":"VAT21","data":{"code":"VAT21","name":"VAT 21%","type":"sales","rateBps":2100,"returnBoxes":["1a"],"validFrom":"2020-01-01"}}]'::jsonb);
-select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'payment_term',
+select better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'payment_term',
   '[{"key":"CR25","data":{"code":"CR25","name":"Net 30, 25% restricted","days":30,"creditRestrictionBps":2500}}]'::jsonb);
 
 -- Two restricted invoices, one in March and one in April, and a plain one.
-select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice', jsonb_build_array(
+select better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'invoice', jsonb_build_array(
   jsonb_build_object('key', 'r-1', 'data', jsonb_build_object(
     'number', 'INV-3001', 'status', 'issued', 'issuedOn', '2026-03-10', 'dueOn', '2026-04-09', 'currency', 'EUR',
     'attrs', jsonb_build_object('paymentTermsId', (select id from better_supabase.payment_terms where code = 'CR25')),

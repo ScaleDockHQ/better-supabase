@@ -8,12 +8,12 @@ select plan(6);
 -- Comments are messages in the record's subject conversation (ADR 0062).
 insert into better_supabase.conversations (id, tenant_id, kind, access, subject_type, subject_id) values
   ('00000000-0000-4000-8000-0000000cf001', '00000000-0000-4000-8000-000000000001', 'subject', 'subject', 'customer', '00000000-0000-4000-8000-00000000a001');
-insert into better_supabase.messages (tenant_id, conversation_id, author_id, body, sent_at, created_at, deleted_at) values
+insert into better_supabase.messages (tenant_id, conversation_id, author_id, body, sent_at, created_at, archived_at) values
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000cf001', '00000000-0000-4000-8000-0000000000a2', 'First', '2026-01-01T10:00:00Z', '2026-01-01T10:00:00Z', null),
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000cf001', '00000000-0000-4000-8000-0000000000a2', 'Second', '2026-01-02T10:00:00Z', '2026-01-02T10:00:00Z', null),
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000cf001', '00000000-0000-4000-8000-0000000000a2', '', '2026-01-03T10:00:00Z', '2026-01-03T10:00:00Z', '2026-01-03T11:00:00Z');
 
-insert into better_supabase.attachments (organization_id, subject_type, subject_id, name, mime_type, size, status, uploaded_at) values
+insert into better_supabase.attachments (tenant_id, subject_type, subject_id, name, mime_type, size, status, uploaded_at) values
   ('00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a001', 'a.pdf', 'application/pdf', 10, 'clean', '2026-01-01T09:00:00Z'),
   ('00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a001', 'b.pdf', 'application/pdf', 10, 'infected', '2026-01-04T09:00:00Z'),
   ('00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a001', 'c.pdf', 'application/pdf', 10, 'pending', null);

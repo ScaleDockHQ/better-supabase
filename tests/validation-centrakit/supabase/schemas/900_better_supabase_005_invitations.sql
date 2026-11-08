@@ -1,75 +1,22 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:15792264abb951d9fbbf083d2286e295b05b83b3a6f059a76c79ef0ad7378c94
+-- @bsb-hash sha256:74feba6b49fe8c96d1993e72fade148b11500c95b62c44b18dcb97cd121ba57f
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "centrakit"."organization_invitations";
-    drop policy if exists bsb_tenant_scope_select on "centrakit"."organization_invitations";
-    drop policy if exists bsb_tenant_scope_insert on "centrakit"."organization_invitations";
-    drop policy if exists bsb_tenant_scope_update on "centrakit"."organization_invitations";
-    drop policy if exists bsb_tenant_scope_delete on "centrakit"."organization_invitations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- centrakit.organization_invitations is the app's table, and it has every column this block needs.
 alter table "centrakit"."organization_invitations" add column if not exists "invited_by" uuid references auth.users (id) on delete set null;
 alter table "centrakit"."organization_invitations" add column if not exists "created_at" timestamptz not null default now();
 alter table "centrakit"."organization_invitations" add column if not exists "declined_at" timestamptz;
 alter table "centrakit"."organization_invitations" add column if not exists "prefill" jsonb not null default '{}';
-
-drop index if exists "centrakit".invitations_open_idx;
 create unique index if not exists invitations_open_email_idx
   on "centrakit"."organization_invitations" ("organization_id", lower("email")) where "accepted_at" is null and "declined_at" is null;
 create index if not exists invitations_tenant_created_idx on "centrakit"."organization_invitations" ("organization_id", "created_at");
 alter table "centrakit"."organization_invitations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "centrakit"."organization_invitations";
 create trigger bsb_updated_at before update on "centrakit"."organization_invitations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 create index if not exists invitations_invited_by_idx on "centrakit"."organization_invitations" ("invited_by");
 
 
@@ -92,24 +39,15 @@ end;
 $$;
 revoke execute on function "better_supabase"."invitation_tenant_ids"() from public, anon;
 grant execute on function "better_supabase"."invitation_tenant_ids"() to authenticated, service_role;
-drop policy if exists bsb_invitations_read on "centrakit"."organization_invitations";
-create policy bsb_invitations_read on "centrakit"."organization_invitations"
-  for select to authenticated
-  using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()));
 
 -- Invitations to a platform role (the catalog model's platform assignments).
 -- centrakit.organization_invitations is the app's table, and it has every column this block needs.
 alter table "centrakit"."organization_invitations" add column if not exists "invited_by" uuid references auth.users (id) on delete set null;
 alter table "centrakit"."organization_invitations" add column if not exists "created_at" timestamptz not null default now();
 alter table "centrakit"."organization_invitations" add column if not exists "declined_at" timestamptz;
-
-drop index if exists "centrakit".platform_invitations_open_email_idx;
 create unique index if not exists invitations_platform_open_email_idx
   on "centrakit"."organization_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null and "organization_id" is null;
 alter table "centrakit"."organization_invitations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "centrakit"."organization_invitations";
-create trigger bsb_updated_at before update on "centrakit"."organization_invitations"
-  for each row execute function better_supabase.set_updated_at('updated_at');
 create index if not exists platform_invitations_invited_by_idx on "centrakit"."organization_invitations" ("invited_by");
 
 alter table "centrakit"."organization_invitations" enable row level security;
@@ -128,8 +66,6 @@ $$;
 revoke execute on function "better_supabase"."platform_invitations_readable"() from public, anon;
 grant execute on function "better_supabase"."platform_invitations_readable"() to authenticated, service_role;
 -- Tenant and platform invitations share "centrakit"."organization_invitations", so one policy reads both.
-drop policy if exists bsb_platform_invitations_read on "centrakit"."organization_invitations";
-drop policy if exists bsb_invitations_read on "centrakit"."organization_invitations";
 create policy bsb_invitations_read on "centrakit"."organization_invitations"
   for select to authenticated
   using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()) or (select "better_supabase"."platform_invitations_readable"()));
@@ -155,7 +91,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."platform_role_scope"() from public, anon, authenticated;
-drop trigger if exists "bsb_role_scope" on "centrakit"."user_roles";
 create trigger "bsb_role_scope" before insert or update of "role_id" on "centrakit"."user_roles"
   for each row execute function "better_supabase"."platform_role_scope"();
 
@@ -187,7 +122,7 @@ revoke execute on function "better_supabase"."invitation_extra"(uuid) from publi
 -- role id or key under blocks.permissions.model 'catalog'. Returns the invitation
 -- and its token; only the token's hash is stored. An open invitation for
 -- the same email is replaced.
-drop function if exists "better_supabase"."invite_member"(uuid, text, text, interval, jsonb, jsonb);
+
 create or replace function "better_supabase"."invite_member"(
   tenant uuid,
   invitee_email text,
@@ -319,7 +254,7 @@ end;
 $$;
 
 -- The 0.4 signature: returns the token only.
-drop function if exists "better_supabase"."create_invitation"(uuid, text, text, interval);
+
 create or replace function "better_supabase"."create_invitation"(
   organization uuid,
   invitee_email text,
@@ -1206,50 +1141,19 @@ grant execute on function "better_supabase"."accepting_invitation"() to authenti
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "centrakit"."organization_invitations";
-drop policy if exists bsb_tenant_scope_select on "centrakit"."organization_invitations";
 create policy bsb_tenant_scope_select on "centrakit"."organization_invitations" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
     or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()) or (select "better_supabase"."platform_invitations_readable"()))
   );
-drop policy if exists bsb_tenant_scope_insert on "centrakit"."organization_invitations";
 create policy bsb_tenant_scope_insert on "centrakit"."organization_invitations" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "centrakit"."organization_invitations";
 create policy bsb_tenant_scope_update on "centrakit"."organization_invitations" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "centrakit"."organization_invitations";
 create policy bsb_tenant_scope_delete on "centrakit"."organization_invitations" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

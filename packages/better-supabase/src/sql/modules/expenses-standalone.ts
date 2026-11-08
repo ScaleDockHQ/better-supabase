@@ -7,7 +7,6 @@ import type {
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -438,10 +437,10 @@ create table if not exists ${table} (
   ${e("reimbursedAt")} timestamptz,${has("reimbursedBy") ? `\n  ${e("reimbursedBy")} uuid,` : ""}${has("reimbursement") ? `\n  ${e("reimbursement")} text check (${e("reimbursement")} is null or length(${e("reimbursement")}) <= 200),` : ""}${has("createdBy") ? `\n  ${e("createdBy")} uuid,` : ""}
   ${e("createdAt")} timestamptz not null default now(),
   ${e("updatedAt")} timestamptz not null default now()${has("category") ? `,\n  foreign key (${e("tenant")}, ${e("category")}) references ${categories} (${k("tenant")}, ${k("id")}) on delete restrict` : ""}
-);${addExtraColumns(table, extras)}${company ? `\nalter table ${table} alter column ${owner.column} drop not null;` : ""}
+);${company ? `\nalter table ${table} alter column ${owner.column} drop not null;` : ""}
 create index if not exists ${sqlIdent(`${ctx.tableName("expenses").name}_owner_idx`)} on ${table} (${e("tenant")}, ${owner.column}, ${e("spentOn")} desc);
 ${lockModuleTable(ctx, "expenses", { read: true })}
-${renderPolicy(makePolicy({ table, name: ctx.naming.rename("expenses_read"), command: "select", roles: ["authenticated"], using: `${owner.mine} or ${ctx.scope.check(e("tenant"), read)}` }), { drop: true, target: table })}
+${renderPolicy(makePolicy({ table, name: ctx.naming.rename("expenses_read"), command: "select", roles: ["authenticated"], using: `${owner.mine} or ${ctx.scope.check(e("tenant"), read)}` }), { target: table })}
 `
     : "";
 

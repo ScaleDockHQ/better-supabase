@@ -10,12 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import {
-  addExtraColumns,
-  lockTable,
-  schemaPreamble,
-  userGrant,
-} from "../shared.ts";
+import { lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { inspectionFindingFunctions } from "./inspections-findings.ts";
 import { inspectionFunctions } from "./inspections-functions.ts";
 import { inspectionIntegrations } from "./inspections-integrations.ts";
@@ -117,13 +112,7 @@ const NAMES: BlockSqlNames = {
     "before_inspection_finding_create",
     "after_inspection_finding_create",
   ],
-  options: [
-    "kinds",
-    "findingTypes",
-    "caseFindingTypes",
-    "calendar",
-    "extraColumns",
-  ],
+  options: ["kinds", "findingTypes", "caseFindingTypes", "calendar"],
   tables: {
     programs: {
       name: "inspection_programs",
@@ -249,7 +238,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using,
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const text = (column: string, max: number): string =>
@@ -324,7 +313,7 @@ create table if not exists ${inspections} (
   check ((${i("auditeeType")} is null) = (${i("auditeeId")} is null)),
   check (${i("plannedEnd")} is null or ${i("plannedStart")} is null or ${i("plannedEnd")} >= ${i("plannedStart")}),
   foreign key (${i("tenant")}, ${i("program")}) references ${programs} (${p("tenant")}, ${p("id")}) on delete restrict
-);${addExtraColumns(inspections, q.extras)}${appKey("inspections", "tenant_number", `${i("tenant")}, ${i("number")}`)}${appKey("inspections", "tenant_id", `${i("tenant")}, ${i("id")}`)}
+);${appKey("inspections", "tenant_number", `${i("tenant")}, ${i("number")}`)}${appKey("inspections", "tenant_id", `${i("tenant")}, ${i("id")}`)}
 create index if not exists ${name("inspections", "tenant_idx")} on ${inspections} (${i("tenant")}, ${i("status")}, ${i("plannedStart")} desc);
 create index if not exists ${name("inspections", "program_idx")} on ${inspections} (${i("tenant")}, ${i("program")}) where ${i("program")} is not null;
 create index if not exists ${name("inspections", "lead_idx")} on ${inspections} (${i("tenant")}, ${i("lead")}) where ${i("lead")} is not null;

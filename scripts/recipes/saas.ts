@@ -381,7 +381,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "bulk-action-bar",
     title: "Bulk action bar",
-    blocks: ["bulk"],
+    blocks: ["bulk-actions"],
     kind: "component",
     description:
       "A bar over a selection of rows that runs an action on all of them and reports failures.",
@@ -547,7 +547,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "timesheet",
     title: "Timesheet",
-    blocks: ["time-tracking"],
+    blocks: ["time-entries"],
     kind: "screen",
     description:
       "A week of time entries per project with a running timer and totals.",

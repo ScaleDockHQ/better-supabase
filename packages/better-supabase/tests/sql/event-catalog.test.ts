@@ -2,13 +2,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
-import { BLOCK_EVENT_RENAMES } from "../../src/core/block-events.ts";
-import {
-  currentEventTypes,
-  EVENT_TYPE_RENAMES,
-  EVENT_TYPE_SPLITS,
-  isOldEventType,
-} from "../../src/core/renames.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 
@@ -64,8 +57,13 @@ const RECORDED = (() => {
   return byModule;
 })();
 
-/** Events only a module option turns on. */
+/**
+ * Events only a module option turns on, and the chat share events, which the
+ * share-links file records once that block is installed.
+ */
 const OPTIONAL = new Set([
+  "ai_chat.shared",
+  "ai_chat.share_revoked",
   "field_value.viewed",
   "subject.accessed",
   "field_value.deleted",
@@ -130,30 +128,6 @@ describe("SQL module event catalog", () => {
         (type) =>
           !typeName.test(type) || !past.test(type) || type.includes("canceled"),
       ),
-    ).toEqual([]);
-  });
-
-  it("maps every renamed type to a current one", () => {
-    const known = new Set(MAP_TYPES);
-    expect(
-      Object.entries(BLOCK_EVENT_RENAMES).filter(
-        ([from, to]) => known.has(from) || !known.has(to),
-      ),
-    ).toEqual([]);
-  });
-
-  it("emits no type the 0.47 naming convention renamed", () => {
-    const recorded = [...RECORDED.values()].flatMap((types) => [...types]);
-    expect([...MAP_TYPES, ...recorded].filter(isOldEventType)).toEqual([]);
-  });
-
-  it("renames every old type to a type some block emits", () => {
-    const known = new Set(MAP_TYPES);
-    expect(
-      Object.keys({ ...EVENT_TYPE_RENAMES, ...EVENT_TYPE_SPLITS })
-        .filter((old) => !old.endsWith(".*"))
-        .flatMap(currentEventTypes)
-        .filter((type) => !known.has(type)),
     ).toEqual([]);
   });
 

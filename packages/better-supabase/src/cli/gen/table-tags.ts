@@ -401,9 +401,26 @@ export function withTableTags(
     }
   }
 
+  const withSearch =
+    vectorSearch.length > 0 && !config.blockNames.includes("vector-search");
+
   return changed
     ? {
         ...config,
+        ...(withSearch
+          ? {
+              blockNames: [...config.blockNames, "vector-search"],
+              instances: {
+                ...config.instances,
+                "vector-search": {
+                  name: "vector-search",
+                  block: "vector-search",
+                  uses: {},
+                  config: {},
+                },
+              },
+            }
+          : {}),
         blocks,
         subjects,
         vectorSearch,

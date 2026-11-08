@@ -1,8 +1,8 @@
 import "server-only";
 import type { EmployeeStatus } from "better-supabase/blocks/employees";
-import type { TimesheetStatus } from "better-supabase/blocks/time-tracking";
+import type { TimesheetStatus } from "better-supabase/blocks/time-entries";
 
-import { toWeeklyGrid } from "better-supabase/blocks/time-tracking";
+import { toWeeklyGrid } from "better-supabase/blocks/time-entries";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
@@ -34,8 +34,8 @@ export async function settle<T>(
   }
 }
 
-/** The zone the time-tracking block starts its days in. */
-export const TIME_ZONE = blockConfig["time-tracking"].options.timeZone;
+/** The zone the time-entries block starts its days in. */
+export const TIME_ZONE = blockConfig["time-entries"].options.timeZone;
 
 export interface DirectoryEmployee {
   readonly id: string;
@@ -122,11 +122,11 @@ export async function loadTimesheet(
     return null;
   }
 
-  const { timeTracking } = db;
+  const { timeEntries } = db;
 
   const [sheet, running] = await Promise.all([
-    timeTracking.timesheet({ week: Temporal.PlainDate.from(week) }).orThrow(),
-    timeTracking.running().orThrow(),
+    timeEntries.timesheet({ week: Temporal.PlainDate.from(week) }).orThrow(),
+    timeEntries.running().orThrow(),
   ]);
 
   const labels = new Map(

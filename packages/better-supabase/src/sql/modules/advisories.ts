@@ -75,7 +75,7 @@ const EVENTS: BlockSqlEvents<AdvisoriesEvents> = {
     subject: "vulnerabilities",
     payload: [...vulnerability.payload, "kevAddedOn", "kevDueOn"],
   },
-  "vex_statement.saved": {
+  "vex_statement.updated": {
     subject: "vex-statements",
     payload: [
       "organizationId",
@@ -298,7 +298,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, q.read),
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const guard = (logical: string, tenant: string): string =>

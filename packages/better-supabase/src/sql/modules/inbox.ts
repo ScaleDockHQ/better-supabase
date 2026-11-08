@@ -226,7 +226,7 @@ begin
   from ${q.t("conversations")} v
   on conflict do nothing;
   insert into ${msg} (${[cm("id"), cm("tenant"), cm("conversation"), cm("author"), cm("kind"), cm("body"), cm("mentions"), cm("sentAt"), cm("editedAt"), cm("deletedAt"), cm("createdAt")].join(", ")})
-  select x.id, x.${mt}, x.conversation_id, x.author_id, x.kind, left(x.body, ${String(m.maxBody)}), x.mentions, x.created_at, x.edited_at, x.deleted_at, x.created_at
+  select x.id, x.${mt}, x.conversation_id, x.author_id, x.kind, left(x.body, ${String(m.maxBody)}), x.mentions, x.created_at, x.edited_at, x.archived_at, x.created_at
   from ${messages} x
   order by x.created_at, x.id
   on conflict do nothing;
@@ -264,7 +264,7 @@ begin
       x.created_at
     from ${messages} x
     cross join lateral jsonb_array_elements(x.attachments) f
-    where x.deleted_at is null and jsonb_typeof(f) = 'object' and (f ? 'path' or f ? 'url');
+    where x.archived_at is null and jsonb_typeof(f) = 'object' and (f ? 'path' or f ? 'url');
   end if;
 ${reactions}
   drop table if exists ${old("inbox_mentions")} cascade;
@@ -292,7 +292,7 @@ ${LEGACY_FUNCTIONS.map((signature) => `drop function if exists ${ctx.schema}.${s
 const REPLAY: BlockSqlUpgrade = {
   from: 8,
   description:
-    "Inbound events take the status processing, count an attempt only when processing starts, wait for available_at after a failure and are offered again once their lease (locked_until) ran out; set_inbound_event_status takes retry_in and lease. Deliveries record delivered_at, read_at and failed_at, and conversations keep last_inbound_at and active_stream_id (set_active_stream claims or releases it and broadcasts stream). Option realtimeColumns adds the listed conversation columns to the staff ping, and timeline events broadcast event.created.",
+    "Inbound events take the status processing, count an attempt only when processing starts, wait for available_at after a failure and are offered again once their lease (lock_expires_at) ran out; set_inbound_event_status takes retry_in and lease. Deliveries record delivered_at, read_at and failed_at, and conversations keep last_inbound_at and active_stream_id (set_active_stream claims or releases it and broadcasts stream). Option realtimeColumns adds the listed conversation columns to the staff ping, and timeline events broadcast event.created.",
   sql: (ctx) => {
     const q = inboxSql(ctx);
     const ie = q.cols("inbound");

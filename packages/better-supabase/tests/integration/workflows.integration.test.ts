@@ -91,13 +91,13 @@ describe.skipIf(!live)("workflows module", () => {
         })
         .orThrow();
 
-      const events = await s.rows<{ type: string; organization_id: string }>(
-        "select type, organization_id from better_supabase.outbox_events where type like 'workflow_run.%' and payload ->> 'runId' = $1",
+      const events = await s.rows<{ type: string; tenant_id: string }>(
+        "select type, tenant_id from better_supabase.outbox_events where type like 'workflow_run.%' and payload ->> 'runId' = $1",
         [id],
       );
 
       expect(events).toEqual([
-        { type: "workflow_run.cancelled", organization_id: tenant },
+        { type: "workflow_run.cancelled", tenant_id: tenant },
       ]);
       const kept = await service.runs.get(id).orThrow();
       expect(kept).toMatchObject({ tenant, actor: member.id });

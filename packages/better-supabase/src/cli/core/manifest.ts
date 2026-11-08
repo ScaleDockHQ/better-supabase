@@ -268,6 +268,34 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
   },
   {
+    name: "workflows",
+    description: "Maintains the Workflow SDK runs the database keeps",
+    group: "local",
+    docs: "/docs/cli/workflows",
+    effects: [],
+    subcommands: [
+      {
+        name: "prune",
+        description:
+          "Deletes ended Workflow SDK runs, with their events, steps, streams and hooks, in batches",
+        docs: "/docs/cli/workflows#prune",
+        examples: [
+          {
+            command: "better-supabase workflows prune --older-than 30d",
+            description:
+              "Deletes completed, failed and cancelled runs older than 30 days",
+          },
+          {
+            command:
+              "better-supabase workflows prune --older-than 7d --status failed --dry-run",
+            description: "Counts the failed runs it would delete",
+          },
+        ],
+        effects: [{ kind: "database", access: "write" }],
+      },
+    ],
+  },
+  {
     name: "automations",
     description: "Lists the automations the installed blocks ship",
     group: "inspect",
@@ -310,6 +338,30 @@ export const COMMANDS: readonly CommandSpec[] = [
           "Copies the skills into each agent's skills folder in the project, or the home folder with --global",
         docs: "/docs/for-ai-agents",
         effects: [FILES],
+      },
+    ],
+  },
+  {
+    name: "cache",
+    description:
+      "Works with what the CLI keeps between runs: rendered modules, parsed schema files and the catalog snapshot",
+    group: "maintain",
+    docs: "/docs/cli/cache",
+    effects: [FILES],
+    subcommands: [
+      {
+        name: "purge",
+        description:
+          "Deletes the CLI's cache in node_modules/.cache/better-supabase; the next run rebuilds what it needs",
+        docs: "/docs/cli/cache#purge",
+        effects: [FILES],
+        examples: [
+          {
+            command: "better-supabase cache purge --dry-run",
+            description:
+              "Name the cached entries and their size, and keep them",
+          },
+        ],
       },
     ],
   },
@@ -415,10 +467,23 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "dev",
     description:
-      "Works with the local stack: its env file, commands run against it, its signing key and the stacks on this machine",
+      "Regenerates the project whenever the config, the schema files or a task's input changes; its subcommands work with the local stack",
     group: "local",
     docs: "/docs/cli/dev",
-    effects: [FILES, { kind: "process" }, { kind: "stacks", access: "write" }],
+    examples: [
+      {
+        command: "better-supabase dev",
+        description:
+          "Runs the generator tasks, prints Ready, and runs only what a change affects",
+      },
+    ],
+    effects: [
+      FILES,
+      READS_DATABASE,
+      MANAGEMENT_API,
+      { kind: "process" },
+      { kind: "stacks", access: "write" },
+    ],
     subcommands: [
       {
         name: "env",
@@ -429,7 +494,7 @@ export const COMMANDS: readonly CommandSpec[] = [
         examples: [
           {
             command:
-              "better-supabase dev env --write .env.supabase.local --prefix next",
+              "better-supabase dev env --out .env.supabase.local --prefix next",
             description:
               "Write the URL, keys and JWKS URL, plain and with NEXT_PUBLIC_",
           },
@@ -490,7 +555,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "db",
     description:
-      "Runs SQL files and seeds against the database, backfills columns, prunes ended workflow runs, and diffs the declarative schema: the local stack by default, or the one in the connection string",
+      "Runs SQL files and seeds against the database, backfills columns, and diffs the declarative schema: the local stack by default, or the one in the connection string",
     group: "local",
     docs: "/docs/cli/db",
     effects: [{ kind: "database", access: "write" }],
@@ -533,11 +598,11 @@ export const COMMANDS: readonly CommandSpec[] = [
       {
         name: "seed",
         description:
-          "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --apply",
+          "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --yes",
         docs: "/docs/cli/db#seed",
         effects: [
           FILES,
-          { kind: "database", access: "write", when: "--apply" },
+          { kind: "database", access: "write", when: "--yes" },
           { kind: "database", access: "write", when: "--tenant" },
           { kind: "database", access: "write", when: "--defaults" },
           { kind: "network", target: "cloud", when: "--sample" },
@@ -569,25 +634,6 @@ export const COMMANDS: readonly CommandSpec[] = [
         ],
         effects: [{ kind: "database", access: "write" }],
       },
-      {
-        name: "prune-workflows",
-        description:
-          "Deletes ended Workflow SDK runs, with their events, steps, streams and hooks, in batches",
-        docs: "/docs/cli/db#prune-workflows",
-        examples: [
-          {
-            command: "better-supabase db prune-workflows --older-than 30d",
-            description:
-              "Deletes completed, failed and cancelled runs older than 30 days",
-          },
-          {
-            command:
-              "better-supabase db prune-workflows --older-than 7d --status failed --dry-run",
-            description: "Counts the failed runs it would delete",
-          },
-        ],
-        effects: [{ kind: "database", access: "write" }],
-      },
     ],
   },
   {
@@ -608,7 +654,7 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
     effects: [
       READS_DATABASE,
-      { kind: "database", access: "write", when: "--fix" },
+      { kind: "database", access: "write", when: "--yes" },
       MANAGEMENT_API,
       { kind: "network", target: "github" },
     ],
@@ -650,90 +696,51 @@ export const COMMANDS: readonly CommandSpec[] = [
     effects: [FILES],
     subcommands: [
       {
-        name: "0.4",
-        description: "Renames from 0.3 to 0.4",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.5",
-        description: "Renames from 0.4 to 0.5",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.6",
-        description: "Changes from 0.5 to 0.6: kits become blocks and modules",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.9",
+        name: "naming",
         description:
-          "Changes from 0.8 to 0.9: sql.modules becomes blocks, and CLI calls use the new subcommands and flags",
+          "Applies the renames in api/naming.json: exports, types, environment variables and, for installed blocks, renamed SQL objects",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
       {
-        name: "0.11",
+        name: "extra-columns",
         description:
-          "Changes from 0.10 to 0.11: adopted outgoing webhooks get an explicit defaultFormat",
+          "Move blocks.<name>.options.extraColumns into the app's schema files and drop the options",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
       {
-        name: "0.15",
+        name: "owned-columns",
         description:
-          "Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, renamed blocks take their 0.15 names, and CLI calls use the new commands",
+          "Declare the columns blocks add to your own tables in your schema files",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
       {
-        name: "0.29",
+        name: "config",
         description:
-          "Changes from 0.28 to 0.29: records is renamed back to subjects in the config, and record tags in the schema files become subject tags",
+          "Remove the columns entries the render refuses: a null for a column the view lacks and a tenant that repeats sql.tenantColumn",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
       {
-        name: "0.32",
+        name: "table-modules",
         description:
-          "Changes from 0.31 to 0.32: tenant is the public word again (auth.tenant, requireTenant), and sign-in, session, proxy and cache names follow supabase-js",
+          "Import schema from generated-schema and read tables in client files through the table modules",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
       {
-        name: "0.35",
+        name: "server-imports",
         description:
-          "The 0.36 part of the 0.35 to 0.37 changes, as 0.36.0 shipped it: the proxy refreshes on every request, session cookies go through @supabase/ssr, and the cookie codec and prefetch predicates are gone. Prefer codemod 0.37",
+          "Import the account, csv and rate-limit helpers from their server subpaths",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
       {
-        name: "0.37",
+        name: "generators",
         description:
-          "Changes from 0.35 to 0.37: the proxy refreshes on every request, session cookies go through @supabase/ssr, the cookie codec and prefetch predicates are gone, and stock quantities are numeric",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.46",
-        description:
-          "Changes from 0.45 to 0.46: permission keys use the block name as their area and the read, write and manage verbs",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.47",
-        description:
-          "Changes from 0.46 to 0.47: entity keys equal the entity's singular, hint codes start with the entity's new name, the work_item, engagement and policy subject types become task, activity and compliance_policy, event types are named <entity>.<past verb>, and saved events split into created and updated",
-        docs: "/docs/cli/codemod",
-        effects: [FILES],
-      },
-      {
-        name: "0.53",
-        description:
-          "Changes from 0.52 to 0.53: blockConfig is imported from blocks.config.ts, so client components stop importing every installed block client",
+          "Import the generators from better-supabase/generators/<name> and list generators that still use the apiVersion 1 shape",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },

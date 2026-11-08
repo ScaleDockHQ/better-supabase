@@ -39,7 +39,7 @@ describe("search sources beyond the record's row", () => {
     );
     expect(sql).toContain(`'description', v.description,`);
     expect(sql).toContain(
-      `alter table "better_supabase"."search_documents" add column if not exists "description" text;`,
+      `alter table "better_supabase"."search_documents" add column "description" text;`,
     );
     expect(sql).toContain(
       `create trigger "bsb_search_customer_watch_0" after insert or update or delete on "public"."customer_contacts"`,

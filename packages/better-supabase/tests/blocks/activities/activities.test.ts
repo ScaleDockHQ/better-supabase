@@ -29,7 +29,7 @@ const ROW = {
   title: "Send proposal",
   body: null,
   outcome: null,
-  owner_user_id: "u1",
+  owner_id: "u1",
   due_at: "2026-10-16T09:00:00Z",
   done_at: null,
   duration_seconds: null,
@@ -41,12 +41,12 @@ const ROW = {
   overdue: false,
 };
 
-describe("engagements block", () => {
+describe("activities block", () => {
   it("logs with instants as ISO text and reads the row", async () => {
     const t = transport({ log_activity: () => ROW });
     const due = Temporal.Instant.from("2026-10-16T09:00:00Z");
 
-    const engagement = await createActivities({ transport: t })
+    const activity = await createActivities({ transport: t })
       .log({
         organizationId: "o",
         input: { type: "task", title: "Send proposal", dueAt: due },
@@ -66,14 +66,14 @@ describe("engagements block", () => {
         subjects: [{ type: "deal", id: "d1" }],
       },
     ]);
-    expect(engagement).toMatchObject({
+    expect(activity).toMatchObject({
       id: "e1",
       ownerId: "u1",
       subjects: [{ type: "deal", id: "d1" }],
       overdue: false,
     });
-    expect(engagement.dueAt?.equals(due)).toBe(true);
-    expect(engagement.doneAt).toBeUndefined();
+    expect(activity.dueAt?.equals(due)).toBe(true);
+    expect(activity.doneAt).toBeUndefined();
   });
 
   it("reads progress note fields, amends and marks errors", async () => {
@@ -102,9 +102,9 @@ describe("engagements block", () => {
       }),
     });
 
-    const engagements = createActivities({ transport: t });
+    const activities = createActivities({ transport: t });
 
-    const addendum = await engagements
+    const addendum = await activities
       .amend({ id: "e0", body: "Also ate well" })
       .orThrow();
 
@@ -118,7 +118,7 @@ describe("engagements block", () => {
     expect(addendum.lockedAt?.toString()).toBe("2026-10-15T09:00:00Z");
     expect(addendum.markedErrorAt).toBeUndefined();
 
-    const flagged = await engagements
+    const flagged = await activities
       .markError({ id: "e1", reason: "Wrong client" })
       .orThrow();
 
@@ -129,8 +129,8 @@ describe("engagements block", () => {
     expect(flagged.audience).toBeUndefined();
     expect(flagged.markedErrorAt).toBeDefined();
     expect(t.calls).toEqual([
-      ["amend_activity", { engagement: "e0", body: "Also ate well" }],
-      ["mark_activity_error", { engagement: "e1", reason: "Wrong client" }],
+      ["amend_activity", { activity: "e0", body: "Also ate well" }],
+      ["mark_activity_error", { activity: "e1", reason: "Wrong client" }],
     ]);
   });
 
@@ -140,7 +140,7 @@ describe("engagements block", () => {
       .update({ id: "e1", input: { dueAt: null, body: null } })
       .orThrow();
     expect(t.calls[0]?.[1]).toEqual({
-      engagement: "e1",
+      activity: "e1",
       attrs: { body: null, dueAt: null },
       subjects: null,
     });
@@ -155,26 +155,26 @@ describe("engagements block", () => {
       open_activities: () => [ROW],
     });
 
-    const engagements = createActivities({ transport: t });
+    const activities = createActivities({ transport: t });
     expect(
-      (await engagements.complete({ id: "e1", outcome: "sent" }).orThrow())
+      (await activities.complete({ id: "e1", outcome: "sent" }).orThrow())
         .doneAt,
     ).toBeDefined();
-    expect(await engagements.remove("e1").orThrow()).toBe(true);
+    expect(await activities.remove("e1").orThrow()).toBe(true);
     expect(
-      await engagements
+      await activities
         .of({ subject: { type: "deal", id: "d1" }, types: ["call"], limit: 10 })
         .orThrow(),
     ).toHaveLength(1);
     expect(
-      await engagements.next({ type: "deal", id: "d1" }).orThrow(),
+      await activities.next({ type: "deal", id: "d1" }).orThrow(),
     ).toBeUndefined();
     expect(
-      await engagements.open({ organizationId: "o" }).orThrow(),
+      await activities.open({ organizationId: "o" }).orThrow(),
     ).toHaveLength(1);
     expect(t.calls.map(([fn, args]) => [fn, args])).toEqual([
-      ["complete_activity", { engagement: "e1", done: true, outcome: "sent" }],
-      ["delete_activity", { engagement: "e1" }],
+      ["complete_activity", { activity: "e1", done: true, outcome: "sent" }],
+      ["delete_activity", { activity: "e1" }],
       [
         "activities_of",
         {
@@ -194,7 +194,7 @@ describe("engagements block", () => {
   });
 });
 
-describe("engagements block, optional fields", () => {
+describe("activities block, optional fields", () => {
   it("reads every optional field and reopens with done false", async () => {
     const full = {
       ...ROW,
@@ -213,7 +213,7 @@ describe("engagements block, optional fields", () => {
 
     const logged: unknown[] = [];
 
-    const engagements = createActivities({
+    const activities = createActivities({
       transport: t,
       logger: {
         error: (...args: unknown[]) => void logged.push(args),
@@ -224,9 +224,7 @@ describe("engagements block, optional fields", () => {
       hooks: { next: { after: () => undefined } },
     });
 
-    const done = await engagements
-      .complete({ id: "e1", done: false })
-      .orThrow();
+    const done = await activities.complete({ id: "e1", done: false }).orThrow();
 
     expect(done).toMatchObject({
       body: "Notes",
@@ -236,10 +234,10 @@ describe("engagements block, optional fields", () => {
       overdue: true,
     });
     expect(
-      (await engagements.next({ type: "deal", id: "d1" }).orThrow())?.id,
+      (await activities.next({ type: "deal", id: "d1" }).orThrow())?.id,
     ).toBe("e1");
     expect(t.calls[0]?.[1]).toEqual({
-      engagement: "e1",
+      activity: "e1",
       done: false,
       outcome: null,
     });
@@ -252,15 +250,15 @@ describe("engagements block, optional fields", () => {
       update_activity: () => ROW,
     });
 
-    const engagements = createActivities({ transport: t });
+    const activities = createActivities({ transport: t });
     const at = Temporal.Instant.from("2026-10-14T00:00:00Z");
-    await engagements
+    await activities
       .of({ subject: { type: "deal", id: "d1" }, before: at })
       .orThrow();
-    await engagements
+    await activities
       .open({ organizationId: "o", ownerId: "u2", dueBefore: at, limit: 5 })
       .orThrow();
-    await engagements
+    await activities
       .update({
         id: "e1",
         input: { doneAt: at },
@@ -282,7 +280,7 @@ describe("engagements block, optional fields", () => {
         page_size: 5,
       },
       {
-        engagement: "e1",
+        activity: "e1",
         attrs: { doneAt: "2026-10-14T00:00:00Z" },
         subjects: [{ type: "deal", id: "d1" }],
       },

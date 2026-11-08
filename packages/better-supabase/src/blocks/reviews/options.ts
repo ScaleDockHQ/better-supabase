@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -8,7 +8,6 @@ export type ReviewsSqlOptions = {
   readonly maxBodyLength?: number;
   readonly moderation?: string;
   readonly requirePurchase?: boolean;
-  readonly extraColumns?: ExtraColumns;
 };
 
 export const reviewsSqlOptions: BlockOptionsSchema<ReviewsSqlOptions> =
@@ -17,5 +16,4 @@ export const reviewsSqlOptions: BlockOptionsSchema<ReviewsSqlOptions> =
     maxBodyLength: option.number({ default: 5000 }),
     moderation: option.string({ default: "pre" }),
     requirePurchase: option.boolean({ default: false }),
-    extraColumns: option.extraColumns(),
   });

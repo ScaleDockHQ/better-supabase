@@ -29,7 +29,9 @@ export default function ContactPage({
         {t("All contacts")}
       </Link>
       <Suspense fallback={<ContactDetailSkeleton />}>
-        <ContactDetail params={params} />
+        {params.then(({ id }) => (
+          <ContactDetail id={id} />
+        ))}
       </Suspense>
     </>
   );

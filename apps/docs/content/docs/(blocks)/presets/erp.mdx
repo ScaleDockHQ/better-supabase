@@ -27,25 +27,25 @@ production.
 The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
 whatever they require:
 
-| Block                                       | Role in the app                                                         |
-| ------------------------------------------- | ----------------------------------------------------------------------- |
-| [contacts](/docs/blocks/contacts)           | Customers and suppliers, with payment terms and credit limits           |
-| [catalog](/docs/blocks/catalog)             | Products, variants and price lists                                      |
-| [inventory](/docs/blocks/inventory)         | Stock per location, purchase requisitions, purchase orders and receipts |
-| [assets](/docs/blocks/assets)               | The warehouses stock is kept at, and fixed assets that depreciate       |
-| [quotes](/docs/blocks/quotes)               | Quotes for a customer, priced from the catalog                          |
-| [orders](/docs/blocks/orders)               | Orders, their payment and fulfilment, and drop ship                     |
-| [invoices](/docs/blocks/invoices)           | Sales invoices and purchase bills, with their payments                  |
-| [accounting](/docs/blocks/accounting)       | The chart of accounts, journals, periods and reports                    |
-| [banking](/docs/blocks/banking)             | Bank accounts, imported statements and their reconciliation             |
-| [approvals](/docs/blocks/approvals)         | The decision on purchase requisitions and expense reports               |
-| [numbering](/docs/blocks/numbering)         | Gapless sequences for your own document numbers                         |
-| [employees](/docs/blocks/employees)         | The org chart, with each member's employee record                       |
-| [time-tracking](/docs/blocks/time-tracking) | Timesheets with weekly approval                                         |
-| [leave](/docs/blocks/leave)                 | Leave requests and balances                                             |
-| [expenses](/docs/blocks/expenses)           | Expense reports with receipts, policies and approval                    |
-| [saved-views](/docs/blocks/saved-views)     | Saved filters for each list                                             |
-| [automations](/docs/blocks/automations)     | The default automations, which members can edit                         |
+| Block                                     | Role in the app                                                         |
+| ----------------------------------------- | ----------------------------------------------------------------------- |
+| [contacts](/docs/blocks/contacts)         | Customers and suppliers, with payment terms and credit limits           |
+| [catalog](/docs/blocks/catalog)           | Products, variants and price lists                                      |
+| [inventory](/docs/blocks/inventory)       | Stock per location, purchase requisitions, purchase orders and receipts |
+| [assets](/docs/blocks/assets)             | The warehouses stock is kept at, and fixed assets that depreciate       |
+| [quotes](/docs/blocks/quotes)             | Quotes for a customer, priced from the catalog                          |
+| [orders](/docs/blocks/orders)             | Orders, their payment and fulfilment, and drop ship                     |
+| [invoices](/docs/blocks/invoices)         | Sales invoices and purchase bills, with their payments                  |
+| [accounting](/docs/blocks/accounting)     | The chart of accounts, journals, periods and reports                    |
+| [banking](/docs/blocks/banking)           | Bank accounts, imported statements and their reconciliation             |
+| [approvals](/docs/blocks/approvals)       | The decision on purchase requisitions and expense reports               |
+| [numbering](/docs/blocks/numbering)       | Gapless sequences for your own document numbers                         |
+| [employees](/docs/blocks/employees)       | The org chart, with each member's employee record                       |
+| [time-entries](/docs/blocks/time-entries) | Timesheets with weekly approval                                         |
+| [leave](/docs/blocks/leave)               | Leave requests and balances                                             |
+| [expenses](/docs/blocks/expenses)         | Expense reports with receipts, policies and approval                    |
+| [saved-views](/docs/blocks/saved-views)   | Saved filters for each list                                             |
+| [automations](/docs/blocks/automations)   | The default automations, which members can edit                         |
 
 Each organization runs `db.accounting.setup(organizationId)` once before
 anything books: it writes the accounting settings and seeds the generic

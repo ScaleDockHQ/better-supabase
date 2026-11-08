@@ -562,9 +562,9 @@ describe("CHECK not null", () => {
       nullable: true,
       optional: true,
     });
-    expect(model.meta.tables["customers"]?.columns["kvk"]?.nullable).toBe(
-      false,
-    );
+    expect(
+      model.meta.tables["customers"]?.columns["kvk"]?.nullable,
+    ).toBeUndefined();
   });
 
   const customersWith = async (
@@ -626,10 +626,8 @@ describe("CHECK not null", () => {
       nullable: false,
       optional: true,
     });
-    expect(filled("kvk").meta).toMatchObject({
-      nullable: false,
-      hasDefault: true,
-    });
+    expect(filled("kvk").meta).toMatchObject({ hasDefault: true });
+    expect(filled("kvk").meta).not.toHaveProperty("nullable");
 
     for (const triggers of [
       [trigger("after", ["insert"])],
@@ -776,17 +774,17 @@ describe("extension flags", () => {
     ).tables.find((table) => table.key === key)?.meta.flags;
 
   it("takes the soft-delete column from the subject's deletedAt", async () => {
-    const subjects = {
+    const recordTypes = {
       customer: { table: "customers", deletedAt: "archived_at" },
     };
 
-    expect(await flagsOf({ subjects }, "customers")).toMatchObject({
+    expect(await flagsOf({ recordTypes }, "customers")).toMatchObject({
       softDelete: "archived_at",
     });
     expect(
       await flagsOf(
         {
-          subjects,
+          recordTypes,
           blocks: { trash: { options: { deletedAt: "created_at" } } },
         },
         "customers",
@@ -795,7 +793,9 @@ describe("extension flags", () => {
     expect(
       await flagsOf(
         {
-          subjects: { customer: { table: "customers", deletedAt: "gone_at" } },
+          recordTypes: {
+            customer: { table: "customers", deletedAt: "gone_at" },
+          },
           blocks: { trash: { options: { deletedAt: "archived_at" } } },
         },
         "customers",
@@ -805,7 +805,7 @@ describe("extension flags", () => {
 
   it("rejects a subject deletedAt that is not a timestamp", async () => {
     const config = resolveConfig(
-      { subjects: { customer: { table: "customers", deletedAt: "name" } } },
+      { recordTypes: { customer: { table: "customers", deletedAt: "name" } } },
       fixtures,
     );
 
@@ -856,7 +856,7 @@ describe("config JSON Schema", () => {
       gen: true,
       api: true,
       tooling: true,
-      subjects: true,
+      recordTypes: true,
       blocks: true,
       adapters: true,
       $env: true,
@@ -880,9 +880,7 @@ describe("gen", () => {
     await cp(snapshotPath, join(dir, "snapshot.json"));
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({
-        gen: { casing: "camel", output: "src/db/generated.ts" },
-      }),
+      JSON.stringify({ gen: { casing: "camel", file: "src/db/generated.ts" } }),
     );
   });
 
@@ -960,7 +958,7 @@ describe("gen", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        gen: { casing: "camel", output: "src/db/generated.ts" },
+        gen: { casing: "camel", file: "src/db/generated.ts" },
         auth: { tenant: { column: "organization_id" } },
         database: {
           realtime: {
@@ -1026,7 +1024,7 @@ describe("gen", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        gen: { output: "src/db/generated.ts" },
+        gen: { file: "src/db/generated.ts" },
         auth: {
           authorization: withProvider({
             permissions: [
@@ -1151,8 +1149,8 @@ describe("sql", () => {
     );
     const listed = await run(["add", "audit", "--cwd", dir]);
     expect(listed.stdout).not.toContain("no entry matches");
-    expect(listed.stdout).toMatch(
-      /^Next:\n {2}supabase db diff -f better_supabase_module {2}creates a migration/m,
+    expect(listed.stderr).toMatch(
+      /^Next steps:\n {2}supabase db diff -f better_supabase_module {2}creates a migration/m,
     );
   });
 
@@ -1164,7 +1162,7 @@ describe("sql", () => {
     );
     const added = await run(["add", "audit", "--cwd", dir]);
     expect(added.stdout).not.toContain("no entry matches");
-    expect(added.stdout).toContain(
+    expect(added.stderr).toContain(
       "supabase db schema declarative sync -f better_supabase_module",
     );
   });
@@ -1174,6 +1172,11 @@ describe("sql", () => {
     const sync = await run(["upgrade", "--cwd", dir]);
     expect(sync.stdout).toContain("memberships");
     expect(sync.stdout).toContain("invitations");
+
+    const pending = await run(["upgrade", "--check", "--cwd", dir]);
+    expect(pending.code).toBe(1);
+    expect(pending.stderr).toContain("in no data migration");
+    expect((await run(["add", "--adopt", "--cwd", dir])).code).toBe(0);
     expect((await run(["upgrade", "--check", "--cwd", dir])).code).toBe(0);
     const list = await run(["blocks", "list", "--installed", "--cwd", dir]);
     expect(list.stdout).toMatch(/● invitations/);

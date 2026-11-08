@@ -351,10 +351,8 @@ describe("proposeAdoption over a view", () => {
     expect(proposal.entry.tables).toEqual({
       memberships: "public.organization_memberships",
     });
-    expect(proposal.entry.columns?.["memberships"]).toMatchObject({
-      updatedAt: null,
-      lastUsedAt: null,
-    });
+    // A view can't take the columns, so the block leaves them out unmapped.
+    expect(proposal.entry.columns?.["memberships"]).toBeUndefined();
   });
 
   it("refuses a view without a required column", () => {

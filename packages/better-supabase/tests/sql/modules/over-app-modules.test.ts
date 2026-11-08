@@ -144,7 +144,7 @@ const SETUP: Readonly<Partial<Record<(typeof MODULES)[number], Setup>>> = {
   attachments: { options: { offline: true } },
   billing: { options: { subscriptions: "webhook" } },
   contacts: { with: ["inbox"] },
-  funding: { with: ["time-tracking", "invoices"] },
+  funding: { with: ["time-entries", "invoices"] },
   orders: { options: { kitchen: true } },
   push: { with: ["notifications"] },
   queue: { options: { backend: "table", scheduler: "drain" } },

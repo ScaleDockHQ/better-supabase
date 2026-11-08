@@ -253,7 +253,7 @@ each `act.kind` means.
 
 ## Factories
 
-`factories()` from `better-supabase/config` writes `<output>.factories.ts`,
+`factories()` from `better-supabase/generators/factories` writes `<output>.factories.ts`,
 with one factory per table that returns a valid insert row. Defaults follow
 enums, CHECK bounds and `StoragePath` buckets, a foreign key takes the parent
 row or its id, and a column without a safe default is a required input.
@@ -261,7 +261,8 @@ Block entities also get a factory under their final singular noun, such as
 `factories.task`.
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, factories } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { factories } from "better-supabase/generators/factories";
 
 export default defineConfig({ gen: { generators: [factories()] } });
 ```

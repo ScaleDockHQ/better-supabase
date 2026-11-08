@@ -17,6 +17,7 @@ import type { CatalogPolicy } from "./introspect/types.ts";
 import {
   adoptedColumnProblems,
   auditRegistrations,
+  appColumnsOf,
   declaredIndexes,
   declaredTableColumns,
   declaredTables,
@@ -79,14 +80,13 @@ async function declarativeTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly path: string; readonly text: string }[]> {
   const toml = await readSupabaseToml(config.root);
+  const workflow = sqlWorkflow(config, toml);
+  const { files } = await schemaPaths(config.root, toml, workflow);
 
-  const { files } = await schemaPaths(
-    config.root,
-    toml,
-    sqlWorkflow(config, toml),
-  );
-
-  if (files.length === 0) {
+  // Only pg-delta treats the schema files as the whole schema. Under migra the
+  // app's tables stay in the migrations, so reading the schema files alone
+  // would lose them once the modules' own files sit in that folder.
+  if (files.length === 0 || workflow !== "pg-delta") {
     return schemaTexts(config);
   }
 
@@ -178,10 +178,14 @@ export async function moduleLayoutFor(
 
   const autoSameTenant =
     resolved.has("memberships") &&
-    typeof sameTenant === "object" &&
-    sameTenant !== null &&
-    "auto" in sameTenant &&
-    sameTenant.auto === true;
+    sameTenant !== false &&
+    !(
+      typeof sameTenant === "object" &&
+      sameTenant !== null &&
+      !Array.isArray(sameTenant) &&
+      "auto" in sameTenant &&
+      sameTenant.auto === false
+    );
 
   const base = moduleLayout(
     config,
@@ -203,8 +207,12 @@ export async function moduleLayoutFor(
 
   const apiUsed = await apiUsedNames(config);
 
+  const rerunnable =
+    sqlWorkflow(config, await readSupabaseToml(config.root)) === "migrations";
+
   return {
     ...base,
+    ...(rerunnable ? { rerunnable } : {}),
     ...(grants === undefined ? {} : { grants }),
     ...(apiUsed === undefined ? {} : { apiUsed }),
     schemasDir: await schemasDirOf(config),
@@ -241,11 +249,31 @@ export async function moduleLayoutFor(
   };
 }
 
+/** The schema files the app wrote, not the ones blocks did. */
+export async function appSchemaTexts(
+  config: ResolvedConfig,
+): Promise<Awaited<ReturnType<typeof declarativeTexts>>> {
+  return (await declarativeTexts(config)).filter(
+    (source) => !writtenByBlocks(source),
+  );
+}
+
+/** The columns the app's schema files add to block tables, by table. */
+export async function appColumnsFor(
+  config: ResolvedConfig,
+): Promise<ReturnType<typeof appColumnsOf>> {
+  return appColumnsOf(
+    (await declarativeTexts(config)).filter(
+      (source) => !writtenByBlocks(source),
+    ),
+  );
+}
+
 /**
  * `ownTables`, `ownViews`, `ownColumns`, `ownUpdatedAtTriggers` and
  * `ownPolicies`: the database's tables and views, then the app's files.
  */
-async function ownLayout(
+export async function ownLayout(
   config: ResolvedConfig,
 ): Promise<
   Pick<
@@ -256,6 +284,7 @@ async function ownLayout(
     | "ownUpdatedAtTriggers"
     | "ownPolicies"
     | "ownIndexes"
+    | "appColumns"
   >
 > {
   const database = await databaseTables(config);
@@ -274,6 +303,7 @@ async function ownLayout(
   const views = ownDeclaredViews(own, config.schemas);
 
   return {
+    appColumns: appColumnsOf(own),
     ownTables: {
       ...database.tables,
       ...ownDeclaredTables(own, config.schemas),

@@ -4,7 +4,6 @@ import type { CellContext, ColumnDef } from "@tanstack/react-table";
 
 import { useTable } from "@tanstack/react-table";
 import { useExtracted } from "next-intl";
-import { useState } from "react";
 import * as v from "valibot";
 
 import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
@@ -34,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Link } from "@/i18n/navigation";
+import { useSearchParam, useUrlParam } from "@/lib/url-filters";
 
 /** A team row as the grid shows it. */
 export interface TeamRow {
@@ -87,8 +87,9 @@ function StatusCell({ row }: TeamCell) {
 /** The organization's teams with a search and a status filter. */
 export function TeamsGrid({ teams }: { teams: readonly TeamRow[] }) {
   const t = useExtracted("teams");
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<StatusFilter>("active");
+  const [search, setSearch] = useSearchParam();
+  const [statusValue, setStatus] = useUrlParam("status", "active");
+  const status = v.is(StatusFilter, statusValue) ? statusValue : "active";
 
   const statusItems = [
     { value: "active", label: t("Active") },

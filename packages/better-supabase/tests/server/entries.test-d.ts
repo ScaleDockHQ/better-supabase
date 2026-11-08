@@ -10,7 +10,7 @@ import { withPostgresAdminClient } from "@supabase/server/middleware/postgres-ad
 import { describe, expectTypeOf, it } from "vitest";
 
 import { createQueue } from "../../src/blocks/queue/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { withBetterSupabase } from "../../src/server/composite.ts";
 import { withBlock } from "../../src/server/entries/block.ts";
 import { withServerContext } from "../../src/server/entries/context.ts";
@@ -20,7 +20,7 @@ import { withTenant } from "../../src/server/entries/tenant.ts";
 import { createServer } from "../../src/server/server.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const server = createServer(betterSupabase);
 const entry = withBetterSupabase(server);
 

@@ -1,6 +1,6 @@
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { jsonSchemaChecks, SCHEMA } from "../shared.ts";
+import { jsonSchemaChecks } from "../shared.ts";
 
 export const JSONB_SCHEMAS: BlockSqlDefinition = {
   name: "jsonb-schemas",
@@ -11,8 +11,6 @@ export const JSONB_SCHEMAS: BlockSqlDefinition = {
   target: "schema",
   build:
     () => `create extension if not exists pg_jsonschema with schema extensions;
-
-${SCHEMA}
 
 -- check_json_schema(column, schema[, where_column, where_value]) runs before the
 -- check constraint of the same name and raises 23514 with the schema errors as

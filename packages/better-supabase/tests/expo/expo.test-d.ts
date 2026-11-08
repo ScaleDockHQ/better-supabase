@@ -3,11 +3,11 @@ import type { ImmutableRequest, LoaderFunction } from "expo-server";
 import { createServerLoader } from "expo-server";
 import { describe, expectTypeOf, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createExpo } from "../../src/expo/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const bsb = createExpo(defineSupabase(schema), {
+const bsb = createExpo(createSupabase(schema), {
   env: {
     url: "https://abcdefghijklmnopqrst.supabase.co",
     publishableKey: "sb_publishable_test",

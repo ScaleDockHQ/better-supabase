@@ -6,7 +6,9 @@ import type { Framework } from "./project/detect.ts";
 
 import { groupEntries, INTEGRATION_INFO } from "../config/index.ts";
 import { PROVIDER_COMMENT } from "../preset/index.ts";
+import { schemaModulePath } from "./gen/emit.ts";
 import { INTEGRATIONS } from "./names.ts";
+import { nextAppFiles, nextPwaFiles } from "./templates-next.ts";
 
 export type Integration = IntegrationName;
 
@@ -25,6 +27,11 @@ export interface TemplateContext {
    * `blockConfig` from `blocks.config.ts`.
    */
   readonly blocks?: boolean;
+  /**
+   * Whether `gen.contentMapper` is on, which keeps the schema in
+   * `generated.ts`. Otherwise the server's schema is in `generated-schema.ts`.
+   */
+  readonly contentMapper?: boolean;
 }
 
 export interface TemplateFile {
@@ -124,16 +131,22 @@ const denoJson = (context: TemplateContext): string =>
     2,
   )}\n`;
 
+/** The module that exports `schema`. */
+const schemaModule = (context: TemplateContext): string =>
+  context.contentMapper === true
+    ? context.generated
+    : schemaModulePath(context.generated);
+
 const SHARED = "supabase/functions/_shared/supabase.ts";
 
 function shared(context: TemplateContext): TemplateFile {
   return {
     path: SHARED,
-    contents: `import { defineSupabase } from 'better-supabase';
+    contents: `import { createSupabase } from 'better-supabase';
 
-import { schema } from '${importFrom(context, SHARED, context.generated, true)}';
+import { schema } from '${importFrom(context, SHARED, schemaModule(context), true)}';
 
-export const betterSupabase = defineSupabase(schema);
+export const betterSupabase = createSupabase(schema);
 `,
   };
 }
@@ -172,6 +185,11 @@ export interface ConventionKeys {
   readonly migrationSince?: string;
   /** Turns on `gen.contentMapper`. */
   readonly contentMapper?: boolean;
+  /**
+   * `gen.hooks`, for a framework no adapter selects (`vue`, a registered
+   * binding).
+   */
+  readonly hooks?: string;
 }
 
 const quote = (text: string): string =>
@@ -224,7 +242,7 @@ export default defineConfig({${
         ? ""
         : `\n  // Expands into blocks and conventions; \`better-supabase config --preset\` shows what it holds.\n  preset: ${literal(preset)},`
     }
-  gen: { casing: '${casing}', output: '${context.generated}'${keys.contentMapper === true ? ", contentMapper: true" : ""} },${
+  gen: { casing: '${casing}', file: '${context.generated}'${keys.hooks === undefined ? "" : `, hooks: ${quote(keys.hooks)}`}${keys.contentMapper === true ? ", contentMapper: true" : ""} },${
     grouped["database"] === undefined
       ? ""
       : `\n  database: ${literal(grouped["database"])},`
@@ -242,7 +260,7 @@ export default defineConfig({${
   // \`tasks: ['types', 'sql', 'spec']\` in \`gen\`.
   ${
     keys.migrationSince === undefined
-      ? "// tooling: { env: { output: '.env.local' }, doctor: { format: 'sarif' } },"
+      ? "// tooling: { env: { file: '.env.local' }, doctor: { format: 'sarif' } },"
       : `// Doctor checks the migrations after this one for statements that lock tables.\n  tooling: { doctor: { migrationSafety: { since: ${quote(keys.migrationSince)} } } },`
   }
 });
@@ -255,6 +273,7 @@ export default defineConfig({${
 
   const path = libEntry(context);
   const generated = importFrom(context, path, context.generated);
+  const schemaFrom = importFrom(context, path, schemaModule(context));
   // Hermes has no Temporal, and patching the global breaks other libraries.
   const expo = context.frameworks.includes("expo");
 
@@ -262,13 +281,13 @@ export default defineConfig({${
     config,
     {
       path,
-      contents: `import { defineSupabase } from 'better-supabase';
+      contents: `import { createSupabase } from 'better-supabase';
 ${expo ? "import { Temporal } from 'temporal-polyfill';\n" : ""}
-import { schema } from '${generated}';
+import { schema } from '${schemaFrom}';
 
 export type { Functions, Models } from '${generated}';
 
-export const betterSupabase = defineSupabase(schema${expo ? ", { temporal: Temporal }" : ""});
+export const betterSupabase = createSupabase(schema${expo ? ", { temporal: Temporal }" : ""});
 `,
     },
   ];
@@ -332,6 +351,10 @@ import { betterSupabase } from '${importLib(context, server)}';
 export const bsb = createNext(betterSupabase);
 `,
         },
+        ...nextAppFiles(context, server, (file, to) =>
+          importFrom(context, file, to),
+        ),
+        ...nextPwaFiles(context),
         {
           path: proxy,
           contents: `import type { NextRequest } from 'next/server';
@@ -341,7 +364,7 @@ import { bsb } from '${importFrom(context, proxy, server)}';
 export const proxy = (request: NextRequest) => bsb.proxy(request);
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\\\.(?:svg|png|jpg|webp)$).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\\\.(?:svg|png|jpg|webp|html|webmanifest)$).*)'],
 };
 `,
         },
@@ -560,7 +583,7 @@ Deno.serve(bsb.fetch);
     ],
     next: [
       "List tables under `resources` to expose them as tools, e.g. `customers: true`.",
-      "Add `[functions.mcp] verify_jwt = false` and `[auth.oauth_server] enabled = true` to `supabase/config.toml`, so MCP clients get the sign-in challenge.",
+      "Add `[functions.mcp] verify_jwt = false` and `[auth.oauth_server] enabled = true` to `supabase/config.toml`: the function verifies the OAuth token itself, so the gateway's JWT check would reject the MCP client first. Keep `verify_jwt` on for functions that use `auth: 'user'`.",
     ],
   },
 };

@@ -746,7 +746,7 @@ describe("views", () => {
 describe("subject types", () => {
   it("emits SubjectType and RecordRef from config.subjects", async () => {
     const input = await model(() => ({}), {
-      subjects: {
+      recordTypes: {
         task: { table: "public.tasks" },
         customer: { table: "public.customers" },
       },
@@ -808,7 +808,7 @@ describe("app tables over the app's own tables", () => {
   it("filters a block-over-app table on the tenant column its subject names", async () => {
     const input = await model(appTable("client_rows", "company_id"), {
       auth: { tenant: { column: "organization_id" } },
-      subjects: {
+      recordTypes: {
         client: { table: "public.client_rows", tenant: "company_id" },
       },
     });

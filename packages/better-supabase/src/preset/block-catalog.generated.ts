@@ -454,7 +454,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "description": "A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.",
       "requires": [],
       "integrates": [
-        "memberships"
+        "memberships",
+        "teams"
       ],
       "modes": [
         "managed",
@@ -1129,13 +1130,13 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "streams"
       ],
       "integrates": [
+        "share-links",
         "entitlements",
         "ai-keys",
         "approvals",
         "data-lifecycle",
         "teams",
-        "usage",
-        "share-links"
+        "usage"
       ],
       "modes": [
         "managed",
@@ -1406,7 +1407,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "team.deleted",
         "team.updated",
         "team_member.added",
-        "team_member.removed"
+        "team_member.deleted"
       ],
       "subpath": "better-supabase/blocks/teams",
       "react": null,
@@ -1425,7 +1426,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "outbox",
         "drive",
         "subjects",
-        "bulk"
+        "bulk-actions"
       ],
       "modes": [
         "managed",
@@ -1459,7 +1460,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "audit",
         "approvals",
         "workflow-editor",
-        "bulk"
+        "bulk-actions"
       ],
       "modes": [
         "managed",
@@ -1495,6 +1496,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "field_definition.created",
         "field_definition.deleted",
         "field_definition.updated",
+        "field_value.deleted",
         "field_value.set"
       ],
       "subpath": "better-supabase/blocks/custom-fields",
@@ -1673,7 +1675,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "integrates": [
         "outbox",
-        "bulk"
+        "bulk-actions"
       ],
       "modes": [
         "managed",
@@ -1688,8 +1690,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "docs": "/docs/blocks/relations"
     },
     {
-      "name": "bulk",
-      "title": "Bulk actions",
+      "name": "bulk-actions",
+      "title": "BulkActions actions",
       "category": "Work management",
       "description": "One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.",
       "requires": [
@@ -1707,9 +1709,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "events": [
         "bulk_run.completed"
       ],
-      "subpath": "better-supabase/blocks/bulk",
+      "subpath": "better-supabase/blocks/bulk-actions",
       "react": null,
-      "docs": "/docs/blocks/bulk"
+      "docs": "/docs/blocks/bulk-actions"
     },
     {
       "name": "search",
@@ -1870,7 +1872,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "audit",
         "data-lifecycle",
         "housekeeping",
-        "bulk"
+        "bulk-actions"
       ],
       "modes": [
         "managed",
@@ -1904,7 +1906,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "events": [
         "reaction.added",
-        "reaction.removed"
+        "reaction.deleted"
       ],
       "subpath": "better-supabase/blocks/reactions",
       "react": {
@@ -2078,6 +2080,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "allocation.created",
         "allocation.filled",
         "allocation.released",
+        "allocation.transferred",
         "inventory_receipt.created",
         "purchase_order.cancelled",
         "purchase_order.placed",
@@ -2317,7 +2320,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "docs": "/docs/blocks/signatures"
     },
     {
-      "name": "time-tracking",
+      "name": "time-entries",
       "title": "Time tracking",
       "category": "People",
       "description": "Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.",
@@ -2345,9 +2348,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "timesheet.reopened",
         "timesheet.submitted"
       ],
-      "subpath": "better-supabase/blocks/time-tracking",
+      "subpath": "better-supabase/blocks/time-entries",
       "react": null,
-      "docs": "/docs/blocks/time-tracking"
+      "docs": "/docs/blocks/time-entries"
     },
     {
       "name": "identities",
@@ -2495,7 +2498,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
     },
     {
       "name": "activities",
-      "title": "Engagements",
+      "title": "Activities",
       "category": "CRM & sales",
       "description": "Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.",
       "requires": [
@@ -2805,7 +2808,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "employees",
       "title": "Employees",
       "category": "People",
-      "description": "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.",
+      "description": "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.",
       "requires": [
         "memberships",
         "permissions"
@@ -2814,7 +2817,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "outbox",
         "relations",
         "hiring",
-        "time-tracking",
+        "time-entries",
         "approvals"
       ],
       "modes": [
@@ -2845,7 +2848,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "integrates": [
         "outbox",
         "teams",
-        "bulk"
+        "bulk-actions"
       ],
       "modes": [
         "managed",
@@ -3307,7 +3310,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "memberships",
         "permissions",
         "subjects",
-        "time-tracking",
+        "time-entries",
         "invoices"
       ],
       "integrates": [
@@ -3729,7 +3732,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "mail-sync",
       "title": "Mail sync",
       "category": "CRM & sales",
-      "description": "Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.",
+      "description": "Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.",
       "requires": [
         "memberships",
         "permissions",
@@ -4115,7 +4118,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "employees",
         "leave",
         "qualifications",
-        "time-tracking",
+        "time-entries",
         "assets",
         "approvals",
         "notifications",
@@ -4594,7 +4597,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "contacts"
       ],
       "integrates": [
-        "time-tracking",
+        "time-entries",
         "bookings",
         "invoices",
         "numbering",
@@ -4631,7 +4634,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "permissions"
       ],
       "integrates": [
-        "time-tracking",
+        "time-entries",
         "leave",
         "shifts",
         "employees",
@@ -4758,6 +4761,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "integrates": [
         "invoices",
+        "inventory",
+        "catalog",
         "quotes",
         "orders",
         "shipments",
@@ -5239,7 +5244,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "advisory_product.updated",
         "advisory_product_version.created",
         "sbom_component.imported",
-        "vex_statement.saved",
+        "vex_statement.updated",
         "vulnerability.created",
         "vulnerability.enriched",
         "vulnerability.exploited"
@@ -5401,7 +5406,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
     {
       "name": "crm",
       "title": "CRM",
-      "description": "SaaS plus parties, pipelines, deals, quotes, sales targets and engagements, with synced mailboxes, email sequences, segments, assignment queues, enrichment, forecasts and lead scoring, a job queue for the sequence timers, tags, comments, an activity feed, custom fields, saved views and search.",
+      "description": "SaaS plus parties, pipelines, deals, quotes, sales targets and activities, with synced mailboxes, email sequences, segments, assignment queues, enrichment, forecasts and lead scoring, a job queue for the sequence timers, tags, comments, an activity feed, custom fields, saved views and search.",
       "group": "products",
       "groupTitle": "Products",
       "blocks": [
@@ -5481,7 +5486,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "subjects",
         "rank",
         "approvals",
-        "time-tracking",
+        "time-entries",
         "enrollments",
         "messaging",
         "timeline",
@@ -5669,7 +5674,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "catalog",
         "inventory",
         "orders",
-        "time-tracking",
+        "time-entries",
         "contacts",
         "quotes",
         "invoices",
@@ -5728,7 +5733,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "inventory",
         "orders",
         "forms",
-        "time-tracking",
+        "time-entries",
         "pipelines",
         "contacts",
         "quotes",
@@ -5785,7 +5790,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "imports",
         "subjects",
         "saved-views",
-        "bulk",
+        "bulk-actions",
         "search",
         "catalog",
         "enrollments",
@@ -5887,7 +5892,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "calendar",
         "approvals",
         "documents",
-        "time-tracking",
+        "time-entries",
         "pipelines",
         "hiring",
         "employees",
@@ -5933,7 +5938,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "versions",
         "approvals",
         "signatures",
-        "time-tracking",
+        "time-entries",
         "pipelines",
         "contacts",
         "tasks",
@@ -6396,7 +6401,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "drive-files",
         "forms",
         "signatures",
-        "time-tracking",
+        "time-entries",
         "pipelines",
         "contacts",
         "activities",
@@ -6515,7 +6520,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "approvals",
         "documents",
         "signatures",
-        "time-tracking",
+        "time-entries",
         "contacts",
         "invoices",
         "ledger",
@@ -6595,7 +6600,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
     {
       "name": "customer-success",
       "title": "Customer success",
-      "description": "SaaS plus accounts as parties, health scores from rules and metrics, NPS forms, playbooks as enrollments and engagements.",
+      "description": "SaaS plus accounts as parties, health scores from rules and metrics, NPS forms, playbooks as enrollments and activities.",
       "group": "verticals",
       "groupTitle": "Verticals",
       "blocks": [
@@ -7381,7 +7386,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "onboarding",
         "teams",
         "saved-views",
-        "bulk",
+        "bulk-actions",
         "metrics",
         "approvals",
         "enrollments",
@@ -7464,7 +7469,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "rank",
         "saved-views",
         "relations",
-        "bulk",
+        "bulk-actions",
         "search",
         "metrics",
         "calendar",
@@ -7483,7 +7488,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "promotions",
         "forms",
         "signatures",
-        "time-tracking",
+        "time-entries",
         "identities",
         "service-accounts",
         "templates",

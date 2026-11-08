@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { AnyCommand, CliValues } from "../core/command.ts";
 import type { PlannedFile } from "../core/files.ts";
 import type { CommandResult, NextStep } from "../core/io.ts";
 import type { Paint } from "../style.ts";
@@ -58,7 +58,7 @@ const REMOVE_ARGS = {
   },
 } as const;
 
-export type RemoveArgs = CliArgs<
+export type RemoveOptions = CliValues<
   typeof REMOVE_ARGS &
     Pick<typeof PLAN_ARGS, "dry-run" | "check"> &
     Pick<typeof SQL_ARGS, "force">
@@ -81,7 +81,7 @@ const resolved = (names: readonly string[]) =>
  */
 async function runRemove(
   config: ResolvedConfig,
-  args: RemoveArgs,
+  args: RemoveOptions,
   deps: RemoveDeps = {},
 ): Promise<CommandResult> {
   const names = [...new Set(args._)];

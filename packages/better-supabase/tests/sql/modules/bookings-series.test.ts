@@ -36,11 +36,9 @@ describe("bookings recurring option", () => {
 
   it("adds series, an indexed series key and the series functions", () => {
     const sql = sqlOf("bookings", ["organizations", "bookings"], RECURRING);
+    expect(sql).toContain(`create table "better_supabase"."booking_series"`);
     expect(sql).toContain(
-      `create table if not exists "better_supabase"."booking_series"`,
-    );
-    expect(sql).toContain(
-      `add column if not exists "series_id" uuid references "better_supabase"."booking_series" ("id") on delete set null`,
+      `add column "series_id" uuid references "better_supabase"."booking_series" ("id") on delete set null`,
     );
     expect(sql).toContain("bookings_series_idx");
 
@@ -107,7 +105,7 @@ describe("passes credits option", () => {
     expect(sql).not.toContain("pass_credit_entries");
     expect(sql).toContain(`"better_supabase"."ledger_post"(`);
     expect(sql).toContain("'pass-credit:' || ");
-    expect(sql).toContain(`"passes_credit_refund"`);
+    expect(sql).toContain(`"bsb_passes_credit_refund"`);
 
     expect(sql).toContain(
       `after update of "status" on "better_supabase"."bookings"`,

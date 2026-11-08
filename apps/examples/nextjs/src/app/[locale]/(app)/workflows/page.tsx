@@ -7,9 +7,11 @@ import {
   ScheduleList,
   ScheduleListSkeleton,
 } from "@/features/workflows/components/schedule-list";
-import { TenantWorkflowRuns } from "@/features/workflows/components/tenant-workflow-runs";
+import {
+  TenantWorkflowRuns,
+  TenantWorkflowRunsSkeleton,
+} from "@/features/workflows/components/tenant-workflow-runs";
 import { WorkflowActions } from "@/features/workflows/components/workflow-actions";
-import { WorkflowRunsSkeleton } from "@/features/workflows/components/workflow-runs";
 
 export default function WorkflowsPage() {
   const t = useExtracted("workflows");
@@ -24,11 +26,11 @@ export default function WorkflowsPage() {
         actions={<WorkflowActions />}
       />
       <div data-recipe="workflow-runs">
-        <Suspense fallback={<WorkflowRunsSkeleton />}>
+        <Suspense fallback={<TenantWorkflowRunsSkeleton />}>
           <TenantWorkflowRuns />
         </Suspense>
       </div>
-      <section className="space-y-3">
+      <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">{t("Schedules")}</h2>
         <Suspense fallback={<ScheduleListSkeleton />}>
           <ScheduleList />

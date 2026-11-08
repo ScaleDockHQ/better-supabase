@@ -69,8 +69,8 @@ export interface PushDeviceInput<F extends object = Record<never, never>> {
   readonly deviceName?: string;
   readonly appVersion?: string;
   /**
-   * Values for the app's extra columns (`options.extraColumns`); left out keeps
-   * the stored ones.
+   * Values for the app's extra columns (the columns the app's schema files
+   * add); left out keeps the stored ones.
    */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
@@ -81,7 +81,10 @@ export interface PushTarget<F extends object = Record<never, never>> {
   readonly token: string;
   readonly platform: PushPlatform;
   readonly provider: PushProvider;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
 }
 
@@ -100,8 +103,8 @@ export interface PushDevicesOptions<
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * A Standard Schema for the extra columns of the devices table
-   * (`blocks.push.options.extraColumns`): writes are validated, reads parsed.
+   * A Standard Schema for the extra columns of the devices table (columns the
+   * app's schema files add to the table): writes are validated, reads parsed.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

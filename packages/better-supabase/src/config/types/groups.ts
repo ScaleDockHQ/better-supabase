@@ -1,3 +1,4 @@
+import type { FrameworkBinding } from "../../plugins/frameworks.ts";
 import type { PresetName } from "../../preset/presets.ts";
 import type { PresetSpec } from "../../preset/spec.ts";
 import type { Casing } from "../../schema/types.ts";
@@ -15,7 +16,7 @@ import type {
   SourceConfig,
   TableConfig,
 } from "./codegen.ts";
-import type { DataHooksConfig, DataHooksFramework } from "./config.ts";
+import type { DataHooksConfig, HooksFramework } from "./config.ts";
 import type {
   BucketConfig,
   RealtimeConfig,
@@ -31,7 +32,6 @@ import type {
   GenConfig,
   IntegrationName,
   KeysConfig,
-  OpenApiConfig,
   SkillsConfig,
   SpecsConfig,
 } from "./tooling.ts";
@@ -174,7 +174,7 @@ export interface GenGroupConfig extends GenConfig {
    * Main generated module. Defaults to `src/lib/supabase/generated.ts`;
    * `database.types.ts` is written next to it.
    */
-  readonly output?: string;
+  readonly file?: string;
   /** Casing of generated models and returned rows. Defaults to `'snake'`. */
   readonly casing?: Casing;
   /**
@@ -183,18 +183,18 @@ export interface GenGroupConfig extends GenConfig {
    */
   readonly postgrestVersion?: string;
   /**
-   * Write one `records/<type>.ts` next to `output` per record type that an
+   * Write one `records/<type>.ts` next to `file` per record type that an
    * installed block binds to (`defineRecordType`). Defaults to `true`.
    */
-  readonly recordTypes?: boolean;
+  readonly records?: boolean;
   /**
-   * Write `hooks.ts` next to `output`: `defineDataHooks` from this framework's
+   * Write `hooks.ts` next to `file`: `defineDataHooks` from this framework's
    * entry, once per block instance and table (`useTickets`, `useTicket`).
    * Defaults to `react` when the adapters include `next`, `react` or `expo`,
    * and to `false` otherwise. The object form also wraps each table's select in
    * a function of the app's (`select`).
    */
-  readonly hooks?: DataHooksFramework | DataHooksConfig | false;
+  readonly hooks?: HooksFramework | DataHooksConfig | false;
   /** Overrides per generated table, keyed by `table` or `schema.table`. */
   readonly tables?: Readonly<Record<string, TableConfig>>;
   /** Types for jsonb columns, keyed by `table.column`. */
@@ -215,6 +215,8 @@ export interface GenGroupConfig extends GenConfig {
   /** Function results `gen` may type as not null, keyed by function name. */
   readonly functions?: Readonly<Record<string, FunctionConfig>>;
   readonly generators?: readonly Generator[];
+  /** Framework bindings of your own (`defineFramework`). */
+  readonly frameworks?: readonly FrameworkBinding[];
   /**
    * Modules that export `defineReadSet` results, compiled to functions in the
    * `read-sets` block.
@@ -224,8 +226,6 @@ export interface GenGroupConfig extends GenConfig {
 
 /** The API documents `better-supabase spec emit` writes. */
 export interface ApiConfig {
-  /** @deprecated Use `specs`; `openapi.entry` and `openapi.output` map onto it. */
-  readonly openapi?: OpenApiConfig;
   /** The documents `spec emit` writes (OpenAPI, AsyncAPI, Arazzo). */
   readonly specs?: SpecsConfig;
 }
@@ -255,7 +255,7 @@ export interface BetterSupabaseConfig {
    * and ranks to, keyed by type name. A table the app owns becomes a subject
    * with an `@bsb subject` tag in its table comment (ADR 0102).
    */
-  readonly subjects?: SubjectsConfig;
+  readonly recordTypes?: SubjectsConfig;
   /**
    * The blocks to install and keep in sync: a list of names, or an object keyed
    * by block name whose values set each block's ownership, names and options.

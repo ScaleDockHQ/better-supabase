@@ -9,7 +9,7 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import {
   createMcpAuth,
   MCP_AUTH_STATE_KEY,
@@ -29,7 +29,7 @@ const env = {
 const USER = "11111111-1111-4111-8111-111111111111";
 const ENDPOINT = "https://tools.test/mcp";
 const signer = await createTestSigner();
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 type ToolHandler = (...params: never[]) => unknown;
 

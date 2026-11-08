@@ -92,7 +92,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: `exists (select 1 from ${ctx.table("scorecards")} c where c.${s("id")} = ${t}.${c("scorecard")} and ${ctx.scope.check(`c.${s("tenant")}`, read)})`,
   }),
-  { drop: true, target: t },
+  { target: t },
 )}
 `;
 }
@@ -145,7 +145,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: `${c("user")} = (select auth.uid()) or exists (select 1 from ${ctx.table("interviews")} i where i.${v("id")} = ${t}.${c("interview")} and ${ctx.scope.check(`i.${v("tenant")}`, read)})`,
   }),
-  { drop: true, target: t },
+  { target: t },
 )}
 `;
 }

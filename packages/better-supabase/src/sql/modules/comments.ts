@@ -74,7 +74,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         message: "message_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         task: "task_id",
         createdBy: "created_by",
         createdAt: "created_at",
@@ -376,8 +376,8 @@ end;
 $$;
 ${userGrant(`${fn("comment_message_readable")}(uuid, uuid)`)}
 
-${renderPolicy(makePolicy({ table: tasks, name: sqlIdent(`${ctx.tableName("tasks").name}_read`), command: "select", roles: ["authenticated"], using: `${fn("comment_message_readable")}(${k("message")}, ${k("tenant")})` }), { drop: true, target: tasks })}
-${renderPolicy(makePolicy({ table: tasks, name: sqlIdent(`${ctx.tableName("tasks").name}_insert`), command: "insert", roles: ["authenticated"], check: `${ctx.has("tasks", "createdBy") ? `${k("createdBy")} = (select auth.uid()) and ` : ""}${fn("comment_message_readable")}(${k("message")}, ${k("tenant")})` }), { drop: true, target: tasks })}
+${renderPolicy(makePolicy({ table: tasks, name: sqlIdent(`${ctx.tableName("tasks").name}_read`), command: "select", roles: ["authenticated"], using: `${fn("comment_message_readable")}(${k("message")}, ${k("tenant")})` }), { target: tasks })}
+${renderPolicy(makePolicy({ table: tasks, name: sqlIdent(`${ctx.tableName("tasks").name}_insert`), command: "insert", roles: ["authenticated"], check: `${ctx.has("tasks", "createdBy") ? `${k("createdBy")} = (select auth.uid()) and ` : ""}${fn("comment_message_readable")}(${k("message")}, ${k("tenant")})` }), { target: tasks })}
 
 -- A record's conversation, or null before its first comment.
 create or replace function ${fn("comment_conversation")}(tenant ${id}, subject_type text, subject_id text)

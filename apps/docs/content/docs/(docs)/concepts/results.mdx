@@ -91,7 +91,7 @@ if (!archived.ok && isBlockHint(archived.error, "TASK_LOCKED")) {
 Add mappers for your own `RAISE` codes:
 
 ```ts
-const betterSupabase = defineSupabase(schema, {
+const betterSupabase = createSupabase(schema, {
   errors: [
     (raw, fallback) =>
       raw.hint === "quota_exceeded"
@@ -118,7 +118,7 @@ export class AppError extends Error {
 }
 
 export const toAppError = (error: DbError) => new AppError(error);
-export const betterSupabase = defineSupabase(schema).mapError(toAppError);
+export const betterSupabase = createSupabase(schema).mapError(toAppError);
 
 await db.customers.get(id).orThrow(); // throws AppError
 ```

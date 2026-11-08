@@ -33,7 +33,7 @@ function guard(names: PromotionsNames, tenant: string): string {
   end if;`;
 }
 
-/** `options.extraColumns`, added to the promotions table. */
+/** The columns your schema files add, added to the promotions table. */
 export const promotionExtras = (
   ctx: BlockSqlContext,
 ): ReturnType<BlockSqlContext["extraColumns"]> =>

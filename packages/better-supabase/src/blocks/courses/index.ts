@@ -45,8 +45,6 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { coursesBlock } from "./manifest.ts";
 
-export { coursesSqlOptions, type CoursesSqlOptions } from "./options.ts";
-
 export {
   courseLearnersBinding,
   type CourseLearnersWrites,

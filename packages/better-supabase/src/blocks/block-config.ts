@@ -23,10 +23,10 @@ export interface GeneratedBlock {
    */
   readonly options: Readonly<Record<string, unknown>>;
   /**
-   * The extra columns of the block's main table (`options.extraColumns`), by
-   * name and SQL type. `defineBlocks` builds `columnsSchema(columns)` from them
-   * and passes it as the block's `fields`, unless the app sets `fields`
-   * itself.
+   * The extra columns of the block's main table (the columns your schema files
+   * add), by name and SQL type. `defineBlocks` builds `columnsSchema(columns)`
+   * from them and passes it as the block's `fields`, unless the app sets
+   * `fields` itself.
    */
   readonly columns?: Readonly<Record<string, string>>;
   /**

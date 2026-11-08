@@ -4,7 +4,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Result } from "../../src/core/result.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
-import { createBulk } from "../../src/blocks/bulk/index.ts";
+import { createBulkActions } from "../../src/blocks/bulk-actions/index.ts";
 import { createCollections } from "../../src/blocks/collections/index.ts";
 import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createSavedViews } from "../../src/blocks/saved-views/index.ts";
@@ -39,7 +39,7 @@ const MODULES = [
   "subjects",
   "contacts",
   "saved-views",
-  "bulk",
+  "bulk-actions",
   "collections",
 ];
 
@@ -460,7 +460,7 @@ describe.skipIf(!live)("collections", () => {
       const transport = sqlTransport(s.sql);
       const collections = createCollections({ transport });
       const views = createSavedViews({ transport });
-      const bulk = createBulk({ transport });
+      const bulk = createBulkActions({ transport });
 
       await s.service();
 

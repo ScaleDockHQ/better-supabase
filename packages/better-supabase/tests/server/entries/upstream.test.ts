@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { RequestContext } from "../../../src/core/plugin.ts";
 import type { SupabaseAuthContext } from "../../../src/server/entries/upstream.ts";
 
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import {
   contextFromSupabase,
   withBetterDb,
@@ -16,7 +16,7 @@ import { capturingClient } from "../../fixtures/client.ts";
 import { fakeSql } from "../../fixtures/fake-sql.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const ANON = {
   actor: { id: "anon", kind: "anon", role: "anon" },

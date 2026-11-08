@@ -20,7 +20,7 @@ import type { StateMachineEvents } from "better-supabase/blocks/state-machine";
 import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TagsEvents } from "better-supabase/blocks/tags";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
-import type { TimeTrackingEvents } from "better-supabase/blocks/time-tracking";
+import type { TimeEntriesEvents } from "better-supabase/blocks/time-entries";
 import { saasBlock as saasBlockInstance } from "better-supabase/blocks/saas";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
@@ -46,7 +46,7 @@ import { stateMachineBlock as stateMachineBlockInstance } from "better-supabase/
 import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
 import { tagsBlock as tagsBlockInstance } from "better-supabase/blocks/tags";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
-import { timeTrackingBlock as timeTrackingBlockInstance } from "better-supabase/blocks/time-tracking";
+import { timeEntriesBlock as timeEntriesBlockInstance } from "better-supabase/blocks/time-entries";
 
 /** Re-exported for server code; client code imports `blocks.config.ts`. */
 export { blockConfig };
@@ -85,14 +85,14 @@ export const blocks = {
   subjects: subjectsBlockInstance,
   tags: tagsBlockInstance,
   teams: teamsBlockInstance,
-  "time-tracking": timeTrackingBlockInstance,
+  "time-entries": timeEntriesBlockInstance,
 } as const;
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & RemindersEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TimeTrackingEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & RemindersEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TimeEntriesEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -196,7 +196,7 @@ export const blockEvents: Events<BlockEvents> = {
     "team.restored",
     "team.updated",
     "team_member.added",
-    "team_member.removed",
+    "team_member.deleted",
     "time_entry.deleted",
     "time_entry.recorded",
     "time_entry.started",
@@ -308,7 +308,7 @@ export const blockEventSchemas = {
   "team.restored": true,
   "team.updated": true,
   "team_member.added": true,
-  "team_member.removed": true,
+  "team_member.deleted": true,
   "time_entry.deleted": true,
   "time_entry.recorded": true,
   "time_entry.started": true,

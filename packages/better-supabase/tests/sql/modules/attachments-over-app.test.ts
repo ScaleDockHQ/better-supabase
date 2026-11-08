@@ -42,6 +42,16 @@ create table storage.objects (
   version text
 );
 alter table storage.objects enable row level security;
+
+-- PGlite has no Realtime schema; block policies are written on its messages table.
+create schema if not exists realtime;
+create table realtime.messages (
+  id bigint generated always as identity primary key,
+  topic text not null default '',
+  extension text not null default 'broadcast'
+);
+create function realtime.topic() returns text language sql stable
+as $$ select nullif(current_setting('realtime.topic', true), '') $$;
 `;
 
 // The app's own files table: renamed columns, an enum status, its own

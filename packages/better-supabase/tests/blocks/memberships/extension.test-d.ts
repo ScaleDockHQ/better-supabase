@@ -5,7 +5,7 @@ import { describe, expectTypeOf, it } from "vitest";
 import type { Schema } from "../../../src/index.ts";
 
 import { membershipsExtension } from "../../../src/blocks/memberships/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 
 /**
  * What `gen` emits for the app's own `client_rows` after a `tables.<name>`
@@ -29,7 +29,7 @@ type Models = {
 declare const schema: Schema<Models>;
 declare const client: SupabaseClient;
 
-const db = defineSupabase(schema).use(membershipsExtension()).connect(client);
+const db = createSupabase(schema).use(membershipsExtension()).connect(client);
 
 describe("membershipsExtension over an enriched table", () => {
   it("takes the tenant options and leaves the tenant column to the extension", async () => {

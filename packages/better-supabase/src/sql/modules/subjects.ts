@@ -32,7 +32,6 @@ import {
 } from "../subject-registry.ts";
 import { excludeTemplates } from "../template-rows-sql.ts";
 import { accessModel } from "./permissions-model.ts";
-import { formerSubjectTypes } from "./subject-type-renames.ts";
 import {
   SUBJECT_READ_EVENTS,
   subjectReadsContract,
@@ -288,25 +287,14 @@ function rowMatches(subject: RegisteredSubject, id: string): string {
 
 function cases(
   subjects: readonly RegisteredSubject[],
-  former: ReadonlyMap<string, string>,
   branch: (subject: RegisteredSubject) => string | undefined,
 ): string {
-  const registered = new Set(subjects.map((subject) => subject.type));
-
   const whens = subjects.flatMap((subject) => {
     const body = branch(subject);
-    const old = former.get(subject.type);
-
-    // Until 0.48 a block subject renamed in 0.47 still resolves by its old
-    // type, unless another subject took the old name.
-    const types =
-      old === undefined || registered.has(old)
-        ? [subject.type]
-        : [subject.type, old];
 
     return body === undefined
       ? []
-      : [`    when ${types.map(sqlString).join(", ")} then\n      ${body}`];
+      : [`    when ${sqlString(subject.type)} then\n      ${body}`];
   });
 
   return whens.length === 0 ? "    when '' then null;" : whens.join("\n");
@@ -462,7 +450,6 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   }
 
   const subjects = registeredSubjects(ctx.subjects, ctx.naming);
-  const former = formerSubjectTypes(ctx);
 
   const provider =
     accessModel(ctx) === "provider" ? layout.accessProvider : undefined;
@@ -491,7 +478,7 @@ set search_path = ''
 as $$
 begin
   case subject_title.subject_type
-${cases(subjects, former, (subject) =>
+${cases(subjects, (subject) =>
   subject.config.title === undefined
     ? undefined
     : `return (select s.${sqlIdent(subject.config.title)}::text from ${subject.qualified} s where ${rowMatches(subject, "subject_title.subject_id")});`,
@@ -513,7 +500,7 @@ set search_path = ''
 as $$
 begin
   case subject_url.subject_type
-${cases(subjects, former, (subject) =>
+${cases(subjects, (subject) =>
   subject.config.url === undefined
     ? undefined
     : `return (select ${urlExpression(subject.config.url)} from ${subject.qualified} s where ${rowMatches(subject, "subject_url.subject_id")});`,
@@ -573,7 +560,6 @@ begin
   case can_subject.subject_type
 ${cases(
   subjects,
-  former,
   (subject) =>
     `return exists (
         select 1 from ${subject.qualified} s
@@ -644,7 +630,6 @@ begin
   case can_subject_for.subject_type
 ${cases(
   subjects,
-  former,
   (subject) =>
     `return exists (
         select 1 from ${subject.qualified} s
@@ -709,8 +694,8 @@ ${userGrant(`${fn("subject_presence_allowed")}(text)`)}
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: check }), { drop: true, target: "realtime.messages" })}
-        ${renderPolicy(makePolicy({ table: "realtime.messages", name: send, command: "insert", roles: ["authenticated"], check }), { drop: true, target: "realtime.messages" })}
+        ${renderPolicy(makePolicy({ table: "realtime.messages", name: receive, command: "select", roles: ["authenticated"], using: check }), { target: "realtime.messages" })}
+        ${renderPolicy(makePolicy({ table: "realtime.messages", name: send, command: "insert", roles: ["authenticated"], check }), { target: "realtime.messages" })}
   end if;
 end;
 $$;

@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { Generator } from "../../../src/config/index.ts";
+
 import { printableConfig } from "../../../src/cli/commands/config.ts";
 import { run } from "../../../src/cli/core/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
@@ -27,7 +29,9 @@ describe("config", () => {
   },
   gen: {
     casing: "camel",
-    generators: [{ apiVersion: 1, name: "tables", generate: () => [] }],
+    generators: [
+      { apiVersion: 2, name: "tables", version: "1.0.0", generate: () => [] },
+    ],
   },
 };\n`,
     );
@@ -45,7 +49,7 @@ describe("config", () => {
       source: {
         dbUrl: "postgresql://postgres:redacted@db.example.com:5432/postgres",
       },
-      generators: [{ name: "tables", apiVersion: 1 }],
+      generators: [{ name: "tables", version: "1.0.0", apiVersion: 2 }],
     });
     expect(result.stdout).not.toContain("secret");
   });
@@ -91,14 +95,11 @@ describe("config", () => {
     ).toMatchObject({ source: { dbUrl: "postgresql://localhost/postgres" } });
   });
 
-  it("prints a generator without an apiVersion as null", () => {
-    const config = resolveConfig(
-      { gen: { generators: [{ name: "plain", generate: () => [] }] } },
-      "/project",
-    );
+  it("refuses a generator that still targets API 1, naming the change", () => {
+    const old = { name: "plain", generate: () => [] } as unknown as Generator;
 
-    expect(printableConfig(config)).toMatchObject({
-      generators: [{ name: "plain", apiVersion: null }],
-    });
+    expect(() =>
+      resolveConfig({ gen: { generators: [old] } }, "/project"),
+    ).toThrow(/targets generator API 1; this better-supabase runs 2/);
   });
 });

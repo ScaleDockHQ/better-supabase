@@ -27,10 +27,10 @@ logged in the module's own table instead of the audit log. Signing needs the
 
 ## Tables
 
-| Table            | Holds                                                                                                                                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `passes`         | One pass: `kind`, the holder (`holder_user_id`, `holder_name`, `holder_email`), the record, booking or resource it is for, `uses_allowed`, `uses`, the validity window, `status` and the `nonce` its token carries |
-| `pass_check_ins` | Every scan: the pass, the resource and booking, the `gate`, the `method` (`qr`, `nfc` or `manual`), `admitted`, the `reason` when turned away                                                                      |
+| Table            | Holds                                                                                                                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `passes`         | One pass: `kind`, the holder (`holder_id`, `holder_name`, `holder_email`), the record, booking or resource it is for, `uses_allowed`, `uses`, the validity window, `status` and the `nonce` its token carries |
+| `pass_check_ins` | Every scan: the pass, the resource and booking, the `gate`, the `method` (`qr`, `nfc` or `manual`), `admitted`, the `reason` when turned away                                                                 |
 
 Both tables are read through the functions only. The holder reads their own
 passes with the nonce; members with `passes.read` list the organization's.
@@ -64,7 +64,7 @@ A pass for a booking is a ticket: it is valid until the booking ends and
 admits once, unless `validUntil` or `usesAllowed` say otherwise. A pass for a
 `resourceId` (a gym, a venue, a meeting room) admits as many times as
 `usesAllowed` allows, or without a limit when it's missing. A pass can also
-name any record in `config.subjects`, such as an event or a membership, with
+name any record in `config.recordTypes`, such as an event or a membership, with
 `subject`. `kind` is free text such as `ticket`, `membership` or `visitor`.
 Issuing needs `passes.manage`.
 
@@ -218,7 +218,7 @@ for the booking and scan that: scanning the pack itself counts as another use.
 
 ## No overlapping passes
 
-`noOverlap: true` adds the `passes_no_overlap` exclusion constraint. A holder
+`noOverlap: true` adds the `passes_no_overlap_excl` exclusion constraint. A holder
 can't have two active passes of the same kind and resource with overlapping
 validity. It is off by default because existing data may already overlap.
 

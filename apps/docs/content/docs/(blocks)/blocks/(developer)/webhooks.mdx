@@ -357,7 +357,7 @@ on the response wins when it asks for longer, up to a day.
 An endpoint whose deliveries keep failing for `disableAfter` (5 days)
 without a success in between is disabled, its pending deliveries are
 canceled and the outbox gets `webhook_endpoint.disabled`. Setting `enabled` back to
-`true` clears `failing_since`.
+`true` clears `first_failed_at`.
 `redeliver(deliveryId)` queues a finished delivery again from its first
 attempt.
 

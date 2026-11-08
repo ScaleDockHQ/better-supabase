@@ -13,15 +13,20 @@ import type {
   PresetSpec,
   ResolvedPreset,
 } from "../../preset/index.ts";
-import type { AnyCommand, CliArgs } from "../core/command.ts";
+import type { AnyCommand, CliValues } from "../core/command.ts";
 import type { CommandResult, NextStep } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 import type { InstallTarget, Project } from "../project/detect.ts";
 import type { Prompter } from "../prompts.ts";
 import type { Now } from "../sql/migrations.ts";
-import type { TemplateFile } from "../templates.ts";
+import type { TemplateContext, TemplateFile } from "../templates.ts";
 
 import { groupConfig, resolveConfig } from "../../config/index.ts";
+import {
+  frameworkFiles,
+  frameworkRegistry,
+  serverImportOf,
+} from "../../plugins/index.ts";
 import {
   conventionConfig,
   designConfig,
@@ -98,7 +103,7 @@ import {
 } from "../wiring.ts";
 import { blockConfigImport, blocksWiringPath } from "./add.ts";
 
-export type InitArgs = CliArgs<
+export type InitOptions = CliValues<
   typeof INIT_ARGS & typeof CONVENTION_ARGS & typeof PLAN_ARGS
 >;
 
@@ -238,7 +243,7 @@ async function initTarget(
 
 /** The preset `--preset` names, or the one the person picks; `null` for none. */
 async function chosenPreset(
-  args: InitArgs,
+  args: InitOptions,
   flags: Partial<ConfigConventions>,
   prompts: Prompter | undefined,
   root: string,
@@ -350,7 +355,7 @@ function withDesign(
 
 async function runInit(
   config: ResolvedConfig,
-  given: InitArgs,
+  given: InitOptions,
   prompts?: Prompter,
   now: Now = () => new Date(),
   env: CliEnv = {},
@@ -365,9 +370,9 @@ async function runInit(
   }
 
   // SAFETY: the spread keeps every parsed flag; only preset gains a value.
-  const withPreset = { ...given, preset: given.from } as InitArgs;
+  const withPreset = { ...given, preset: given.from } as InitOptions;
 
-  const args: InitArgs =
+  const args: InitOptions =
     given.from === undefined || databaseFrom !== undefined ? given : withPreset;
 
   const flags = conventionFlags(args);
@@ -412,11 +417,11 @@ async function runInit(
 
   const root = resolve(config.root, target.dir);
   const inPackage = target.dir !== ".";
-  const workspaceProject = await detectProject(config.root);
+  const workspaceProject = await detectProject(config.root, config.frameworks);
 
   const project: Project = inPackage
     ? {
-        ...(await detectProject(root)),
+        ...(await detectProject(root, config.frameworks)),
         packageManager: workspaceProject.packageManager,
       }
     : workspaceProject;
@@ -439,7 +444,7 @@ async function runInit(
     chosen === null
       ? []
       : [
-          ...chosen.resolved.preset.integrations,
+          ...chosen.resolved.preset.adapters,
           ...integrationsForFramework(chosen.resolved.preset.framework),
         ],
   );
@@ -474,11 +479,24 @@ async function runInit(
     generated = inPackage ? (await loadConfig(root)).output : config.output;
   }
 
-  const templateContext = templateContextFor(
-    project,
-    generated,
-    chosen !== null || keys.blocks !== undefined,
+  const templateContext: TemplateContext = {
+    ...templateContextFor(
+      project,
+      generated,
+      chosen !== null || keys.blocks !== undefined,
+    ),
+    ...(contentMapper ? { contentMapper } : {}),
+  };
+
+  const hooksBinding = frameworkRegistry(config.frameworks).detect(
+    project.dependencies,
   );
+
+  // A framework no adapter selects can't be derived when the config resolves.
+  const hooksKey =
+    hooksBinding !== undefined && hooksBinding.integrations === undefined
+      ? { hooks: hooksBinding.name }
+      : {};
 
   const migrationSince =
     (await latestMigrationVersion(root)) ??
@@ -501,15 +519,24 @@ async function runInit(
               ...(keys.blocks === undefined ? {} : { blocks: keys.blocks }),
               provider: conventions.access === "provider",
               ...mapperKey,
+              ...hooksKey,
               ...since,
             }
           : {
               provider: conventions.access === "provider",
               ...mapperKey,
+              ...hooksKey,
               ...since,
             },
       ),
       ...integrationFiles(integrations, templateContext),
+      ...(hooksBinding === undefined
+        ? []
+        : frameworkFiles(hooksBinding, {
+            srcDir: templateContext.srcDir,
+            generated: templateContext.generated,
+            tsExtensions: templateContext.tsExtensions,
+          })),
       ...(chosen === null
         ? []
         : [
@@ -555,6 +582,11 @@ async function runInit(
     project.frameworks.length > 0
       ? `Found ${project.frameworks.join(", ")}${where}.`
       : `No framework found${where}.`,
+    ...(hooksBinding === undefined || serverImportOf(hooksBinding) === undefined
+      ? []
+      : [
+          `Server adapter for ${hooksBinding.name}: ${serverImportOf(hooksBinding)}.`,
+        ]),
     ...(existing === undefined ? [] : ["", ...existingLines(existing)]),
     "",
     ...changeLines(applied),
@@ -596,7 +628,7 @@ async function runInit(
       groupConfig({
         preset: chosen.value,
         casing,
-        output: generated,
+        file: generated,
         ...designKeys(chosen.resolved, chosen.design),
         ...(workflow === "pg-delta" ? {} : { sql: { workflow } }),
       }),

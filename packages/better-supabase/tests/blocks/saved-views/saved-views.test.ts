@@ -13,7 +13,7 @@ import {
   savedViewStateSchema,
   urlStateFromQuery,
 } from "../../../src/blocks/saved-views/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { defineListQuery } from "../../../src/list/index.ts";
 import {
   SAVED_VIEW_KINDS as SQL_KINDS,
@@ -21,7 +21,7 @@ import {
 } from "../../../src/sql/modules/saved-views.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
 
-const tasks = defineListQuery(defineSupabase(schema), "customers", {
+const tasks = defineListQuery(createSupabase(schema), "customers", {
   search: ["name"],
   facets: { status: "status" },
   sorts: { newest: { createdAt: "desc" }, name: { name: "asc" } },

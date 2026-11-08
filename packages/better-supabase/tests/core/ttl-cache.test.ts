@@ -24,4 +24,10 @@ describe("boundedTtlCache", () => {
     expect(cache.get("c")).toBe(4);
     expect(cache.size).toBe(2);
   });
+
+  it("stores nothing it can evict when max is 0", () => {
+    const cache = boundedTtlCache<string, number>({ max: 0, now: () => 0 });
+    cache.set("a", 1, 10);
+    expect(cache.get("a")).toBe(1);
+  });
 });

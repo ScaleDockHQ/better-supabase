@@ -49,6 +49,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
       [
         // The second admin is covered in support-approval.integration.test.ts.
         ...renderBlocks(["impersonation"], {
+          rerunnable: true,
           modules: { impersonation: { options: { approval: "none" } } },
         }).map((file) => file.contents),
         FIXTURE_TENANT_SQL,

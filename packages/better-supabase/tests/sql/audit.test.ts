@@ -65,7 +65,7 @@ describe("audit(statement => true)", BOOT, () => {
       run(`select better_supabase.audit('public.customers', ignore => '{updated_at}', redact => '{api_key}', statement => true);
 insert into public.customers (organization_id, name, api_key)
   select '${ORG}', 'c' || i, 'secret' from generate_series(1, 3) i;
-${COUNT(`op = 'insert' and organization_id = '${ORG}' and event_type = 'customers.created'`, 3)}
+${COUNT(`op = 'insert' and tenant_id = '${ORG}' and event_type = 'customers.created'`, 3)}
 update public.customers set name = upper(name), api_key = 'other';
 ${COUNT("op = 'update' and changed = '{api_key,name}' and new_record ->> 'api_key' = '[redacted]'", 3)}
 update public.customers set updated_at = now() + interval '1 day';

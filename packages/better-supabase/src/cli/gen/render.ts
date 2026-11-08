@@ -1,21 +1,11 @@
-import {
-  basename,
-  dirname,
-  isAbsolute,
-  join,
-  relative,
-  resolve,
-} from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
-import type {
-  GeneratedFile,
-  GeneratorModel,
-  ResolvedConfig,
-} from "../../config/index.ts";
+import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
-import { CliError, errorText } from "../core/errors.ts";
+import { blockTables } from "../../sql/index.ts";
 import { importPath } from "../core/io.ts";
+import { runGenerators } from "../generators/run.ts";
 import {
   cachedDatabaseTypes,
   cachedTypesModule,
@@ -25,20 +15,31 @@ import {
   generateDatabaseTypes,
   oxfmtInstalled,
 } from "../introspect/typegen.ts";
+import { appColumnsFor, appSchemaTexts } from "../sql-layout.ts";
 import { apiTypeSchemas } from "./api-schemas.ts";
 import {
   emitBlockConfig,
   emitBlockConfigModule,
+  emitBlockModules,
   emitClientBlocks,
   generatorBlocks,
   schemaExtensions,
 } from "./blocks.ts";
 import { deprecationWarnings } from "./deprecations.ts";
-import { emitMeta, emitModule, emitRuntime, metaPaths } from "./emit.ts";
+import {
+  emitMeta,
+  emitModule,
+  emitRuntime,
+  emitSchemaModule,
+  metaPaths,
+  schemaModulePath,
+} from "./emit.ts";
 import { emitHooks } from "./hooks.ts";
 import { buildModel, generatorModel } from "./model.ts";
+import { NO_PROJECTED_READS, projectedReads } from "./projected-reads.ts";
 import { emitRecords } from "./records.ts";
 import { withTableTags } from "./table-tags.ts";
+import { emitTableModules, tableModules } from "./tables.ts";
 
 export interface RenderOptions {
   /**
@@ -144,6 +145,13 @@ export async function render(
 
   const metaFiles = metaPaths(config.output);
 
+  const split =
+    config.gen.tableModules !== false &&
+    !options.inlineMeta &&
+    config.gen.contentMapper !== true;
+
+  const modules = split ? tableModules(model) : undefined;
+
   const emitOptions = {
     databaseTypesImport: importPath(
       output,
@@ -153,12 +161,14 @@ export async function render(
       importPath(output, resolve(config.root, from)),
     metaImport: `./${basename(metaFiles.js)}`,
     extensions: options.extensions === false ? [] : schemaExtensions(config),
+    ...(modules === undefined ? {} : { tables: modules }),
     ...(options.inlineMeta ? { inlineMeta: true } : {}),
     ...runtime,
   };
 
   const meta = emitMeta(model, {
     types: `./${basename(metaFiles.dts)}`,
+    splitTables: split,
     ...runtime,
   });
 
@@ -180,14 +190,40 @@ export async function render(
 
   const main = mapper ? 0 : 1;
 
-  const blockConfig = emitBlockConfig(config, runtime);
+  const projected =
+    config.blockNames.length === 0
+      ? NO_PROJECTED_READS
+      : projectedReads(config, model.meta, await appSchemaTexts(config));
 
-  const blockModule = emitBlockConfigModule(config, runtime);
+  const blockOptions = {
+    ...runtime,
+    ...(config.blockNames.length === 0
+      ? {}
+      : {
+          appColumns: await appColumnsFor(config),
+          ...(projected.viewKeys.size === 0
+            ? {}
+            : {
+                viewFanOut: {
+                  views: projected.viewKeys,
+                  tables: blockTables(config).byBlock,
+                },
+              }),
+        }),
+  };
+
+  const blockConfig = emitBlockConfig(config, blockOptions);
+
+  const blockModule = emitBlockConfigModule(config, blockOptions);
 
   if (blockConfig && blockModule) {
-    files.push(blockConfig, blockModule);
+    files.push(
+      blockConfig,
+      blockModule,
+      ...emitBlockModules(config, blockOptions),
+    );
 
-    const clientBlocks = emitClientBlocks(config, runtime);
+    const clientBlocks = emitClientBlocks(config, blockOptions);
 
     if (clientBlocks) {
       files.push(clientBlocks);
@@ -196,70 +232,53 @@ export async function render(
 
   files.push(...emitRecords(config));
 
-  const hooks = emitHooks(config, Object.keys(model.meta.tables), runtime);
+  if (modules) {
+    files.push(...emitTableModules(model, modules, config, runtime));
+  }
+
+  // Clients read the app's view over a block table, so no hooks read the table.
+  const hooks = emitHooks(
+    config,
+    Object.keys(model.meta.tables).filter(
+      (key) => !projected.baseKeys.has(key),
+    ),
+    { ...runtime, ...(modules === undefined ? {} : { tables: modules }) },
+  );
 
   if (hooks) {
     files.push(hooks);
   }
 
-  const owners = new Map(
-    files.map((file) => [resolve(config.root, file.path), "gen"]),
+  const generated = await runGenerators(
+    config.generators,
+    {
+      meta: model.meta,
+      introspection: model.introspection,
+      extras: snapshot.extras,
+      config: {
+        output: config.output,
+        databaseTypesOutput: config.databaseTypesOutput,
+        casing: config.casing,
+        json: config.json,
+      },
+      imports: { runtime: options.runtimeImport ?? "better-supabase" },
+      model: generatorModel(model, generatorBlocks(config)),
+    },
+    { root: config.root, taken: new Set(files.map((file) => file.path)) },
   );
 
-  let view: GeneratorModel | undefined;
+  files.push(...generated.files.map((entry) => entry.file));
 
-  for (const generator of config.generators) {
-    let extra: readonly GeneratedFile[];
-
-    try {
-      extra = await generator.generate({
-        meta: model.meta,
-        introspection: model.introspection,
-        extras: snapshot.extras,
-        config,
-        output,
-        importPath: (from, to) =>
-          importPath(resolve(config.root, from), resolve(config.root, to)),
-        model: (view ??= generatorModel(model, generatorBlocks(config))),
-        ...runtime,
-      });
-    } catch (cause) {
-      throw new CliError(
-        "generator_failed",
-        `generator "${generator.name}" failed: ${errorText(cause)}`,
-        { cause },
-      );
-    }
-
-    for (const file of extra) {
-      const path = resolve(config.root, file.path);
-      const inside = relative(config.root, path);
-
-      if (inside === "" || inside.startsWith("..") || isAbsolute(inside)) {
-        throw new CliError(
-          "generator_failed",
-          `generator "${generator.name}" wrote ${file.path}, which is outside the project root`,
-        );
-      }
-
-      const owner = owners.get(path);
-
-      if (owner !== undefined) {
-        throw new CliError(
-          "generator_failed",
-          `generator "${generator.name}" wrote ${file.path}, which ${owner === "gen" ? "better-supabase gen writes" : `generator "${owner}" also writes`}`,
-        );
-      }
-
-      owners.set(path, generator.name);
-      files.push(file);
-    }
-  }
-
-  const validators =
+  const validatorsOwner =
     options.extensions === false
       ? undefined
-      : files.find((file) => file.validators === true);
+      : generated.capabilities.get("validators");
+
+  const validators =
+    validatorsOwner === undefined
+      ? undefined
+      : generated.files.find((entry) => entry.generator === validatorsOwner)
+          ?.file;
 
   const withValidators = {
     ...emitOptions,
@@ -282,6 +301,16 @@ export async function render(
         })
       : emitModule(model, withValidators),
   };
+
+  if (modules) {
+    files.push({
+      path: schemaModulePath(config.output),
+      contents: emitSchemaModule(model, modules, {
+        ...withValidators,
+        generated: `./${basename(config.output)}`,
+      }),
+    });
+  }
 
   const typesModule =
     mapper || options.typesModule === true

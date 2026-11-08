@@ -109,7 +109,7 @@ describe("entitlements sources", () => {
         (file) => file.module === "organizations" && file.kind === "schema",
       )!.contents;
 
-    const column = "add column if not exists stripe_customer_id text unique;";
+    const column = "add column stripe_customer_id text unique;";
 
     expect(organizations({})).toContain(column);
     expect(

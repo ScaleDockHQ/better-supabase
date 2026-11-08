@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { sendToFileRequest } from "../drive-request-actions";
+import { sendToFileRequest } from "../drive-actions";
 
 // #region recipe:file-request-upload
 /**

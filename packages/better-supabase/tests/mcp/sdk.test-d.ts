@@ -5,14 +5,14 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import {
   createMcpAuth,
   withBetterSupabaseMcp,
 } from "../../src/mcp/sdk/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const auth = createMcpAuth(betterSupabase);
 
 describe("withBetterSupabaseMcp", () => {

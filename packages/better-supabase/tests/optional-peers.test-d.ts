@@ -40,7 +40,7 @@ import type { CredentialSubject } from "../src/credentials/index.ts";
 import type {
   EveApprovalConfiguration,
   EveConnectionAuthorization,
-  EveScheduleArgs,
+  EveScheduleOptions,
   EveSessionAuth,
   EveToolApproval,
   approvalPolicy,
@@ -136,7 +136,9 @@ describe("structurally typed optional peers", () => {
     expectTypeOf<
       ReturnType<typeof tenantArgument>[string]
     >().toExtend<ProvidedArgumentValue>();
-    expectTypeOf<EveScheduleArgs["appAuth"]>().toExtend<SessionAuthContext>();
+    expectTypeOf<
+      EveScheduleOptions["appAuth"]
+    >().toExtend<SessionAuthContext>();
   });
 
   it("a PowerSync database has what syncWithAuth drives", () => {

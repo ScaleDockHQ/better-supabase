@@ -20,6 +20,7 @@ import { CliError } from "./core/errors.ts";
 import { display, readStdin } from "./core/io.ts";
 import { importFresh } from "./fresh-import.ts";
 import { withSchemaTags } from "./schema-tags.ts";
+import { withSettingsSchemas } from "./settings-schemas.ts";
 import { readStackStatus } from "./stack-status.ts";
 import { findUp, readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
 
@@ -116,7 +117,7 @@ function mergeConfig(
 
 /**
  * A config without the removed top-level `tables` and `records` keys: the
- * tables as `appTables`, and the records merged into `subjects`. `migrate
+ * tables as `appTables`, and the records merged into `recordTypes`. `migrate
  * schema-first` reads them to write the tables as SQL.
  */
 function takeLegacyTables(config: unknown): {
@@ -136,9 +137,11 @@ function takeLegacyTables(config: unknown): {
         ? rest
         : {
             ...rest,
-            subjects: {
+            recordTypes: {
               ...subjects,
-              ...(isPlainObject(rest["subjects"]) ? rest["subjects"] : {}),
+              ...(isPlainObject(rest["recordTypes"])
+                ? rest["recordTypes"]
+                : {}),
             },
           },
     // SAFETY: `resolveConfig` checks every table it is given.
@@ -264,15 +267,17 @@ export async function loadConfig(
   }
 
   return withEnvironment(
-    await withSchemaTags(
-      resolveConfig(
-        {
-          ...applyEnvironment(current, environment),
-          ...(legacy.appTables === undefined
-            ? {}
-            : { appTables: legacy.appTables }),
-        },
-        explicit ? cwd : dirname(path),
+    await withSettingsSchemas(
+      await withSchemaTags(
+        resolveConfig(
+          {
+            ...applyEnvironment(current, environment),
+            ...(legacy.appTables === undefined
+              ? {}
+              : { appTables: legacy.appTables }),
+          },
+          explicit ? cwd : dirname(path),
+        ),
       ),
     ),
   );
@@ -319,7 +324,7 @@ export async function databaseUrl(
   config: ResolvedConfig,
   env: CliEnv,
   fromStdin?: string,
-  stack: string | undefined = env.BSB_STACK,
+  stack: string | undefined = env.BETTER_SUPABASE_STACK,
 ): Promise<string> {
   const given = databaseUrlCredential(config, env, fromStdin);
 

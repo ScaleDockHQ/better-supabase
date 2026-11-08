@@ -1,61 +1,11 @@
 -- ==== schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:ee7b6dd79ff48d2a4a12b1f5caf7abe7a0c07b686474962c378c7de29ffba379
+-- @bsb-hash sha256:692628c17c43ef1e76e2fee688e822eaebafedd4bd0b968b9767d70c862ad512
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."prescriptions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."prescriptions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."prescriptions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."prescriptions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."prescriptions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- E-prescribing: prescriptions over medication orders with states draft, signed,
 -- sent, dispensed and cancelled, a signature only the prescriber can give, and
 -- delivery recorded for a gateway that plugs in through the PrescriptionGateway
@@ -65,44 +15,43 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- the prescriber signs it (snapshot freezes the order), a gateway delivers it
 -- and the pharmacy dispenses it. Only the functions change it; a signed
 -- prescription always has a signer and a time.
-create table if not exists "better_supabase"."prescriptions" (
+create table "better_supabase"."prescriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
   "prescriber_id" uuid not null,
-  "prescriber_name" text check ("prescriber_name" is null or length("prescriber_name") <= 300),
-  "status" text not null default 'draft' check ("status" in ('draft', 'signed', 'sent', 'dispensed', 'cancelled')),
+  "prescriber_name" text constraint bsb_prescriptions_prescriber_name_check check ("prescriber_name" is null or length("prescriber_name") <= 300),
+  "status" text not null default 'draft' constraint bsb_prescriptions_status_check check ("status" in ('draft', 'signed', 'sent', 'dispensed', 'cancelled')),
   "snapshot" jsonb,
   "signed_by" uuid,
   "signed_at" timestamptz,
-  "gateway" text check ("gateway" is null or length("gateway") between 1 and 100),
-  "gateway_reference" text check ("gateway_reference" is null or length("gateway_reference") <= 200),
+  "gateway" text constraint bsb_prescriptions_gateway_check check ("gateway" is null or length("gateway") >= 1 and length("gateway") <= 100),
+  "gateway_reference" text constraint bsb_prescriptions_gateway_reference_check check ("gateway_reference" is null or length("gateway_reference") <= 200),
   "sent_at" timestamptz,
-  "delivery_error" text check ("delivery_error" is null or length("delivery_error") <= 1000),
+  "delivery_error" text constraint bsb_prescriptions_delivery_error_check check ("delivery_error" is null or length("delivery_error") <= 1000),
   "dispensed_at" timestamptz,
   "cancelled_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 1000),
+  "cancel_reason" text constraint bsb_prescriptions_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 1000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("status" in ('draft', 'cancelled') or ("signed_by" is not null and "signed_at" is not null and "snapshot" is not null)),
-  check ("signed_by" is null or "signed_by" = "prescriber_id"),
-  check ("status" not in ('sent', 'dispensed') or ("sent_at" is not null and "gateway" is not null)),
-  check ("status" <> 'dispensed' or "dispensed_at" is not null),
-  check ("status" <> 'cancelled' or "cancelled_at" is not null),
+  constraint bsb_prescriptions_check check ("status" in ('draft', 'cancelled') or ("signed_by" is not null and "signed_at" is not null and "snapshot" is not null)),
+  constraint bsb_prescriptions_check1 check ("signed_by" is null or "signed_by" = "prescriber_id"),
+  constraint bsb_prescriptions_check2 check ("status" not in ('sent', 'dispensed') or ("sent_at" is not null and "gateway" is not null)),
+  constraint bsb_prescriptions_check3 check ("status" <> 'dispensed' or "dispensed_at" is not null),
+  constraint bsb_prescriptions_check4 check ("status" <> 'cancelled' or "cancelled_at" is not null),
   foreign key ("tenant_id", "order_id") references "better_supabase"."medication_orders" ("tenant_id", "id")
 );
-create unique index if not exists "prescriptions_live_order_key" on "better_supabase"."prescriptions" ("tenant_id", "order_id") where "status" <> 'cancelled';
-create index if not exists "prescriptions_order_idx" on "better_supabase"."prescriptions" ("tenant_id", "order_id");
-create index if not exists "prescriptions_subject_idx" on "better_supabase"."prescriptions" ("tenant_id", "subject_type", "subject_id");
-create index if not exists "prescriptions_status_idx" on "better_supabase"."prescriptions" ("tenant_id", "status");
+create unique index "prescriptions_live_order_key" on "better_supabase"."prescriptions" ("tenant_id", "order_id") where "status" <> 'cancelled';
+create index "prescriptions_order_idx" on "better_supabase"."prescriptions" ("tenant_id", "order_id");
+create index "prescriptions_subject_idx" on "better_supabase"."prescriptions" ("tenant_id", "subject_type", "subject_id");
+create index "prescriptions_status_idx" on "better_supabase"."prescriptions" ("tenant_id", "status");
 alter table "better_supabase"."prescriptions" enable row level security;
 revoke all on "better_supabase"."prescriptions" from public, anon, authenticated;
 grant select on "better_supabase"."prescriptions" to authenticated;
 grant all on "better_supabase"."prescriptions" to service_role;
-drop policy if exists prescriptions_read on "better_supabase"."prescriptions";
-create policy prescriptions_read on "better_supabase"."prescriptions"
+create policy bsb_prescriptions_read on "better_supabase"."prescriptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('e_prescribing.read')));
 
@@ -436,52 +385,22 @@ grant execute on function "better_supabase"."list_prescriptions"(uuid, jsonb) to
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
-    create function better_supabase.member_workspace_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."prescriptions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."prescriptions";
 create policy bsb_tenant_scope_select on "better_supabase"."prescriptions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('e_prescribing.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."prescriptions";
 create policy bsb_tenant_scope_insert on "better_supabase"."prescriptions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."prescriptions";
 create policy bsb_tenant_scope_update on "better_supabase"."prescriptions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."prescriptions";
 create policy bsb_tenant_scope_delete on "better_supabase"."prescriptions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing

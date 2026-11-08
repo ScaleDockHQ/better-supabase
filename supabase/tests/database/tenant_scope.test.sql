@@ -61,7 +61,7 @@ select is(
   'an app policy using (true) does not read another organization''s taggings'
 );
 select throws_ok(
-  $$insert into better_supabase.organization_settings (organization_id, key, value)
+  $$insert into better_supabase.organization_settings (tenant_id, key, value)
     values ('00000000-0000-4000-8000-000000000001', 'app.widened', 'true')$$,
   '42501', null,
   'an app policy with check (true) does not insert into another organization'

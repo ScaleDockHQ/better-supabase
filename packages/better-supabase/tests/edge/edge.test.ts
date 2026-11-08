@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { ok } from "../../src/core/result.ts";
 import { createEdge } from "../../src/edge/index.ts";
@@ -20,7 +20,7 @@ const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
 describe("createEdge", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const bsb = createEdge(betterSupabase, {
     env,
@@ -225,7 +225,7 @@ describe("bsb.resources() actions", () => {
         : { outcome: "denied", reason: "CSV only" },
   });
 
-  const bsb = createEdge(defineSupabase(schema), {
+  const bsb = createEdge(createSupabase(schema), {
     env,
     auth: { jwks: signer.jwks },
     authorizer,

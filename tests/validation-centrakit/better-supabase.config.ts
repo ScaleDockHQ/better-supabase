@@ -23,7 +23,7 @@ export default defineConfig({
   auth: { authorization: centrakitProvider() },
   // CentraKit's file tree is a comment subject whose read, comment and update
   // are granted per row through the provider's rowsWith template.
-  subjects: {
+  recordTypes: {
     file_node: {
       idType: "uuid",
       permissions: {
@@ -255,11 +255,20 @@ export default defineConfig({
         preferences: "centrakit.notification_preferences",
       },
       columns: {
-        events: { key: null, actor: "actor_user_id", data: "metadata" },
-        recipients: { user: "recipient_user_id" },
-        deliveries: { attempts: null, nextAttemptAt: null },
-        subscriptions: { updatedAt: null },
-        preferences: { updatedAt: null },
+        events: {
+          tenant: "organization_id",
+          key: null,
+          actor: "actor_user_id",
+          data: "metadata",
+        },
+        recipients: { tenant: "organization_id", user: "recipient_user_id" },
+        deliveries: {
+          tenant: "organization_id",
+          attempts: null,
+          nextAttemptAt: null,
+        },
+        subscriptions: { tenant: "organization_id", updatedAt: null },
+        preferences: { tenant: "organization_id", updatedAt: null },
       },
       idType: "uuid",
       options: {
@@ -275,16 +284,24 @@ export default defineConfig({
       },
       columns: {
         endpoints: {
+          tenant: "organization_id",
           eventTypes: "event_kinds",
           failingSince: null,
           disabledAt: null,
           disabledReason: null,
         },
-        secrets: { endpoint: "destination_id", vaultId: null, expiresAt: null },
+        secrets: {
+          tenant: "organization_id",
+          endpoint: "destination_id",
+          vaultId: null,
+          expiresAt: null,
+        },
         deliveries: {
+          tenant: "organization_id",
           endpoint: "destination_id",
           type: "event_kind",
           run: "workflow_run_id",
+          leasedUntil: "leased_until",
         },
       },
       permissions: { manage: "webhook.manage", read: "webhook.view" },
@@ -348,6 +365,7 @@ export default defineConfig({
           messageId: "external_id",
           eventType: "event_kind",
           tenant: "organization_id",
+          lockedUntil: "locked_until",
           headers: null,
           maxAttempts: null,
           checkpoint: null,
@@ -378,7 +396,10 @@ export default defineConfig({
         },
       },
     },
-    "state-machine": { tables: { history: "centrakit.status_history" } },
+    "state-machine": {
+      tables: { history: "centrakit.status_history" },
+      columns: { history: { actor: "actor_user_id" } },
+    },
     "custom-fields": {
       tables: {
         definitions: "centrakit.field_definitions",

@@ -3,7 +3,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { Result } from "../core/result.ts";
 import type { ResourceActionSpec } from "../spec/resource.ts";
 import type {
-  ActionArgs,
+  ActionParams,
   Parsed,
   ResourceAction,
   ResourceContext,
@@ -90,7 +90,7 @@ export function defineAction<
     readonly query?: Q;
     handler(
       ctx: ResourceContext<DbT>,
-      args: ActionArgs<Parsed<I>, Parsed<Q>>,
+      args: ActionParams<Parsed<I>, Parsed<Q>>,
     ): unknown;
   },
 ): ResourceAction<Ref, DbT> {

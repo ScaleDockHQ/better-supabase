@@ -152,7 +152,7 @@ export const blockEvents: Events<BlockEvents> = {
     "platform_setting.reset",
     "platform_setting.updated",
     "reaction.added",
-    "reaction.removed",
+    "reaction.deleted",
     "subject.accessed",
     "subject_member.added",
     "subject_member.ended",
@@ -162,7 +162,7 @@ export const blockEvents: Events<BlockEvents> = {
     "team.restored",
     "team.updated",
     "team_member.added",
-    "team_member.removed",
+    "team_member.deleted",
   ],
 };
 
@@ -239,7 +239,7 @@ export const blockEventSchemas = {
   "platform_setting.reset": true,
   "platform_setting.updated": true,
   "reaction.added": true,
-  "reaction.removed": true,
+  "reaction.deleted": true,
   "subject.accessed": true,
   "subject_member.added": true,
   "subject_member.ended": true,
@@ -249,7 +249,7 @@ export const blockEventSchemas = {
   "team.restored": true,
   "team.updated": true,
   "team_member.added": true,
-  "team_member.removed": true,
+  "team_member.deleted": true,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

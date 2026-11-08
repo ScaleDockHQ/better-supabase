@@ -8,9 +8,9 @@ import { createBillableTime } from "../../src/blocks/billable-time/index.ts";
 import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createInvoices } from "../../src/blocks/invoices/index.ts";
 import {
-  createTimeTracking,
+  createTimeEntries,
   sqlTransport,
-} from "../../src/blocks/time-tracking/index.ts";
+} from "../../src/blocks/time-entries/index.ts";
 import { money } from "../../src/commerce/money.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -24,7 +24,7 @@ const MODULES = [
   "relations",
   "contacts",
   "approvals",
-  "time-tracking",
+  "time-entries",
   "invoices",
   "billable-time",
 ];
@@ -53,7 +53,7 @@ describe.skipIf(!live)("billable-time", () => {
       const tenant = await s.organization(owner, { member: ada });
       const transport = sqlTransport(s.sql);
       const billing = createBillableTime({ transport, tenant });
-      const time = createTimeTracking({ transport, tenant });
+      const time = createTimeEntries({ transport, tenant });
       const invoices = createInvoices({ transport });
 
       await s.as(owner);
@@ -159,7 +159,7 @@ describe.skipIf(!live)("billable-time", () => {
       ).toEqual([{ status: "draft", quantity: "1.5000", unit: "12000" }]);
       expect(
         await s.rows<{ type: string }>(
-          "select type from better_supabase.outbox_events where organization_id = $1 and type = 'time_entry.invoiced'",
+          "select type from better_supabase.outbox_events where tenant_id = $1 and type = 'time_entry.invoiced'",
           [tenant],
         ),
       ).toHaveLength(1);
@@ -194,7 +194,7 @@ describe.skipIf(!live)("billable-time", () => {
           effectiveFrom: Temporal.PlainDate.from("2026-01-01"),
         })
         .orThrow();
-      await createTimeTracking({ transport, tenant })
+      await createTimeEntries({ transport, tenant })
         .log({
           startedAt: at("2026-10-06T09:00:00Z"),
           endedAt: at("2026-10-06T10:00:00Z"),
@@ -205,7 +205,7 @@ describe.skipIf(!live)("billable-time", () => {
 
       await s.client.query("reset role");
       await s.rows(
-        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        "insert into better_supabase.organization_deletions (tenant_id, purge_at) values ($1, now() - interval '1 minute')",
         [tenant],
       );
       await s.service();

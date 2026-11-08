@@ -9,13 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import {
-  addExtraColumns,
-  extraFieldsArg,
-  lockTable,
-  schemaPreamble,
-} from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
+import { extraFieldsArg, lockTable, schemaPreamble } from "../shared.ts";
 import { ACTION_ITEMS_TO_TASKS } from "./incidents-data.ts";
 import { incidentsFunctions } from "./incidents-functions.ts";
 import {
@@ -83,7 +77,6 @@ const EVENTS: BlockSqlEvents<IncidentsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("incidents", 1),
   entities: {
     incident: {
       table: "incidents",
@@ -98,12 +91,12 @@ const NAMES: BlockSqlNames = {
     incident_postmortem: {
       table: "postmortems",
       singular: "incident_postmortem",
-      formerly: "postmortem",
+      keyed: true,
     },
     status_page: { table: "pages", singular: "status_page" },
   },
   events: EVENTS,
-  options: ["extraColumns"],
+  options: [],
   tables: {
     components: {
       name: "incident_status_components",
@@ -311,7 +304,6 @@ function tables(ctx: BlockSqlContext): string {
   const pm = (column: string): string => ctx.col("postmortems", column);
   const g = (column: string): string => ctx.col("pages", column);
   const read = ctx.permission("read", moduleOperations("incidents").read);
-  const extras = ctx.extraColumns("incidents", INCIDENT_RESERVED);
 
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
@@ -332,7 +324,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, read),
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
   };
 
@@ -392,7 +384,7 @@ create table if not exists ${incidents} (
   ${i("resolvedAt")} timestamptz,${opt("incidents", "createdBy", () => `${i("createdBy")} uuid`)}${opt("incidents", "createdAt", () => `${i("createdAt")} timestamptz not null default now()`)}${opt("incidents", "updatedAt", () => `${i("updatedAt")} timestamptz not null default now()`)}
   check ((${i("status")} = 'resolved') = (${i("resolvedAt")} is not null)),
   unique (${i("tenant")}, ${i("id")})
-);${addExtraColumns(incidents, extras)}${appKey("incidents", "tenant_id", `${i("tenant")}, ${i("id")}`)}
+);${appKey("incidents", "tenant_id", `${i("tenant")}, ${i("id")}`)}
 create index if not exists ${name("incidents", "tenant_idx")} on ${incidents} (${i("tenant")}, ${i("startedAt")} desc);
 create index if not exists ${name("incidents", "open_idx")} on ${incidents} (${i("tenant")}) where ${i("status")} <> 'resolved';${
     ctx.has("incidents", "commander")

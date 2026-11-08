@@ -1,10 +1,10 @@
 import { describe, expectTypeOf, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineSeed, defineTenantSeed } from "../../src/testing/seed.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 describe("seed types", () => {
   it("keeps fixture names and checks rows against Insert types", () => {

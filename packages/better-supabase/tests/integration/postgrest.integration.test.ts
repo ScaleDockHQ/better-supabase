@@ -7,7 +7,7 @@ import { createdByExtension } from "../../src/blocks/created-by/index.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
@@ -44,7 +44,7 @@ async function reachable(): Promise<boolean> {
 }
 
 const live = await reachable();
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const admin = betterSupabase.connect(
   createClient(url, secretKey, {
@@ -75,7 +75,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
   it("decodes timestamptz to Temporal.Instant and filters with it exactly", async () => {
     const customers = schema.meta.tables["customers"]!;
 
-    const instants = defineSupabase(
+    const instants = createSupabase(
       defineSchema({
         ...schema.meta,
         tables: {

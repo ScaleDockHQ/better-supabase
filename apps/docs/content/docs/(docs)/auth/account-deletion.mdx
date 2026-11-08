@@ -42,7 +42,7 @@ Apps on the `@supabase/server` pipeline, without a better-supabase server,
 import it from `better-supabase/server` and pass their service-role client:
 
 ```ts
-import { deleteAccount } from "better-supabase/server";
+import { deleteAccount } from "better-supabase/server/accounts";
 
 pipeline(
   [withSupabase({ auth: "user" }), withBetterSupabase(betterSupabase)],
@@ -99,7 +99,7 @@ keyed by user id, with `lastSignInAt` as a `Temporal.Instant` (or `null` for a
 user who never signed in). Users that don't exist are missing from the map:
 
 ```ts
-import { lastSignIns } from "better-supabase/server";
+import { lastSignIns } from "better-supabase/server/accounts";
 
 const signIns = await lastSignIns(
   postgres.admin,
@@ -199,7 +199,7 @@ Apps without a better-supabase server import both from
 `better-supabase/server`:
 
 ```ts
-import { endSessions, suspendAccount } from "better-supabase/server";
+import { endSessions, suspendAccount } from "better-supabase/server/accounts";
 
 await suspendAccount(supabaseAdmin, postgres.admin, userId, {
   suspended: true,

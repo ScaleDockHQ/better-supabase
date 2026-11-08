@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { defineCliCommand } from "../../../src/cli/core/command.ts";
 import { commandTree, resolveCommand } from "../../../src/cli/core/parse.ts";
 import { cliFromTree, run } from "../../../src/cli/core/run.ts";
+import { errorDoc } from "../error-doc.ts";
 
 const echo = defineCliCommand({
   meta: { name: "a", description: "Echoes its arguments" },
@@ -141,8 +142,9 @@ describe("strict parsing", () => {
   it("rejects unknown options with a suggestion", async () => {
     const result = await run(["gen", "--chek", "--json", "--cwd", dir]);
     expect(result.code).toBe(2);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      error: { code: "unknown_flag", flag: "--chek", suggestion: "--check" },
+    expect(errorDoc(result)).toMatchObject({
+      reason: "unknown_flag",
+      data: { flag: "--chek", suggestion: "--check" },
     });
   });
 
@@ -167,8 +169,9 @@ describe("strict parsing", () => {
     );
 
     const gen = await run(["gen", "help", "--cwd", dir, "--json"]);
-    expect(JSON.parse(gen.stdout)).toMatchObject({
-      error: { code: "usage", suggestion: "better-supabase gen --help" },
+    expect(errorDoc(gen)).toMatchObject({
+      reason: "usage",
+      data: { suggestion: "better-supabase gen --help" },
     });
   });
 

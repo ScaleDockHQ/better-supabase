@@ -145,7 +145,7 @@ export default defineConfig({
     realtime: {
       policies: {
         from: ["src/realtime/topics.ts"],
-        output: "supabase/schemas/905_topics.sql",
+        file: "supabase/schemas/905_topics.sql",
       },
     },
   },
@@ -339,10 +339,6 @@ they raise an error, since returning `null` there would cancel the write.
 auditTopic.trigger("public.audit_notes", { payload: "row" });
 ```
 
-`triggerSql(betterSupabase, table, options)` from 0.8 still works as an alias
-for `trigger(table, { ...options, betterSupabase })` and is deprecated. Its
-default payload is now the key payload too.
-
 ### Calling broadcast_topic from SQL
 
 A schema file can call `better_supabase.broadcast_topic()` directly. Its
@@ -380,7 +376,7 @@ export default defineConfig({
     realtime: {
       policies: {
         from: ["src/realtime/topics.ts"],
-        output: "supabase/schemas/905_topics.sql",
+        file: "supabase/schemas/905_topics.sql",
       },
       triggers: [
         {
@@ -405,7 +401,7 @@ export default defineConfig({
     realtime: {
       policies: {
         from: ["src/realtime/topics.ts"],
-        output: "supabase/schemas/905_topics.sql",
+        file: "supabase/schemas/905_topics.sql",
       },
       triggers: [
         {

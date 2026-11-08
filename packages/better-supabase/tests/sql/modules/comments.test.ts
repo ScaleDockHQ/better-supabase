@@ -15,17 +15,12 @@ const sqlOf = (
 describe("comments module", () => {
   it("puts comments on the record's conversation and leaves out what isn't installed", () => {
     const sql = sqlOf(["comments"]);
-    expect(sql).toContain(
-      `create table if not exists "better_supabase"."comment_tasks" (`,
-    );
-    expect(sql).not.toMatch(/create table if not exists \S+"comments"/);
+    expect(sql).toContain(`create table "better_supabase"."comment_tasks" (`);
+    expect(sql).not.toMatch(/create table \S+"comments"/);
     expect(sql).toContain(
       `"better_supabase"."open_conversation"(\n    create_comment.tenant,\n    'subject',`,
     );
     expect(sql).toContain(`v_msg := "better_supabase"."send_message"(`);
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb);`,
-    );
     expect(sql).not.toContain("comment_sent");
     expect(sql).not.toContain('"assign_comment"(');
     expect(sql).not.toContain('"notify"(');
@@ -34,18 +29,18 @@ describe("comments module", () => {
   it("reads a comment's work item only where the caller reads the message in its tenant", () => {
     const sql = sqlOf(["comments"]);
     expect(sql).toContain(
-      `create policy comment_tasks_read on "better_supabase"."comment_tasks"
+      `create policy bsb_comment_tasks_read on "better_supabase"."comment_tasks"
   for select to authenticated
-  using ("better_supabase"."comment_message_readable"("message_id", "organization_id"));`,
+  using ("better_supabase"."comment_message_readable"("message_id", "tenant_id"));`,
     );
     expect(sql).toContain(
-      `with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id"))`,
+      `with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "tenant_id"))`,
     );
     expect(sql).toContain(
       `x."id" = comment_message_readable.message and x."tenant_id" = comment_message_readable.tenant`,
     );
     expect(sql).toContain(
-      `grant insert ("message_id", "organization_id", "task_id") on "better_supabase"."comment_tasks" to authenticated;`,
+      `grant insert ("message_id", "tenant_id", "task_id") on "better_supabase"."comment_tasks" to authenticated;`,
     );
   });
 
@@ -68,12 +63,12 @@ describe("comments module", () => {
         table: "app.team_members",
         group: "team_id",
         member: "user_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
       },
     });
 
     expect(sql).toContain(
-      `union select g."user_id" from "app"."team_members" g where g."team_id" = any (v_raw) and g."organization_id" = create_comment.tenant`,
+      `union select g."user_id" from "app"."team_members" g where g."team_id" = any (v_raw) and g."tenant_id" = create_comment.tenant`,
     );
     expect(
       sqlOf(["comments"], {

@@ -33,18 +33,16 @@ export interface ApproverCheck {
   /** A boolean SQL expression about the caller. */
   readonly sql: string;
   /** The template it came from, for comments. */
-  readonly template: "isApprover" | "canApprove";
+  readonly template: "isApprover";
   /** Whether the requester is refused before the check runs. */
   readonly distinct: boolean;
 }
 
 /**
  * The `authorization.functions.isApprover` check for `request`, when the
- * `provider` access model decides and the provider sets it. Tool calls fall
- * back to the deprecated `canApprove`, where `{tool}` is the subject and
- * `approvals.distinctApprover` decides whether the requester is refused;
- * `isApprover` always refuses the requester. `undefined` leaves the module on
- * its built-in approver.
+ * `provider` access model decides and the provider sets it. `isApprover` always
+ * refuses the requester. `undefined` leaves the module on its built-in
+ * approver.
  */
 export function approverCheck(
   ctx: BlockSqlContext,
@@ -77,24 +75,5 @@ export function approverCheck(
     };
   }
 
-  if (request.kind !== AI_TOOL_APPROVAL) {
-    return undefined;
-  }
-
-  // oxlint-disable-next-line typescript/no-deprecated -- read until every provider sets isApprover.
-  const canApprove = provider.functions.canApprove;
-
-  if (canApprove === undefined) {
-    return undefined;
-  }
-
-  return {
-    sql: fillTemplate("authorization.functions.canApprove", canApprove, {
-      scope: provider.scope,
-      tenant: request.tenant,
-      tool: request.subject,
-    }),
-    template: "canApprove",
-    distinct: provider.approvals?.distinctApprover === true,
-  };
+  return undefined;
 }

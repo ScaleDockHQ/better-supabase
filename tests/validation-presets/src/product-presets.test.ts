@@ -67,7 +67,7 @@ describe.skipIf(!live)("product presets on the local stack", () => {
 
   afterAll(() => pool.end());
 
-  it("crm installs the sales engagement blocks next to deals", async () => {
+  it("crm installs the sales activity blocks next to deals", async () => {
     await installAndRollBack(pool, installed("crm"), async (client) => {
       expect(
         await tables(client, [

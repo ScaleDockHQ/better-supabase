@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ParserSpec } from "../../src/list/list-query.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import { useRecordListState } from "../../src/react/record-list.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -17,7 +17,7 @@ vi.mock("react", async (importOriginal) => ({
   ...(await import("../fixtures/hook-runtime.ts")).reactHooks,
 }));
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const offset = defineListQuery(betterSupabase, "customers", {
   search: ["name"],

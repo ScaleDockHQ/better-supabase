@@ -120,7 +120,7 @@ A proxy or middleware with its own Supabase client calls
 `await clearSessionCookies(request, response, { url })` before redirecting.
 An app with httpOnly session cookies and no browser Supabase client watches
 an open page with `export const GET = sessionStatusRoute(bsb)` (from
-`better-supabase/server`) and `useSessionWatch({ redirect: "/login" })` (from
+`better-supabase/server/accounts`) and `useSessionWatch({ redirect: "/login" })` (from
 `better-supabase/next/client`): it checks on focus, visibility and an
 interval, reloads on `ended`, `banned` or `signed_out`, refreshes the router
 on `claims_changed` (the claims fingerprint, support target included, moved)
@@ -274,6 +274,5 @@ https://bettersupabase.com/docs/auth/account-deletion.md,
 https://bettersupabase.com/docs/frameworks/next-cache-components.md,
 https://bettersupabase.com/docs/frameworks/next-islands.md,
 https://bettersupabase.com/docs/frontend/authorization-refresh-native.md,
-https://bettersupabase.com/docs/frameworks/expo.md,
-https://bettersupabase.com/docs/migration/0.35-to-0.37.md and
+https://bettersupabase.com/docs/frameworks/expo.md and
 https://bettersupabase.com/docs/extending/authorization-providers.md.

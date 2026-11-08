@@ -137,13 +137,13 @@ export async function runPruneWorkflows(
     config,
     env,
     dbUrl,
-    args.stack ?? env.BSB_STACK,
+    args.stack ?? env.BETTER_SUPABASE_STACK,
   );
 
   if (!dryRun && !isLocalDatabaseUrl(url)) {
     requireConsent({
       effect: "database-write",
-      detail: `db prune-workflows deletes ${statuses.join(", ")} runs older than ${olderThan} on ${databaseHost(url)}`,
+      detail: `workflows prune deletes ${statuses.join(", ")} runs older than ${olderThan} on ${databaseHost(url)}`,
     });
   }
 
@@ -222,15 +222,15 @@ where status::text = any($1::text[])
     return {
       code: 1,
       errorCode: "failed",
-      error: `db prune-workflows failed: ${errorText(cause)}`,
+      error: `workflows prune failed: ${errorText(cause)}`,
     };
   } finally {
     await close();
   }
 }
 
-export const dbPruneWorkflowsCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("db prune-workflows"),
+export const workflowsPruneCommand: AnyCommand = defineCliCommand({
+  meta: commandMeta("workflows prune"),
   args: { ...ARGS, ...DB_URL_STDIN_ARG, ...STACK_ARG },
   run: async (args, { config, env, io, log, requireConsent }) => {
     const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);

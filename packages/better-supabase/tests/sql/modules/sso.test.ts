@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const sqlOf = (
   names: readonly string[],
@@ -10,16 +11,14 @@ const sqlOf = (
   renderBlocks(names, {
     modules: { ...(options ? { sso: { options } } : {}), ...extra },
   })
-    .filter((file) => file.module === "sso")
+    .filter((file) => file.module === "sso" || file.module === "unscoped")
     .map((file) => file.contents)
     .join("\n");
 
 describe("sso module", () => {
   it("adds scim_sync_log and its functions only with options.syncLog", () => {
     const sql = sqlOf(["sso"], { syncLog: true });
-    expect(sql).toContain(
-      `create table if not exists "better_supabase"."scim_sync_log" (`,
-    );
+    expect(sql).toContain(`create table "better_supabase"."scim_sync_log" (`);
     expect(sql).toContain("scim_log_sync");
     expect(sql).toContain("purge_scim_sync_log");
     expect(sqlOf(["sso"])).not.toContain("scim_sync_log");
@@ -27,7 +26,7 @@ describe("sso module", () => {
 
   it("creates domains, providers and SCIM tables with role defaults", () => {
     const sql = sqlOf(["sso"]);
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `"auto_join_role" text check ("auto_join_role" = any (array['admin', 'member', 'viewer']::text[]))`,
     );
     expect(sql).toContain("'_better-supabase.' || ");
@@ -113,7 +112,7 @@ describe("sso module", () => {
     expect(sql).toContain("array['manager', 'staff']::text[]");
     expect(sql).toContain("hint = 'SSO_ROLE_FORBIDDEN'");
     expect(sql).toContain(
-      'better_supabase.can_assign(v_row."organization_id", update_organization_domain.auto_join_role)',
+      'better_supabase.can_assign(v_row."tenant_id", update_organization_domain.auto_join_role)',
     );
   });
 });

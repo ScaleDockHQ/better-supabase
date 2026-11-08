@@ -5,7 +5,7 @@ import type { DbError } from "../core/errors.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { SqlClient } from "../postgres/executor.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
-import type { Bucket } from "../storage/index.ts";
+import type { AnyBucket } from "../storage/index.ts";
 
 import { authErrorKind } from "../auth/error-kind.ts";
 import { dbError, isDbError, mapDbError } from "../core/errors.ts";
@@ -18,7 +18,7 @@ export interface DeleteAccountOptions {
    * `owner.param` for `owner` buckets) is the user are removed; buckets without
    * one are skipped.
    */
-  readonly buckets?: readonly Bucket<string>[];
+  readonly buckets?: readonly AnyBucket[];
   /**
    * App keys of tables whose rows the database deletes or updates with the user
    * (`on delete cascade` or `set null` to `auth.users`). They get a table-wide
@@ -45,7 +45,7 @@ export interface DeleteAccountResult {
 
 const REMOVE_BATCH = 1000;
 
-interface AuthFailure {
+interface AuthLinkError {
   readonly message?: string;
   readonly name?: string;
   readonly status?: number;
@@ -58,11 +58,11 @@ export function fromAuthError(raw: unknown): DbError {
     return raw;
   }
 
-  // SAFETY: every AuthFailure field is optional and read with a fallback, so
+  // SAFETY: every AuthLinkError field is optional and read with a fallback, so
   // any object fits.
   const failure = (
     typeof raw === "object" && raw !== null ? raw : {}
-  ) as AuthFailure;
+  ) as AuthLinkError;
 
   const message = failure.message ?? "Auth request failed";
 
@@ -162,7 +162,7 @@ export function deleteAccount<
 ): AsyncResult<DeleteAccountResult> {
   return AsyncResult.from(async () => {
     const client = typeof service === "function" ? service() : service;
-    const listedPaths: [Bucket<string>, string[]][] = [];
+    const listedPaths: [AnyBucket, string[]][] = [];
 
     for (const bucket of options.buckets ?? []) {
       const param = bucket.owner;

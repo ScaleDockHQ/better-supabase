@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody } from "../../../src/sql/render.ts";
+import { moduleBody } from "../app-columns.ts";
 
 const body = (options: Record<string, unknown> = {}) =>
   moduleBody("ai-chat", { modules: { "ai-chat": { options } } })!;
@@ -10,7 +10,7 @@ describe("ai-chat participants", () => {
     const sql = body();
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."ai_chat_participants" (',
+      'create table "better_supabase"."ai_chat_participants" (',
     );
     expect(sql).toContain('"id" uuid primary key default gen_random_uuid()');
     expect(sql).toContain(
@@ -32,7 +32,7 @@ describe("ai-chat participants", () => {
     expect(sql).toContain("pa.\"role\"::text in ('editor')");
     expect(
       sql.indexOf('"better_supabase"."ai_chat_participants" ('),
-    ).toBeLessThan(sql.indexOf("create policy ai_chats_read"));
+    ).toBeLessThan(sql.indexOf("create policy bsb_ai_chats_read"));
   });
 
   it("adds, removes and lists participants", () => {
@@ -68,10 +68,10 @@ describe("ai-chat participants", () => {
 
     expect(sql).toContain("can''t read chats in the chat''s organization");
     expect(sql).toContain(
-      'and (x."organization_id" is null or x."organization_id" in (select',
+      'and (x."tenant_id" is null or x."tenant_id" in (select',
     );
     expect(sql).toContain(
-      'and (v_chat."organization_id" is null or v_chat."organization_id" in (select',
+      'and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select',
     );
   });
 

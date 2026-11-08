@@ -42,6 +42,29 @@ describe("request", () => {
     });
   });
 
+  it("sends a body and names a thrown non-error in network_error", async () => {
+    const posted = fakeFetch(() => ({ text: "ok" }));
+
+    await request(URL, {
+      what: "Writing",
+      method: "POST",
+      body: "{}",
+      fetch: posted.fetch,
+    });
+    expect(posted.calls[0]?.method).toBe("POST");
+
+    const failing = fakeFetch(() => {
+      // oxlint-disable-next-line only-throw-error -- a non-Error rejection is the case under test (1 finding)
+      throw "offline";
+    });
+
+    await expect(
+      request(URL, { what: "Writing", fetch: failing.fetch }),
+    ).rejects.toMatchObject({
+      message: "Writing got no response from api.supabase.com: offline",
+    });
+  });
+
   it("reports no response as network_error, naming the host", async () => {
     const api = fakeFetch(() => {
       throw new TypeError("fetch failed");

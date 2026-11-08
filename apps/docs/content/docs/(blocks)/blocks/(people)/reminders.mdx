@@ -53,7 +53,7 @@ reminders: {
 
 `upsert` checks the subject. With `on` set, a subject type that `on` doesn't
 list is refused with `REMINDER_SUBJECT_UNSUPPORTED`. A subject of a type in
-`on`, or in [`config.subjects`](/docs/repository/record-types) when `on` is unset,
+`on`, or in [`config.recordTypes`](/docs/repository/record-types) when `on` is unset,
 must exist in the organization and be readable by the caller, or `upsert`
 fails with `REMINDER_SUBJECT_NOT_FOUND`. Other types pass unchecked. The
 service role skips both checks.
@@ -159,16 +159,14 @@ route it like any other subject event.
 
 ## Your own fields
 
-`options.extraColumns` adds columns to `reminders`. `upsert` writes them (its last argument) from `fields`,
+Columns you add to `reminders` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)). `upsert` writes them (its last argument) from `fields`,
 and `upsert` return them in `fields`. Pass a Standard Schema as `fields`
 to type them: writes are validated before they reach the database (a
 `validation` error), and reads are parsed. `hooks` refuses, rewrites or
 observes any method; see [extending blocks](/docs/extending/blocks).
 
-```ts title="better-supabase.config.ts"
-export default defineConfig({
-  blocks: { reminders: { options: { extraColumns: { channel: "text" } } } },
-});
+```sql title="supabase/schemas/reminders.sql"
+alter table "better_supabase"."reminders" add column "channel" text;
 ```
 
 ```ts

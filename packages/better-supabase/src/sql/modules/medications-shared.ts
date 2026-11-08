@@ -16,12 +16,6 @@ export const ORDER_RESERVED = ["fields", "medication"] as const;
  */
 export const ROW_RESERVED = ["fields"] as const;
 
-/** The option that adds extra columns to the medications table. */
-export const MEDICATION_EXTRA = "medicationExtraColumns";
-
-/** The option that adds extra columns to the administrations table. */
-export const ADMINISTRATION_EXTRA = "administrationExtraColumns";
-
 export const CODE_SYSTEMS = ["gtin", "hpk", "atc", "rxnorm", "custom"] as const;
 
 export const ORDER_SOURCES = ["prescriber", "pharmacy", "import"] as const;
@@ -132,7 +126,7 @@ export function medicationJson(ctx: BlockSqlContext, row: string): string {
   const field = (column: string): string =>
     optionalField(ctx, "medications", row, column);
 
-  return `jsonb_build_object('id', ${m("id")}, 'organizationId', ${m("tenant")}, 'name', ${m("name")}, 'codeSystem', ${m("codeSystem")}, 'code', ${m("code")}, 'form', ${field("form")}, 'strength', ${field("strength")}, 'unit', ${m("unit")}, 'highRisk', ${m("highRisk")}, 'archivedAt', ${m("archivedAt")}, 'createdAt', ${field("createdAt")}, 'updatedAt', ${field("updatedAt")}${extraFieldsJson(row, ctx.extraColumns("medications", ROW_RESERVED, MEDICATION_EXTRA))})`;
+  return `jsonb_build_object('id', ${m("id")}, 'organizationId', ${m("tenant")}, 'name', ${m("name")}, 'codeSystem', ${m("codeSystem")}, 'code', ${m("code")}, 'form', ${field("form")}, 'strength', ${field("strength")}, 'unit', ${m("unit")}, 'highRisk', ${m("highRisk")}, 'archivedAt', ${m("archivedAt")}, 'createdAt', ${field("createdAt")}, 'updatedAt', ${field("updatedAt")}${extraFieldsJson(row, ctx.extraColumns("medications", ROW_RESERVED))})`;
 }
 
 /** The JSON of a medication order row. */
@@ -150,7 +144,7 @@ export function administrationJson(ctx: BlockSqlContext, row: string): string {
   const a = (column: string): string =>
     `${row}.${ctx.col("administrations", column)}`;
 
-  return `jsonb_build_object('id', ${a("id")}, 'organizationId', ${a("tenant")}, 'orderId', ${a("order")}, 'scheduledAt', ${a("scheduledAt")}, 'administeredAt', ${a("administeredAt")}, 'status', ${a("status")}, 'dose', ${a("dose")}, 'performerId', ${a("performer")}, 'checkedBy', ${a("checkedBy")}, 'reason', ${a("reason")}, 'note', ${optionalField(ctx, "administrations", row, "note")}, 'signatureId', ${optionalField(ctx, "administrations", row, "signature")}${extraFieldsJson(row, ctx.extraColumns("administrations", ROW_RESERVED, ADMINISTRATION_EXTRA))})`;
+  return `jsonb_build_object('id', ${a("id")}, 'organizationId', ${a("tenant")}, 'orderId', ${a("order")}, 'scheduledAt', ${a("scheduledAt")}, 'administeredAt', ${a("administeredAt")}, 'status', ${a("status")}, 'dose', ${a("dose")}, 'performerId', ${a("performer")}, 'checkedBy', ${a("checkedBy")}, 'reason', ${a("reason")}, 'note', ${optionalField(ctx, "administrations", row, "note")}, 'signatureId', ${optionalField(ctx, "administrations", row, "signature")}${extraFieldsJson(row, ctx.extraColumns("administrations", ROW_RESERVED))})`;
 }
 
 /**

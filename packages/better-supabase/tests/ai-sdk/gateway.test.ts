@@ -159,6 +159,35 @@ describe("problem429", () => {
     expect(response.headers.get("retry-after")).toBe("7");
   });
 
+  it("adds extra members to either kind of input", async () => {
+    const fromError = problem429(
+      dbError("rate_limited", "slow down", { retryAfter: 7 }),
+      undefined,
+      { extra: { plan: "free" }, headers: { "x-plan": "free" } },
+    );
+
+    expect(await fromError.json()).toMatchObject({
+      kind: "rate_limited",
+      plan: "free",
+    });
+    expect(fromError.headers.get("x-plan")).toBe("free");
+
+    const fromStatus = problem429(
+      status(),
+      Temporal.Instant.from("2030-01-01T00:00:00Z"),
+      {
+        format: (problem) => ({ ...problem, title: "Out of tokens" }),
+        extra: { upgradeUrl: "/billing" },
+      },
+    );
+
+    expect(await fromStatus.json()).toMatchObject({
+      title: "Out of tokens",
+      upgradeUrl: "/billing",
+      meter: "ai.tokens",
+    });
+  });
+
   it("builds a quota error from a usage status", async () => {
     const response = problem429(
       status(),

@@ -31,9 +31,6 @@ describe("attachments document types", () => {
     expect(sql).toContain("document_type text default null");
     expect(sql).toContain("external_id text default null");
     expect(sql).toContain("source_path text default null");
-    expect(sql).toContain(
-      `drop function if exists "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer);`,
-    );
   });
 
   it("renders the attachment import target only with the imports block", () => {

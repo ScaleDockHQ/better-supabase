@@ -275,7 +275,7 @@ const COLUMNS = [
   "changed",
   "actor_id",
   "actor_role",
-  "organization_id",
+  "tenant_id",
   "event_type",
   "category",
   "outcome",
@@ -308,7 +308,7 @@ function entryOf(row: Readonly<Record<string, unknown>>): AuditEntry {
     ),
     ...pick("actor", text("actor_id")),
     ...pick("actorRole", text("actor_role")),
-    ...pick("organizationId", text("organization_id")),
+    ...pick("organizationId", text("tenant_id")),
     ...pick("eventType", text("event_type")),
     ...pick("category", text("category")),
     ...pick("outcome", text("outcome")),
@@ -497,7 +497,7 @@ export function exportAuditLog(
 
   const text = `select ${COLUMNS.map((column) => sqlIdent(column)).join(", ")}
 from ${sqlIdent(schema!)}.${sqlIdent(name!)}
-where organization_id::text = $1
+where tenant_id::text = $1
   and ($2::timestamptz is null or occurred_at >= $2)
   and ($3::timestamptz is null or occurred_at < $3)
   and id > $4

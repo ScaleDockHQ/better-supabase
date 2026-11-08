@@ -28,7 +28,7 @@ describe("generated files the formatter leaves alone", () => {
   it("writes records/ as oxfmt prints it", () => {
     const config = resolveConfig(
       {
-        subjects: {
+        recordTypes: {
           customer: { table: "customers" },
           calendar_event: { table: "calendar_events" },
           project: {

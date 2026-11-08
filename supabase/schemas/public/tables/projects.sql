@@ -1,5 +1,5 @@
 -- Owned by you since `better-supabase migrate schema-first`.
-create table if not exists "public"."projects" (
+create table "public"."projects" (
   id uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null references "public"."organizations" ("id") on delete cascade,
   created_at timestamptz not null default now(),
@@ -75,18 +75,18 @@ create policy bsb_tenant_scope_delete on "public"."projects" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create index if not exists "projects_organization_id_idx" on "public"."projects" ("organization_id");
+create index "projects_organization_id_idx" on "public"."projects" ("organization_id");
 
-create index if not exists "projects_lead_id_idx" on "public"."projects" ("lead_id");
+create index "projects_lead_id_idx" on "public"."projects" ("lead_id");
 
-create index if not exists "projects_label_id_idx" on "public"."projects" ("label_id");
+create index "projects_label_id_idx" on "public"."projects" ("label_id");
 
 drop trigger if exists "bsb_updated_at" on "public"."projects";
 
 create trigger "bsb_updated_at" before update on "public"."projects"
   for each row execute function better_supabase.set_updated_at();
 
-create unique index if not exists "projects_organization_id_id_key" on "public"."projects" ("organization_id", id);
+create unique index "projects_organization_id_id_key" on "public"."projects" ("organization_id", id);
 
 drop trigger if exists "bsb_search_project_index" on "public"."projects";
 

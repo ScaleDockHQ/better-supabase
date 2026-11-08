@@ -16,7 +16,7 @@ import { blockConfigEntries } from "../../src/cli/gen/blocks.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
 import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { EventHub } from "../../src/core/events.ts";
 import { createNext } from "../../src/next/index.ts";
 import {
@@ -99,7 +99,7 @@ const config = resolveConfig(
       subjects: { schema: SCRATCH },
       pipelines: { schema: SCRATCH },
       outbox: { schema: SCRATCH },
-      tasks: { schema: SCRATCH, names: { work_item: "task" } },
+      tasks: { schema: SCRATCH },
       attachments: { schema: SCRATCH, options: { requireScan: false } },
     },
   },
@@ -109,15 +109,7 @@ const config = resolveConfig(
 const generated = blockConfigEntries(config);
 
 /** The names `gen` writes for tasks, as `blocks.generated.ts` declares them. */
-const NAMES = {
-  tenant: "workspace",
-  entities: [
-    {
-      from: { singular: "work_item", plural: "work_items" },
-      to: { singular: "task", plural: "tasks" },
-    },
-  ],
-} as const;
+const NAMES = { tenant: "workspace" } as const;
 
 const blocks = defineBlocks(generated, {
   tasks: renameBlock(tasksBlock, NAMES),
@@ -161,6 +153,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
     const files = renderBlocks(config.blockNames, {
       modules: config.blocks,
       subjects: config.subjects,
+      rerunnable: true,
     });
 
     // attachment_subject_readable is SQL-language and names the `tasks` table,
@@ -228,7 +221,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
     }).toEqual({
       tables: ["task_assignees", "tasks"],
       functions: ["create_task", "list_tasks", "update_tasks"],
-      columns: ["actor_id", "workspace_id"],
+      columns: ["actor_id", "tenant_id"],
       permissions: ["tasks.read", "tasks.write", "tasks.manage"],
     });
   });
@@ -369,7 +362,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
     const signer = await createTestSigner();
     const projectUrl = "https://abcdefghijklmnopqrst.supabase.co";
 
-    const next = createNext(defineSupabase(schema), {
+    const next = createNext(createSupabase(schema), {
       env: {
         url: projectUrl,
         publishableKey: "sb_publishable_test",

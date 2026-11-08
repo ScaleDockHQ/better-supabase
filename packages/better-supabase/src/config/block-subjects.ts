@@ -3,11 +3,9 @@ import type { BlockSqlNames } from "../sql/context.ts";
 import type { AnyBlocksConfig } from "./blocks.ts";
 import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
-import { SUBJECT_TYPE_RENAMES } from "../core/renames.ts";
 import { PRESET_CATALOG } from "../preset/catalog.generated.ts";
 import { clientFunctions } from "../sql/client-functions.ts";
 import { resolveNames } from "../sql/resolved-names.ts";
-import { tableBase } from "../sql/table-renames.ts";
 import { blockColumnName } from "../sql/tenant-column.ts";
 import { resolveBlock } from "./blocks.ts";
 
@@ -50,7 +48,7 @@ function catalogNames(module: string): BlockSqlNames | undefined {
 }
 
 /**
- * The entities `blocks.<module>.names` gives a new name, such as `work_item` to
+ * The entities `blocks.<module>.names` gives a new name, such as `task` to
  * `task`, for the block's TypeScript client (`blocks.generated.ts`). Empty when
  * the module renames none.
  */
@@ -92,9 +90,8 @@ export function blockEventRenames(
 
 /**
  * The SQL name of each client function of `module` that the entity renames
- * write under the noun it had before 0.47: with `tasks: { names: { task:
- * "ticket" } }`, `create_task` is still `create_ticket`, as it was from
- * `create_work_item`. Empty when no renamed entity changed its singular.
+ * write under another noun: with `tasks: { names: { task: "ticket" } }`,
+ * `create_task` is `create_ticket`. Empty when no entity is renamed.
  */
 export function blockFormerFunctions(
   module: string,
@@ -108,50 +105,17 @@ export function blockFormerFunctions(
 
   const resolved = resolveNames(module, names, blocks);
 
-  if (!resolved.functionNouns.renamed) {
+  if (!resolved.entityNaming.renamed) {
     return {};
   }
 
   return Object.fromEntries(
     clientFunctions(module).flatMap((name) => {
-      const former = resolved.functionNouns.rename(name);
-      const written = resolved.naming.rename(former);
+      const written = resolved.naming.rename(name);
 
-      return former === name || written === name ? [] : [[name, written]];
-    }),
-  );
-}
-
-/**
- * The subject types of the installed blocks that 0.47 renamed, new to old:
- * `task` to `work_item` for a tasks block that names no entity. An install that
- * names the entity keeps its type, and so does an old type `subjects` still
- * declares.
- */
-export function blockFormerSubjectTypes(
-  installed: readonly string[],
-  blocks: AnyBlocksConfig,
-  subjects: SubjectsConfig,
-): ReadonlyMap<string, string> {
-  return new Map(
-    installed.flatMap((module) => {
-      const names = catalogNames(module);
-
-      return names === undefined
+      return resolved.entityNaming.rename(name) === name || written === name
         ? []
-        : Object.values(resolveNames(module, names, blocks).entities).flatMap(
-            (entity): [string, string][] => {
-              const old = entity.formerly?.from.singular;
-              const next = entity.to.singular;
-
-              return old === undefined ||
-                entity.subject === undefined ||
-                SUBJECT_TYPE_RENAMES[old] !== next ||
-                Object.hasOwn(subjects, old)
-                ? []
-                : [[next, old]];
-            },
-          );
+        : [[name, written]];
     }),
   );
 }
@@ -194,8 +158,7 @@ export function blockEntities(
     const table =
       logical === undefined || spec === undefined || target === null
         ? undefined
-        : (target ??
-          resolved.naming.rename(tableBase(resolved, logical, spec.name)));
+        : (target ?? resolved.naming.rename(spec.name));
 
     return {
       key: entity.key,
@@ -271,9 +234,7 @@ function subjectsOf(
           ? column(subject.fallbackTitle)
           : column(key);
 
-      const name =
-        mapped ??
-        resolved.naming.rename(tableBase(resolved, logical, table.name));
+      const name = mapped ?? resolved.naming.rename(table.name);
 
       const url = entity.url ?? subject.url;
 

@@ -4,9 +4,9 @@ import { Suspense } from "react";
 import { PageHeader } from "@/components/page-header";
 import {
   CaseBoardSection,
-  CaseBoardSkeleton,
+  CaseBoardSectionSkeleton,
   CaseDetailSection,
-  CaseDetailSkeleton,
+  CaseDetailSectionSkeleton,
 } from "@/features/cases/components/case-sections";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
@@ -25,14 +25,16 @@ export default function CasesPage({
           "Nonconformities, complaints, incidents and the other cases of the organization, from report to a verified close.",
         )}
       />
-      <Suspense fallback={<CaseBoardSkeleton />}>
+      <Suspense fallback={<CaseBoardSectionSkeleton />}>
         <PermissionGate permission="cases.read">
           <CaseBoardSection />
         </PermissionGate>
       </Suspense>
-      <Suspense fallback={<CaseDetailSkeleton />}>
+      <Suspense fallback={<CaseDetailSectionSkeleton />}>
         <PermissionGate permission="cases.read">
-          <CaseDetailSection searchParams={searchParams} />
+          {searchParams.then((query) => (
+            <CaseDetailSection query={query} />
+          ))}
         </PermissionGate>
       </Suspense>
     </>

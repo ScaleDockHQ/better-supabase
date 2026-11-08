@@ -9,8 +9,9 @@ import {
 } from "@/components/reui/alert";
 import { Button } from "@/components/ui/button";
 
-import { retryProjects } from "../project-actions";
+import { retryProjects } from "../projects-actions";
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /** The inline error of a projects region, with a Retry that reads again. */
 export async function ProjectLoadError({ title }: { title: string }) {
   const t = await getExtracted("projects");

@@ -1,83 +1,25 @@
 -- ==== schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:b950ec2a2ad1ad60f52109a64ee9005afc211d4878df579c91fda2a90c2eb1c8
+-- @bsb-hash sha256:849e49fbff0854e0f742f652b63e99de5cfa4305cb30bb5f1e8d671ba912c3bf
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."reviews";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."reviews";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."reviews";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."reviews";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."reviews";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."review_stats";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."review_stats";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."review_stats";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."review_stats";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."review_stats";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."reviews" (
+create table "better_supabase"."reviews" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null constraint bsb_reviews_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_reviews_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete cascade,
-  "author_name" text check ("author_name" is null or length("author_name") <= 100),
-  "rating" smallint not null check ("rating" between 1 and 5),
-  "title" text check ("title" is null or length("title") <= 200),
-  "body" text check ("body" is null or length("body") <= 5000),
-  "status" text not null default 'pending' check ("status" in ('pending', 'published', 'rejected')),
+  "author_name" text constraint bsb_reviews_author_name_check check ("author_name" is null or length("author_name") <= 100),
+  "rating" smallint not null constraint bsb_reviews_rating_check check ("rating" >= 1 and "rating" <= 5),
+  "title" text constraint bsb_reviews_title_check check ("title" is null or length("title") <= 200),
+  "body" text constraint bsb_reviews_body_check check ("body" is null or length("body") <= 5000),
+  "status" text not null default 'pending' constraint bsb_reviews_status_check check ("status" in ('pending', 'published', 'rejected')),
   "verified" boolean not null default false,
-  "rejection_reason" text check ("rejection_reason" is null or length("rejection_reason") <= 1000),
-  "reply" text check ("reply" is null or length("reply") <= 5000),
+  "rejection_reason" text constraint bsb_reviews_rejection_reason_check check ("rejection_reason" is null or length("rejection_reason") <= 1000),
+  "reply" text constraint bsb_reviews_reply_check check ("reply" is null or length("reply") <= 5000),
   "replied_by" uuid,
   "replied_at" timestamptz,
   "published_at" timestamptz,
@@ -85,15 +27,14 @@ create table if not exists "better_supabase"."reviews" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id", "author_id")
 );
-alter table "better_supabase"."reviews" add column if not exists "app_note" text;
-create index if not exists "reviews_subject_idx" on "better_supabase"."reviews" ("tenant_id", "subject_type", "subject_id", "status", "created_at" desc);
-create index if not exists "reviews_queue_idx" on "better_supabase"."reviews" ("tenant_id", "status", "created_at" desc);
-create index if not exists "reviews_author_idx" on "better_supabase"."reviews" ("author_id");
+create index "reviews_subject_idx" on "better_supabase"."reviews" ("tenant_id", "subject_type", "subject_id", "status", "created_at" desc);
+create index "reviews_queue_idx" on "better_supabase"."reviews" ("tenant_id", "status", "created_at" desc);
+create index "reviews_author_idx" on "better_supabase"."reviews" ("author_id");
 alter table "better_supabase"."reviews" enable row level security;
 revoke all on "better_supabase"."reviews" from public, anon, authenticated;
 grant all on "better_supabase"."reviews" to service_role;
 
-create table if not exists "better_supabase"."review_stats" (
+create table "better_supabase"."review_stats" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
@@ -172,7 +113,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."reviews_changed"() from public, anon, authenticated;
-drop trigger if exists "bsb_reviews_changed" on "better_supabase"."reviews";
 create trigger "bsb_reviews_changed"
   after insert or update of "rating", "status" or delete on "better_supabase"."reviews"
   for each row execute function "better_supabase"."reviews_changed"();
@@ -181,7 +121,7 @@ create trigger "bsb_reviews_changed"
 -- user and subject. Under pre-moderation (options.moderation "pre") it
 -- waits for publish_review; under "post" it is published at once. verified
 -- is true when the orders module shows a paid order for the product.
-drop function if exists "better_supabase"."submit_review"(uuid, text, text, integer, text, text, text);
+
 create or replace function "better_supabase"."submit_review"(tenant uuid, subject_type text, subject_id text, rating integer, body text default null, title text default null, author_name text default null, fields jsonb default null)
 returns jsonb
 language plpgsql
@@ -306,7 +246,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."reviews_moderated"() from public, anon, authenticated;
-drop trigger if exists "bsb_reviews_moderated" on "better_supabase"."moderation_items";
 create trigger "bsb_reviews_moderated"
   after update of "status", "decided_at" on "better_supabase"."moderation_items"
   for each row when (new."subject_type" = 'review')
@@ -532,19 +471,6 @@ as $$
 $$;
 revoke execute on function "better_supabase"."review_summary"(uuid, text, text[]) from public;
 grant execute on function "better_supabase"."review_summary"(uuid, text, text[]) to anon, authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews

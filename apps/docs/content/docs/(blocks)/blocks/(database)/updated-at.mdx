@@ -12,7 +12,7 @@ better-supabase add updated-at
 ```
 
 `gen` marks every table that has the columns and installs the extension in
-the generated schema, so `defineSupabase(schema)` stamps writes with no
+the generated schema, so `createSupabase(schema)` stamps writes with no
 `.use()` call. Rename the columns in the block's options:
 
 ```ts title="better-supabase.config.ts"
@@ -45,7 +45,7 @@ required fields of request bodies, and a column without a comment gets a
 description: "Set by the server when the row is created." for `createdAt`
 and "Set by the server on every write." for `updatedAt`.
 
-The time comes from `defineSupabase(schema, { now })`, a function that returns
+The time comes from `createSupabase(schema, { now })`, a function that returns
 a `Temporal.Instant`, which makes tests deterministic. See
 [Temporal](/docs/concepts/temporal). In a runtime without Temporal and
 without a `now` option, the extension leaves both columns to the column
@@ -76,7 +76,7 @@ generated schema the same call replaces the installed one:
 ```ts
 import { updatedAtExtension } from "better-supabase/blocks/updated-at";
 
-const db = defineSupabase(schema, { now: () => clock.now() }).use(
+const db = createSupabase(schema, { now: () => clock.now() }).use(
   updatedAtExtension(),
 );
 ```

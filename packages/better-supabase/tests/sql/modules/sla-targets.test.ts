@@ -117,7 +117,7 @@ describe("targets module", () => {
     for (const metric of [
       "deals.won_amount",
       "deals.won_count",
-      "work_items.completed",
+      "tasks.completed",
       "invoices.paid_amount",
     ]) {
       expect(all).toContain(`when '${metric}' then`);

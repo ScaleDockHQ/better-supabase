@@ -6,7 +6,8 @@ import type {
   GeneratorTable,
 } from "../config/index.ts";
 
-import { HEADER, siblingPath } from "./shared.ts";
+import { VERSION } from "../core/version.ts";
+import { HEADER, siblingPath } from "./kit.ts";
 
 export interface NuqsGeneratorOptions {
   /** Output path relative to the project root. Defaults to `<output>.nuqs.ts`. */
@@ -119,7 +120,12 @@ function tableLines(table: GeneratorTable, limit: number): string[] {
  */
 export function nuqs(options: NuqsGeneratorOptions = {}): Generator {
   return {
-    apiVersion: 1,
+    apiVersion: 2,
+    version: VERSION,
+    options,
+    pure: true,
+    workerSafe: true,
+    module: { specifier: "better-supabase/generators/nuqs", export: "nuqs" },
     name: "nuqs",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const billing = (options?: Record<string, unknown>) =>
   moduleBody("billing", { modules: options ? { billing: { options } } : {} })!;
@@ -36,15 +37,14 @@ describe("billing module", () => {
       },
     });
 
-    expect(sql).toContain(`from "app"."plans" p`);
-    expect(sql).toContain(`p."slug"::text = billing_plan_price.plan`);
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(`from "app"."plans" p`);
+    expect(unnamedChecks(sql)).toContain(
+      `p."slug"::text = billing_plan_price.plan`,
+    );
+    expect(unnamedChecks(sql)).toContain(
       `p."every"::text = billing_plan_price.billing_interval`,
     );
-    expect(sql).toContain(`and p."on_sale"`);
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."billing_plan_price"(text, text);',
-    );
+    expect(unnamedChecks(sql)).toContain(`and p."on_sale"`);
 
     const variants = billing({
       plans: { table: "plans", interval: "every", variant: "pack" },
@@ -71,7 +71,7 @@ describe("billing module", () => {
   it("references the tenant table through the mapping", () => {
     expect(billing()).not.toContain("billing_customers_tenant_fkey");
     expect(billing({ tenantKey: "app.accounts.account_id" })).toContain(
-      `foreign key ("organization_id") references "app"."accounts" ("account_id") on delete cascade`,
+      `foreign key ("tenant_id") references "app"."accounts" ("account_id") on delete cascade`,
     );
 
     const withOrganizations = renderBlocks(["organizations", "billing"]).find(
@@ -79,7 +79,7 @@ describe("billing module", () => {
     )!.contents;
 
     expect(withOrganizations).toContain(
-      'constraint "billing_customers_tenant_fkey"\n      foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade',
+      'add constraint "billing_customers_tenant_fkey"\n  foreign key ("tenant_id") references "better_supabase"."organizations" ("id") on delete cascade;',
     );
 
     const off = renderBlocks(["organizations", "billing"], {
@@ -95,61 +95,65 @@ describe("billing module", () => {
 
   it("reads invoices, payment methods and the customer from the Sync Engine", () => {
     const sql = billing();
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       "'invoices', 'payment_methods', 'subscriptions', 'customers', 'tax_ids'",
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `"billing_stripe_rows"(billing_tax_ids.tenant, 'tax_ids', 100)`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       "'created', coalesce(t -> 'created', t -> '_raw_data' -> 'created')",
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `grant execute on function "better_supabase"."billing_tax_ids"(uuid) to authenticated, service_role;`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `"billing_stripe_rows"(billing_invoices.tenant, 'invoices'`,
     );
-    expect(sql).toContain("BILLING_FORBIDDEN");
+    expect(unnamedChecks(sql)).toContain("BILLING_FORBIDDEN");
   });
 
   it("composes the billing page from the status, invoice and usage reads", () => {
     const sql = billing();
-    expect(sql).toContain(`"billing_status"(billing_overview.tenant)`);
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
+      `"billing_status"(billing_overview.tenant)`,
+    );
+    expect(unnamedChecks(sql)).toContain(
       `"billing_invoices"(billing_overview.tenant, billing_overview.invoice_limit)`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `grant execute on function "better_supabase"."billing_overview"(uuid, integer) to authenticated, service_role;`,
     );
   });
 
   it("reads a tenant's subscription unchecked for the owner's functions only", () => {
     const sql = billing();
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."billing_tenant_subscription"(tenant uuid)',
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'revoke execute on function "better_supabase"."billing_tenant_subscription"(uuid) from public, anon, authenticated, service_role;',
     );
-    expect(sql).not.toMatch(
+    expect(unnamedChecks(sql)).not.toMatch(
       /grant execute on function "better_supabase"\."billing_tenant_subscription"/,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'return "better_supabase"."billing_tenant_subscription"(billing_subscription.tenant);',
     );
   });
 
   it("lists every linked customer for platform staff", () => {
     const sql = billing();
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."billing_platform_customers"()',
     );
-    expect(sql).toContain("Not allowed to read every tenant''s billing");
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
+      "Not allowed to read every tenant''s billing",
+    );
+    expect(unnamedChecks(sql)).toContain(
       'from "better_supabase"."billing_platform_customers"() c',
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'grant execute on function "better_supabase"."billing_all_customers"() to authenticated, service_role;',
     );
   });
@@ -170,28 +174,28 @@ describe("billing module", () => {
     const sql = billing();
     const table = '"better_supabase"."billing_customers"';
 
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `"stripe_customer_id" text unique check ("stripe_customer_id" ~ '^cus_')`,
     );
-    expect(sql).toContain(
-      `alter table ${table} add column if not exists "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_');`,
+    expect(unnamedChecks(sql)).toContain(
+      `"stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_')`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `alter table ${table} alter column "stripe_customer_id" drop not null;`,
     );
     expect(sql).toContain(
       `add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);`,
     );
-    expect(sql).toContain(
-      `on conflict ("organization_id") do update set "stripe_customer_id" = excluded."stripe_customer_id"\n    where b."stripe_customer_id" is null;`,
+    expect(unnamedChecks(sql)).toContain(
+      `on conflict ("tenant_id") do update set "stripe_customer_id" = excluded."stripe_customer_id"\n    where b."stripe_customer_id" is null;`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `or b."stripe_customer_account_id" = billing_customer_tenant.customer`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'grant execute on function "better_supabase"."link_billing_account"(uuid, text) to service_role;',
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'grant execute on function "better_supabase"."billing_account"(uuid) to authenticated, service_role;',
     );
   });

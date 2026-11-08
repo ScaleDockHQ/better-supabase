@@ -74,7 +74,7 @@ export interface SettingsOptions<
    */
   readonly settings?: SettingsDefinition<U, O, P>;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<Settings<U, O, P>>>;
+  readonly hooks?: NoInfer<BlockHooks<SettingsClient<U, O, P>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
 }
@@ -85,7 +85,7 @@ export interface SettingsOptions<
  * settings (reads follow each key's `read`, writes need its platform
  * permission).
  */
-export interface Settings<
+export interface SettingsClient<
   U extends SettingEntries = SettingEntries,
   O extends SettingEntries = SettingEntries,
   P extends SettingEntries = Record<never, never>,
@@ -182,7 +182,7 @@ export function createSettings<
   U extends SettingEntries,
   O extends SettingEntries,
   P extends SettingEntries = Record<never, never>,
->(options: SettingsOptions<U, O, P>): Settings<U, O, P> {
+>(options: SettingsOptions<U, O, P>): SettingsClient<U, O, P> {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
@@ -229,7 +229,7 @@ export function createSettings<
     return reader(platform, call, "get_platform_settings", {}, key);
   }
 
-  const client: Settings<U, O, P> = {
+  const client: SettingsClient<U, O, P> = {
     getUser,
     setUser: ({ key, value }) =>
       // SAFETY: writer returns the key's schema output, SettingValues<U>[K].

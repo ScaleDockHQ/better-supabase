@@ -71,7 +71,7 @@ const NAMES: BlockSqlNames = {
         tenant: "tenant_id",
         deal: "deal_id",
         name: "name",
-        owner: "owner_user_id",
+        owner: "owner_id",
         stage: "stage_id",
         forecast: "forecast_category",
         outcome: "outcome",
@@ -170,8 +170,8 @@ ${line("deals", "closeOn", (c) => `${c} date`)}${line("deals", "closedAt", (c) =
 );
 create index if not exists ${ctx.naming.rename("forecast_snapshot_deals_deal_idx")} on ${t("deals")} (${sd("tenant")}, ${sd("deal")});
 ${lockTable(t("deals"), { read: true })}
-${renderPolicy(makePolicy({ table: t("snapshots"), name: policy("snapshots"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), n.read) }), { drop: true, target: t("snapshots") })}
-${renderPolicy(makePolicy({ table: t("deals"), name: policy("deals"), command: "select", roles: ["authenticated"], using: ctx.scope.check(sd("tenant"), n.read) }), { drop: true, target: t("deals") })}
+${renderPolicy(makePolicy({ table: t("snapshots"), name: policy("snapshots"), command: "select", roles: ["authenticated"], using: ctx.scope.check(s("tenant"), n.read) }), { target: t("snapshots") })}
+${renderPolicy(makePolicy({ table: t("deals"), name: policy("deals"), command: "select", roles: ["authenticated"], using: ctx.scope.check(sd("tenant"), n.read) }), { target: t("deals") })}
 `;
 }
 

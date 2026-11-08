@@ -19,7 +19,7 @@ const ROW = {
   sent_at: "2026-10-06T12:00:00Z",
   created_at: "2026-10-06T12:00:00Z",
   edited_at: null,
-  deleted_at: null,
+  archived_at: null,
   fields: { visibility: "internal" },
 };
 

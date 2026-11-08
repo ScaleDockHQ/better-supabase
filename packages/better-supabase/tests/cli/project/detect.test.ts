@@ -13,6 +13,7 @@ import {
   installCommand,
   publicPrefix,
 } from "../../../src/cli/project/detect.ts";
+import { defineFramework } from "../../../src/plugins/index.ts";
 
 describe("detectProject", () => {
   let root: string;
@@ -28,11 +29,44 @@ describe("detectProject", () => {
   const write = (path: string, contents = "") =>
     writeFile(join(root, path), contents);
 
+  it("detects the hooks framework, including a registered binding", async () => {
+    await write(
+      "package.json",
+      JSON.stringify({ dependencies: { vue: "^3", "@acme/qwik": "1" } }),
+    );
+
+    expect((await detectProject(root)).hooksFramework).toBe("vue");
+
+    const qwik = defineFramework({
+      name: "qwik",
+      tier: "community",
+      detect: ["@acme/qwik"],
+    });
+
+    // The built-in bindings come first, so a project with both keeps `vue`.
+    expect((await detectProject(root, [qwik])).hooksFramework).toBe("vue");
+
+    await write(
+      "package.json",
+      JSON.stringify({ dependencies: { "@acme/qwik": "1" } }),
+    );
+
+    expect((await detectProject(root, [qwik])).hooksFramework).toBe("qwik");
+    expect((await detectProject(root)).hooksFramework).toBeUndefined();
+  });
+
+  it("ignores a package.json that is not an object", async () => {
+    await write("package.json", "[]");
+
+    expect((await detectProject(root)).dependencies).toEqual({});
+  });
+
   it("reads an empty directory with defaults", async () => {
     expect(await detectProject(root)).toEqual({
       root,
       name: undefined,
       frameworks: [],
+      hooksFramework: undefined,
       packageManager: "pnpm",
       dependencies: {},
       srcDir: ".",
@@ -178,6 +212,7 @@ describe("publicPrefix", () => {
     root: "/",
     name: undefined,
     frameworks,
+    hooksFramework: undefined,
     packageManager: "pnpm",
     dependencies: {},
     srcDir: ".",

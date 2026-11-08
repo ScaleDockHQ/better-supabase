@@ -111,6 +111,7 @@ export async function DocumentList() {
                   <TableCell className="font-medium">
                     <Link
                       href={`/documents/${document.customerId}`}
+                      prefetch
                       className="flex items-center gap-2 hover:underline"
                     >
                       <FileTextIcon className="size-4 text-muted-foreground" />

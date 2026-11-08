@@ -9,7 +9,7 @@ import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
 import type { SqlWrite } from "./write.ts";
 
-import { moduleTopics, renderBlocks, sameBlockFile } from "../../sql/index.ts";
+import { moduleTopics, sameBlockFile } from "../../sql/index.ts";
 import { applyPlan, changeLines, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
@@ -24,6 +24,7 @@ import {
 } from "./module-migration.ts";
 import { orphanedBlockFiles } from "./orphans.ts";
 import { layoutFor } from "./providers.ts";
+import { cacheOf, renderBlocksCached } from "./render-cache.ts";
 import {
   guardedRemoval,
   moduleFile,
@@ -120,7 +121,12 @@ export async function syncModules(
     };
   }
 
-  const rendered = renderBlocks(config.blockNames, sqlLayout);
+  const rendered = await renderBlocksCached(
+    config,
+    config.blockNames,
+    sqlLayout,
+    cacheOf(args),
+  );
 
   const plan = sqlPlan(config, {
     regenerate: "better-supabase upgrade",
@@ -159,7 +165,7 @@ async function checkModuleMigration(
   paint: Paint,
   topics: string | undefined,
 ): Promise<CommandResult> {
-  const files = renderBlocks(config.blockNames, sqlLayout);
+  const files = await renderBlocksCached(config, config.blockNames, sqlLayout);
 
   const expected = renderModuleMigration({
     files,

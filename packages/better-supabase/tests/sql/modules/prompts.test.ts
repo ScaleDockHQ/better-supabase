@@ -10,12 +10,8 @@ const body = (modules: AnyBlocksConfig = {}) =>
 describe("prompts module", () => {
   it("owns the version and label tables, service role only", () => {
     const sql = body();
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."prompt_versions" (',
-    );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."prompt_labels" (',
-    );
+    expect(sql).toContain('create table "better_supabase"."prompt_versions" (');
+    expect(sql).toContain('create table "better_supabase"."prompt_labels" (');
     expect(sql).not.toMatch(/to authenticated/);
 
     for (const name of [
@@ -38,7 +34,7 @@ describe("prompts module", () => {
 
   it("caps the template size", () => {
     expect(body({ prompts: { options: { maxBytes: 2048 } } })).toContain(
-      "between 1 and 2048",
+      "<= 2048",
     );
     expect(() => body({ prompts: { options: { maxBytes: 0 } } })).toThrow(
       /maxBytes/,

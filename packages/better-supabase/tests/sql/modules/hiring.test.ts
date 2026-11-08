@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const body = (
   module: string,
@@ -25,7 +25,7 @@ describe("hiring module", () => {
       .join("\n");
 
     expect(pipelines).toContain(
-      'create trigger bsb_pipeline_application before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."applications"',
+      'create trigger bsb_pipeline_application before insert or update of "stage_id", "pipeline_id", "owner_id" on "better_supabase"."applications"',
     );
     expect(pipelines).toContain('new."job_id"::text');
   });
@@ -70,12 +70,7 @@ describe("hiring module", () => {
       },
     });
 
-    expect(sql).toContain(
-      '"applications" add column if not exists "referral" text',
-    );
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."apply_to_job"(uuid, jsonb, text, uuid);',
-    );
+    expect(sql).toContain('"applications" add column "referral" text');
     expect(sql).toContain(
       "source text, owner uuid, fields jsonb default null)",
     );

@@ -2,7 +2,7 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type { BucketClient, ImageVariant } from "../../src/storage/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
 import { avatarBucket, defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -13,7 +13,7 @@ const logos = defineBucket({
 });
 
 const avatars = defineBucket({ id: "avatars", path: "{userId}/avatar.webp" });
-const betterSupabase = defineSupabase(schema).buckets({ logos, avatars });
+const betterSupabase = createSupabase(schema).buckets({ logos, avatars });
 const storage = { from: () => ({}) } as never;
 
 const executor = {
@@ -49,7 +49,7 @@ describe("db.$buckets", () => {
     const photos = avatarBucket();
 
     expectTypeOf(
-      defineSupabase(schema)
+      createSupabase(schema)
         .buckets({ photos })
         .connect(executor, {}, { storage }).$buckets.photos,
     ).toEqualTypeOf<
@@ -58,6 +58,6 @@ describe("db.$buckets", () => {
     // @ts-expect-error not registered
     void db.$buckets.other;
     // @ts-expect-error a definition without buckets has no $buckets
-    void defineSupabase(schema).connect(executor).$buckets;
+    void createSupabase(schema).connect(executor).$buckets;
   });
 });

@@ -4,7 +4,7 @@ description: Build a create or edit form from a block's entity schema and the or
 ---
 
 `recordForm(schema, options)` from `better-supabase/records` turns a block's
-entity schema, such as `workItemInputSchema`, into a list of form fields and
+entity schema, such as `taskInputSchema`, into a list of form fields and
 adds the organization's [custom fields](/docs/blocks/custom-fields) after
 them. Its `validate` turns the text from the inputs into typed values,
 validates the entity part with the schema and checks the required custom
@@ -17,12 +17,12 @@ with your shadcn components.
 ## Build the fields
 
 ```ts
-import { workItemInputSchema } from "better-supabase/blocks/tasks";
+import { taskInputSchema } from "better-supabase/blocks/tasks";
 import { recordForm } from "better-supabase/records";
 
 const fields = await db.customFields.listDefinitions("task").orThrow();
 
-const form = recordForm(workItemInputSchema, {
+const form = recordForm(taskInputSchema, {
   fields: ["title", "priority", "dueAt"],
   labels: { dueAt: "Due" },
   customFields: fields.map((field) => ({

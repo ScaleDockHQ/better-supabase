@@ -11,13 +11,7 @@ import type { Names } from "./catalog-names.ts";
 import { sqlString, sqlIdent } from "../../core/template.ts";
 import { currencyMinorUnitsFunction } from "../money-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import {
-  addExtraColumns,
-  extraFieldsArg,
-  lockTable,
-  schemaPreamble,
-} from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
+import { extraFieldsArg, lockTable, schemaPreamble } from "../shared.ts";
 import {
   catalogLocales,
   channelContract,
@@ -143,16 +137,7 @@ const NAMES: BlockSqlNames = {
     "before_price_set",
     "after_price_set",
   ],
-  options: [
-    "storefront",
-    "extraColumns",
-    "variantExtraColumns",
-    "categoryExtraColumns",
-    "locales",
-    "rankType",
-    "variantInUse",
-    "maxVariants",
-  ],
+  options: ["storefront", "locales", "rankType", "variantInUse", "maxVariants"],
   tables: {
     products: {
       name: "products",
@@ -277,8 +262,8 @@ const NAMES: BlockSqlNames = {
         currency: "currency",
         amount: "amount",
         compareAt: "compare_at_amount",
-        validFrom: "valid_from",
-        validUntil: "valid_until",
+        validFrom: "starts_at",
+        validUntil: "expires_at",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
@@ -494,7 +479,6 @@ const NAMES: BlockSqlNames = {
       table: "collections",
       was: "collections",
     },
-    ...tableMoves("catalog", 3),
   ],
 };
 
@@ -551,7 +535,7 @@ function tables(ctx: BlockSqlContext, names: Names): string {
         roles: ["authenticated"],
         using: `${c(table, "tenant")} in (select ${ctx.scope.ids(names.read)})`,
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   return `
@@ -567,7 +551,7 @@ create table if not exists ${t("products")} (
   ${c("products", "updatedAt")} timestamptz not null default now(),
   unique (${c("products", "tenant")}, ${c("products", "slug")})
 );
-create index if not exists ${ctx.naming.rename("products_status_idx")} on ${t("products")} (${c("products", "tenant")}, ${c("products", "status")});${addExtraColumns(t("products"), productExtras(ctx))}
+create index if not exists ${ctx.naming.rename("products_status_idx")} on ${t("products")} (${c("products", "tenant")}, ${c("products", "status")});
 ${lockTable(t("products"), { read: true })}
 ${read("products")}
 
@@ -607,7 +591,7 @@ create table if not exists ${t("variants")} (
   ${c("variants", "updatedAt")} timestamptz not null default now(),
   unique (${c("variants", "tenant")}, ${c("variants", "sku")})
 );
-create index if not exists ${ctx.naming.rename("product_variants_product_idx")} on ${t("variants")} (${c("variants", "product")});${addExtraColumns(t("variants"), variantExtras(ctx))}
+create index if not exists ${ctx.naming.rename("product_variants_product_idx")} on ${t("variants")} (${c("variants", "product")});
 ${lockTable(t("variants"), { read: true })}
 ${read("variants")}
 
@@ -662,7 +646,7 @@ create table if not exists ${t("categories")} (
   ${c("categories", "updatedAt")} timestamptz not null default now(),
   unique (${c("categories", "tenant")}, ${c("categories", "slug")})
 );
-create index if not exists ${sqlIdent(`${ctx.tableName("categories").name}_parent_idx`)} on ${t("categories")} (${c("categories", "parent")});${addExtraColumns(t("categories"), categoryExtras(ctx))}
+create index if not exists ${sqlIdent(`${ctx.tableName("categories").name}_parent_idx`)} on ${t("categories")} (${c("categories", "parent")});
 ${lockTable(t("categories"), { read: true })}
 ${read("categories")}
 

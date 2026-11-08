@@ -4,7 +4,7 @@
   "tags": ["test"],
   "tasks": {
     "typecheck:perf": {
-      "env": ["BENCH_UPDATE"],
+      "env": ["BENCH_UPDATE", "BENCH_ONLY", "BENCH_KEEP"],
       "dependsOn": ["^build"]
     }
   }

@@ -33,7 +33,6 @@
   },
   "files": [
     "bin",
-    "codemods",
     "dist",
     "schemas",
     "skills",
@@ -135,6 +134,21 @@
       "types": "./dist/server/index.d.ts",
       "default": "./dist/server/index.js"
     },
+    "./server/accounts": {
+      "@better-supabase/source": "./src/server/accounts/index.ts",
+      "types": "./dist/server/accounts/index.d.ts",
+      "default": "./dist/server/accounts/index.js"
+    },
+    "./server/csv": {
+      "@better-supabase/source": "./src/server/csv/index.ts",
+      "types": "./dist/server/csv/index.d.ts",
+      "default": "./dist/server/csv/index.js"
+    },
+    "./server/rate-limit": {
+      "@better-supabase/source": "./src/server/rate-limit/index.ts",
+      "types": "./dist/server/rate-limit/index.d.ts",
+      "default": "./dist/server/rate-limit/index.js"
+    },
     "./powersync": {
       "@better-supabase/source": "./src/powersync/index.ts",
       "types": "./dist/powersync/index.d.ts",
@@ -155,6 +169,16 @@
       "types": "./dist/next/index.d.ts",
       "default": "./dist/next/index.js"
     },
+    "./next/auth-gate": {
+      "@better-supabase/source": "./src/next/auth-gate/index.ts",
+      "types": "./dist/next/auth-gate/index.d.ts",
+      "default": "./dist/next/auth-gate/index.js"
+    },
+    "./next/proxy": {
+      "@better-supabase/source": "./src/next/proxy/index.ts",
+      "types": "./dist/next/proxy/index.d.ts",
+      "default": "./dist/next/proxy/index.js"
+    },
     "./next/image": {
       "@better-supabase/source": "./src/next/image/index.ts",
       "types": "./dist/next/image/index.d.ts",
@@ -164,6 +188,11 @@
       "@better-supabase/source": "./src/next/client/index.ts",
       "types": "./dist/next/client/index.d.ts",
       "default": "./dist/next/client/index.js"
+    },
+    "./next/offline": {
+      "@better-supabase/source": "./src/next/offline/index.ts",
+      "types": "./dist/next/offline/index.d.ts",
+      "default": "./dist/next/offline/index.js"
     },
     "./hono": {
       "@better-supabase/source": "./src/hono/index.ts",
@@ -320,6 +349,11 @@
       "types": "./dist/storage/index.d.ts",
       "default": "./dist/storage/index.js"
     },
+    "./storage/client": {
+      "@better-supabase/source": "./src/storage/client/index.ts",
+      "types": "./dist/storage/client/index.d.ts",
+      "default": "./dist/storage/client/index.js"
+    },
     "./realtime": {
       "@better-supabase/source": "./src/realtime/index.ts",
       "types": "./dist/realtime/index.d.ts",
@@ -334,6 +368,46 @@
       "@better-supabase/source": "./src/recurrence/index.ts",
       "types": "./dist/recurrence/index.d.ts",
       "default": "./dist/recurrence/index.js"
+    },
+    "./generators/zod": {
+      "@better-supabase/source": "./src/generators/zod/index.ts",
+      "types": "./dist/generators/zod/index.d.ts",
+      "default": "./dist/generators/zod/index.js"
+    },
+    "./generators/valibot": {
+      "@better-supabase/source": "./src/generators/valibot/index.ts",
+      "types": "./dist/generators/valibot/index.d.ts",
+      "default": "./dist/generators/valibot/index.js"
+    },
+    "./generators/json-schema": {
+      "@better-supabase/source": "./src/generators/json-schema/index.ts",
+      "types": "./dist/generators/json-schema/index.d.ts",
+      "default": "./dist/generators/json-schema/index.js"
+    },
+    "./generators/standard-schema": {
+      "@better-supabase/source": "./src/generators/standard-schema/index.ts",
+      "types": "./dist/generators/standard-schema/index.d.ts",
+      "default": "./dist/generators/standard-schema/index.js"
+    },
+    "./generators/factories": {
+      "@better-supabase/source": "./src/generators/factories/index.ts",
+      "types": "./dist/generators/factories/index.d.ts",
+      "default": "./dist/generators/factories/index.js"
+    },
+    "./generators/nuqs": {
+      "@better-supabase/source": "./src/generators/nuqs/index.ts",
+      "types": "./dist/generators/nuqs/index.d.ts",
+      "default": "./dist/generators/nuqs/index.js"
+    },
+    "./generators": {
+      "@better-supabase/source": "./src/generators/index.ts",
+      "types": "./dist/generators/index.d.ts",
+      "default": "./dist/generators/index.js"
+    },
+    "./plugins": {
+      "@better-supabase/source": "./src/plugins/index.ts",
+      "types": "./dist/plugins/index.d.ts",
+      "default": "./dist/plugins/index.js"
     },
     "./events": {
       "@better-supabase/source": "./src/events/index.ts",
@@ -701,11 +775,11 @@
       "types": "./dist/ai-sdk/workflow/index.d.ts",
       "default": "./dist/ai-sdk/workflow/index.js"
     },
-    "./ai-sdk/workflow/react": {
-      "@better-supabase/source": "./src/ai-sdk/workflow/react/index.ts",
-      "types": "./dist/ai-sdk/workflow/react/index.d.ts",
-      "react-server": "./dist/ai-sdk/workflow/react/server.js",
-      "default": "./dist/ai-sdk/workflow/react/index.js"
+    "./ai-sdk/workflow-react": {
+      "@better-supabase/source": "./src/ai-sdk/workflow-react/index.ts",
+      "types": "./dist/ai-sdk/workflow-react/index.d.ts",
+      "react-server": "./dist/ai-sdk/workflow-react/server.js",
+      "default": "./dist/ai-sdk/workflow-react/index.js"
     },
     "./blocks/announcements": {
       "@better-supabase/source": "./src/blocks/announcements/index.ts",
@@ -847,10 +921,10 @@
       "types": "./dist/blocks/relations/index.d.ts",
       "default": "./dist/blocks/relations/index.js"
     },
-    "./blocks/bulk": {
-      "@better-supabase/source": "./src/blocks/bulk/index.ts",
-      "types": "./dist/blocks/bulk/index.d.ts",
-      "default": "./dist/blocks/bulk/index.js"
+    "./blocks/bulk-actions": {
+      "@better-supabase/source": "./src/blocks/bulk-actions/index.ts",
+      "types": "./dist/blocks/bulk-actions/index.d.ts",
+      "default": "./dist/blocks/bulk-actions/index.js"
     },
     "./blocks/search": {
       "@better-supabase/source": "./src/blocks/search/index.ts",
@@ -942,10 +1016,10 @@
       "types": "./dist/blocks/forms/index.d.ts",
       "default": "./dist/blocks/forms/index.js"
     },
-    "./blocks/time-tracking": {
-      "@better-supabase/source": "./src/blocks/time-tracking/index.ts",
-      "types": "./dist/blocks/time-tracking/index.d.ts",
-      "default": "./dist/blocks/time-tracking/index.js"
+    "./blocks/time-entries": {
+      "@better-supabase/source": "./src/blocks/time-entries/index.ts",
+      "types": "./dist/blocks/time-entries/index.d.ts",
+      "default": "./dist/blocks/time-entries/index.js"
     },
     "./blocks/templates": {
       "@better-supabase/source": "./src/blocks/templates/index.ts",
@@ -1063,7 +1137,6 @@
       "default": "./dist/testing/index.js"
     },
     "./schemas/*.json": "./schemas/*.json",
-    "./codemods/*.json": "./codemods/*.json",
     "./testing/act-cases.json": "./testing/act-cases.json",
     "./sqlite": {
       "@better-supabase/source": "./src/sqlite/index.ts",
@@ -1497,6 +1570,18 @@
         "types": "./dist/server/index.d.ts",
         "default": "./dist/server/index.js"
       },
+      "./server/accounts": {
+        "types": "./dist/server/accounts/index.d.ts",
+        "default": "./dist/server/accounts/index.js"
+      },
+      "./server/csv": {
+        "types": "./dist/server/csv/index.d.ts",
+        "default": "./dist/server/csv/index.js"
+      },
+      "./server/rate-limit": {
+        "types": "./dist/server/rate-limit/index.d.ts",
+        "default": "./dist/server/rate-limit/index.js"
+      },
       "./powersync": {
         "types": "./dist/powersync/index.d.ts",
         "default": "./dist/powersync/index.js"
@@ -1513,6 +1598,14 @@
         "types": "./dist/next/index.d.ts",
         "default": "./dist/next/index.js"
       },
+      "./next/auth-gate": {
+        "types": "./dist/next/auth-gate/index.d.ts",
+        "default": "./dist/next/auth-gate/index.js"
+      },
+      "./next/proxy": {
+        "types": "./dist/next/proxy/index.d.ts",
+        "default": "./dist/next/proxy/index.js"
+      },
       "./next/image": {
         "types": "./dist/next/image/index.d.ts",
         "default": "./dist/next/image/index.js"
@@ -1520,6 +1613,10 @@
       "./next/client": {
         "types": "./dist/next/client/index.d.ts",
         "default": "./dist/next/client/index.js"
+      },
+      "./next/offline": {
+        "types": "./dist/next/offline/index.d.ts",
+        "default": "./dist/next/offline/index.js"
       },
       "./hono": {
         "types": "./dist/hono/index.d.ts",
@@ -1645,6 +1742,10 @@
         "types": "./dist/storage/index.d.ts",
         "default": "./dist/storage/index.js"
       },
+      "./storage/client": {
+        "types": "./dist/storage/client/index.d.ts",
+        "default": "./dist/storage/client/index.js"
+      },
       "./realtime": {
         "types": "./dist/realtime/index.d.ts",
         "default": "./dist/realtime/index.js"
@@ -1656,6 +1757,38 @@
       "./recurrence": {
         "types": "./dist/recurrence/index.d.ts",
         "default": "./dist/recurrence/index.js"
+      },
+      "./generators/zod": {
+        "types": "./dist/generators/zod/index.d.ts",
+        "default": "./dist/generators/zod/index.js"
+      },
+      "./generators/valibot": {
+        "types": "./dist/generators/valibot/index.d.ts",
+        "default": "./dist/generators/valibot/index.js"
+      },
+      "./generators/json-schema": {
+        "types": "./dist/generators/json-schema/index.d.ts",
+        "default": "./dist/generators/json-schema/index.js"
+      },
+      "./generators/standard-schema": {
+        "types": "./dist/generators/standard-schema/index.d.ts",
+        "default": "./dist/generators/standard-schema/index.js"
+      },
+      "./generators/factories": {
+        "types": "./dist/generators/factories/index.d.ts",
+        "default": "./dist/generators/factories/index.js"
+      },
+      "./generators/nuqs": {
+        "types": "./dist/generators/nuqs/index.d.ts",
+        "default": "./dist/generators/nuqs/index.js"
+      },
+      "./generators": {
+        "types": "./dist/generators/index.d.ts",
+        "default": "./dist/generators/index.js"
+      },
+      "./plugins": {
+        "types": "./dist/plugins/index.d.ts",
+        "default": "./dist/plugins/index.js"
       },
       "./events": {
         "types": "./dist/events/index.d.ts",
@@ -1950,10 +2083,10 @@
         "types": "./dist/ai-sdk/workflow/index.d.ts",
         "default": "./dist/ai-sdk/workflow/index.js"
       },
-      "./ai-sdk/workflow/react": {
-        "types": "./dist/ai-sdk/workflow/react/index.d.ts",
-        "react-server": "./dist/ai-sdk/workflow/react/server.js",
-        "default": "./dist/ai-sdk/workflow/react/index.js"
+      "./ai-sdk/workflow-react": {
+        "types": "./dist/ai-sdk/workflow-react/index.d.ts",
+        "react-server": "./dist/ai-sdk/workflow-react/server.js",
+        "default": "./dist/ai-sdk/workflow-react/index.js"
       },
       "./blocks/announcements": {
         "types": "./dist/blocks/announcements/index.d.ts",
@@ -2067,9 +2200,9 @@
         "types": "./dist/blocks/relations/index.d.ts",
         "default": "./dist/blocks/relations/index.js"
       },
-      "./blocks/bulk": {
-        "types": "./dist/blocks/bulk/index.d.ts",
-        "default": "./dist/blocks/bulk/index.js"
+      "./blocks/bulk-actions": {
+        "types": "./dist/blocks/bulk-actions/index.d.ts",
+        "default": "./dist/blocks/bulk-actions/index.js"
       },
       "./blocks/search": {
         "types": "./dist/blocks/search/index.d.ts",
@@ -2143,9 +2276,9 @@
         "types": "./dist/blocks/forms/index.d.ts",
         "default": "./dist/blocks/forms/index.js"
       },
-      "./blocks/time-tracking": {
-        "types": "./dist/blocks/time-tracking/index.d.ts",
-        "default": "./dist/blocks/time-tracking/index.js"
+      "./blocks/time-entries": {
+        "types": "./dist/blocks/time-entries/index.d.ts",
+        "default": "./dist/blocks/time-entries/index.js"
       },
       "./blocks/templates": {
         "types": "./dist/blocks/templates/index.d.ts",
@@ -2240,7 +2373,6 @@
         "default": "./dist/testing/index.js"
       },
       "./schemas/*.json": "./schemas/*.json",
-      "./codemods/*.json": "./codemods/*.json",
       "./testing/act-cases.json": "./testing/act-cases.json",
       "./sqlite": {
         "types": "./dist/sqlite/index.d.ts",
@@ -2538,7 +2670,6 @@
     "build": "tsdown",
     "check:publish": "publint && pnpm pack --out pack.tgz && attw --profile esm-only pack.tgz && rm -f pack.tgz",
     "gen:check": "node scripts/gen-fixtures.ts --check",
-    "gen:codemods": "node scripts/gen-codemods.ts",
     "gen:config-schema": "node scripts/gen-config-schema.ts",
     "gen:fixtures": "node scripts/gen-fixtures.ts",
     "lint": "oxlint",
@@ -2725,9 +2856,11 @@
     "svelte": "catalog:peers",
     "temporal-polyfill": "catalog:peers",
     "undici": "catalog:peers",
+    "valibot": "catalog:peers",
     "vue": "catalog:peers",
     "workflow": "catalog:peers",
-    "yjs": "catalog:peers"
+    "yjs": "catalog:peers",
+    "zod": "catalog:peers"
   },
   "peerDependenciesMeta": {
     "@ai-sdk/anthropic": {
@@ -2916,7 +3049,13 @@
     "undici": {
       "optional": true
     },
+    "valibot": {
+      "optional": true
+    },
     "yjs": {
+      "optional": true
+    },
+    "zod": {
       "optional": true
     }
   },

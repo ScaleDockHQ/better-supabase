@@ -26,7 +26,7 @@ const ROW = {
   id: "t1",
   name: "Quota",
   metric: "deals.won_amount",
-  owner_user_id: "u1",
+  owner_id: "u1",
   team_id: null,
   period_start: "2026-10-01",
   period_end: "2026-12-31",

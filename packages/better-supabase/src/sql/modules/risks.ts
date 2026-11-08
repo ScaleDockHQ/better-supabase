@@ -11,7 +11,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { entityType } from "../resolved-names.ts";
-import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import { lockTable, schemaPreamble } from "../shared.ts";
 import { riskAssessFunctions } from "./risks-assess.ts";
 import { riskFunctions } from "./risks-functions.ts";
 import {
@@ -92,7 +92,7 @@ const NAMES: BlockSqlNames = {
     "before_risk_close",
     "after_risk_close",
   ],
-  options: ["categories", "defaultMatrix", "extraColumns"],
+  options: ["categories", "defaultMatrix"],
   tables: {
     matrices: {
       name: "risk_matrices",
@@ -206,7 +206,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, q.read),
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const level = (column: string): string =>
@@ -282,7 +282,7 @@ create table if not exists ${risks} (
   unique (${r("tenant")}, ${r("id")}),
   check (${r("status")} <> 'closed' or ${r("closedAt")} is not null),
   foreign key (${r("tenant")}, ${r("matrix")}) references ${matrices} (${m("tenant")}, ${m("id")}) on delete restrict
-);${addExtraColumns(risks, q.extras)}${appKey("risks", "tenant_number", `${r("tenant")}, ${r("number")}`)}${appKey("risks", "tenant_id", `${r("tenant")}, ${r("id")}`)}
+);${appKey("risks", "tenant_number", `${r("tenant")}, ${r("number")}`)}${appKey("risks", "tenant_id", `${r("tenant")}, ${r("id")}`)}
 create index if not exists ${name("risks", "tenant_idx")} on ${risks} (${r("tenant")}, ${r("status")}, ${r("residualScore")} desc);
 create index if not exists ${name("risks", "matrix_idx")} on ${risks} (${r("tenant")}, ${r("matrix")});
 create index if not exists ${name("risks", "owner_idx")} on ${risks} (${r("tenant")}, ${r("owner")}) where ${r("owner")} is not null;

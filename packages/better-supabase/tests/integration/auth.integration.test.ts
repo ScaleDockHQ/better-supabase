@@ -17,7 +17,7 @@ import {
 } from "../../src/auth/session.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { createClient as createBetterClient } from "../../src/client/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { parseEnv } from "../../src/env/index.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import {
@@ -25,7 +25,7 @@ import {
   withBetterPostgres,
 } from "../../src/server/entries/upstream.ts";
 import { createServer } from "../../src/server/server.ts";
-import { SQL_MODULES } from "../../src/sql/registry.ts";
+import { moduleBody } from "../../src/sql/render.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { deleteAudit } from "./audit-cleanup.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
@@ -203,7 +203,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   it("binds repositories to the caller through createServer", async () => {
-    const betterSupabase = defineSupabase(schema).use(membershipsExtension());
+    const betterSupabase = createSupabase(schema).use(membershipsExtension());
     const server = createServer(betterSupabase, { env, postgres });
     const cookies = await signInCookies();
     const ctx = await server.context(toRequest(cookies));
@@ -236,7 +236,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   it("runs a recorded job context as the user, with RLS", async () => {
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
     const ctx = await server.context(toRequest(await signInCookies()));
     const own = await ctx.db.customers.count().orThrow();
     const actor = ctx.db.$context.actor!;
@@ -256,10 +256,10 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   it("records the impersonating admin in the audit log", async () => {
-    const betterSupabase = defineSupabase(schema).use(membershipsExtension());
+    const betterSupabase = createSupabase(schema).use(membershipsExtension());
     const server = createServer(betterSupabase, { env, postgres });
     const admin = crypto.randomUUID();
-    await postgres.admin.queryRaw(SQL_MODULES["audit"]!.sql);
+    await postgres.admin.queryRaw(moduleBody("audit", { rerunnable: true })!);
     await postgres.admin.queryRaw(
       "select better_supabase.audit('public.customers')",
     );
@@ -312,7 +312,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   it("follows the session in the browser client", async () => {
-    const betterSupabase = defineSupabase(schema).use(membershipsExtension());
+    const betterSupabase = createSupabase(schema).use(membershipsExtension());
 
     const browser = createBetterClient(betterSupabase, {
       client: createClient(url, publishableKey, {
@@ -354,7 +354,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
   });
 
   it("plugs into @supabase/server pipelines as ctx.db and ctx.sql", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const { data: signIn } = await createClient(url, publishableKey, {
       auth: { persistSession: false },

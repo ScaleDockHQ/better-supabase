@@ -1,68 +1,44 @@
 -- ==== schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:9663e584411d873cb0c5052b376fec099289313688519226589aef39de0914f1
+-- @bsb-hash sha256:f9228e817bfd213ee8cc26ffab9270d220e427ff9d0659d83e4abaadb751ddc8
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guardrail_policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guardrail_policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guardrail_policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guardrail_policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guardrail_policies";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."guardrail_decisions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."guardrail_decisions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."guardrail_decisions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."guardrail_decisions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."guardrail_decisions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Input and output policies per agent, and the log of what the checks decided.
 -- A policy row holds the config the TypeScript check reads (injection
 -- heuristics, PII handling, deny topics, the deepest tool chain); tenant is
 -- null for a policy that applies to every tenant. The log keeps a hash of the
 -- checked content, never the content. Only the service role reads and writes
 -- these tables.
-create table if not exists "better_supabase"."guardrail_policies" (
+create table "better_supabase"."guardrail_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid,
-  "agent" text not null check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "config" jsonb not null default '{}'::jsonb check (jsonb_typeof("config") = 'object'),
+  "agent" text not null constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
+  "stage" text not null constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output')),
+  "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "bsb_guardrail_policies_key" on "better_supabase"."guardrail_policies" ((coalesce("workspace_id"::text, '')), "agent", "stage");
+create unique index "bsb_guardrail_policies_key" on "better_supabase"."guardrail_policies" ((coalesce("workspace_id"::text, '')), "agent", "stage");
 alter table "better_supabase"."guardrail_policies" enable row level security;
 revoke all on "better_supabase"."guardrail_policies" from public, anon, authenticated;
 grant all on "better_supabase"."guardrail_policies" to service_role;
 
-create table if not exists "better_supabase"."guardrail_decisions" (
+create table "better_supabase"."guardrail_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid,
   "agent" text not null,
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "decision" text not null check ("decision" in ('allow', 'redact', 'block')),
-  "reasons" jsonb not null default '[]'::jsonb check (jsonb_typeof("reasons") = 'array'),
+  "stage" text not null constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output')),
+  "decision" text not null constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block')),
+  "reasons" jsonb not null default '[]'::jsonb constraint bsb_guardrail_decisions_reasons_check check (jsonb_typeof("reasons") = 'array'),
   "chat_id" text,
   "content_hash" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "guardrail_decisions_agent_idx" on "better_supabase"."guardrail_decisions" ("agent", "created_at" desc);
-create index if not exists "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("workspace_id", "created_at" desc);
+create index "guardrail_decisions_agent_idx" on "better_supabase"."guardrail_decisions" ("agent", "created_at" desc);
+create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("workspace_id", "created_at" desc);
 alter table "better_supabase"."guardrail_decisions" enable row level security;
 revoke all on "better_supabase"."guardrail_decisions" from public, anon, authenticated;
 grant all on "better_supabase"."guardrail_decisions" to service_role;
@@ -189,19 +165,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_guardrail_decisions"() to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails

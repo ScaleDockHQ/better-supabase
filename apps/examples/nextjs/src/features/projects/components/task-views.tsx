@@ -1,8 +1,7 @@
 import { tenantOf } from "better-supabase/next";
 import { ListTodoIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
-import { connection } from "next/server";
-import { Temporal } from "temporal-polyfill";
+import { io } from "next/cache";
 
 import type { AppHref } from "@/i18n/navigation";
 
@@ -23,14 +22,14 @@ import { getSession } from "@/features/user/user-queries";
 import { Link, toSearch, withSearch } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
+import { parseTaskQuery, taskSearch } from "../project-types";
 import {
   getMemberOptions,
   getProjectOptions,
   getTasks,
   getTaskViews,
   settle,
-} from "../project-queries";
-import { parseTaskQuery, taskSearch } from "../project-types";
+} from "../projects-queries";
 import { firstOfMonth, windowStart } from "../task-dates";
 import { ProjectFormDialog } from "./project-form-dialog";
 import { ProjectLoadError } from "./project-load-error";
@@ -47,16 +46,15 @@ import { ViewLinks } from "./view-links";
  * filters, with the toolbar every screen shares.
  */
 export async function TaskViews({
-  searchParams,
+  query: search,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [session, t, params, permissions] = await Promise.all([
+  const [session, t, permissions] = await Promise.all([
     getSession(),
     getExtracted("projects"),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   const tenant = tenantOf(session);
@@ -65,7 +63,7 @@ export async function TaskViews({
     return null;
   }
 
-  const query = parseTaskQuery(params);
+  const query = parseTaskQuery(search);
   const canSaveViews = can(permissions, "saved_views.read");
 
   const [tasks, projects, members, views] = await Promise.all([
@@ -137,7 +135,7 @@ export async function TaskViews({
         return (
           <TaskCalendar
             rows={tasks.data}
-            first={firstOfMonth(params["month"], today)}
+            first={firstOfMonth(search["month"], today)}
             today={today}
             monthHref={(month) => hrefWith("month", month)}
           />
@@ -149,7 +147,7 @@ export async function TaskViews({
           <TaskTimeline
             rows={tasks.data}
             members={members.data}
-            from={windowStart(params["from"], today)}
+            from={windowStart(search["from"], today)}
             today={today}
             windowHref={(from) => hrefWith("from", from)}
           />
@@ -161,7 +159,7 @@ export async function TaskViews({
           <TaskGantt
             rows={tasks.data}
             projects={projects.data}
-            from={windowStart(params["from"], today)}
+            from={windowStart(search["from"], today)}
             today={today}
             windowHref={(from) => hrefWith("from", from)}
           />

@@ -3,7 +3,6 @@ import type { WorkflowsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { workflowsEvents } from "./events.ts";
-import { workflowsSqlOptions } from "./options.ts";
 import { createWorkflows } from "./workflows.ts";
 
 /** The `workflows` block's manifest (ADR 0029). */
@@ -25,7 +24,6 @@ export const workflowsBlock: BlockOf<
     },
   ],
   sql: ["workflows"],
-  options: { workflows: workflowsSqlOptions },
   events: workflowsEvents,
   provides: { workflows: (client) => client },
   create: createWorkflows,

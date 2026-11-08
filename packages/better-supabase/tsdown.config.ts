@@ -23,11 +23,18 @@ const entries = [
   "auth/index",
   "contract/index",
   "server/index",
+  "server/accounts/index",
+  "server/csv/index",
+  "server/rate-limit/index",
   "postgres/index",
   "ssr/index",
   "next/index",
   "next/image/index",
+  "next/proxy/index",
+  "next/auth-gate/index",
+  "next/auth-gate/user",
   "next/client/index",
+  "next/offline/index",
   "hono/index",
   "orpc/index",
   "edge/index",
@@ -170,7 +177,7 @@ const entries = [
   "blocks/rank/index",
   "blocks/saved-views/index",
   "blocks/relations/index",
-  "blocks/bulk/index",
+  "blocks/bulk-actions/index",
   "blocks/search/index",
   "blocks/metrics/index",
   "commerce/index",
@@ -188,7 +195,7 @@ const entries = [
   "blocks/drive/index",
   "blocks/signatures/index",
   "blocks/forms/index",
-  "blocks/time-tracking/index",
+  "blocks/time-entries/index",
   "blocks/templates/index",
   "blocks/option-sets/index",
   "blocks/pipelines/index",
@@ -225,8 +232,8 @@ const entries = [
   "ai-sdk/react/index",
   "ai-sdk/react/server",
   "ai-sdk/workflow/index",
-  "ai-sdk/workflow/react/index",
-  "ai-sdk/workflow/react/server",
+  "ai-sdk/workflow-react/index",
+  "ai-sdk/workflow-react/server",
   "blocks/announcements/index",
   "blocks/waitlist/index",
   "streams/index",
@@ -268,9 +275,18 @@ const entries = [
   "env/index",
   "list/index",
   "storage/index",
+  "storage/client/index",
   "realtime/index",
   "rate-limit/index",
   "recurrence/index",
+  "generators/index",
+  "plugins/index",
+  "generators/zod/index",
+  "generators/valibot/index",
+  "generators/json-schema/index",
+  "generators/standard-schema/index",
+  "generators/factories/index",
+  "generators/nuqs/index",
   "events/index",
   "spec/index",
   "otel/index",
@@ -285,7 +301,8 @@ const entries = [
 
 const src = resolve(import.meta.dirname, "src");
 
-const USE_CLIENT_MODULE = /src\/react\/(index|hooks|session)\.ts$/;
+const USE_CLIENT_MODULE =
+  /src\/(react\/(index|hooks|session)|next\/auth-gate\/user)\.ts$/;
 
 /**
  * The subpath of a library entry (`src/sql/index.ts` is `sql`), or undefined
@@ -346,6 +363,15 @@ const library = defineConfig({
           return { id: "./session.js", external: true };
         }
 
+        // The auth gate's Server Component renders its provider from the built
+        // `next/auth-gate/user.js` entry, so it stays a "use client" reference.
+        if (
+          source === "./user.js" &&
+          importer?.endsWith("src/next/auth-gate/index.ts")
+        ) {
+          return { id: "./user.js", external: true };
+        }
+
         return null;
       },
     },
@@ -395,6 +421,7 @@ const cli = defineConfig({
   entry: {
     "cli/index": "src/cli/index.ts",
     "cli/bin": "src/cli/bin.ts",
+    "cli/generator-worker": "src/cli/generators/worker.ts",
     "mapper/bin": "src/mapper/bin.ts",
   },
   platform: "node",
@@ -425,13 +452,17 @@ const cli = defineConfig({
       },
     },
     {
-      // The bins are executables, not modules anyone imports, so they ship no types.
+      // The bins and the generator worker are entry points, not modules anyone imports, so they ship no types.
       name: "no-bin-types",
       generateBundle: {
         order: "post",
         handler(_options, bundle) {
           for (const file of Object.keys(bundle)) {
-            if (/^(cli|mapper)\/bin\.d\.[cm]?ts(\.map)?$/.test(file)) {
+            if (
+              /^(cli\/(bin|generator-worker)|mapper\/bin)\.d\.[cm]?ts(\.map)?$/.test(
+                file,
+              )
+            ) {
               delete bundle[file];
             }
           }

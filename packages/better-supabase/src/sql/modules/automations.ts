@@ -9,7 +9,6 @@ import { sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, raise, schemaPreamble, SERVICE_CALLER } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import { defaultRulesSql, saveVersionSql } from "./automations-defaults-sql.ts";
 import { operatorTable, rulesEvaluator } from "./automations-evaluate.ts";
 import {
@@ -20,16 +19,14 @@ import {
   SUBJECT_TYPE,
   TRIGGER,
 } from "./automations-tables.ts";
-import { storedTypesData } from "./event-type-renames.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
-  migrations: tableMoves("automations", 1),
   entities: {
     automation: {
       table: "rules",
       singular: "automation",
-      formerly: "rule",
+      keyed: true,
       primary: true,
     },
   },
@@ -48,7 +45,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         subjectType: "subject_type",
         trigger: "trigger",
         name: "name",
@@ -96,7 +93,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         rule: "rule_id",
         version: "version",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         name: "name",
         conditions: "conditions",
         actions: "actions",
@@ -111,7 +108,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         rule: "rule_id",
         version: "version",
         subjectType: "subject_type",
@@ -1038,11 +1035,6 @@ export const RULES: BlockSqlDefinition = {
   modes: ["managed", "custom"],
   version: 2,
   names: NAMES,
-  data: (ctx) =>
-    storedTypesData(ctx, [
-      ["rules", "trigger"],
-      ["defaults", "trigger"],
-    ]),
   contract,
   build,
 };

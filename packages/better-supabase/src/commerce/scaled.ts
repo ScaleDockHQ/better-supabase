@@ -1,7 +1,7 @@
 const DECIMAL = /^([+-])?(\d+)(?:\.(\d+))?$/;
 
 /** Why `parseScaled` refused a text: not a decimal, or digits would be lost. */
-export type ParseScaledFailure = "syntax" | "scale";
+export type ParseScaledError = "syntax" | "scale";
 
 /**
  * Reads a decimal such as `"-1234.50"` as an integer count of 10^-`scale`
@@ -13,7 +13,7 @@ export function parseScaled(
   text: string,
   scale: number,
   trimZeros = false,
-): bigint | ParseScaledFailure {
+): bigint | ParseScaledError {
   const match = DECIMAL.exec(text.trim());
 
   if (!match) {

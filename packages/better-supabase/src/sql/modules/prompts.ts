@@ -6,7 +6,7 @@ import { lockTable, raise, schemaPreamble, serviceGrant } from "../shared.ts";
 
 const VERSIONS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   name: "name",
   version: "version",
   template: "template",
@@ -15,7 +15,7 @@ const VERSIONS = {
 } as const;
 
 const LABELS = {
-  tenant: "organization_id",
+  tenant: "tenant_id",
   name: "name",
   label: "label",
   version: "version",

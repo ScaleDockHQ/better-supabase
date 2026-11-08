@@ -95,7 +95,10 @@ export interface Employee<F extends object = Record<never, never>> {
   readonly createdAt?: Temporal.Instant;
   /** When the table has `updated_at`; pass it back as `expectedUpdatedAt`. */
   readonly updatedAt?: Temporal.Instant;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: Readonly<Record<string, unknown>> & F;
 }
 
@@ -198,7 +201,7 @@ export interface PrivateDetails {
 
 /** The details to save. Left out keeps the stored value; `null` clears it. */
 export interface PrivateDetailsInput {
-  /** With `options.privateDetailsExtraColumns`: values for those columns. */
+  /** With the columns the app's schema files add: values for those columns. */
   readonly fields?: Readonly<Record<string, unknown>>;
   readonly nationalId?: string | null;
   readonly iban?: string | null;
@@ -222,7 +225,7 @@ export interface Contract {
 }
 
 export interface ContractInput {
-  /** With `options.contractExtraColumns`: values for those columns. */
+  /** With the columns the app's schema files add: values for those columns. */
   readonly fields?: Readonly<Record<string, unknown>>;
   readonly startsOn: Temporal.PlainDate;
   readonly endsOn?: Temporal.PlainDate;
@@ -329,9 +332,9 @@ export interface EmployeesOptions<
   readonly statuses?: readonly St[];
   readonly schema?: string;
   /**
-   * A Standard Schema for the extra columns
-   * (`blocks.employees.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on reads and validates them on writes.
+   * A Standard Schema for the extra columns (columns the app's schema files add
+   * to the table), keyed by column name. It types and parses `fields` on reads
+   * and validates them on writes.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Employees<FieldsOf<S>>>>;

@@ -7,7 +7,6 @@ import { useAction } from "better-supabase/react";
 import { CalendarClockIcon, PauseIcon, PlayIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -33,7 +32,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -43,11 +41,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { AiTaskRow, AiTasksRead } from "../ai-task-queries";
+import type { AiTaskRow, AiTasksRead } from "../ai-tasks-queries";
 
-import { scheduleSampleTask, setAiTaskEnabled } from "../ai-task-actions";
+import { scheduleSampleTask, setAiTaskEnabled } from "../ai-tasks-actions";
 
 function RunStatusBadge({ status }: { status: AiTaskRunStatus | undefined }) {
   const t = useExtracted("aiTasks");
@@ -280,21 +279,4 @@ export function AiTaskQueue({ read }: { read: AiTasksRead }) {
   );
 }
 
-const SKELETON_ROWS = ["first", "second", "third"];
-
-export function AiTaskQueueSkeleton() {
-  return (
-    <Card aria-busy="true">
-      <CardHeader>
-        <Skeleton className="h-5 w-40" />
-        <Skeleton className="h-4 w-72" />
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {SKELETON_ROWS.map((row) => (
-          <Skeleton key={row} className="h-11 w-full" />
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
 // #endregion recipe:ai-task-queue

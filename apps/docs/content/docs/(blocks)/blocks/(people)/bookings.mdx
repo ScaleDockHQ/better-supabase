@@ -22,25 +22,25 @@ extension in the `extensions` schema for its exclusion constraint (see
 With `jobs` a hold expires itself, with `share-links` and `rate-limit`
 guests book through a link, with `calendar` confirmed bookings appear on the
 resource's calendar, with `reminders` customers get reminders, and with
-`outbox` its events are recorded. With [engagements](/docs/blocks/activities#bookings)
+`outbox` its events are recorded. With [activities](/docs/blocks/activities#bookings)
 and `options.bookings`, a confirmed booking is logged as a meeting on the
 booker's contact.
 
 ## Tables
 
-| Table                  | Holds                                                                                                                                                    |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `booking_resources`    | A bookable resource in an organization: `name`, `kind`, `capacity` (overlapping seats), an IANA `tz`, a `calendar_id`, a `host_user_id` and `check_busy` |
-| `booking_availability` | Weekly hours: a `weekday` (1 is Monday) with a `starts_at` and `ends_at` time in the resource's zone                                                     |
-| `booking_exceptions`   | A `during` range that closes the resource, or opens it outside its hours with `available`                                                                |
-| `booking_services`     | What is booked: `duration`, `buffer_before`, `buffer_after`, the `resource_kinds` that serve it, `step` and `min_notice`                                 |
-| `bookings`             | `resource_id`, `service_id`, `seat`, `during`, `status` (`hold`, `confirmed`, `cancelled`), `hold_expires_at`, customer                                  |
+| Table                  | Holds                                                                                                                                               |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `booking_resources`    | A bookable resource in an organization: `name`, `kind`, `capacity` (overlapping seats), an IANA `tz`, a `calendar_id`, a `host_id` and `check_busy` |
+| `booking_availability` | Weekly hours: a `weekday` (1 is Monday) with a `starts_at` and `ends_at` time in the resource's zone                                                |
+| `booking_exceptions`   | A `during` range that closes the resource, or opens it outside its hours with `available`                                                           |
+| `booking_services`     | What is booked: `duration`, `buffer_before`, `buffer_after`, the `resource_kinds` that serve it, `step` and `min_notice`                            |
+| `bookings`             | `resource_id`, `service_id`, `seat`, `during`, `status` (`hold`, `confirmed`, `cancelled`), `hold_expires_at`, customer                             |
 
 Each booking also stores `blocked`, its `during` widened by the service's
 buffers. The constraint is on that range:
 
 ```sql
-constraint bookings_no_overlap exclude using gist
+constraint bookings_no_overlap_excl exclude using gist
   (resource_id with =, seat with =, blocked with &&)
   where (status <> 'cancelled')
 ```
@@ -224,7 +224,7 @@ booked.skipped; // empty unless skipConflicts was set
 ```
 
 Each occurrence is placed like a confirmed booking, through the same slot
-check and the same `bookings_no_overlap` exclusion constraint, so a series can
+check and the same `bookings_no_overlap_excl` exclusion constraint, so a series can
 never double-book a seat. When an occurrence is taken the whole series fails
 with `BOOKING_SERIES_CONFLICT` and nothing is booked; pass
 `{ skipConflicts: true }` to book the open occurrences and get the taken
@@ -390,7 +390,7 @@ controller is disposed with the component.
 ```svelte title="Component.svelte"
 <script lang="ts">
   import {
-    getBetterSupabase,
+    betterSupabase,
     useBlockController,
   } from "better-supabase/svelte";
   import {
@@ -400,7 +400,7 @@ controller is disposed with the component.
   import { rpcTransport } from "better-supabase/blocks";
 
   let { serviceId }: { serviceId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const slots = useBlockController(createAvailableSlotsController, {
     client: createBookings({ transport: rpcTransport(supabase) }),
     serviceId,
@@ -500,7 +500,7 @@ app from [reui.io](https://reui.io).
 
 ## Your own fields
 
-`blocks.bookings.options.extraColumns` adds columns to the `bookings` table,
+Columns you add to `bookings` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createBookings` a Standard Schema
 for them as `fields`: the customer object of `hold` and `public.hold` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and every booking read return them

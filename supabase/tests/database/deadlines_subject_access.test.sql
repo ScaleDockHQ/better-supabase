@@ -11,7 +11,7 @@ insert into better_supabase.role_permissions (role_id, permission_id)
 select r.id, p.id from better_supabase.roles r, better_supabase.permissions p
 where r.key in ('owner', 'member') and p.key in ('deadlines.read', 'deadlines.write')
 on conflict do nothing;
-insert into better_supabase.permission_overrides (organization_id, role_id, permission_id, granted)
+insert into better_supabase.permission_overrides (tenant_id, role_id, permission_id, granted)
 select '00000000-0000-4000-8000-000000000001', r.id, p.id, false
 from better_supabase.roles r, better_supabase.permissions p
 where r.key = 'member' and p.key = 'customers.read';

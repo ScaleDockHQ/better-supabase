@@ -51,9 +51,9 @@ export interface AccountingOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the entry's extra columns
-   * (`blocks.accounting.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `saveEntry`.
+   * A Standard Schema for the entry's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `saveEntry`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -104,7 +104,7 @@ export type AccountNormalSide = "debit" | "credit";
 export type AccountingEntryStatus = "draft" | "posted" | "reversed";
 
 /** An organization's accounting settings. */
-export interface AccountingSettings {
+export interface AccountingSetup {
   readonly organizationId: string;
   /** Every debit and credit is in minor units of this currency. */
   readonly functionalCurrency: string;
@@ -445,7 +445,7 @@ export interface Accounting<F extends object = Record<never, never>>
   setup(input: {
     organizationId: string;
     input?: AccountingSetupInput | undefined;
-  }): AsyncResult<AccountingSettings>;
+  }): AsyncResult<AccountingSetup>;
   /**
    * Sets accounting up and opens the periods of `fiscalYear`: `setup` then
    * `openFiscalYear`. Both need `accounting.manage`; when opening fails the
@@ -456,7 +456,7 @@ export interface Accounting<F extends object = Record<never, never>>
     fiscalYear: number;
     input?: AccountingSetupInput | undefined;
   }): AsyncResult<{
-    readonly settings: AccountingSettings;
+    readonly settings: AccountingSetup;
     readonly periods: readonly AccountingPeriod[];
   }>;
   /**
@@ -473,12 +473,12 @@ export interface Accounting<F extends object = Record<never, never>>
     readonly until: Temporal.PlainDate;
     readonly report: ProfitAndLoss;
   }>;
-  settings(organizationId: string): AsyncResult<AccountingSettings | undefined>;
+  settings(organizationId: string): AsyncResult<AccountingSetup | undefined>;
   /** Nothing posts on or before `lockDate`. Needs `accounting.close`. */
   setLockDate(input: {
     organizationId: string;
     lockDate: Temporal.PlainDate | null;
-  }): AsyncResult<AccountingSettings>;
+  }): AsyncResult<AccountingSetup>;
   /** Needs `accounting.manage`. */
   saveAccount(input: {
     organizationId: string;

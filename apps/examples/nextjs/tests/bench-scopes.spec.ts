@@ -34,7 +34,11 @@ async function load(page: Page, variant: "plain" | "session") {
   const start: SessionStats = await before.json();
 
   await page.goto(`/en/bench/scopes?variant=${variant}`);
-  await expect(page.getByTestId(`scope-${SCOPES - 1}`)).toBeVisible();
+  // React streams each Suspense boundary into a hidden `div` before it swaps
+  // the content into the list, so the id briefly exists twice; scope to the list.
+  await expect(
+    page.getByRole("list").getByTestId(`scope-${SCOPES - 1}`),
+  ).toBeVisible();
 
   const end: SessionStats = await (
     await page.request.get("/api/bs-sessions")

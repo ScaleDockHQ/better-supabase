@@ -1,61 +1,11 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:5bd382841feb372604b5d43842f821e8cc10649b95abcb454165b4f5031eb082
+-- @bsb-hash sha256:78ee31d5c2eea1792379b6596a82a218ebb8087f76393a44f5003dacb80a6cea
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deadlines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Deadlines: rule sets owned by the platform (no tenant), versioned and approved
 -- once, and the deadlines computed from a subject's facts. A version is data:
 -- ordered groups, ordered rules with conditions, exceptions and a deadline
@@ -63,11 +13,11 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- one deadline per subject (one per month for a periodic rule): due on a
 -- date, unknown with the facts it waits for, pending, undated, or refused as
 -- not covered, not applicable, not required or barred.
-create table if not exists "better_supabase"."deadline_rule_sets" (
+create table "better_supabase"."deadline_rule_sets" (
   "id" uuid primary key default gen_random_uuid(),
-  "jurisdiction" text not null check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text check ("title" is null or length("title") <= 200),
+  "jurisdiction" text not null constraint bsb_deadline_rule_sets_jurisdiction_check check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "kind" text not null constraint bsb_deadline_rule_sets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text constraint bsb_deadline_rule_sets_title_check check ("title" is null or length("title") <= 200),
   "created_at" timestamptz not null default now(),
   constraint "deadline_rule_sets_key" unique ("jurisdiction", "kind")
 );
@@ -75,16 +25,15 @@ alter table "better_supabase"."deadline_rule_sets" enable row level security;
 revoke all on "better_supabase"."deadline_rule_sets" from public, anon, authenticated;
 grant select on "better_supabase"."deadline_rule_sets" to authenticated;
 grant all on "better_supabase"."deadline_rule_sets" to service_role;
-drop policy if exists deadline_rule_sets_read on "better_supabase"."deadline_rule_sets";
-create policy deadline_rule_sets_read on "better_supabase"."deadline_rule_sets"
+create policy bsb_deadline_rule_sets_read on "better_supabase"."deadline_rule_sets"
   for select to authenticated
   using (true);
 
-create table if not exists "better_supabase"."deadline_rule_versions" (
+create table "better_supabase"."deadline_rule_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "rule_set_id" uuid not null references "better_supabase"."deadline_rule_sets" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved')),
+  "version" integer not null constraint bsb_deadline_rule_versions_version_check check ("version" >= 1),
+  "status" text not null default 'draft' constraint bsb_deadline_rule_versions_status_check check ("status" in ('draft', 'approved')),
   "rules" jsonb not null,
   "groups" jsonb not null default '[]'::jsonb,
   "counting" jsonb,
@@ -96,15 +45,14 @@ create table if not exists "better_supabase"."deadline_rule_versions" (
   "approval_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("rule_set_id", "version"),
-  check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
+  constraint bsb_deadline_rule_versions_check check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
 );
-create index if not exists "deadline_rule_versions_effective_idx" on "better_supabase"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
+create index "deadline_rule_versions_effective_idx" on "better_supabase"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
 alter table "better_supabase"."deadline_rule_versions" enable row level security;
 revoke all on "better_supabase"."deadline_rule_versions" from public, anon, authenticated;
 grant select on "better_supabase"."deadline_rule_versions" to authenticated;
 grant all on "better_supabase"."deadline_rule_versions" to service_role;
-drop policy if exists deadline_rule_versions_read on "better_supabase"."deadline_rule_versions";
-create policy deadline_rule_versions_read on "better_supabase"."deadline_rule_versions"
+create policy bsb_deadline_rule_versions_read on "better_supabase"."deadline_rule_versions"
   for select to authenticated
   using ("status" = 'approved');
 
@@ -125,21 +73,20 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."deadline_version_frozen"() from public, anon, authenticated;
-drop trigger if exists bsb_deadlines_version_frozen on "better_supabase"."deadline_rule_versions";
 create trigger bsb_deadlines_version_frozen
   before update or delete on "better_supabase"."deadline_rule_versions"
   for each row execute function "better_supabase"."deadline_version_frozen"();
 
-create table if not exists "better_supabase"."deadlines" (
+create table "better_supabase"."deadlines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null constraint bsb_deadlines_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_id" text not null constraint bsb_deadlines_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "jurisdiction" text not null,
   "kind" text not null,
   "group_key" text not null,
   "rule_key" text,
-  "period" text check ("period" ~ '^[0-9]{4}-[0-9]{2}$'),
+  "period" text constraint bsb_deadlines_period_check check ("period" ~ '^[0-9]{4}-[0-9]{2}$'),
   "rule_version_id" uuid not null references "better_supabase"."deadline_rule_versions" ("id") on delete restrict,
   "facts" jsonb not null default '{}'::jsonb,
   "result" text not null,
@@ -152,19 +99,19 @@ create table if not exists "better_supabase"."deadlines" (
   "deadline" jsonb,
   "citation" jsonb not null,
   "as_of" date not null default current_date,
-  "state" text not null default 'pending' check ("state" in ('pending', 'satisfied')),
+  "state" text not null default 'pending' constraint bsb_deadlines_state_check check ("state" in ('pending', 'satisfied')),
   "satisfied_at" timestamptz,
   "satisfied_by" uuid,
-  "satisfied_action" text check ("satisfied_action" is null or length("satisfied_action") <= 200),
+  "satisfied_action" text constraint bsb_deadlines_satisfied_action_check check ("satisfied_action" is null or length("satisfied_action") <= 200),
   "computed_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  constraint "deadlines_result_check" check ("result" in ('due', 'unknown', 'pending', 'undated', 'not_covered', 'not_applicable', 'not_required', 'barred')),
-  check (("result" = 'due') = ("due_on" is not null)),
-  constraint "deadlines_period_due_check" check ("period" is null or "result" = 'due')
+  constraint bsb_deadlines_result_check check ("result" in ('due', 'unknown', 'pending', 'undated', 'not_covered', 'not_applicable', 'not_required', 'barred')),
+  constraint bsb_deadlines_check check (("result" = 'due') = ("due_on" is not null)),
+  constraint bsb_deadlines_period_due_check check ("period" is null or "result" = 'due')
 );
-create unique index if not exists "bsb_deadlines_subject_group_period_key" on "better_supabase"."deadlines" ("tenant_id", "subject_type", "subject_id", "group_key", (coalesce("period", '')));
-create index if not exists "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");
-create index if not exists "deadlines_due_idx" on "better_supabase"."deadlines" ("tenant_id", "due_on") where "state" = 'pending';
+create unique index "bsb_deadlines_subject_group_period_key" on "better_supabase"."deadlines" ("tenant_id", "subject_type", "subject_id", "group_key", (coalesce("period", '')));
+create index "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");
+create index "deadlines_due_idx" on "better_supabase"."deadlines" ("tenant_id", "due_on") where "state" = 'pending';
 alter table "better_supabase"."deadlines" enable row level security;
 revoke all on "better_supabase"."deadlines" from public, anon, authenticated;
 grant select on "better_supabase"."deadlines" to authenticated;
@@ -188,8 +135,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
-drop policy if exists deadlines_read on "better_supabase"."deadlines";
-create policy deadlines_read on "better_supabase"."deadlines"
+create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
 
@@ -1749,36 +1695,19 @@ grant execute on function "better_supabase"."list_deadlines"(uuid, jsonb) to aut
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."deadlines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_update on "better_supabase"."deadlines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_delete on "better_supabase"."deadlines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -1822,19 +1751,6 @@ comment on function "better_supabase"."compute_deadline"(uuid, text, text, text,
 revoke execute on function "better_supabase"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) from public, anon;
 grant execute on function "better_supabase"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block-data deadlines
@@ -1852,61 +1768,11 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:794bb7c10a9f8c4e3600d9eeeb30e5e9fb80958fda94042e8819bbca65e025f7
+-- @bsb-hash sha256:adb0f6c07d1ea3d7f53337d11576d0ad95e7fe7d98cfd73d9490657f62124a60
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deadlines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Deadlines: rule sets owned by the platform (no tenant), versioned and approved
 -- once, and the deadlines computed from a subject's facts. A version is data:
 -- ordered groups, ordered rules with conditions, exceptions and a deadline
@@ -1914,11 +1780,11 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- one deadline per subject (one per month for a periodic rule): due on a
 -- date, unknown with the facts it waits for, pending, undated, or refused as
 -- not covered, not applicable, not required or barred.
-create table if not exists "better_supabase"."deadline_rule_sets" (
+create table "better_supabase"."deadline_rule_sets" (
   "id" uuid primary key default gen_random_uuid(),
-  "jurisdiction" text not null check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text check ("title" is null or length("title") <= 200),
+  "jurisdiction" text not null constraint bsb_deadline_rule_sets_jurisdiction_check check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "kind" text not null constraint bsb_deadline_rule_sets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text constraint bsb_deadline_rule_sets_title_check check ("title" is null or length("title") <= 200),
   "created_at" timestamptz not null default now(),
   constraint "deadline_rule_sets_key" unique ("jurisdiction", "kind")
 );
@@ -1926,16 +1792,15 @@ alter table "better_supabase"."deadline_rule_sets" enable row level security;
 revoke all on "better_supabase"."deadline_rule_sets" from public, anon, authenticated;
 grant select on "better_supabase"."deadline_rule_sets" to authenticated;
 grant all on "better_supabase"."deadline_rule_sets" to service_role;
-drop policy if exists deadline_rule_sets_read on "better_supabase"."deadline_rule_sets";
-create policy deadline_rule_sets_read on "better_supabase"."deadline_rule_sets"
+create policy bsb_deadline_rule_sets_read on "better_supabase"."deadline_rule_sets"
   for select to authenticated
   using (true);
 
-create table if not exists "better_supabase"."deadline_rule_versions" (
+create table "better_supabase"."deadline_rule_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "rule_set_id" uuid not null references "better_supabase"."deadline_rule_sets" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved')),
+  "version" integer not null constraint bsb_deadline_rule_versions_version_check check ("version" >= 1),
+  "status" text not null default 'draft' constraint bsb_deadline_rule_versions_status_check check ("status" in ('draft', 'approved')),
   "rules" jsonb not null,
   "groups" jsonb not null default '[]'::jsonb,
   "counting" jsonb,
@@ -1947,15 +1812,14 @@ create table if not exists "better_supabase"."deadline_rule_versions" (
   "approval_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("rule_set_id", "version"),
-  check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
+  constraint bsb_deadline_rule_versions_check check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
 );
-create index if not exists "deadline_rule_versions_effective_idx" on "better_supabase"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
+create index "deadline_rule_versions_effective_idx" on "better_supabase"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
 alter table "better_supabase"."deadline_rule_versions" enable row level security;
 revoke all on "better_supabase"."deadline_rule_versions" from public, anon, authenticated;
 grant select on "better_supabase"."deadline_rule_versions" to authenticated;
 grant all on "better_supabase"."deadline_rule_versions" to service_role;
-drop policy if exists deadline_rule_versions_read on "better_supabase"."deadline_rule_versions";
-create policy deadline_rule_versions_read on "better_supabase"."deadline_rule_versions"
+create policy bsb_deadline_rule_versions_read on "better_supabase"."deadline_rule_versions"
   for select to authenticated
   using ("status" = 'approved');
 
@@ -1976,21 +1840,20 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."deadline_version_frozen"() from public, anon, authenticated;
-drop trigger if exists bsb_deadlines_version_frozen on "better_supabase"."deadline_rule_versions";
 create trigger bsb_deadlines_version_frozen
   before update or delete on "better_supabase"."deadline_rule_versions"
   for each row execute function "better_supabase"."deadline_version_frozen"();
 
-create table if not exists "better_supabase"."deadlines" (
+create table "better_supabase"."deadlines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null constraint bsb_deadlines_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_id" text not null constraint bsb_deadlines_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "jurisdiction" text not null,
   "kind" text not null,
   "group_key" text not null,
   "rule_key" text,
-  "period" text check ("period" ~ '^[0-9]{4}-[0-9]{2}$'),
+  "period" text constraint bsb_deadlines_period_check check ("period" ~ '^[0-9]{4}-[0-9]{2}$'),
   "rule_version_id" uuid not null references "better_supabase"."deadline_rule_versions" ("id") on delete restrict,
   "facts" jsonb not null default '{}'::jsonb,
   "result" text not null,
@@ -2003,19 +1866,19 @@ create table if not exists "better_supabase"."deadlines" (
   "deadline" jsonb,
   "citation" jsonb not null,
   "as_of" date not null default current_date,
-  "state" text not null default 'pending' check ("state" in ('pending', 'satisfied')),
+  "state" text not null default 'pending' constraint bsb_deadlines_state_check check ("state" in ('pending', 'satisfied')),
   "satisfied_at" timestamptz,
   "satisfied_by" uuid,
-  "satisfied_action" text check ("satisfied_action" is null or length("satisfied_action") <= 200),
+  "satisfied_action" text constraint bsb_deadlines_satisfied_action_check check ("satisfied_action" is null or length("satisfied_action") <= 200),
   "computed_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  constraint "deadlines_result_check" check ("result" in ('due', 'unknown', 'pending', 'undated', 'not_covered', 'not_applicable', 'not_required', 'barred')),
-  check (("result" = 'due') = ("due_on" is not null)),
-  constraint "deadlines_period_due_check" check ("period" is null or "result" = 'due')
+  constraint bsb_deadlines_result_check check ("result" in ('due', 'unknown', 'pending', 'undated', 'not_covered', 'not_applicable', 'not_required', 'barred')),
+  constraint bsb_deadlines_check check (("result" = 'due') = ("due_on" is not null)),
+  constraint bsb_deadlines_period_due_check check ("period" is null or "result" = 'due')
 );
-create unique index if not exists "bsb_deadlines_subject_group_period_key" on "better_supabase"."deadlines" ("tenant_id", "subject_type", "subject_id", "group_key", (coalesce("period", '')));
-create index if not exists "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");
-create index if not exists "deadlines_due_idx" on "better_supabase"."deadlines" ("tenant_id", "due_on") where "state" = 'pending';
+create unique index "bsb_deadlines_subject_group_period_key" on "better_supabase"."deadlines" ("tenant_id", "subject_type", "subject_id", "group_key", (coalesce("period", '')));
+create index "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");
+create index "deadlines_due_idx" on "better_supabase"."deadlines" ("tenant_id", "due_on") where "state" = 'pending';
 alter table "better_supabase"."deadlines" enable row level security;
 revoke all on "better_supabase"."deadlines" from public, anon, authenticated;
 grant select on "better_supabase"."deadlines" to authenticated;
@@ -2039,8 +1902,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
-drop policy if exists deadlines_read on "better_supabase"."deadlines";
-create policy deadlines_read on "better_supabase"."deadlines"
+create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
 
@@ -3629,46 +3491,25 @@ grant execute on function "better_supabase"."list_deadlines"(uuid, jsonb) to aut
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."deadlines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_update on "better_supabase"."deadlines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_delete on "better_supabase"."deadlines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.deadlines', target_type => 'deadline', event_prefix => 'deadline', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.deadlines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"deadline","event_prefix":"deadline"}');
 
 -- Deprecated since 0.56.0: use better_supabase.evaluate_deadlines(content, facts, as_of, group_key); removed in 0.58.
 create or replace function "better_supabase"."evaluate_deadline_rule"(rule jsonb, facts jsonb)
@@ -3709,19 +3550,6 @@ comment on function "better_supabase"."compute_deadline"(uuid, text, text, text,
 revoke execute on function "better_supabase"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) from public, anon;
 grant execute on function "better_supabase"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block-data deadlines
@@ -3739,61 +3567,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:4aef617eb91f8defbf15a95786a12156427a974ad75d4181883ace502168bd6e
+-- @bsb-hash sha256:86842e3f4957a0121389ffb2af788d960e33d270c74874326aade9e14764cd5d
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."deadlines";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."deadlines";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."deadlines";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."deadlines";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."deadlines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -3806,11 +3584,11 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- one deadline per subject (one per month for a periodic rule): due on a
 -- date, unknown with the facts it waits for, pending, undated, or refused as
 -- not covered, not applicable, not required or barred.
-create table if not exists "app_private"."deadline_rule_sets" (
+create table "app_private"."deadline_rule_sets" (
   "id" uuid primary key default gen_random_uuid(),
-  "jurisdiction" text not null check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text check ("title" is null or length("title") <= 200),
+  "jurisdiction" text not null constraint bsb_deadline_rule_sets_jurisdiction_check check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "kind" text not null constraint bsb_deadline_rule_sets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text constraint bsb_deadline_rule_sets_title_check check ("title" is null or length("title") <= 200),
   "created_at" timestamptz not null default now(),
   constraint "deadline_rule_sets_key" unique ("jurisdiction", "kind")
 );
@@ -3818,16 +3596,15 @@ alter table "app_private"."deadline_rule_sets" enable row level security;
 revoke all on "app_private"."deadline_rule_sets" from public, anon, authenticated;
 grant select on "app_private"."deadline_rule_sets" to authenticated;
 grant all on "app_private"."deadline_rule_sets" to service_role;
-drop policy if exists deadline_rule_sets_read on "app_private"."deadline_rule_sets";
-create policy deadline_rule_sets_read on "app_private"."deadline_rule_sets"
+create policy bsb_deadline_rule_sets_read on "app_private"."deadline_rule_sets"
   for select to authenticated
   using (true);
 
-create table if not exists "app_private"."deadline_rule_versions" (
+create table "app_private"."deadline_rule_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "rule_set_id" uuid not null references "app_private"."deadline_rule_sets" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved')),
+  "version" integer not null constraint bsb_deadline_rule_versions_version_check check ("version" >= 1),
+  "status" text not null default 'draft' constraint bsb_deadline_rule_versions_status_check check ("status" in ('draft', 'approved')),
   "rules" jsonb not null,
   "groups" jsonb not null default '[]'::jsonb,
   "counting" jsonb,
@@ -3839,15 +3616,14 @@ create table if not exists "app_private"."deadline_rule_versions" (
   "approval_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("rule_set_id", "version"),
-  check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
+  constraint bsb_deadline_rule_versions_check check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
 );
-create index if not exists "deadline_rule_versions_effective_idx" on "app_private"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
+create index "deadline_rule_versions_effective_idx" on "app_private"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
 alter table "app_private"."deadline_rule_versions" enable row level security;
 revoke all on "app_private"."deadline_rule_versions" from public, anon, authenticated;
 grant select on "app_private"."deadline_rule_versions" to authenticated;
 grant all on "app_private"."deadline_rule_versions" to service_role;
-drop policy if exists deadline_rule_versions_read on "app_private"."deadline_rule_versions";
-create policy deadline_rule_versions_read on "app_private"."deadline_rule_versions"
+create policy bsb_deadline_rule_versions_read on "app_private"."deadline_rule_versions"
   for select to authenticated
   using ("status" = 'approved');
 
@@ -3868,21 +3644,20 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."deadline_version_frozen"() from public, anon, authenticated;
-drop trigger if exists bsb_deadlines_version_frozen on "app_private"."deadline_rule_versions";
 create trigger bsb_deadlines_version_frozen
   before update or delete on "app_private"."deadline_rule_versions"
   for each row execute function "app_private"."deadline_version_frozen"();
 
-create table if not exists "app_private"."deadlines" (
+create table "app_private"."deadlines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null constraint bsb_deadlines_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_id" text not null constraint bsb_deadlines_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "jurisdiction" text not null,
   "kind" text not null,
   "group_key" text not null,
   "rule_key" text,
-  "period" text check ("period" ~ '^[0-9]{4}-[0-9]{2}$'),
+  "period" text constraint bsb_deadlines_period_check check ("period" ~ '^[0-9]{4}-[0-9]{2}$'),
   "rule_version_id" uuid not null references "app_private"."deadline_rule_versions" ("id") on delete restrict,
   "facts" jsonb not null default '{}'::jsonb,
   "result" text not null,
@@ -3895,19 +3670,19 @@ create table if not exists "app_private"."deadlines" (
   "deadline" jsonb,
   "citation" jsonb not null,
   "as_of" date not null default current_date,
-  "state" text not null default 'pending' check ("state" in ('pending', 'satisfied')),
+  "state" text not null default 'pending' constraint bsb_deadlines_state_check check ("state" in ('pending', 'satisfied')),
   "satisfied_at" timestamptz,
   "satisfied_by" uuid,
-  "satisfied_action" text check ("satisfied_action" is null or length("satisfied_action") <= 200),
+  "satisfied_action" text constraint bsb_deadlines_satisfied_action_check check ("satisfied_action" is null or length("satisfied_action") <= 200),
   "computed_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  constraint "deadlines_result_check" check ("result" in ('due', 'unknown', 'pending', 'undated', 'not_covered', 'not_applicable', 'not_required', 'barred')),
-  check (("result" = 'due') = ("due_on" is not null)),
-  constraint "deadlines_period_due_check" check ("period" is null or "result" = 'due')
+  constraint bsb_deadlines_result_check check ("result" in ('due', 'unknown', 'pending', 'undated', 'not_covered', 'not_applicable', 'not_required', 'barred')),
+  constraint bsb_deadlines_check check (("result" = 'due') = ("due_on" is not null)),
+  constraint bsb_deadlines_period_due_check check ("period" is null or "result" = 'due')
 );
-create unique index if not exists "bsb_deadlines_subject_group_period_key" on "app_private"."deadlines" ("tenant_id", "subject_type", "subject_id", "group_key", (coalesce("period", '')));
-create index if not exists "deadlines_version_idx" on "app_private"."deadlines" ("rule_version_id");
-create index if not exists "deadlines_due_idx" on "app_private"."deadlines" ("tenant_id", "due_on") where "state" = 'pending';
+create unique index "bsb_deadlines_subject_group_period_key" on "app_private"."deadlines" ("tenant_id", "subject_type", "subject_id", "group_key", (coalesce("period", '')));
+create index "deadlines_version_idx" on "app_private"."deadlines" ("rule_version_id");
+create index "deadlines_due_idx" on "app_private"."deadlines" ("tenant_id", "due_on") where "state" = 'pending';
 alter table "app_private"."deadlines" enable row level security;
 revoke all on "app_private"."deadlines" from public, anon, authenticated;
 grant select on "app_private"."deadlines" to authenticated;
@@ -3931,8 +3706,7 @@ end;
 $$;
 revoke execute on function "app_private"."deadline_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "app_private"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
-drop policy if exists deadlines_read on "app_private"."deadlines";
-create policy deadlines_read on "app_private"."deadlines"
+create policy bsb_deadlines_read on "app_private"."deadlines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "app_private"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
 
@@ -5492,36 +5266,19 @@ grant execute on function "app_private"."list_deadlines"(uuid, jsonb) to authent
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."deadlines";
-drop policy if exists bsb_tenant_scope_select on "app_private"."deadlines";
 create policy bsb_tenant_scope_select on "app_private"."deadlines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "app_private"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."deadlines";
 create policy bsb_tenant_scope_insert on "app_private"."deadlines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."deadlines";
 create policy bsb_tenant_scope_update on "app_private"."deadlines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."deadlines";
 create policy bsb_tenant_scope_delete on "app_private"."deadlines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -5565,19 +5322,6 @@ comment on function "app_private"."compute_deadline"(uuid, text, text, text, tex
 revoke execute on function "app_private"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) from public, anon;
 grant execute on function "app_private"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block-data deadlines
@@ -5595,61 +5339,11 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:e4335e35800db730a402b80364220484b0469ff6fccbab0407f9bbaeaefb2c73
+-- @bsb-hash sha256:864f0260794aedd91a7c8bf5adcf471ff352238c438d430a5bbb36f1a48dcaea
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deadlines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Deadlines: rule sets owned by the platform (no tenant), versioned and approved
 -- once, and the deadlines computed from a subject's facts. A version is data:
 -- ordered groups, ordered rules with conditions, exceptions and a deadline
@@ -5657,11 +5351,11 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- one deadline per subject (one per month for a periodic rule): due on a
 -- date, unknown with the facts it waits for, pending, undated, or refused as
 -- not covered, not applicable, not required or barred.
-create table if not exists "better_supabase"."deadline_rule_sets" (
+create table "better_supabase"."deadline_rule_sets" (
   "id" uuid primary key default gen_random_uuid(),
-  "jurisdiction" text not null check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text check ("title" is null or length("title") <= 200),
+  "jurisdiction" text not null constraint bsb_deadline_rule_sets_jurisdiction_check check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "kind" text not null constraint bsb_deadline_rule_sets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text constraint bsb_deadline_rule_sets_title_check check ("title" is null or length("title") <= 200),
   "created_at" timestamptz not null default now(),
   constraint "deadline_rule_sets_key" unique ("jurisdiction", "kind")
 );
@@ -5669,16 +5363,15 @@ alter table "better_supabase"."deadline_rule_sets" enable row level security;
 revoke all on "better_supabase"."deadline_rule_sets" from public, anon, authenticated;
 grant select on "better_supabase"."deadline_rule_sets" to authenticated;
 grant all on "better_supabase"."deadline_rule_sets" to service_role;
-drop policy if exists deadline_rule_sets_read on "better_supabase"."deadline_rule_sets";
-create policy deadline_rule_sets_read on "better_supabase"."deadline_rule_sets"
+create policy bsb_deadline_rule_sets_read on "better_supabase"."deadline_rule_sets"
   for select to authenticated
   using (true);
 
-create table if not exists "better_supabase"."deadline_rule_versions" (
+create table "better_supabase"."deadline_rule_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "rule_set_id" uuid not null references "better_supabase"."deadline_rule_sets" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved')),
+  "version" integer not null constraint bsb_deadline_rule_versions_version_check check ("version" >= 1),
+  "status" text not null default 'draft' constraint bsb_deadline_rule_versions_status_check check ("status" in ('draft', 'approved')),
   "rules" jsonb not null,
   "groups" jsonb not null default '[]'::jsonb,
   "counting" jsonb,
@@ -5690,15 +5383,14 @@ create table if not exists "better_supabase"."deadline_rule_versions" (
   "approval_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("rule_set_id", "version"),
-  check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
+  constraint bsb_deadline_rule_versions_check check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
 );
-create index if not exists "deadline_rule_versions_effective_idx" on "better_supabase"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
+create index "deadline_rule_versions_effective_idx" on "better_supabase"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
 alter table "better_supabase"."deadline_rule_versions" enable row level security;
 revoke all on "better_supabase"."deadline_rule_versions" from public, anon, authenticated;
 grant select on "better_supabase"."deadline_rule_versions" to authenticated;
 grant all on "better_supabase"."deadline_rule_versions" to service_role;
-drop policy if exists deadline_rule_versions_read on "better_supabase"."deadline_rule_versions";
-create policy deadline_rule_versions_read on "better_supabase"."deadline_rule_versions"
+create policy bsb_deadline_rule_versions_read on "better_supabase"."deadline_rule_versions"
   for select to authenticated
   using ("status" = 'approved');
 
@@ -5719,21 +5411,20 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."deadline_version_frozen"() from public, anon, authenticated;
-drop trigger if exists bsb_deadlines_version_frozen on "better_supabase"."deadline_rule_versions";
 create trigger bsb_deadlines_version_frozen
   before update or delete on "better_supabase"."deadline_rule_versions"
   for each row execute function "better_supabase"."deadline_version_frozen"();
 
-create table if not exists "better_supabase"."deadlines" (
+create table "better_supabase"."deadlines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null constraint bsb_deadlines_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_id" text not null constraint bsb_deadlines_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "jurisdiction" text not null,
   "kind" text not null,
   "group_key" text not null,
   "rule_key" text,
-  "period" text check ("period" ~ '^[0-9]{4}-[0-9]{2}$'),
+  "period" text constraint bsb_deadlines_period_check check ("period" ~ '^[0-9]{4}-[0-9]{2}$'),
   "rule_version_id" uuid not null references "better_supabase"."deadline_rule_versions" ("id") on delete restrict,
   "facts" jsonb not null default '{}'::jsonb,
   "result" text not null,
@@ -5746,19 +5437,19 @@ create table if not exists "better_supabase"."deadlines" (
   "deadline" jsonb,
   "citation" jsonb not null,
   "as_of" date not null default current_date,
-  "state" text not null default 'pending' check ("state" in ('pending', 'satisfied')),
+  "state" text not null default 'pending' constraint bsb_deadlines_state_check check ("state" in ('pending', 'satisfied')),
   "satisfied_at" timestamptz,
   "satisfied_by" uuid,
-  "satisfied_action" text check ("satisfied_action" is null or length("satisfied_action") <= 200),
+  "satisfied_action" text constraint bsb_deadlines_satisfied_action_check check ("satisfied_action" is null or length("satisfied_action") <= 200),
   "computed_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  constraint "deadlines_result_check" check ("result" in ('due', 'unknown', 'pending', 'undated', 'not_covered', 'not_applicable', 'not_required', 'barred')),
-  check (("result" = 'due') = ("due_on" is not null)),
-  constraint "deadlines_period_due_check" check ("period" is null or "result" = 'due')
+  constraint bsb_deadlines_result_check check ("result" in ('due', 'unknown', 'pending', 'undated', 'not_covered', 'not_applicable', 'not_required', 'barred')),
+  constraint bsb_deadlines_check check (("result" = 'due') = ("due_on" is not null)),
+  constraint bsb_deadlines_period_due_check check ("period" is null or "result" = 'due')
 );
-create unique index if not exists "bsb_deadlines_subject_group_period_key" on "better_supabase"."deadlines" ("tenant_id", "subject_type", "subject_id", "group_key", (coalesce("period", '')));
-create index if not exists "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");
-create index if not exists "deadlines_due_idx" on "better_supabase"."deadlines" ("tenant_id", "due_on") where "state" = 'pending';
+create unique index "bsb_deadlines_subject_group_period_key" on "better_supabase"."deadlines" ("tenant_id", "subject_type", "subject_id", "group_key", (coalesce("period", '')));
+create index "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");
+create index "deadlines_due_idx" on "better_supabase"."deadlines" ("tenant_id", "due_on") where "state" = 'pending';
 alter table "better_supabase"."deadlines" enable row level security;
 revoke all on "better_supabase"."deadlines" from public, anon, authenticated;
 grant select on "better_supabase"."deadlines" to authenticated;
@@ -5782,8 +5473,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
-drop policy if exists deadlines_read on "better_supabase"."deadlines";
-create policy deadlines_read on "better_supabase"."deadlines"
+create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
 
@@ -7343,36 +7033,19 @@ grant execute on function "better_supabase"."list_deadlines"(uuid, jsonb) to aut
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."deadlines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_update on "better_supabase"."deadlines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_delete on "better_supabase"."deadlines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -7421,26 +7094,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."deadline_subject_readable"(text, text, uuid);
 
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."evaluate_deadlines"(content jsonb, facts jsonb, as_of date default current_date, group_key text default null)
 returns jsonb
@@ -7527,19 +7181,6 @@ as $$ select "better_supabase"."list_deadlines"($1, $2) $$;
 revoke execute on function "api"."list_deadlines"(uuid, jsonb) from public, anon;
 grant execute on function "api"."list_deadlines"(uuid, jsonb) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block-data deadlines
@@ -7557,61 +7198,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:9d09314bf03c403debd709ea835adff51d1bbd28ba44c2423fdfaa9075904111
+-- @bsb-hash sha256:703cccf40359d4cfe9e37c282e599ddee0cd04488c68590903f6dbf656bd2223
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deadlines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Deadlines: rule sets owned by the platform (no tenant), versioned and approved
 -- once, and the deadlines computed from a subject's facts. A version is data:
 -- ordered groups, ordered rules with conditions, exceptions and a deadline
@@ -7621,14 +7212,13 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- not covered, not applicable, not required or barred.
 -- better_supabase.deadline_rule_sets is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."deadline_rule_sets" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."deadline_rule_sets" add column if not exists "jurisdiction" text check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."deadline_rule_sets" add column if not exists "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."deadline_rule_sets" add column if not exists "title" text check ("title" is null or length("title") <= 200);
+alter table "better_supabase"."deadline_rule_sets" add column if not exists "jurisdiction" text constraint bsb_deadline_rule_sets_jurisdiction_check check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."deadline_rule_sets" add column if not exists "kind" text constraint bsb_deadline_rule_sets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."deadline_rule_sets" add column if not exists "title" text constraint bsb_deadline_rule_sets_title_check check ("title" is null or length("title") <= 200);
 alter table "better_supabase"."deadline_rule_sets" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."deadline_rule_sets" enable row level security;
 grant select on "better_supabase"."deadline_rule_sets" to authenticated;
 grant all on "better_supabase"."deadline_rule_sets" to service_role;
-drop policy if exists bsb_deadline_rule_sets_select on "better_supabase"."deadline_rule_sets";
 create policy bsb_deadline_rule_sets_select on "better_supabase"."deadline_rule_sets"
   for select to authenticated
   using (true);
@@ -7636,8 +7226,8 @@ create policy bsb_deadline_rule_sets_select on "better_supabase"."deadline_rule_
 -- better_supabase.deadline_rule_versions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."deadline_rule_versions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."deadline_rule_versions" add column if not exists "rule_set_id" uuid references "better_supabase"."deadline_rule_sets" ("id") on delete cascade;
-alter table "better_supabase"."deadline_rule_versions" add column if not exists "version" integer check ("version" >= 1);
-alter table "better_supabase"."deadline_rule_versions" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'approved'));
+alter table "better_supabase"."deadline_rule_versions" add column if not exists "version" integer constraint bsb_deadline_rule_versions_version_check check ("version" >= 1);
+alter table "better_supabase"."deadline_rule_versions" add column if not exists "status" text not null default 'draft' constraint bsb_deadline_rule_versions_status_check check ("status" in ('draft', 'approved'));
 alter table "better_supabase"."deadline_rule_versions" add column if not exists "rules" jsonb;
 alter table "better_supabase"."deadline_rule_versions" add column if not exists "groups" jsonb not null default '[]'::jsonb;
 alter table "better_supabase"."deadline_rule_versions" add column if not exists "counting" jsonb;
@@ -7652,7 +7242,6 @@ create index if not exists "deadline_rule_versions_effective_idx" on "better_sup
 alter table "better_supabase"."deadline_rule_versions" enable row level security;
 grant select on "better_supabase"."deadline_rule_versions" to authenticated;
 grant all on "better_supabase"."deadline_rule_versions" to service_role;
-drop policy if exists bsb_deadline_rule_versions_select on "better_supabase"."deadline_rule_versions";
 create policy bsb_deadline_rule_versions_select on "better_supabase"."deadline_rule_versions"
   for select to authenticated
   using ("status" = 'approved');
@@ -7674,7 +7263,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."deadline_version_frozen"() from public, anon, authenticated;
-drop trigger if exists bsb_deadlines_version_frozen on "better_supabase"."deadline_rule_versions";
 create trigger bsb_deadlines_version_frozen
   before update or delete on "better_supabase"."deadline_rule_versions"
   for each row execute function "better_supabase"."deadline_version_frozen"();
@@ -7682,13 +7270,13 @@ create trigger bsb_deadlines_version_frozen
 -- better_supabase.deadlines is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."deadlines" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."deadlines" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."deadlines" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."deadlines" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."deadlines" add column if not exists "subject_type" text constraint bsb_deadlines_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."deadlines" add column if not exists "subject_id" text constraint bsb_deadlines_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."deadlines" add column if not exists "jurisdiction" text;
 alter table "better_supabase"."deadlines" add column if not exists "kind" text;
 alter table "better_supabase"."deadlines" add column if not exists "group_key" text;
 alter table "better_supabase"."deadlines" add column if not exists "rule_key" text;
-alter table "better_supabase"."deadlines" add column if not exists "period" text check ("period" ~ '^[0-9]{4}-[0-9]{2}$');
+alter table "better_supabase"."deadlines" add column if not exists "period" text constraint bsb_deadlines_period_check check ("period" ~ '^[0-9]{4}-[0-9]{2}$');
 alter table "better_supabase"."deadlines" add column if not exists "rule_version_id" uuid references "better_supabase"."deadline_rule_versions" ("id") on delete restrict;
 alter table "better_supabase"."deadlines" add column if not exists "facts" jsonb not null default '{}'::jsonb;
 alter table "better_supabase"."deadlines" add column if not exists "result" text;
@@ -7701,10 +7289,10 @@ alter table "better_supabase"."deadlines" add column if not exists "basis" jsonb
 alter table "better_supabase"."deadlines" add column if not exists "deadline" jsonb;
 alter table "better_supabase"."deadlines" add column if not exists "citation" jsonb;
 alter table "better_supabase"."deadlines" add column if not exists "as_of" date not null default current_date;
-alter table "better_supabase"."deadlines" add column if not exists "state" text not null default 'pending' check ("state" in ('pending', 'satisfied'));
+alter table "better_supabase"."deadlines" add column if not exists "state" text not null default 'pending' constraint bsb_deadlines_state_check check ("state" in ('pending', 'satisfied'));
 alter table "better_supabase"."deadlines" add column if not exists "satisfied_at" timestamptz;
 alter table "better_supabase"."deadlines" add column if not exists "satisfied_by" uuid;
-alter table "better_supabase"."deadlines" add column if not exists "satisfied_action" text check ("satisfied_action" is null or length("satisfied_action") <= 200);
+alter table "better_supabase"."deadlines" add column if not exists "satisfied_action" text constraint bsb_deadlines_satisfied_action_check check ("satisfied_action" is null or length("satisfied_action") <= 200);
 alter table "better_supabase"."deadlines" add column if not exists "computed_at" timestamptz not null default now();
 alter table "better_supabase"."deadlines" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_deadlines_tenant_id_key" on "better_supabase"."deadlines" ("tenant_id", "id");
@@ -7733,7 +7321,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
-drop policy if exists bsb_deadlines_select on "better_supabase"."deadlines";
 create policy bsb_deadlines_select on "better_supabase"."deadlines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
@@ -9294,36 +8881,19 @@ grant execute on function "better_supabase"."list_deadlines"(uuid, jsonb) to aut
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."deadlines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_update on "better_supabase"."deadlines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_delete on "better_supabase"."deadlines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -9367,19 +8937,6 @@ comment on function "better_supabase"."compute_deadline"(uuid, text, text, text,
 revoke execute on function "better_supabase"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) from public, anon;
 grant execute on function "better_supabase"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block-data deadlines
@@ -9397,61 +8954,11 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:3cb0011a1102ca9d71652b6e0aa5c21fdf34e7de21aa34661619d45c93763c65
+-- @bsb-hash sha256:44c2f59e077085f2fcda3f68a9bea725309747f719ca5bd6e81aaf65a6029d27
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."deadlines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deadlines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Deadlines: rule sets owned by the platform (no tenant), versioned and approved
 -- once, and the deadlines computed from a subject's facts. A version is data:
 -- ordered groups, ordered rules with conditions, exceptions and a deadline
@@ -9459,11 +8966,11 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- one deadline per subject (one per month for a periodic rule): due on a
 -- date, unknown with the facts it waits for, pending, undated, or refused as
 -- not covered, not applicable, not required or barred.
-create table if not exists "better_supabase"."deadline_rule_sets" (
+create table "better_supabase"."deadline_rule_sets" (
   "id" uuid primary key default gen_random_uuid(),
-  "jurisdiction" text not null check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text check ("title" is null or length("title") <= 200),
+  "jurisdiction" text not null constraint bsb_deadline_rule_sets_jurisdiction_check check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "kind" text not null constraint bsb_deadline_rule_sets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text constraint bsb_deadline_rule_sets_title_check check ("title" is null or length("title") <= 200),
   "created_at" timestamptz not null default now(),
   constraint "deadline_rule_sets_key" unique ("jurisdiction", "kind")
 );
@@ -9471,16 +8978,15 @@ alter table "better_supabase"."deadline_rule_sets" enable row level security;
 revoke all on "better_supabase"."deadline_rule_sets" from public, anon, authenticated;
 grant select on "better_supabase"."deadline_rule_sets" to authenticated;
 grant all on "better_supabase"."deadline_rule_sets" to service_role;
-drop policy if exists deadline_rule_sets_read on "better_supabase"."deadline_rule_sets";
-create policy deadline_rule_sets_read on "better_supabase"."deadline_rule_sets"
+create policy bsb_deadline_rule_sets_read on "better_supabase"."deadline_rule_sets"
   for select to authenticated
   using (true);
 
-create table if not exists "better_supabase"."deadline_rule_versions" (
+create table "better_supabase"."deadline_rule_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "rule_set_id" uuid not null references "better_supabase"."deadline_rule_sets" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved')),
+  "version" integer not null constraint bsb_deadline_rule_versions_version_check check ("version" >= 1),
+  "status" text not null default 'draft' constraint bsb_deadline_rule_versions_status_check check ("status" in ('draft', 'approved')),
   "rules" jsonb not null,
   "groups" jsonb not null default '[]'::jsonb,
   "counting" jsonb,
@@ -9492,15 +8998,14 @@ create table if not exists "better_supabase"."deadline_rule_versions" (
   "approval_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("rule_set_id", "version"),
-  check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
+  constraint bsb_deadline_rule_versions_check check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
 );
-create index if not exists "deadline_rule_versions_effective_idx" on "better_supabase"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
+create index "deadline_rule_versions_effective_idx" on "better_supabase"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
 alter table "better_supabase"."deadline_rule_versions" enable row level security;
 revoke all on "better_supabase"."deadline_rule_versions" from public, anon, authenticated;
 grant select on "better_supabase"."deadline_rule_versions" to authenticated;
 grant all on "better_supabase"."deadline_rule_versions" to service_role;
-drop policy if exists deadline_rule_versions_read on "better_supabase"."deadline_rule_versions";
-create policy deadline_rule_versions_read on "better_supabase"."deadline_rule_versions"
+create policy bsb_deadline_rule_versions_read on "better_supabase"."deadline_rule_versions"
   for select to authenticated
   using ("status" = 'approved');
 
@@ -9521,21 +9026,20 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."deadline_version_frozen"() from public, anon, authenticated;
-drop trigger if exists bsb_deadlines_version_frozen on "better_supabase"."deadline_rule_versions";
 create trigger bsb_deadlines_version_frozen
   before update or delete on "better_supabase"."deadline_rule_versions"
   for each row execute function "better_supabase"."deadline_version_frozen"();
 
-create table if not exists "better_supabase"."deadlines" (
+create table "better_supabase"."deadlines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") between 1 and 200),
+  "subject_type" text not null constraint bsb_deadlines_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_id" text not null constraint bsb_deadlines_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "jurisdiction" text not null,
   "kind" text not null,
   "group_key" text not null,
   "rule_key" text,
-  "period" text check ("period" ~ '^[0-9]{4}-[0-9]{2}$'),
+  "period" text constraint bsb_deadlines_period_check check ("period" ~ '^[0-9]{4}-[0-9]{2}$'),
   "rule_version_id" uuid not null references "better_supabase"."deadline_rule_versions" ("id") on delete restrict,
   "facts" jsonb not null default '{}'::jsonb,
   "result" text not null,
@@ -9548,19 +9052,19 @@ create table if not exists "better_supabase"."deadlines" (
   "deadline" jsonb,
   "citation" jsonb not null,
   "as_of" date not null default current_date,
-  "state" text not null default 'pending' check ("state" in ('pending', 'satisfied')),
+  "state" text not null default 'pending' constraint bsb_deadlines_state_check check ("state" in ('pending', 'satisfied')),
   "satisfied_at" timestamptz,
   "satisfied_by" uuid,
-  "satisfied_action" text check ("satisfied_action" is null or length("satisfied_action") <= 200),
+  "satisfied_action" text constraint bsb_deadlines_satisfied_action_check check ("satisfied_action" is null or length("satisfied_action") <= 200),
   "computed_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  constraint "deadlines_result_check" check ("result" in ('due', 'unknown', 'pending', 'undated', 'not_covered', 'not_applicable', 'not_required', 'barred')),
-  check (("result" = 'due') = ("due_on" is not null)),
-  constraint "deadlines_period_due_check" check ("period" is null or "result" = 'due')
+  constraint bsb_deadlines_result_check check ("result" in ('due', 'unknown', 'pending', 'undated', 'not_covered', 'not_applicable', 'not_required', 'barred')),
+  constraint bsb_deadlines_check check (("result" = 'due') = ("due_on" is not null)),
+  constraint bsb_deadlines_period_due_check check ("period" is null or "result" = 'due')
 );
-create unique index if not exists "bsb_deadlines_subject_group_period_key" on "better_supabase"."deadlines" ("org_id", "subject_type", "subject_id", "group_key", (coalesce("period", '')));
-create index if not exists "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");
-create index if not exists "deadlines_due_idx" on "better_supabase"."deadlines" ("org_id", "due_on") where "state" = 'pending';
+create unique index "bsb_deadlines_subject_group_period_key" on "better_supabase"."deadlines" ("org_id", "subject_type", "subject_id", "group_key", (coalesce("period", '')));
+create index "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");
+create index "deadlines_due_idx" on "better_supabase"."deadlines" ("org_id", "due_on") where "state" = 'pending';
 alter table "better_supabase"."deadlines" enable row level security;
 revoke all on "better_supabase"."deadlines" from public, anon, authenticated;
 grant select on "better_supabase"."deadlines" to authenticated;
@@ -9584,8 +9088,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
-drop policy if exists deadlines_read on "better_supabase"."deadlines";
-create policy deadlines_read on "better_supabase"."deadlines"
+create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "org_id"));
 
@@ -11145,36 +10648,19 @@ grant execute on function "better_supabase"."list_deadlines"(uuid, jsonb) to aut
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."deadlines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "org_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_update on "better_supabase"."deadlines" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."deadlines";
 create policy bsb_tenant_scope_delete on "better_supabase"."deadlines" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
@@ -11217,19 +10703,6 @@ $$;
 comment on function "better_supabase"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) is 'deprecated: use compute_deadlines';
 revoke execute on function "better_supabase"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) from public, anon;
 grant execute on function "better_supabase"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines

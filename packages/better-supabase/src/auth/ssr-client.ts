@@ -13,7 +13,7 @@ import type {
  * Why a refresh failed: Auth refused the token, another request used it, or
  * Auth was unreachable.
  */
-export type RefreshFailure =
+export type RefreshError =
   | {
       readonly ok: false;
       readonly reason: "rejected" | "raced";
@@ -34,7 +34,7 @@ export type RefreshOutcome =
       /** The token request was shared with another request. */
       readonly shared: boolean;
     }
-  | RefreshFailure;
+  | RefreshError;
 
 export interface CookieRefresh {
   readonly outcome: RefreshOutcome;

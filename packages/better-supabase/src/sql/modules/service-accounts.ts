@@ -9,7 +9,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   columnsObject,
   extraFieldsArg,
   extraFieldsJson,
@@ -44,7 +43,7 @@ const EVENTS: BlockSqlEvents<ServiceAccountsEvents> = {
 
 const NAMES: BlockSqlNames = {
   events: EVENTS,
-  options: ["extraColumns"],
+  options: [],
   tables: {
     principals: {
       name: "service_principals",
@@ -64,7 +63,7 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-/** `options.extraColumns`, added to a managed principals table. */
+/** The columns your schema files add, added to a managed principals table. */
 const extrasOf = (ctx: BlockSqlContext) => ctx.extraColumns("principals");
 
 function build(ctx: BlockSqlContext): string {
@@ -106,7 +105,7 @@ function build(ctx: BlockSqlContext): string {
 create index if not exists service_principals_tenant_idx on ${t} (${c("tenant")});
 create index if not exists service_principals_created_by_idx on ${t} (${c("createdBy")});
 create unique index if not exists service_principals_default_idx on ${t} (${c("tenant")})
-  where ${c("isDefault")} and ${c("disabledAt")} is null;${addExtraColumns(t, extras)}
+  where ${c("isDefault")} and ${c("disabledAt")} is null;
 ${lockTable(t, { read: true })}
 `
     : "";
@@ -151,7 +150,7 @@ ${lockTable(t, { read: true })}
 -- membership like any member. Organization-owned workflow versions and
 -- service webhook endpoints run as the tenant's default principal.
 ${tables}
-${renderPolicy(makePolicy({ table: t, name: "service_principals_read", command: "select", roles: ["authenticated"], using: `${c("tenant")} in (select ${ctx.scope.ids(read)})` }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: "service_principals_read", command: "select", roles: ["authenticated"], using: `${c("tenant")} in (select ${ctx.scope.ids(read)})` }), { target: t })}
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry

@@ -38,7 +38,9 @@ describe.skipIf(!live)(
 
     it("applies twice, so a later module migration can repeat every statement", async () => {
       const migration = renderModuleMigration({
-        files: renderBlocks(MODULES).filter((file) => file.kind !== "test"),
+        files: renderBlocks(MODULES, { rerunnable: true }).filter(
+          (file) => file.kind !== "test",
+        ),
       });
 
       const client = await pool.connect();

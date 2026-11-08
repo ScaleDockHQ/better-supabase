@@ -4,6 +4,14 @@ import { EventHub } from "../../src/core/events.ts";
 import { silentLogger } from "../../src/core/logger.ts";
 
 describe("EventHub", () => {
+  it("ignores the failure of tracked work and settles", async () => {
+    const hub = new EventHub(silentLogger);
+    hub.track(Promise.reject(new Error("sink down")));
+    expect(hub.pending).toBe(true);
+    await expect(hub.settled()).resolves.toBeUndefined();
+    expect(hub.pending).toBe(false);
+  });
+
   it("warns once when one event collects many handlers", () => {
     const logger = { ...silentLogger, warn: vi.fn() };
     const hub = new EventHub(logger);

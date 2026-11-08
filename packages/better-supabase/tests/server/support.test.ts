@@ -13,7 +13,7 @@ import type { SupportOptions } from "../../src/server/support.ts";
 
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { dbTransport } from "../../src/core/block-transport.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { createServer } from "../../src/server/server.ts";
 import { supportSessions as denyingSupportSessions } from "../../src/server/support.ts";
@@ -83,7 +83,7 @@ function setup(
   options: Parameters<typeof createServer>[1] = {},
   rules: Parameters<typeof fakeSql>[0] = [],
 ) {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
   const events: BlockEvent[] = [];
   betterSupabase.events.on("block", (event) => events.push(event));
 
@@ -119,7 +119,7 @@ const request = async (cookie?: string) =>
 describe("support sessions on the server", () => {
   it("needs postgres", () => {
     expect(() =>
-      createServer(defineSupabase(schema), {
+      createServer(createSupabase(schema), {
         env,
         support: supportSessions({ store: memorySupportStore() }),
       }),
@@ -127,7 +127,7 @@ describe("support sessions on the server", () => {
   });
 
   it("fails every call without support options", async () => {
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
 
     const started = await server.support.start(admin(), {
       targetUserId: TARGET,
@@ -769,7 +769,7 @@ describe("support sessions on the server", () => {
   });
 
   it("fails expire without support options", async () => {
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
     expect((await server.support.expire()).ok).toBe(false);
 
     const response = await server.support.expireRoute({ secret: "s" })(
@@ -782,7 +782,7 @@ describe("support sessions on the server", () => {
   it("passes the definition's temporal on to the store", () => {
     const store = memorySupportStore();
     const withTemporal = vi.fn(() => store);
-    createServer(defineSupabase(schema, { temporal: Temporal }), {
+    createServer(createSupabase(schema, { temporal: Temporal }), {
       env,
       postgres: fakePostgres().postgres,
       support: supportSessions({ store: { ...store, withTemporal } }),

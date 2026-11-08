@@ -121,7 +121,6 @@ blocks: {
 | `sources`       | `["google-drive", "onedrive"]`  | The providers a connection can mirror                                                        |
 | `roleFunctions` | none                            | App functions or provider row grants that give the caller's role                             |
 | `readPolicy`    | `true`                          | The block's read policies; `false` leaves them to the app                                    |
-| `extraColumns`  | none                            | Columns on the node table that `fields` reads and writes                                     |
 | `quota`         | none                            | `{ meter }`: a usage meter in bytes that uploads must fit, as [Quotas](#quotas) shows        |
 | `maxTextBytes`  | `1048576`                       | The most extracted text kept per file, in bytes                                              |
 | `control`       | none                            | `{ types, reviewMonths, releaseRole }`: [controlled documents](/docs/blocks/drive-documents) |
@@ -165,7 +164,7 @@ The upload role works on node grants, not on drive grants. When your grant table
 With [access-requests](/docs/blocks/access-requests) installed, a member who finds a link to a node they can't open can ask for access instead of asking someone to share it. Turn it on in the subject entry; `accessRequests: true` lets members ask to read, and a list such as `["read", "write"]` names the actions they may ask for:
 
 ```ts title="better-supabase.config.ts"
-subjects: {
+recordTypes: {
   drive_node: driveSubject({ accessRequests: true }),
 },
 ```
@@ -269,7 +268,7 @@ if (sent.passwordRequired) {
 
 A file that came through a request has the `source` `request` and no creator, and `drive_node.created` carries that `source`, so a sink can tell the folder's owner a file arrived. Unlike files mirrored from a connection, request files aren't read-only: the folder's editors rename, move and trash them like any other file. When your node table's `source` column is an enum, add `request` to it.
 
-Pass a [Standard Schema](https://standardschema.dev) for the `extraColumns`
+Pass a [Standard Schema](https://standardschema.dev) for the extra columns
 as `fields` to `createDrive`: every node the client returns has its `fields`
 parsed, and `createFolder` and `upload` validate the ones you set before the
 call (see [extending blocks](/docs/extending/blocks#your-own-fields)).
@@ -313,10 +312,10 @@ A full listing passes `sync_run` on every page and `prune` on the last one. `syn
 blocks: { drive: { options: { drives: true, sync: { prune: "mark" } } } },
 ```
 
-| `sync.prune`       | Unlisted nodes                                                                                                       |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `delete` (default) | The node is deleted, unless a legal hold keeps it.                                                                   |
-| `mark`             | The node stays, and its `import_records` row gets `missing_since`. A later listing that includes it clears the mark. |
+| `sync.prune`       | Unlisted nodes                                                                                                         |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `delete` (default) | The node is deleted, unless a legal hold keeps it.                                                                     |
+| `mark`             | The node stays, and its `import_records` row gets `went_missing_at`. A later listing that includes it clears the mark. |
 
 `mark` needs the imports block and fails at render time without it. Nodes the provider reports as `removed` are always deleted, and a legal hold always keeps its node.
 
@@ -325,7 +324,7 @@ A legal hold keeps a node and everything under it from being purged. `hold(id, u
 ```ts title="better-supabase.config.ts"
 trash: {
   on: {
-    drive_node: { deletedAt: "deleted_at", held: "legal_hold_until" },
+    drive_node: { deletedAt: "archived_at", held: "legal_hold_expires_at" },
   },
 },
 ```
@@ -392,7 +391,7 @@ blocks: {
           query: `select a.organization_id, sum(a.size)
             from better_supabase.attachments a
             join better_supabase.drive_nodes n on n.attachment_id = a.id
-            where n.deleted_at is null group by 1`,
+            where n.archived_at is null group by 1`,
         },
       },
     },

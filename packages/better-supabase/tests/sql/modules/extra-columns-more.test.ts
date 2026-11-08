@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const sqlOf = (module: string, modules: AnyBlocksConfig): string =>
   renderBlocks([module], { modules })
@@ -18,7 +18,7 @@ describe("extra columns on more tables", () => {
       },
     });
 
-    expect(sql).toContain('add column if not exists "region" text not null');
+    expect(sql).toContain('add column "region" text not null');
     expect(sql).toContain("owner_id text, fields jsonb default null)");
     expect(sql).toContain(
       `(jsonb_populate_record(null::"better_supabase"."calendars", jsonb_build_object('region', create_calendar.fields -> 'region')))."region"`,

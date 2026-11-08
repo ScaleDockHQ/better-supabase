@@ -202,7 +202,7 @@ const Claims = v.looseObject({
   ),
 });
 
-export const betterSupabase = defineSupabase(schema).claims(Claims);
+export const betterSupabase = createSupabase(schema).claims(Claims);
 ```
 
 Every key travels in every request, so keep the list to lookup keys.

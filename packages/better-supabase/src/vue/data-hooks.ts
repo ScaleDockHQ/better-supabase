@@ -1,6 +1,6 @@
 import type {
   DataId,
-  DataListArgs,
+  DataListOptions,
   DataRow,
   DataRows,
   DataSource,
@@ -26,24 +26,31 @@ export type DataView<S extends DataSource, T> = VueController<
 /** The composables `defineDataHooks` makes for one table or block instance. */
 export interface DataHooks<S extends DataSource> {
   /** `source.list(args)`, kept fresh after every write. */
-  readonly useList: (args?: DataListArgs<S>) => DataView<S, DataRows<S>>;
+  readonly useList: (args?: DataListOptions<S>) => DataView<S, DataRows<S>>;
   /** `source.get(id)`, kept fresh after every write. */
   readonly useOne: (id: DataId<S>) => DataView<S, DataRow<S>>;
 }
 
 /**
  * The list reader for one table or block instance, for a module that wants to
- * tree-shake each one on its own. `defineDataHooks` makes both.
+ * tree-shake each one on its own. `defineDataHooks` makes both. With a table
+ * module from `tables/<table>.ts` as `table`, it reads through
+ * `client.table(table)`, so a client of a `lazyTables` schema registers just
+ * that table.
  */
 export const defineListHook =
   /*#__NO_SIDE_EFFECTS__*/
   <D, S extends DataSource>(
     name: string,
     select: (db: D) => S,
+    table?: object,
   ): DataHooks<S>["useList"] =>
     (args) =>
       bindVueController(
-        createDataList(dataTarget(useContext().client, name, select), args),
+        createDataList(
+          dataTarget(useContext().client, name, select, table),
+          args,
+        ),
       );
 
 /** The record reader for one table or block instance (see `defineListHook`). */
@@ -52,10 +59,11 @@ export const defineOneHook =
   <D, S extends DataSource>(
     name: string,
     select: (db: D) => S,
+    table?: object,
   ): DataHooks<S>["useOne"] =>
     (id) =>
       bindVueController(
-        createDataOne(dataTarget(useContext().client, name, select), id),
+        createDataOne(dataTarget(useContext().client, name, select, table), id),
       );
 
 /**

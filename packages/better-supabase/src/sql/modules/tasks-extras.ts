@@ -1,5 +1,5 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
-import type { WorkItemNames } from "./tasks-functions.ts";
+import type { TaskNames } from "./tasks-functions.ts";
 
 import { sqlString, sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -50,7 +50,7 @@ function attachable(ctx: BlockSqlContext): boolean {
  * The checklist table, with its read policy; empty when the module doesn't
  * manage tables.
  */
-export function checklistTable(ctx: BlockSqlContext, n: WorkItemNames): string {
+export function checklistTable(ctx: BlockSqlContext, n: TaskNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -92,7 +92,7 @@ create table if not exists ${t("checklist")} (
 );
 create index if not exists ${sqlIdent(ctx.tableName("checklist").name.replace(/items$/, "item_idx"))} on ${t("checklist")} (${k("item")}, ${k("rank")});
 ${lockModuleTable(ctx, "checklist", { read: true })}
-${renderPolicy(makePolicy({ table: t("checklist"), name: `${name}_read`, command: "select", roles: ["authenticated"], using: ctx.scope.check(k("tenant"), n.read) }), { drop: true, target: t("checklist") })}
+${renderPolicy(makePolicy({ table: t("checklist"), name: `${name}_read`, command: "select", roles: ["authenticated"], using: ctx.scope.check(k("tenant"), n.read) }), { target: t("checklist") })}
 `;
 }
 
@@ -102,7 +102,7 @@ ${renderPolicy(makePolicy({ table: t("checklist"), name: `${name}_read`, command
  */
 export function itemExtrasJson(
   ctx: BlockSqlContext,
-  n: WorkItemNames,
+  n: TaskNames,
   alias: string,
 ): string {
   const k = (column: string): string => n.c("checklist", column);
@@ -127,7 +127,7 @@ export function itemExtrasJson(
  */
 export function linkAttachmentsSql(
   ctx: BlockSqlContext,
-  n: WorkItemNames,
+  n: TaskNames,
   alias: string,
   ids: string,
 ): string {
@@ -165,9 +165,9 @@ export function linkAttachmentsSql(
 }
 
 /** The checklist, recurrence, watcher and read functions of the tasks module. */
-export function workItemExtraFunctions(
+export function taskExtraFunctions(
   ctx: BlockSqlContext,
-  n: WorkItemNames,
+  n: TaskNames,
   row: (alias: string) => string,
   record: (type: string, alias: string, extra?: string) => string,
 ): string {
@@ -224,12 +224,12 @@ export function workItemExtraFunctions(
     );
 
   const checklistRow = (alias: string): string =>
-    `jsonb_build_object('id', ${alias}.${k("id")}, ${sqlString(e("workItemId"))}, ${alias}.${k("item")}, 'title', ${alias}.${k("title")}, 'done', ${alias}.${k("done")}, 'doneAt', ${or("checklist", alias, "doneAt")}, 'doneBy', ${or("checklist", alias, "doneBy")}, 'rank', ${alias}.${k("rank")}, 'createdAt', ${alias}.${k("createdAt")})`;
+    `jsonb_build_object('id', ${alias}.${k("id")}, ${sqlString(e("taskId"))}, ${alias}.${k("item")}, 'title', ${alias}.${k("title")}, 'done', ${alias}.${k("done")}, 'doneAt', ${or("checklist", alias, "doneAt")}, 'doneBy', ${or("checklist", alias, "doneBy")}, 'rank', ${alias}.${k("rank")}, 'createdAt', ${alias}.${k("createdAt")})`;
 
   const checklist = `
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
-create or replace function ${fn("save_task_checklist_item")}(work_item uuid, checklist_item uuid, attrs jsonb)
+create or replace function ${fn("save_task_checklist_item")}(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -241,7 +241,7 @@ declare
   v_last text;
   v_done boolean := (save_task_checklist_item.attrs ->> 'done')::boolean;
 begin
-  select * into v_row from ${t("items")} x where x.${w("id")} = save_task_checklist_item.work_item and ${editable("x")} and x.${w("archivedAt")} is null;
+  select * into v_row from ${t("items")} x where x.${w("id")} = save_task_checklist_item.task and ${editable("x")} and x.${w("archivedAt")} is null;
   if v_row.${w("id")} is null then
     ${notFound}
   end if;
@@ -312,7 +312,7 @@ $$;
 ${userGrant(`${fn("delete_task_checklist_item")}(uuid)`)}
 
 -- An item's checklist, in rank order.
-create or replace function ${fn("list_task_checklist")}(work_item uuid)
+create or replace function ${fn("list_task_checklist")}(task uuid)
 returns jsonb
 language sql
 stable
@@ -320,31 +320,31 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(${checklistRow("y")} order by y.${k("rank")} collate "C", y.${k("id")}), '[]'::jsonb)
-  from ${t("checklist")} y where y.${k("item")} = list_task_checklist.work_item
+  from ${t("checklist")} y where y.${k("item")} = list_task_checklist.task
 $$;
 ${userGrant(`${fn("list_task_checklist")}(uuid)`)}
 `;
 
-  const getWorkItem = `
+  const getTask = `
 -- One item the caller can read, or null.
-create or replace function ${fn("get_task")}(work_item uuid)
+create or replace function ${fn("get_task")}(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select ${row("x")} from ${t("items")} x where x.${w("id")} = get_task.work_item
+  select ${row("x")} from ${t("items")} x where x.${w("id")} = get_task.task
 $$;
 ${userGrant(`${fn("get_task")}(uuid)`)}
 `;
 
-  return `${ctx.hasTable("checklist") ? checklist : ""}${getWorkItem}${recurrence(ctx, n, { row, record, editable, notFound, touched })}${watchers(ctx, n, readable)}`;
+  return `${ctx.hasTable("checklist") ? checklist : ""}${getTask}${recurrence(ctx, n, { row, record, editable, notFound, touched })}${watchers(ctx, n, readable)}`;
 }
 
 function recurrence(
   ctx: BlockSqlContext,
-  n: WorkItemNames,
+  n: TaskNames,
   helpers: {
     readonly row: (alias: string) => string;
     readonly record: (type: string, alias: string, extra?: string) => string;
@@ -386,7 +386,7 @@ function recurrence(
 -- Makes an item repeat: rrule is an RFC 5545 RRULE starting at the item's
 -- due date (now without one) in tzid. A null rrule stops it. Completing the
 -- item then creates the next one through repeat_task.
-create or replace function ${fn("set_task_recurrence")}(work_item uuid, rrule text, tzid text default 'UTC')
+create or replace function ${fn("set_task_recurrence")}(task uuid, rrule text, tzid text default 'UTC')
 returns jsonb
 language plpgsql
 security definer
@@ -395,7 +395,7 @@ as $$
 declare
   v_row ${t("items")};
 begin
-  select * into v_row from ${t("items")} x where x.${w("id")} = set_task_recurrence.work_item and ${helpers.editable("x")} and x.${w("archivedAt")} is null;
+  select * into v_row from ${t("items")} x where x.${w("id")} = set_task_recurrence.task and ${helpers.editable("x")} and x.${w("archivedAt")} is null;
   if v_row.${w("id")} is null then
     ${helpers.notFound}
   end if;
@@ -422,7 +422,7 @@ ${userGrant(`${fn("set_task_recurrence")}(uuid, text, text)`)}
 -- Creates the next item of a repeating item, due at due_at: a copy with its
 -- dates shifted, its assignees and an unchecked checklist. The rule moves to
 -- the copy. Runs once per item; a second call returns the same copy.
-create or replace function ${fn("repeat_task")}(work_item uuid, due_at timestamptz)
+create or replace function ${fn("repeat_task")}(task uuid, due_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -434,7 +434,7 @@ declare
   v_id uuid;
   v_shift interval;
 begin
-  select * into v_src from ${t("items")} x where x.${w("id")} = repeat_task.work_item for update;
+  select * into v_src from ${t("items")} x where x.${w("id")} = repeat_task.task for update;
   if v_src.${w("id")} is null then
     ${fail("TASK_NOT_FOUND", "work item not found", "P0002")}
   end if;
@@ -468,7 +468,7 @@ ${serviceGrant(`${fn("repeat_task")}(uuid, timestamptz)`)}
 
 function watchers(
   ctx: BlockSqlContext,
-  n: WorkItemNames,
+  n: TaskNames,
   readable: (alias: string) => string,
 ): string {
   if (!watchable(ctx)) {
@@ -491,7 +491,7 @@ function watchers(
   return `
 -- Watches (all), follows (participating) or ignores an item the caller can
 -- read; a null level removes the choice.
-create or replace function ${fn("watch_task")}(work_item uuid, level text)
+create or replace function ${fn("watch_task")}(task uuid, level text)
 returns boolean
 language plpgsql
 security definer
@@ -500,7 +500,7 @@ as $$
 declare
   v_row ${t("items")};
 begin
-  select * into v_row from ${t("items")} x where x.${w("id")} = watch_task.work_item and ${readable("x")};
+  select * into v_row from ${t("items")} x where x.${w("id")} = watch_task.task and ${readable("x")};
   if v_row.${w("id")} is null then
     ${fail("TASK_NOT_FOUND", "no such work item you can read", "P0002")}
   end if;
@@ -511,7 +511,7 @@ $$;
 ${userGrant(`${fn("watch_task")}(uuid, text)`)}
 
 -- Who watches (all) or follows (participating) an item: [{ userId, level }].
-create or replace function ${fn("list_task_watchers")}(work_item uuid)
+create or replace function ${fn("list_task_watchers")}(task uuid)
 returns jsonb
 language sql
 stable
@@ -521,14 +521,14 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object('userId', s.${s("user")}, 'level', s.${s("level")}) order by s.${s("level")}, s.${s("user")}), '[]'::jsonb)
   from ${t("items")} x
   join ${notifications.table("subscriptions")} s on s.${s("subjectType")} = ${item} and s.${s("subjectId")} = x.${w("id")}::text${tenanted}
-  where x.${w("id")} = list_task_watchers.work_item and ${readable("x")} and s.${s("level")} in ('all', 'participating')
+  where x.${w("id")} = list_task_watchers.task and ${readable("x")} and s.${s("level")} in ('all', 'participating')
 $$;
 ${userGrant(`${fn("list_task_watchers")}(uuid)`)}
 `;
 }
 
 /** The contract entries for the functions above. */
-export function workItemExtrasContract(
+export function taskExtrasContract(
   ctx: BlockSqlContext,
 ): readonly BlockSqlContractFunction[] {
   return [

@@ -7,7 +7,7 @@ import type { Operation } from "../../src/ir/types.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { batchingExecutor } from "../../src/core/batch.ts";
 import { blockRead } from "../../src/core/block-reads.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { defineReadSet, readSetTables } from "../../src/core/read-set.ts";
 import { ok } from "../../src/core/result.ts";
@@ -17,7 +17,7 @@ import { capturingClient } from "../fixtures/client.ts";
 import meta from "../fixtures/generated-camel.meta.js";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const USER = "00000000-0000-0000-0000-000000000001";
 
 const chrome = defineReadSet(
@@ -112,7 +112,7 @@ describe("defineReadSet", () => {
     const warn = vi.fn();
     const logger = { debug() {}, info() {}, warn, error() {} };
 
-    const scoped = defineSupabase(schema, { logger }).use(
+    const scoped = createSupabase(schema, { logger }).use(
       membershipsExtension(),
     );
 
@@ -123,7 +123,7 @@ describe("defineReadSet", () => {
     expect(warn.mock.calls[0]?.[0]).toContain(
       'read set "scoped" reads customers, which tenant scope at runtime',
     );
-    defineReadSet(defineSupabase(schema, { logger }), "plain", {}, (s) => ({
+    defineReadSet(createSupabase(schema, { logger }), "plain", {}, (s) => ({
       customers: s.customers.count(),
     }));
     expect(warn).toHaveBeenCalledOnce();
@@ -147,7 +147,7 @@ describe("defineReadSet", () => {
     });
 
     const opaque = definePlugin({ name: "opaque", transformQuery });
-    const base = defineSupabase(schema, { logger });
+    const base = createSupabase(schema, { logger });
     defineReadSet(base.use(inspector).use(versioned), "quiet", {}, (s) => ({
       tags: s.tags.count(),
     }));
@@ -687,7 +687,7 @@ describe("block reads and record summaries in a read set", () => {
     },
   };
 
-  const withSummary = defineSupabase(
+  const withSummary = createSupabase(
     defineSchema({
       ...meta,
       functions: {

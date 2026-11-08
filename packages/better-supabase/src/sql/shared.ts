@@ -5,27 +5,22 @@ import type { ExtraColumn, BlockSqlContext } from "./context.ts";
 
 import { MAX_BATCH } from "../core/batch-limit.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
+import { addColumn } from "./emit/column.ts";
+import {
+  addCheckConstraint,
+  addForeignKeyConstraint,
+} from "./emit/constraint.ts";
+import { createFunction } from "./emit/function.ts";
+import { grantExecute, grantTable } from "./emit/grant.ts";
+import { createPolicy } from "./emit/policy.ts";
+import { enableRowSecurity } from "./emit/table.ts";
+import { createTrigger } from "./emit/trigger.ts";
 
 /**
  * What `record` and the other statement helpers return when there is nothing to
  * do.
  */
 export const NOTHING = "null;";
-
-/**
- * `alter table ... add column if not exists` for each extra column of a managed
- * table.
- */
-export const addExtraColumns = (
-  table: string,
-  columns: readonly ExtraColumn[],
-): string =>
-  columns
-    .map(
-      (column) =>
-        `\nalter table ${table} add column if not exists ${column.ident} ${column.type};`,
-    )
-    .join("");
 
 /**
  * A `jsonb` object of `columns` of row `alias`, keyed by column name, so reads
@@ -224,9 +219,6 @@ const revokeDefaults = (schema: string): string =>
 alter default privileges in schema ${schema} revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema ${schema} revoke all on functions from public, anon, authenticated;`;
 
-export const SCHEMA = `create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;`;
-
 /**
  * A SQL condition true for the service role and for a direct admin connection
  * (no JWT, a privileged session user), which may act for others.
@@ -265,11 +257,10 @@ export function memberAddedRecord(
  */
 export function schemaPreamble(ctx: BlockSqlContext): string {
   if (ctx.schemaName === "better_supabase") {
-    return SCHEMA;
+    return "";
   }
 
-  return `${SCHEMA}
-create schema if not exists ${ctx.schema};
+  return `create schema if not exists ${ctx.schema};
 grant usage on schema ${ctx.schema} to anon, authenticated, service_role;
 ${revokeDefaults(ctx.schema)}`;
 }
@@ -353,10 +344,10 @@ alter table ${check.table} add constraint ${sqlIdent(check.name)} check (${check
 }
 
 /**
- * Adds a foreign key to a table a module created earlier, once: `create table
- * if not exists` can't add it to a table that already exists, and the
- * referenced table can come from a module that renders later. Existing rows
- * without a match leave the key unvalidated, with a warning.
+ * Adds a foreign key to a table a module created earlier: `create table` can't
+ * add it to a table that already exists, and the referenced table can come from
+ * a module that renders later. The key is a plain `alter table`, which a schema
+ * diff keeps while the file declares it.
  */
 export function addForeignKey(fk: {
   readonly table: string;
@@ -365,52 +356,19 @@ export function addForeignKey(fk: {
   readonly references: string;
   readonly onDelete: "cascade" | "restrict" | "set null";
 }): string {
-  return `do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = ${sqlString(fk.table)}::regclass and conname = ${sqlString(fk.name)}
-  ) then
-    alter table ${fk.table} add constraint ${sqlIdent(fk.name)}
-      foreign key (${fk.column}) references ${fk.references} on delete ${fk.onDelete} not valid;
-    begin
-      alter table ${fk.table} validate constraint ${sqlIdent(fk.name)};
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        ${sqlString(fk.table)}, ${sqlString(fk.table)}, ${sqlString(fk.name)};
-    end;
-  end if;
-end;
-$$;`;
+  return addForeignKeyConstraint({ ...fk, name: sqlIdent(fk.name) });
 }
 
 /**
- * Adds a check constraint to a table a module created earlier, once, for the
- * same reason as `addForeignKey`. Existing rows that fail it leave the check
- * unvalidated, with a warning, so an upgrade never stops on old data.
+ * Adds a check constraint to a table a module created earlier, for the same
+ * reason as `addForeignKey`.
  */
 export function addCheck(check: {
   readonly table: string;
   readonly name: string;
   readonly expression: string;
 }): string {
-  return `do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = ${sqlString(check.table)}::regclass and conname = ${sqlString(check.name)}
-  ) then
-    alter table ${check.table} add constraint ${sqlIdent(check.name)}
-      check (${check.expression}) not valid;
-    begin
-      alter table ${check.table} validate constraint ${sqlIdent(check.name)};
-    exception when check_violation then
-      raise warning '% has rows that fail %, so only new rows are checked. Fix them, then run: alter table % validate constraint %',
-        ${sqlString(check.table)}, ${sqlString(check.name)}, ${sqlString(check.table)}, ${sqlString(check.name)};
-    end;
-  end if;
-end;
-$$;`;
+  return addCheckConstraint({ ...check, name: sqlIdent(check.name) });
 }
 
 const lastName = (name: string): string =>
@@ -434,7 +392,7 @@ export function notNullCheckName(table: string, column: string): string {
  * adds `check (<column> is not null) not valid` once, without scanning the
  * table. Postgres checks it on every insert and update from then on, so add it
  * after `better-supabase db backfill` filled the column, or updates to rows
- * that are still null fail. `doctor --fix` validates it once no row is null
+ * that are still null fail. `doctor --yes` validates it once no row is null
  * (BS236), and then `set not null` needs no scan. `table` and `column` are
  * quoted identifiers, the table schema-qualified.
  */
@@ -468,10 +426,15 @@ export function validateConstraint(table: string, name: string): string {
  * module's `set_updated_at()` (the module must require it).
  */
 export function updatedAt(table: string, column: string): string {
-  return `alter table ${table} add column if not exists ${column} timestamptz not null default now();
-drop trigger if exists bsb_updated_at on ${table};
-create trigger bsb_updated_at before update on ${table}
-  for each row execute function better_supabase.set_updated_at(${sqlString(column.replaceAll('"', ""))});`;
+  return `${addColumn(table, `${column} timestamptz not null default now()`)}
+${createTrigger({
+  name: "bsb_updated_at",
+  timing: "before",
+  events: ["update"],
+  table,
+  fn: "better_supabase.set_updated_at",
+  args: [sqlString(column.replaceAll('"', ""))],
+})}`;
 }
 
 /**
@@ -853,10 +816,9 @@ export function shortHash(text: string): string {
 }
 
 /**
- * Adds CHECK `name` on `table` (quoted) unless a re-run finds it already
- * checking `expression`: the constraint comment records a hash of the
- * expression, so an unchanged check skips the table scan under ACCESS
- * EXCLUSIVE. `notValid` leaves existing rows unchecked.
+ * Adds CHECK `name` on `table` (quoted). `notValid` leaves existing rows
+ * unchecked. A schema diff replaces the constraint when `expression` changes,
+ * so the statement needs no hash comment or existence test.
  */
 export function ensureCheck(
   table: string,
@@ -864,24 +826,12 @@ export function ensureCheck(
   expression: string,
   options: { readonly notValid?: boolean } = {},
 ): string {
-  const marker = sqlString(
-    `better-supabase check ${shortHash(`${expression}|${options.notValid === true}`)}`,
-  );
-
-  const constraint = sqlIdent(name);
-
-  return `do $$
-begin
-  if coalesce(obj_description((
-    select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = ${sqlString(table)}::regclass and c.conname = ${sqlString(name)}
-  ), 'pg_constraint'), '') <> ${marker} then
-    alter table ${table} drop constraint if exists ${constraint};
-    alter table ${table} add constraint ${constraint} check (${expression})${options.notValid === true ? " not valid" : ""};
-    comment on constraint ${constraint} on ${table} is ${marker};
-  end if;
-end;
-$$;`;
+  return addCheckConstraint({
+    table,
+    name: sqlIdent(name),
+    expression,
+    ...(options.notValid === undefined ? {} : { notValid: options.notValid }),
+  });
 }
 
 /**
@@ -958,32 +908,39 @@ export const revokeTable = (table: string): string =>
  * One policy per command for rows `authenticated` owns. A permissive `for all`
  * policy would also grant writes on its own, so the read-only actor check
  * (which wraps only insert, update and delete policies) could never refuse
- * them. `legacy` is the name of the `for all` policy this replaces.
+ * them.
  */
 export function ownRowPolicies(options: {
   readonly table: string;
-  readonly legacy: string;
   readonly name: (command: "read" | "insert" | "update" | "delete") => string;
   readonly using: string;
   readonly check: string;
 }): string {
-  const { table, legacy, name, using, check } = options;
+  const { table, name, using, check } = options;
 
   const create = (
     command: "read" | "insert" | "update" | "delete",
-    body: string,
-  ): string => `drop policy if exists ${sqlIdent(name(command))} on ${table};
-create policy ${sqlIdent(name(command))} on ${table} ${body};`;
+    body: {
+      readonly for: string;
+      readonly using?: string;
+      readonly check?: string;
+    },
+  ): string =>
+    createPolicy({
+      name: sqlIdent(name(command)),
+      table,
+      permissive: true,
+      command: body.for,
+      roles: ["authenticated"],
+      using: body.using ?? null,
+      check: body.check ?? null,
+    });
 
   return [
-    `drop policy if exists ${sqlIdent(legacy)} on ${table};`,
-    create("read", `for select to authenticated using (${using})`),
-    create("insert", `for insert to authenticated with check (${check})`),
-    create(
-      "update",
-      `for update to authenticated using (${using}) with check (${check})`,
-    ),
-    create("delete", `for delete to authenticated using (${using})`),
+    create("read", { for: "select", using }),
+    create("insert", { for: "insert", check }),
+    create("update", { for: "update", using, check }),
+    create("delete", { for: "delete", using }),
   ].join("\n");
 }
 
@@ -995,9 +952,9 @@ create policy ${sqlIdent(name(command))} on ${table} ${body};`;
 export const lockTable = (
   table: string,
   options: { readonly read?: boolean } = {},
-): string => `alter table ${table} enable row level security;
+): string => `${enableRowSecurity(table)}
 ${revokeTable(table)}
-${options.read ? `grant select on ${table} to authenticated;\n` : ""}grant all on ${table} to service_role;`;
+${options.read ? `${grantTable(table, ["select"], ["authenticated"])}\n` : ""}${grantTable(table, ["all"], ["service_role"])}`;
 
 /**
  * Monthly range partitions for any table created `partition by range` on a
@@ -1269,13 +1226,19 @@ export const readLine = (statement: string, indent = "  "): string =>
 
 /** SQL that grants a function to signed-in users and the service role. */
 export const userGrant = (signature: string): string =>
-  `revoke execute on function ${signature} from public, anon;
-grant execute on function ${signature} to authenticated, service_role;`;
+  grantExecute(
+    signature,
+    ["authenticated", "service_role"],
+    ["public", "anon"],
+  );
 
 /** SQL that grants a function to the service role only. */
 export const serviceGrant = (signature: string): string =>
-  `revoke execute on function ${signature} from public, anon, authenticated;
-grant execute on function ${signature} to service_role;`;
+  grantExecute(
+    signature,
+    ["service_role"],
+    ["public", "anon", "authenticated"],
+  );
 
 /**
  * SQL that revokes a trigger function from every API role. Postgres checks
@@ -1341,7 +1304,7 @@ export const pageSize = (
  * `security invoker` functions or policies, which can't call `emit_event` or
  * `audit_event` themselves. `written` and `removed` are `ctx.record` statements
  * over `v_row`, the new row (or the old one on delete). When both are `null;`
- * the trigger and its function are dropped.
+ * nothing is written, and a schema diff removes the trigger and its function.
  */
 export function recordTrigger(
   ctx: BlockSqlContext,
@@ -1356,17 +1319,16 @@ export function recordTrigger(
   const trigger = ctx.trigger(options.name);
 
   if (options.written === NOTHING && options.removed === NOTHING) {
-    return `drop trigger if exists ${trigger} on ${options.table};
-drop function if exists ${fn}();`;
+    return "";
   }
 
-  return `create or replace function ${fn}()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
+  return `${createFunction({
+    name: fn,
+    args: "",
+    returns: "trigger",
+    language: "plpgsql",
+    security: "definer",
+    body: `declare
   v_row ${options.table};
 begin
   if tg_op = 'DELETE' then
@@ -1377,12 +1339,16 @@ begin
     ${options.written}
   end if;
   return null;
-end;
-$$;
+end;`,
+  })}
 revoke execute on function ${fn}() from public, anon, authenticated;
-drop trigger if exists ${trigger} on ${options.table};
-create trigger ${trigger} after insert or update or delete on ${options.table}
-  for each row execute function ${fn}();`;
+${createTrigger({
+  name: trigger,
+  timing: "after",
+  events: ["insert", "update", "delete"],
+  table: options.table,
+  fn,
+})}`;
 }
 
 /**

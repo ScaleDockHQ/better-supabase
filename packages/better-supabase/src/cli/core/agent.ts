@@ -262,15 +262,20 @@ const PRESENTATION_FLAGS: ReadonlySet<string> = new Set([
   "json",
   "color",
   "debug",
+  "non-interactive",
 ]);
 
 /**
- * `argv` without `--confirm` and the presentation flags, so adding `--yes` or
- * `--json` to the run the user agreed to keeps its token.
+ * `argv` without `--effects-digest` and the presentation flags, so adding
+ * `--yes` or `--json` to the run the user agreed to keeps its digest.
  */
 function consentArgv(argv: readonly string[]): string[] {
   const out: string[] = [];
-  const rest = withoutOption(withoutOption(argv, "--confirm"), "--agent");
+
+  const rest = withoutOption(
+    withoutOption(argv, "--effects-digest"),
+    "--agent",
+  );
 
   for (let index = 0; index < rest.length; index += 1) {
     const arg = rest[index] ?? "";
@@ -293,10 +298,10 @@ function consentArgv(argv: readonly string[]): string[] {
 }
 
 /**
- * The token for one request on one command line, so a consent covers only that
- * run.
+ * The digest for one request on one command line, so a confirmation covers only
+ * that run.
  */
-export function consentToken(
+export function consentDigest(
   argv: readonly string[],
   request: ConsentRequest,
 ): string {
@@ -306,36 +311,45 @@ export function consentToken(
     .slice(0, 16);
 }
 
+/** What the run passed for `--yes` and `--effects-digest`. */
+export interface Confirmation {
+  readonly yes: boolean | undefined;
+  readonly digest: string | undefined;
+}
+
 /**
- * Nothing when `confirm` is the request's token, else a `consent_required`
- * error with the token and the command to run once the user agrees.
+ * Nothing when the run passed `--yes` and the request's digest, else a
+ * `confirmation_required` error with the digest, the effects and the command to
+ * run once the user agrees.
  */
 export function checkConsent(
   argv: readonly string[],
   request: ConsentRequest,
-  confirm: string | undefined,
+  confirmation: Confirmation,
 ): void {
-  const token = consentToken(argv, request);
+  const digest = consentDigest(argv, request);
 
-  if (confirm === token) {
+  if (confirmation.yes === true && confirmation.digest === digest) {
     return;
   }
 
   const stale =
-    confirm === undefined
+    confirmation.digest === undefined
       ? ""
-      : " The --confirm token is for another command or another target.";
+      : " The --effects-digest is for another command or another target.";
 
   throw new CliError(
-    "consent_required",
-    `${request.detail}. Ask the user first, then run again with --confirm ${token}.${stale}`,
+    "confirmation_required",
+    `${request.detail}. Ask the user first, then run again with --yes --effects-digest ${digest}.${stale}`,
     {
-      token,
+      digest,
+      effects: [request.detail],
       next: [
         {
-          command: nextCommand(withoutOption(argv, "--confirm"), [
-            "--confirm",
-            token,
+          command: nextCommand(withoutOption(argv, "--effects-digest"), [
+            "--yes",
+            "--effects-digest",
+            digest,
           ]),
           when: "after the user agrees",
         },

@@ -70,7 +70,7 @@ export default defineConfig({
     api: { types: false },
     casing: "camel",
     codecs: { int8: "bigint" },
-    output: "src/lib/supabase/generated.ts",
+    file: "src/lib/supabase/generated.ts",
     // Rows store the object path; URLs are built when rendering.
     storagePaths: { "customers.logo_path": "customerLogos" },
     readSets: ["src/lib/read-sets.ts"],
@@ -112,7 +112,7 @@ export default defineConfig({
   // Rows the search index, comments and other subject-aware modules point at.
   // Installed blocks register their own entities (deals, work items, ...);
   // `blocks.<name>.entities` sets their pages.
-  subjects: {
+  recordTypes: {
     customer: {
       table: "public.customers",
       idType: "uuid",
@@ -176,7 +176,7 @@ export default defineConfig({
     // The record history the customer page shows, moved out of comments.
     timeline: {},
     // Members' Gmail and Outlook mail, linked to parties and logged as
-    // email engagements.
+    // email activities.
     "mail-sync": {},
     // Saved filters over companies and deals, refreshed on a schedule.
     segments: {},
@@ -193,9 +193,9 @@ export default defineConfig({
     "field-history": {
       on: {
         deal: {
-          fields: ["amount", "stage_id", "owner_user_id", "expected_close_on"],
+          fields: ["amount", "stage_id", "owner_id", "expected_close_on"],
         },
-        company: { fields: ["owner_user_id", "lifecycle"] },
+        company: { fields: ["owner_id", "lifecycle"] },
       },
     },
     // Tags on customers, edited with the tag input on the customer page. The
@@ -227,7 +227,11 @@ export default defineConfig({
     metrics: { options: { metrics } },
     // In-app notifications behind the unread badge and /notifications,
     // on the recipient's private topic `notifications:<user id>`.
-    notifications: {},
+    // Email goes to the work address `better_supabase.member_address` returns, and to
+    // the sign-in email when it returns null.
+    notifications: {
+      options: { resolveAddress: "better_supabase.member_address" },
+    },
     // Durable workflow runs behind /workflows, run by the Workflow SDK on
     // the Supabase World (`WORKFLOW_TARGET_WORLD`), which polls in dev.
     workflows: {},
@@ -294,8 +298,6 @@ export default defineConfig({
       options: {
         // Organizations tighten these policies with their own (ADR 0119).
         tenantPolicies: true,
-        // A description per organization policy, written through `fields`.
-        policyExtraColumns: { description: "text" },
         policies: {
           // One floor for an action on every subject type that files it.
           "*": { "quote.send": { steps: [], effects: ["money-movement"] } },
@@ -414,21 +416,19 @@ export default defineConfig({
       block: "tasks",
       names: { task: "maintenance_request" },
       tables: { projects: null, iterations: null },
-      options: {
-        prefix: "MR",
-        extraColumns: { unit_id: "uuid", lease_id: "uuid" },
-      },
+      options: { prefix: "MR" },
     },
     "saved-views": { tables: { views: "shared_views" } },
     sla: {},
     // Encrypted definitions and sensitive values are audited when read.
     "custom-fields": { options: { auditReads: true } },
-    bulk: {},
+    "bulk-actions": {},
     trash: {},
     relations: {},
     employees: { names: { employee: { url: "/people" } } },
     hiring: {},
-    "time-tracking": {},
+    // Time is logged on companies and projects only.
+    "time-entries": { options: { on: ["company", "project"] } },
     // Fixed deposit invoices and a discount on the invoice header.
     invoices: {
       columns: {
@@ -489,10 +489,7 @@ export default defineConfig({
     inspections: { options: { calendar: "Audits" } },
     // Meetings with an agenda, minutes, votes on decisions and action items
     // that open as tasks; planned meetings mirror to the "Meetings" calendar.
-    meetings: {
-      options: { calendar: "Meetings", extraColumns: { room_code: "text" } },
-      uses: { tasks: "tasks" },
-    },
+    meetings: { options: { calendar: "Meetings" }, uses: { tasks: "tasks" } },
     // Preventive plans by time or meter that open dispatch work orders with
     // their spare parts, plus meter readings and calibrations.
     maintenance: {},

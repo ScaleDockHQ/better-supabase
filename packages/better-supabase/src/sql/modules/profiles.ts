@@ -8,7 +8,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  EQUIVALENT_TRIGGERS,
   schemaPreamble,
   SERVICE_CALLER,
   fail,
@@ -19,7 +18,6 @@ const NAMES: BlockSqlNames = {
   options: [
     "avatarSource",
     "columnGrants",
-    "extraColumns",
     "metadata",
     "mirrorEmail",
     "readPolicy",
@@ -151,13 +149,33 @@ function added(ctx: BlockSqlContext, logical: string): boolean {
   );
 }
 
+/**
+ * The active organization and team columns belong to the tenant modules:
+ * without `memberships` (or `teams`), an app with no tenants gets neither,
+ * unless it maps the column itself.
+ */
+const tenantColumn =
+  (logical: string, module: string) =>
+  (ctx: BlockSqlContext): boolean =>
+    ctx.has("profiles", logical) &&
+    (ctx.installed(module) ||
+      typeof ctx.config.columns["profiles"]?.[logical] === "string");
+
 const ADDED: Readonly<Record<string, (ctx: BlockSqlContext) => boolean>> = {
   avatarPath: hasAvatarPath,
   locale: hasLocale,
 };
 
+const TENANT_COLUMNS: Readonly<
+  Record<string, (ctx: BlockSqlContext) => boolean>
+> = {
+  activeTeam: tenantColumn("activeTeam", "teams"),
+  activeTenant: tenantColumn("activeTenant", "memberships"),
+};
+
 const present = (ctx: BlockSqlContext, logical: string): boolean =>
-  ADDED[logical]?.(ctx) ?? ctx.has("profiles", logical);
+  (ADDED[logical] ?? TENANT_COLUMNS[logical])?.(ctx) ??
+  ctx.has("profiles", logical);
 
 const USERNAME_SOURCES = ["user_name", "preferred_username", "username"];
 
@@ -500,10 +518,12 @@ function usernameRules(ctx: BlockSqlContext): {
 
 /**
  * The username's length, characters and reserved names, as a check on the
- * managed table. Existing rows that break it leave the check unvalidated. No
- * `between`: Postgres expands it after flattening the `and` chain, so the
- * stored expression nests differently from the one pg-delta writes back, and a
- * declarative sync would drop and re-add the check every time.
+ * managed table. It is `not valid`: Postgres checks every new and changed row,
+ * and validating the rows that exist is a change to stored data that a schema
+ * diff can't plan and would undo on its next run. No `between`: Postgres
+ * expands it after flattening the `and` chain, so the stored expression nests
+ * differently from the one pg-delta writes back, and a declarative sync would
+ * drop and re-add the check every time.
  */
 function usernameCheck(ctx: BlockSqlContext): string {
   const t = ctx.table("profiles");
@@ -518,14 +538,7 @@ alter table ${t} add constraint profiles_username_check check (
     and ${u} ~* '^[a-z][a-z0-9_${usernameExtras(ctx)}]*$'
     and lower(${u}) <> all (${reserved})
   )
-) not valid;
-do $$
-begin
-  alter table ${t} validate constraint profiles_username_check;
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', ${sqlString(t)};
-end;
-$$;`;
+) not valid;`;
 }
 
 function table(ctx: BlockSqlContext): string {
@@ -597,13 +610,11 @@ create table if not exists ${t} (
       (logical) =>
         `\nalter table ${t} add column if not exists ${c(logical)} text;`,
     )
-    .join(
-      "",
-    )}${extra.map(([name, type]) => `\nalter table ${t} add column if not exists ${name} ${type};`).join("")}
+    .join("")}
 ${username}
 alter table ${t} enable row level security;
-${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_read", command: "select", roles: ["authenticated"], using: read }), { drop: true, target: t })}
-${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_update", command: "update", roles: ["authenticated"], using: `${c("key")} = (select auth.uid())`, check: `${c("key")} = (select auth.uid())` }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_read", command: "select", roles: ["authenticated"], using: read }), { target: t })}
+${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_update", command: "update", roles: ["authenticated"], using: `${c("key")} = (select auth.uid())`, check: `${c("key")} = (select auth.uid())` }), { target: t })}
 ${selectGrant}
 grant all on ${t} to service_role;
 `;
@@ -667,7 +678,7 @@ end;
 $$;
 revoke execute on function ${ctx.fn("profiles_platform_readable")}() from public, anon;
 grant execute on function ${ctx.fn("profiles_platform_readable")}() to authenticated, service_role;
-${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_platform_read", command: "select", roles: ["authenticated"], using: `(select ${ctx.fn("profiles_platform_readable")}())` }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_platform_read", command: "select", roles: ["authenticated"], using: `(select ${ctx.fn("profiles_platform_readable")}())` }), { target: t })}
 `;
 }
 
@@ -764,7 +775,7 @@ function guard(ctx: BlockSqlContext): string {
     "activeTeam",
     "createdAt",
   ]
-    .filter((logical) => ctx.has("profiles", logical))
+    .filter((logical) => present(ctx, logical))
     .map((logical) => ctx.col("profiles", logical));
 
   const updatedAt = ctx.has("profiles", "updatedAt")
@@ -799,8 +810,8 @@ function guard(ctx: BlockSqlContext): string {
 
   return `
 -- The API roles can't change the key or ${columns.join(", ")}. Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function ${ctx.fn("guard_profile")}()
 returns trigger
 language plpgsql
@@ -1052,9 +1063,7 @@ function authTriggers(ctx: BlockSqlContext): string {
   const parts: string[] = [];
 
   if (ctx.flag("syncTrigger", true)) {
-    parts.push(`${EQUIVALENT_TRIGGERS}
-
-create or replace function ${ctx.fn("on_auth_user_created")}()
+    parts.push(`create or replace function ${ctx.fn("on_auth_user_created")}()
 returns trigger
 language plpgsql
 security definer
@@ -1129,7 +1138,7 @@ export const PROFILES: BlockSqlDefinition = {
   description:
     "A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.",
   requires: [],
-  integrates: ["memberships"],
+  integrates: ["memberships", "teams"],
   dependencies: (layout) => {
     const policy = layout.modules?.["profiles"]?.options?.["readPolicy"];
 

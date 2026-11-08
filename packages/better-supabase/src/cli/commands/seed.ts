@@ -30,11 +30,6 @@ import { runSeedDefaults, runSeedSample } from "./seed-cloud.ts";
 import { DB_URL_STDIN_ARG, STACK_ARG } from "./source-args.ts";
 
 const ARGS = {
-  apply: {
-    type: "boolean",
-    description:
-      "Also insert the rows into the database ($DATABASE_URL, $SUPABASE_DB_URL, --db-url-stdin, or the local stack)",
-  },
   entry: {
     type: "string",
     description: "Defaults to database.seed.entry (supabase/seed.ts)",
@@ -123,7 +118,7 @@ export async function runSeed(
   }
 
   const entry = args.entry ?? config.seed.entry;
-  const out = args.out ?? config.seed.output;
+  const out = args.out ?? config.seed.file;
   const seed = await importExport(resolve(config.root, entry), "seed");
 
   if (!isSeed(seed)) {
@@ -151,16 +146,21 @@ export async function runSeed(
   };
 
   const inserts =
-    args.apply === true && args["dry-run"] !== true && args.check !== true;
+    args.yes === true && args["dry-run"] !== true && args.check !== true;
 
   const url = inserts
-    ? await databaseUrl(config, env, dbUrl, args.stack ?? env.BSB_STACK)
+    ? await databaseUrl(
+        config,
+        env,
+        dbUrl,
+        args.stack ?? env.BETTER_SUPABASE_STACK,
+      )
     : undefined;
 
   if (url !== undefined && !isLocalDatabaseUrl(url)) {
     requireConsent({
       effect: "database-write",
-      detail: `seed --apply inserts rows into ${databaseHost(url)}`,
+      detail: `seed --yes inserts rows into ${databaseHost(url)}`,
     });
   }
 
@@ -224,7 +224,7 @@ export async function runSeed(
       file,
       files: applied.changes,
       tables: statements.length,
-      applied: args.apply === true,
+      applied: args.yes === true,
       listed,
     },
   };
@@ -279,7 +279,7 @@ async function runTenantSeed(
     config,
     env,
     dbUrl,
-    args.stack ?? env.BSB_STACK,
+    args.stack ?? env.BETTER_SUPABASE_STACK,
   );
 
   if (!isLocalDatabaseUrl(url)) {
@@ -350,7 +350,7 @@ export const seedCommand: AnyCommand = defineCliCommand({
     const seed = (): Promise<CommandResult> =>
       runSeed(config, args, env, connect, dbUrl, requireConsent);
 
-    return args.apply === true ||
+    return args.yes === true ||
       args.tenant !== undefined ||
       args.sample === true ||
       args.defaults === true

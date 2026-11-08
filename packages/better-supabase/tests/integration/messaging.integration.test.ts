@@ -20,7 +20,7 @@ const live = await reachable();
 // mention of a record they can't open.
 const MEMOS = `create table if not exists public.messaging_test_memos (
   id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null,
+  tenant_id uuid not null,
   author uuid not null,
   title text not null
 );
@@ -203,7 +203,7 @@ describe.skipIf(!live)("messaging", () => {
       const notified = await s.rows<{ user_id: string; type: string }>(
         `select r.user_id, e.type from better_supabase.notification_recipients r
          join better_supabase.notification_events e on e.id = r.event_id
-         where e.organization_id = $1 order by e.type, r.user_id`,
+         where e.tenant_id = $1 order by e.type, r.user_id`,
         [organization],
       );
 
@@ -236,7 +236,7 @@ describe.skipIf(!live)("messaging", () => {
         await s.rows<{ user_id: string }>(
           `select r.user_id from better_supabase.notification_recipients r
            join better_supabase.notification_events e on e.id = r.event_id
-           where e.type = 'message.direct' and e.organization_id = $1`,
+           where e.type = 'message.direct' and e.tenant_id = $1`,
           [organization],
         ),
       ).toEqual([{ user_id: member.id }]);
@@ -270,7 +270,7 @@ describe.skipIf(!live)("messaging", () => {
 
       const events = await s.rows<{ type: string }>(
         `select type from better_supabase.outbox_events
-         where organization_id = $1 and (type like 'message.%' or type like 'conversation.%')
+         where tenant_id = $1 and (type like 'message.%' or type like 'conversation.%')
          order by position`,
         [organization],
       );
@@ -350,7 +350,7 @@ describe.skipIf(!live)("messaging", () => {
 
       await s.service();
       await s.rows(
-        "update better_supabase.messages set scheduled_for = now() - interval '1 minute' where id = $1",
+        "update better_supabase.messages set scheduled_at = now() - interval '1 minute' where id = $1",
         [later.id],
       );
       expect(await messaging.publishDue().orThrow()).toBe(1);
@@ -399,7 +399,7 @@ describe.skipIf(!live)("messaging", () => {
       await s.service();
 
       const [memo] = await s.rows<{ id: string }>(
-        "insert into public.messaging_test_memos (organization_id, author, title) values ($1, $2, 'Plan') returning id",
+        "insert into public.messaging_test_memos (tenant_id, author, title) values ($1, $2, 'Plan') returning id",
         [organization, owner.id],
       );
 

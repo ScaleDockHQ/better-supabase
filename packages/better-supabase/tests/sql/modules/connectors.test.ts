@@ -17,9 +17,7 @@ describe("connectors module", () => {
       "connector_sessions",
       "connector_tool_fingerprints",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}" (`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}" (`);
     }
   });
 

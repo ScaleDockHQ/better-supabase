@@ -42,6 +42,16 @@ create table storage.objects (
   version text
 );
 alter table storage.objects enable row level security;
+
+-- PGlite has no Realtime schema; block policies are written on its messages table.
+create schema if not exists realtime;
+create table realtime.messages (
+  id bigint generated always as identity primary key,
+  topic text not null default '',
+  extension text not null default 'broadcast'
+);
+create function realtime.topic() returns text language sql stable
+as $$ select nullif(current_setting('realtime.topic', true), '') $$;
 `;
 
 const MODULES: AnyBlocksConfig = {
@@ -55,7 +65,7 @@ const MODULES: AnyBlocksConfig = {
 
 const SEED = `
 insert into auth.users (id, email) values ('${ADA}', 'ada@example.com');
-insert into better_supabase.attachments (id, organization_id, name, mime_type, size, uploaded_by)
+insert into better_supabase.attachments (id, tenant_id, name, mime_type, size, uploaded_by)
 values ('${FILE}', '${ORG}', 'Plan.PDF', 'application/pdf', 1, '${ADA}');
 `;
 

@@ -20,12 +20,7 @@ import {
 } from "../line-items-sql.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import {
-  addExtraColumns,
-  fail,
-  schemaPreamble,
-  triggerGrant,
-} from "../shared.ts";
+import { fail, schemaPreamble, triggerGrant } from "../shared.ts";
 import {
   sourceTemplateColumnSql,
   templateColumnSql,
@@ -106,12 +101,9 @@ const NAMES: BlockSqlNames = {
     "contact",
     "prefix",
     "validDays",
-    "extraColumns",
-    "lineExtraColumns",
     "lineRates",
     "workingCopy",
     "versionLines",
-    "versionLineExtraColumns",
     "totals",
     "resend",
     "notifications",
@@ -136,7 +128,7 @@ const NAMES: BlockSqlNames = {
         companyId: "company_id",
         contactType: "contact_type",
         contactId: "contact_id",
-        owner: "owner_user_id",
+        owner: "owner_id",
         currency: "currency",
         status: "status",
         validUntil: "valid_until",
@@ -150,7 +142,7 @@ const NAMES: BlockSqlNames = {
         decidedAt: "decided_at",
         decidedBy: "decided_by",
         decisionNote: "decision_note",
-        decidedUser: "decided_user_id",
+        decidedUser: "decider_id",
         decidedIp: "decided_ip",
         decidedUserAgent: "decided_user_agent",
         pricesIncludeTax: "prices_include_tax",
@@ -242,6 +234,8 @@ const NAMES: BlockSqlNames = {
         quantity: "quantity",
         unitAmount: "unit_amount",
         periods: "periods",
+        unit: "unit",
+        discountKind: "discount_kind",
         discountBps: "discount_bps",
         taxRateBps: "tax_rate_bps",
         taxCode: "tax_code",
@@ -253,6 +247,8 @@ const NAMES: BlockSqlNames = {
       },
       optional: [
         "periods",
+        "unit",
+        "discountKind",
         "discountBps",
         "taxRateBps",
         "taxCode",
@@ -262,7 +258,7 @@ const NAMES: BlockSqlNames = {
         "productType",
         "productId",
       ],
-      typed: ["productType"],
+      typed: ["productType", "discountKind"],
     },
     taxLines: {
       name: "quote_tax_lines",
@@ -365,9 +361,9 @@ create table if not exists ${t("quotes")} (
   ${constraints.join(",\n  ")}
 );
 ${added}create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);${ctx.has("quotes", "variantOf") ? `\ncreate index if not exists ${ctx.naming.rename("quotes_variant_idx")} on ${t("quotes")} (${q("variantOf")}) where ${q("variantOf")} is not null;` : ""}${origin ? `\ncreate index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});` : ""}
-${addExtraColumns(t("quotes"), n.extras)}${appUniqueIndex(ctx, "quotes", ["tokenHash"])}
+${appUniqueIndex(ctx, "quotes", ["tokenHash"])}
 ${lockModuleTable(ctx, "quotes", { read: true })}${quoteTemplatesOn(ctx) ? `\n${templateGuardSql({ fn: ctx.fn("quote_template_guard"), trigger: ctx.trigger("quote_template"), table: t("quotes"), column: ctx.colName("quotes", "template"), hint: "QUOTE_TEMPLATE_IMMUTABLE" })}\n${triggerGrant(`${ctx.fn("quote_template_guard")}()`)}` : ""}
-${renderPolicy(makePolicy({ table: t("quotes"), name: ctx.naming.rename("quotes_read"), command: "select", roles: ["authenticated"], using: guestOr(ctx.scope.check(q("tenant"), n.read), [quoteGuest(ctx, n, "")]) }), { drop: true, target: t("quotes") })}
+${renderPolicy(makePolicy({ table: t("quotes"), name: ctx.naming.rename("quotes_read"), command: "select", roles: ["authenticated"], using: guestOr(ctx.scope.check(q("tenant"), n.read), [quoteGuest(ctx, n, "")]) }), { target: t("quotes") })}
 ${childTables(ctx, n)}`;
 }
 
@@ -387,7 +383,7 @@ function childTables(ctx: BlockSqlContext, n: QuoteNames): string {
         roles: ["authenticated"],
         using: `exists (select 1 from ${t("quotes")} q where q.${c("quotes", "id")} = ${parent})`,
       }),
-      { drop: true, target: t(table) },
+      { target: t(table) },
     );
 
   const frozen = ctx.trigger("quote_versions_frozen");
@@ -406,9 +402,9 @@ create table if not exists ${t("versionLines")} (
   ${vl("position")} integer not null,
   ${vl("description")} text not null,
   ${vl("quantity")} numeric(18, 4) not null,
-  ${vl("unitAmount")} bigint not null,${vlColumn("periods", "integer not null default 1")}${vlColumn("discountBps", "integer not null default 0")}${vlColumn("taxRateBps", "integer not null default 0")}${vlColumn("taxCode", "text")}${vlColumn("section", "text")}${vlColumn("optional", "boolean not null default false")}${vlColumn("selected", "boolean not null default true")}${vlColumn("productType", "text")}${vlColumn("productId", "text")}
+  ${vl("unitAmount")} bigint not null,${vlColumn("periods", `integer default 1 check (${vl("periods")} > 0)`)}${vlColumn("unit", "text")}${vlColumn("discountKind", "text")}${vlColumn("discountBps", "integer not null default 0")}${vlColumn("taxRateBps", "integer not null default 0")}${vlColumn("taxCode", "text")}${vlColumn("section", "text")}${vlColumn("optional", "boolean not null default false")}${vlColumn("selected", "boolean not null default true")}${vlColumn("productType", "text")}${vlColumn("productId", "text")}
   unique (${vl("version")}, ${vl("position")})
-);${addExtraColumns(t("versionLines"), n.versionLineExtras)}
+);
 ${lockModuleTable(ctx, "versionLines", { read: true })}
 ${renderPolicy(
   makePolicy({
@@ -418,7 +414,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: `exists (select 1 from ${t("versions")} v where v.${v("id")} = ${vl("version")})`,
   }),
-  { drop: true, target: t("versionLines") },
+  { target: t("versionLines") },
 )}
 drop trigger if exists ${frozen} on ${t("versionLines")};
 create trigger ${frozen} before update on ${t("versionLines")}
@@ -538,7 +534,7 @@ function build(ctx: BlockSqlContext): string {
     extras: ctx.extraColumns("quotes", ["lines", "token", "fields"]),
     lineExtras: lineExtraColumns(ctx),
     versionLineExtras: versionLinesOn(ctx)
-      ? ctx.extraColumns("versionLines", [], "versionLineExtraColumns")
+      ? ctx.extraColumns("versionLines", [])
       : [],
     appTotals: quoteTotals(ctx) === "app",
     resend: ctx.flag("resend", false),

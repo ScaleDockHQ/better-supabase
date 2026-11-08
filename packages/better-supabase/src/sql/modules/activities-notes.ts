@@ -14,10 +14,10 @@ const NOTE_CATEGORIES = [
   "incident",
 ] as const;
 
-/** The engagement types `options.lockTypes` falls back to. */
+/** The activity types `options.lockTypes` falls back to. */
 const LOCK_TYPES = ["note", "report"] as const;
 
-/** Who reads an engagement besides the tenant's readers. */
+/** Who reads an activity besides the tenant's readers. */
 const AUDIENCES = ["team", "subject", "restricted"] as const;
 
 const NAME = /^[a-z][a-z0-9_-]{0,62}$/;
@@ -25,7 +25,7 @@ const NAME = /^[a-z][a-z0-9_-]{0,62}$/;
 /** The most hours `options.lockAfterHours` takes: one year. */
 const MAX_LOCK_HOURS = 8760;
 
-/** The progress note columns of the engagements table (Recipe B, optional). */
+/** The progress note columns of the activities table (Recipe B, optional). */
 export const NOTE_COLUMNS = {
   audience: "audience",
   restrictedRoles: "restricted_roles",
@@ -63,15 +63,15 @@ function names(
 const textArray = (list: readonly string[]): string =>
   `${sqlString(`{${list.join(",")}}`)}::text[]`;
 
-/** The parts of the engagement SQL that progress notes change. */
+/** The parts of the activity SQL that progress notes change. */
 export interface NoteRules {
   /** Whether the table has the column (`NOTE_COLUMNS`). */
   readonly on: (column: keyof typeof NOTE_COLUMNS) => boolean;
-  /** Whether guests read `subject` engagements through their grants. */
+  /** Whether guests read `subject` activities through their grants. */
   readonly guests: boolean;
   /**
    * The extra condition a member's read of row `p` passes: a `restricted`
-   * engagement needs `activities.read_restricted`, one of its roles on a linked
+   * activity needs `activities.read_restricted`, one of its roles on a linked
    * record's team, or to be its author or owner. `true` without the audience
    * column.
    */
@@ -90,9 +90,9 @@ export interface NoteRules {
 
 export function noteRules(ctx: BlockSqlContext): NoteRules {
   const on = (column: keyof typeof NOTE_COLUMNS): boolean =>
-    ctx.has("engagements", column);
+    ctx.has("activities", column);
 
-  const e = (column: string): string => ctx.col("engagements", column);
+  const e = (column: string): string => ctx.col("activities", column);
   const l = (column: string): string => ctx.col("links", column);
   const categories = names(ctx, "noteCategories", NOTE_CATEGORIES);
   const lockTypes = names(ctx, "lockTypes", LOCK_TYPES);
@@ -106,7 +106,7 @@ export function noteRules(ctx: BlockSqlContext): NoteRules {
 
   if (on("restrictedRoles") && !on("audience")) {
     throw new TypeError(
-      "blocks.activities.columns.engagements.restrictedRoles needs audience",
+      "blocks.activities.columns.activities.restrictedRoles needs audience",
     );
   }
 
@@ -115,7 +115,7 @@ export function noteRules(ctx: BlockSqlContext): NoteRules {
     !on("markedErrorAt")
   ) {
     throw new TypeError(
-      "blocks.activities.columns.engagements.markedErrorBy and markedErrorReason need markedErrorAt",
+      "blocks.activities.columns.activities.markedErrorBy and markedErrorReason need markedErrorAt",
     );
   }
 
@@ -130,7 +130,7 @@ export function noteRules(ctx: BlockSqlContext): NoteRules {
   const hasRole = ctx.of("subjects").fn("has_subject_role");
 
   const linked = (p: string, condition: string): string =>
-    `exists (select 1 from ${ctx.table("links")} nx where nx.${l("engagement")} = ${p}${e("id")} and ${condition})`;
+    `exists (select 1 from ${ctx.table("links")} nx where nx.${l("activity")} = ${p}${e("id")} and ${condition})`;
 
   const memberRead = (p: string): string => {
     if (!on("audience")) {
@@ -139,7 +139,7 @@ export function noteRules(ctx: BlockSqlContext): NoteRules {
 
     const own = [
       `${p}${e("owner")} = (select auth.uid())`,
-      ...(ctx.has("engagements", "createdBy")
+      ...(ctx.has("activities", "createdBy")
         ? [`${p}${e("createdBy")} = (select auth.uid())`]
         : []),
     ];
@@ -203,13 +203,13 @@ export function noteRules(ctx: BlockSqlContext): NoteRules {
 
   const guestRead = (p: string): string =>
     guests
-      ? `(${p}${e("audience")} = 'subject' and ${ctx.fn("engagement_guest_readable")}(${p}${e("id")}))`
+      ? `(${p}${e("audience")} = 'subject' and ${ctx.fn("activity_guest_readable")}(${p}${e("id")}))`
       : "false";
 
   return { on, guests, memberRead, guestRead, locked, lockAt, validate, roles };
 }
 
-/** What the notes SQL borrows from the engagements module. */
+/** What the notes SQL borrows from the activities module. */
 export interface NotesSqlParts {
   readonly rules: NoteRules;
   /** Whether the caller may read row `x` (the read policy's rule). */
@@ -232,8 +232,8 @@ export interface NotesSqlParts {
  * index on `amends_id`.
  */
 export function noteColumnsSql(ctx: BlockSqlContext): string {
-  const t = ctx.table("engagements");
-  const e = (column: string): string => ctx.col("engagements", column);
+  const t = ctx.table("activities");
+  const e = (column: string): string => ctx.col("activities", column);
 
   const columns: readonly (readonly [
     keyof typeof NOTE_COLUMNS,
@@ -260,37 +260,37 @@ export function noteColumnsSql(ctx: BlockSqlContext): string {
     ],
   ];
 
-  const present = columns.filter(([column]) => ctx.has("engagements", column));
+  const present = columns.filter(([column]) => ctx.has("activities", column));
 
   if (present.length === 0) {
     return "";
   }
 
   return `
--- Progress notes: who reads an engagement, when it locks, its addenda and the
+-- Progress notes: who reads an activity, when it locks, its addenda and the
 -- in-error flag.
 ${present.map(([column, definition]) => `alter table ${t} add column if not exists ${definition(e(column))};`).join("\n")}${
-    ctx.has("engagements", "amends")
-      ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("engagements").name}_amends_idx`)} on ${t} (${e("amends")});`
+    ctx.has("activities", "amends")
+      ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("activities").name}_amends_idx`)} on ${t} (${e("amends")});`
       : ""
   }`;
 }
 
 /**
- * `engagement_guest_readable`, for the read policies: whether the caller
- * reaches a `subject` engagement as a guest of one of its records.
+ * `activity_guest_readable`, for the read policies: whether the caller reaches
+ * a `subject` activity as a guest of one of its records.
  */
 export function noteGuestSql(ctx: BlockSqlContext, rules: NoteRules): string {
   const t = (table: string): string => ctx.table(table);
-  const e = (column: string): string => ctx.col("engagements", column);
+  const e = (column: string): string => ctx.col("activities", column);
   const l = (column: string): string => ctx.col("links", column);
   const fn = (name: string): string => ctx.fn(name);
 
   return rules.guests
     ? `
--- Whether the caller reaches a subject engagement as a guest of one of its
+-- Whether the caller reaches a subject activity as a guest of one of its
 -- records. Reads past the policies, for the read policies only.
-create or replace function ${fn("engagement_guest_readable")}(engagement uuid)
+create or replace function ${fn("activity_guest_readable")}(activity uuid)
 returns boolean
 language sql
 stable
@@ -298,14 +298,14 @@ security definer
 set search_path = ''
 as $$
   select exists (
-    select 1 from ${t("engagements")} x
-    join ${t("links")} k on k.${l("engagement")} = x.${e("id")}
-    where x.${e("id")} = engagement_guest_readable.engagement
+    select 1 from ${t("activities")} x
+    join ${t("links")} k on k.${l("activity")} = x.${e("id")}
+    where x.${e("id")} = activity_guest_readable.activity
       and x.${e("audience")} = 'subject'
       and ${ctx.scope.guest(`k.${l("tenant")}`, `k.${l("subjectType")}`, `k.${l("subjectId")}`, "read")}
   )
 $$;
-${userGrant(`${fn("engagement_guest_readable")}(uuid)`)}`
+${userGrant(`${fn("activity_guest_readable")}(uuid)`)}`
     : "";
 }
 
@@ -316,10 +316,10 @@ ${userGrant(`${fn("engagement_guest_readable")}(uuid)`)}`
 export function notesSql(ctx: BlockSqlContext, parts: NotesSqlParts): string {
   const { rules, readable, editable, record, row, subjectsOf, write } = parts;
   const t = (table: string): string => ctx.table(table);
-  const e = (column: string): string => ctx.col("engagements", column);
+  const e = (column: string): string => ctx.col("activities", column);
   const l = (column: string): string => ctx.col("links", column);
   const fn = (name: string): string => ctx.fn(name);
-  const has = (column: string): boolean => ctx.has("engagements", column);
+  const has = (column: string): boolean => ctx.has("activities", column);
   const position = ctx.has("links", "position");
 
   const from = (column: string) => (): string => `v_from.${e(column)}`;
@@ -345,43 +345,43 @@ export function notesSql(ctx: BlockSqlContext, parts: NotesSqlParts): string {
 
   const amend = rules.on("amends")
     ? `
--- Adds an addendum to an engagement the caller can read: a new engagement of
+-- Adds an addendum to an activity the caller can read: a new activity of
 -- the same type, title, audience and records with body, pointing at it
 -- through amends_id. A locked note changes this way only.
-create or replace function ${fn("amend_activity")}(engagement uuid, body text)
+create or replace function ${fn("amend_activity")}(activity uuid, body text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_from ${t("engagements")};
+  v_from ${t("activities")};
   v_id uuid;
   v_body text := nullif(trim(amend_activity.body), '');
   v_subjects jsonb;
   v_first jsonb;
 begin
-  select * into v_from from ${t("engagements")} x
-  where x.${e("id")} = amend_activity.engagement and (${SERVICE_CALLER} or ${readable("x")});
+  select * into v_from from ${t("activities")} x
+  where x.${e("id")} = amend_activity.activity and (${SERVICE_CALLER} or ${readable("x")});
   if v_from.${e("id")} is null then
-    ${fail("ACTIVITY_NOT_FOUND", "no such engagement you can read", "P0002")}
+    ${fail("ACTIVITY_NOT_FOUND", "no such activity you can read", "P0002")}
   end if;
   if not (${SERVICE_CALLER} or ${ctx.scope.can(`v_from.${e("tenant")}`, write)}) then
-    ${fail("ACTIVITY_FORBIDDEN", "not allowed to amend engagements")}
+    ${fail("ACTIVITY_FORBIDDEN", "not allowed to amend activities")}
   end if;
   if v_body is null then
     ${fail("ACTIVITY_BODY_REQUIRED", "an addendum needs a body", "23502")}
   end if;
-  insert into ${t("engagements")} (${copied.map(([column]) => e(column)).join(", ")})
+  insert into ${t("activities")} (${copied.map(([column]) => e(column)).join(", ")})
   values (${copied.map(([, value]) => value).join(", ")})
   returning ${e("id")} into v_id;
-  insert into ${t("links")} (${l("tenant")}, ${l("engagement")}, ${l("subjectType")}, ${l("subjectId")}${position ? `, ${l("position")}` : ""})
+  insert into ${t("links")} (${l("tenant")}, ${l("activity")}, ${l("subjectType")}, ${l("subjectId")}${position ? `, ${l("position")}` : ""})
   select k.${l("tenant")}, v_id, k.${l("subjectType")}, k.${l("subjectId")}${position ? `, k.${l("position")}` : ""}
-  from ${t("links")} k where k.${l("engagement")} = v_from.${e("id")};
+  from ${t("links")} k where k.${l("activity")} = v_from.${e("id")};
   v_subjects := ${subjectsOf("v_id")};
   v_first := v_subjects -> 0;
   ${record("activity.amended", "v_id", `v_from.${e("type")}::text`, `v_from.${e("tenant")}`, `'amendsId', v_from.${e("id")}`)}
-  return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
+  return (select ${row("x")} from ${t("activities")} x where x.${e("id")} = v_id);
 end;
 $$;
 ${userGrant(`${fn("amend_activity")}(uuid, text)`)}
@@ -401,38 +401,38 @@ ${userGrant(`${fn("amend_activity")}(uuid, text)`)}
 
   const markError = rules.on("markedErrorAt")
     ? `
--- Flags an engagement as entered in error with a reason. The row stays, so
+-- Flags an activity as entered in error with a reason. The row stays, so
 -- the record keeps what was written; the flag also locks it. The author, the
 -- owner and members with activities.manage may mark it.
-create or replace function ${fn("mark_activity_error")}(engagement uuid, reason text)
+create or replace function ${fn("mark_activity_error")}(activity uuid, reason text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := mark_activity_error.engagement;
+  v_id uuid := mark_activity_error.activity;
   v_reason text := nullif(trim(mark_activity_error.reason), '');
   v_tenant ${ctx.idType};
   v_type text;
-  v_subjects jsonb := ${subjectsOf("mark_activity_error.engagement")};
+  v_subjects jsonb := ${subjectsOf("mark_activity_error.activity")};
   v_first jsonb := v_subjects -> 0;
 begin
   if v_reason is null then
-    ${fail("ACTIVITY_REASON_REQUIRED", "say why the engagement is in error", "23502")}
+    ${fail("ACTIVITY_REASON_REQUIRED", "say why the activity is in error", "23502")}
   end if;
-  if exists (select 1 from ${t("engagements")} x where x.${e("id")} = v_id and ${editable("x")} and x.${e("markedErrorAt")} is not null) then
-    ${fail("ACTIVITY_ALREADY_MARKED_ERROR", "the engagement is already marked in error", "55000")}
+  if exists (select 1 from ${t("activities")} x where x.${e("id")} = v_id and ${editable("x")} and x.${e("markedErrorAt")} is not null) then
+    ${fail("ACTIVITY_ALREADY_MARKED_ERROR", "the activity is already marked in error", "55000")}
   end if;
-  update ${t("engagements")} x set
+  update ${t("activities")} x set
     ${sets().join(",\n    ")}
   where x.${e("id")} = v_id and ${editable("x")}
   returning x.${e("tenant")}, x.${e("type")}::text into v_tenant, v_type;
   if v_tenant is null then
-    ${fail("ACTIVITY_NOT_FOUND", "no such engagement you can edit", "P0002")}
+    ${fail("ACTIVITY_NOT_FOUND", "no such activity you can edit", "P0002")}
   end if;
   ${record("activity.error_marked", "v_id", "v_type", "v_tenant", "'reason', v_reason")}
-  return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
+  return (select ${row("x")} from ${t("activities")} x where x.${e("id")} = v_id);
 end;
 $$;
 ${userGrant(`${fn("mark_activity_error")}(uuid, text)`)}
@@ -451,7 +451,7 @@ export function notesContract(
     ...(rules.guests && ctx.manages
       ? [
           {
-            name: "engagement_guest_readable",
+            name: "activity_guest_readable",
             args: ["uuid"],
             returns: "boolean",
           },

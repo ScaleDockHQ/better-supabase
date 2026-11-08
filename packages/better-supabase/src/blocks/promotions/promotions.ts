@@ -55,8 +55,8 @@ export interface PromotionsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the extra columns of the promotions table
-   * (`blocks.promotions.options.extraColumns`): writes are validated, reads
+   * A Standard Schema for the extra columns of the promotions table (columns
+   * the app's schema files add to the table): writes are validated, reads
    * parsed.
    */
   readonly fields?: S;
@@ -96,8 +96,8 @@ export interface PromotionInput<F extends object = Record<never, never>> {
   /** Default `true`. */
   readonly active?: boolean;
   /**
-   * Values for the app's extra columns (`options.extraColumns`); left out keeps
-   * the stored ones.
+   * Values for the app's extra columns (the columns the app's schema files
+   * add); left out keeps the stored ones.
    */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
@@ -105,7 +105,10 @@ export interface PromotionInput<F extends object = Record<never, never>> {
 /** A saved promotion: its id and the app's extra columns. */
 export interface SavedPromotion<F extends object = Record<never, never>> {
   readonly id: string;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
 }
 

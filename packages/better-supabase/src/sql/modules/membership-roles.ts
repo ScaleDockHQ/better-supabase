@@ -139,11 +139,6 @@ ${
 grant select on ${mr} to authenticated;
 grant all on ${mr} to service_role;
 
-insert into ${mr} (${t}, ${u}, "role")
-select m.${t}, m.${u}, m.${role}::text from ${m} m
-where m.${role} is not null
-on conflict do nothing;
-
 -- Writing ${role} directly (update_member_role, a client policy, the service
 -- role) swaps the previous primary role for the new one and keeps the written
 -- one primary. The member's other roles, custom ones included, stay in the set.
@@ -219,7 +214,7 @@ export function membershipRolesPolicy(tenant: BlockSqlContext): string {
   const u = tenant.col("memberships", "user");
 
   return `
-${renderPolicy(makePolicy({ table: mr, name: "bsb_membership_roles_read", command: "select", roles: ["authenticated"], using: `${u} = (select auth.uid()) or ${t} in (select ${tenant.scope.members()})` }), { drop: true, target: mr })}
+${renderPolicy(makePolicy({ table: mr, name: "bsb_membership_roles_read", command: "select", roles: ["authenticated"], using: `${u} = (select auth.uid()) or ${t} in (select ${tenant.scope.members()})` }), { target: mr })}
 `;
 }
 
@@ -262,4 +257,27 @@ $$;
 revoke execute on function ${fn}(${id}, uuid) from public, anon, authenticated;
 grant execute on function ${fn}(${id}, uuid) to service_role;
 `;
+}
+
+/**
+ * The backfill of `membership_roles` from `memberships.role`: a keyed upsert on
+ * the table's primary key, so a data migration runs it again without effect.
+ * Empty when `many` is off.
+ */
+export function membershipRolesData(tenant: BlockSqlContext): string {
+  if (!manyRoles(tenant)) {
+    return "";
+  }
+
+  const m = tenant.table("memberships");
+  const mr = membershipRolesTable(tenant);
+  const t = tenant.col("memberships", "tenant");
+  const u = tenant.col("memberships", "user");
+  const role = tenant.col("memberships", "role");
+
+  return `-- Every membership holds its primary role in the role set.
+insert into ${mr} (${t}, ${u}, "role")
+select m.${t}, m.${u}, m.${role}::text from ${m} m
+where m.${role} is not null
+on conflict (${t}, ${u}, "role") do nothing;`;
 }

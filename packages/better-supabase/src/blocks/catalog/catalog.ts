@@ -55,11 +55,10 @@ export interface CatalogOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the product columns the app adds
-   * (`blocks.catalog.options.extraColumns`), keyed by column name. It validates
-   * them on `createProduct` and `updateProduct`, which return a `validation`
-   * error for a bad value, and types and parses them on the saved product they
-   * return.
+   * A Standard Schema for the product columns the app adds (columns the app's
+   * schema files add to the table), keyed by column name. It validates them on
+   * `createProduct` and `updateProduct`, which return a `validation` error for
+   * a bad value, and types and parses them on the saved product they return.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around any catalog method. */
@@ -173,7 +172,7 @@ export interface VariantInput {
   readonly trackInventory?: boolean;
   /** Whether it sells with no stock available. Default `false`. */
   readonly allowBackorder?: boolean;
-  /** The extra columns (`options.variantExtraColumns`) by name. */
+  /** The extra columns (the columns the app's schema files add) by name. */
   readonly fields?: Readonly<Record<string, unknown>>;
 }
 
@@ -182,7 +181,7 @@ export interface SavedVariant {
   readonly sku?: string;
   /** Its rank key among the product's variants. */
   readonly rank: string;
-  /** The extra columns, with `options.variantExtraColumns`. */
+  /** The extra columns, with the columns the app's schema files add. */
   readonly fields?: Readonly<Record<string, unknown>>;
 }
 
@@ -232,7 +231,7 @@ export interface CategoryInput {
   readonly name: string;
   readonly slug?: string;
   readonly description?: string;
-  /** The extra columns (`options.categoryExtraColumns`) by name. */
+  /** The extra columns (the columns the app's schema files add) by name. */
   readonly fields?: Readonly<Record<string, unknown>>;
 }
 
@@ -240,7 +239,7 @@ export interface SavedCategory {
   readonly id: string;
   readonly slug: string;
   readonly rank: string;
-  /** The extra columns, with `options.categoryExtraColumns`. */
+  /** The extra columns, with the columns the app's schema files add. */
   readonly fields?: Readonly<Record<string, unknown>>;
 }
 
@@ -943,8 +942,8 @@ export function createCatalog<
           amount: optionalAmountText(input.amount),
           compare_at: optionalAmountText(input.compareAt),
           price_list: input.priceListId ?? null,
-          valid_from: instantArg(input.validFrom) ?? null,
-          valid_until: instantArg(input.validUntil) ?? null,
+          starts_at: instantArg(input.validFrom) ?? null,
+          expires_at: instantArg(input.validUntil) ?? null,
         },
         (value) => {
           const row = recordOf(value, "set_price");

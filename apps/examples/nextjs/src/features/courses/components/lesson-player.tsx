@@ -36,12 +36,12 @@ async function retry() {
 
 /** Render inside `<Suspense>`: one lesson's content, or its quiz. */
 export async function LessonPlayer({
-  params,
+  courseId,
+  lessonId,
 }: {
-  params: Promise<{ courseId: string; lessonId: string }>;
+  courseId: string;
+  lessonId: string;
 }) {
-  const { courseId, lessonId } = await params;
-
   const [view, t] = await Promise.all([
     getLesson(lessonId),
     getExtracted("courses"),

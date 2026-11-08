@@ -83,6 +83,46 @@ describe("BS351", () => {
     ]);
   });
 
+  it("reports writes through the app's view over a block's table", async () => {
+    const findings = await runRules(
+      {
+        config: resolveConfig({ blocks: ["credentials"] }, "/project"),
+        snapshot: base,
+        configToml: undefined,
+        envFiles: [],
+        gitignore: "",
+        sqlFiles: [
+          {
+            path: "supabase/schemas/030_projections.sql",
+            text: "create view public.safe_credentials with (security_invoker = true) as select id, name from better_supabase.credentials;",
+          },
+        ],
+        sources: [
+          {
+            path: "src/app/actions.ts",
+            text: [
+              "export async function save(db, supabase) {",
+              '  await db.safeCredentials.update("1", { name: "x" });',
+              '  await supabase.from("safe_credentials").delete();',
+              "  await db.safeCredentials.list();",
+              "}",
+            ].join("\n"),
+          },
+        ],
+      },
+      BLOCK_WRITE_RULES,
+    );
+
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "src/app/actions.ts:2",
+      "src/app/actions.ts:3",
+    ]);
+
+    expect(findings[0]?.message).toContain(
+      "calls .update() on public.safe_credentials, the app's view over better_supabase.credentials",
+    );
+  });
+
   it("leaves a table of the app's with the same name alone", async () => {
     const findings = await run([WRITES], withAppCredentials());
 

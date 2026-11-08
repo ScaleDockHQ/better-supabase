@@ -8,10 +8,9 @@ create table public.memberships (
   role uuid not null references better_supabase.roles (id) on delete restrict,
   created_at timestamptz not null default now(),
   last_used_at timestamptz,
+  updated_at timestamptz not null default now(),
   primary key (organization_id, user_id)
 );
-
-create index memberships_user_idx on public.memberships (user_id);
 
 alter table public.memberships enable row level security;
 

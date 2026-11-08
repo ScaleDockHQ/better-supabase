@@ -52,7 +52,7 @@ describe("workflow-editor node kinds and purposes", () => {
     const body = moduleBody("workflow-editor", {})!;
 
     expect(body).toContain(
-      'create table if not exists "better_supabase"."workflow_node_kinds"',
+      'create table "better_supabase"."workflow_node_kinds"',
     );
     expect(body).toContain('"sync_workflow_node_kinds"(kinds jsonb)');
     expect(body).toContain('"set_workflow_definition_purpose"(');

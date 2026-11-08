@@ -274,7 +274,7 @@ describe.skipIf(!live)("deals", () => {
       expect(lost).toMatchObject({ outcome: "lost", lostReason: "Budget" });
 
       const outcomes = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type like 'deal.%' order by created_at",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and type like 'deal.%' order by created_at",
         [org],
       );
 

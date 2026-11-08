@@ -22,7 +22,6 @@ import {
   entityNoun,
   tenantRename,
 } from "../core/entity-naming.ts";
-import { ENTITY_KEY_RENAMES, ENTITY_RENAMES_CODEMOD } from "../core/renames.ts";
 
 /** One of a module's entities with the name the config gives it. */
 export interface ResolvedEntity {
@@ -31,12 +30,8 @@ export interface ResolvedEntity {
   readonly table?: string;
   readonly from: EntityNoun;
   readonly to: EntityNoun;
-  /**
-   * The entity's singular before 0.47 (`spec.formerly`) and its current one.
-   * The tables and columns still carry the old noun; function, hook and trigger
-   * names and event types carry the new one.
-   */
-  readonly formerly?: { readonly from: EntityNoun; readonly to: EntityNoun };
+  /** `spec.keyed`: its `<plural>.` keys keep their names. */
+  readonly keyed?: boolean;
   readonly primary: boolean;
   /** Renamed in every module (the tenant). */
   readonly global: boolean;
@@ -68,20 +63,7 @@ export interface ResolvedNames {
    * always has.
    */
   readonly entityNaming: EntityNames;
-  /**
-   * Applied to function, hook and trigger names before `naming`. A renamed
-   * entity whose singular changed in 0.47 maps the new default (`create_task`)
-   * back to the old noun the config's rename starts from, so a renamed install
-   * keeps its names.
-   */
-  readonly functionNouns: EntityNames;
-  /** `name` as it was before 0.47 (`create_task` to `create_work_item`). */
-  readonly formerName: (name: string) => string;
-  /**
-   * For a renamed entity whose singular changed in 0.47, its current singular
-   * to the config's name (`task` to `ticket`): its event types name the current
-   * singular, while its other names start from the old one.
-   */
+  /** Each renamed own entity's singular to the config's name. */
   readonly eventRenames: readonly EntityRename[];
   /** Event types: `eventRenames`, then the module's own entities. */
   readonly eventNaming: EntityNames;
@@ -102,28 +84,6 @@ function primaryOf(
   }
 
   return primary[0];
-}
-
-const warnedKeys = new Set<string>();
-
-/** The current key of `key`, an entity key from before 0.47, or undefined. */
-function currentKey(
-  where: string,
-  key: string,
-  entities: Readonly<Record<string, BlockSqlEntitySpec>>,
-): string | undefined {
-  const next = Object.values(ENTITY_KEY_RENAMES)
-    .map((keys) => (Object.hasOwn(keys, key) ? keys[key] : undefined))
-    .find((each) => each !== undefined && each in entities);
-
-  if (next !== undefined && !warnedKeys.has(`${where}.${key}`)) {
-    warnedKeys.add(`${where}.${key}`);
-    console.warn(
-      `better-supabase: ${where}.${key} is now ${where}.${next}. Old keys work until the next minor; run \`better-supabase codemod ${ENTITY_RENAMES_CODEMOD}\` to rename them.`,
-    );
-  }
-
-  return next;
 }
 
 /** `blocks.<name>.entities` as entity key to its config, shorthand expanded. */
@@ -147,15 +107,13 @@ function configured(
       continue;
     }
 
-    const current = key in entities ? key : currentKey(where, key, entities);
-
-    if (current === undefined) {
+    if (!(key in entities)) {
       throw new TypeError(
         `${where}: unknown entity "${key}". Entities: ${Object.keys(entities).join(", ") || "none"}`,
       );
     }
 
-    found.set(current, typeof value === "string" ? { name: value } : value);
+    found.set(key, typeof value === "string" ? { name: value } : value);
   }
 
   return found;
@@ -211,12 +169,7 @@ function resolveEntity(
   const current = entityNoun(spec.singular, spec.plural);
   const renamed = config?.name !== undefined || config?.plural !== undefined;
 
-  // A renamed install named the entity after its old noun, so the rename
-  // still starts from it.
-  const from =
-    renamed && spec.formerly !== undefined
-      ? entityNoun(spec.formerly)
-      : current;
+  const from = current;
 
   const to = renamed
     ? entityNoun(
@@ -254,9 +207,7 @@ function resolveEntity(
     key,
     from,
     to,
-    ...(spec.formerly === undefined
-      ? {}
-      : { formerly: { from: entityNoun(spec.formerly), to: current } }),
+    ...(spec.keyed === true ? { keyed: true } : {}),
     primary: spec.primary === true,
     global: spec.global === true,
     ...(spec.table === undefined ? {} : { table: spec.table }),
@@ -313,6 +264,7 @@ export function resolveNames(
   const renames: EntityRename[] = own.map((entity) => ({
     from: entity.from,
     to: entity.to,
+    ...(entity.keyed === true ? { keyed: true } : {}),
   }));
 
   const naming = entityNames([
@@ -320,40 +272,18 @@ export function resolveNames(
     ...renames,
   ]);
 
-  const moved = own.flatMap((entity) =>
-    entity.formerly === undefined ? [] : [entity.formerly],
-  );
-
-  const former = entityNames(
-    moved.map(({ from, to }) => ({ from: to, to: from })),
-  );
-
-  const nouns = entityNames(
-    own.flatMap(({ formerly, from }) =>
-      formerly === undefined || from.singular !== formerly.from.singular
-        ? []
-        : [{ from: formerly.to, to: formerly.from }],
-    ),
-  );
-
-  const eventRenames = own.flatMap(({ formerly, from, to }) =>
-    formerly === undefined ||
-    from.singular !== formerly.from.singular ||
-    to.singular === formerly.to.singular
-      ? []
-      : [{ from: formerly.to, to }],
-  );
-
   return {
     module,
     entities,
     tenant,
     naming,
     entityNaming: entityNames(renames),
-    functionNouns: nouns,
-    formerName: (name) => former.rename(name),
-    eventRenames,
-    eventNaming: entityNames([...eventRenames, ...renames]),
+    eventRenames: renames.filter(
+      (rename) =>
+        rename.from.singular !== rename.to.singular ||
+        rename.from.plural !== rename.to.plural,
+    ),
+    eventNaming: entityNames(renames),
   };
 }
 

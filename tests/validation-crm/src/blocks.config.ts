@@ -2,72 +2,28 @@
 
 import type { GeneratedBlocks } from "better-supabase/blocks";
 
+import {
+  permissionsConfig,
+  organizationsConfig,
+  profilesConfig,
+  readSetsConfig,
+  teamsConfig,
+  membershipsConfig,
+  updatedAtConfig,
+} from "./blocks/slices.ts";
+
+export { permissions, type PermissionKey } from "./blocks/permissions.ts";
+
 /**
- * The installed blocks' settings from the `blocks` config, for
- * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema
- * and the options its SQL and TypeScript halves share.
+ * Every installed instance's config slice, for the server. Client code
+ * imports the slices it uses from `blocks/<instance>.ts`.
  */
 export const blockConfig = {
-  permissions: {
-    schema: "better_supabase",
-    options: {},
-    names: {
-      tenantColumn: "organization_id",
-    },
-  },
-  organizations: {
-    schema: "better_supabase",
-    options: {},
-  },
-  profiles: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "read-sets": {
-    schema: "better_supabase",
-    options: {},
-  },
-  teams: {
-    schema: "better_supabase",
-    options: {},
-    names: {
-      tenantColumn: "organization_id",
-    },
-  },
-  memberships: {
-    schema: "better_supabase",
-    options: {},
-  },
-  "updated-at": {
-    schema: "better_supabase",
-    options: {},
-  },
+  permissions: permissionsConfig,
+  organizations: organizationsConfig,
+  profiles: profilesConfig,
+  "read-sets": readSetsConfig,
+  teams: teamsConfig,
+  memberships: membershipsConfig,
+  "updated-at": updatedAtConfig,
 } as const satisfies GeneratedBlocks;
-
-/**
- * The permission keys the installed blocks, subjects and app tables check,
- * by owner and action.
- * @public
- */
-export const permissions = {
-  organizations: {
-    update: "organization.update",
-    delete: "organization.delete",
-    listMembers: "members.read",
-    removeMember: "members.remove",
-    suspendMember: "members.remove",
-    updateRole: "members.update_role",
-    transferOwnership: "organization.transfer_ownership",
-  },
-  teams: {
-    manage: "teams.manage",
-    read: "teams.read",
-  },
-} as const;
-
-/**
- * Every permission key, for `defineAuthorizer<PermissionKey>()` and
- * the `permission` of actions and routes.
- * @public
- */
-export type PermissionKey = "members.read" | "members.remove" | "members.update_role" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "teams.manage" | "teams.read";

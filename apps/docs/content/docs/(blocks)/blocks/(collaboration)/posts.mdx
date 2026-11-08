@@ -119,14 +119,13 @@ start as `pending` until a moderator approves them.
 
 ## Extra columns
 
-`options.extraColumns` adds columns to the posts table, such as a category or
+Columns you add to `posts` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):, such as a category or
 an effort estimate. `create` and `update` write them from `fields`, and
 every post carries them in `fields`:
 
-```ts title="better-supabase.config.ts"
-blocks: {
-  posts: { options: { extraColumns: { category: "text", effort: "integer" } } },
-},
+```sql title="supabase/schemas/posts.sql"
+alter table "better_supabase"."posts" add column "category" text;
+alter table "better_supabase"."posts" add column "effort" integer;
 ```
 
 Pass a Standard Schema as `fields` to `createPosts` to type them: writes
@@ -144,7 +143,6 @@ blocks: {
 | --------------- | -------- | ---------------------------------------------------------------------- |
 | `moderation`    | `"post"` | `post` shows posts at once; `pre` holds new posts and edits for review |
 | `maxBodyLength` | `20000`  | the longest post body, in characters                                   |
-| `extraColumns`  | none     | extra columns on the posts table                                       |
 
 ## Events
 

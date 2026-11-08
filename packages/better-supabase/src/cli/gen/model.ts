@@ -79,6 +79,39 @@ export function functionGroups(
   return groups;
 }
 
+/**
+ * The `json` option of every `standardSchema()` generator: `table.column` to
+ * `./path.ts#schemaName`, the project's Standard Schema setup. Later generators
+ * win over earlier ones.
+ */
+function standardSchemaJson(
+  generators: ResolvedConfig["generators"],
+): ReadonlyMap<string, string> {
+  const found = new Map<string, string>();
+
+  for (const generator of generators) {
+    const options = generator.options;
+
+    if (generator.name !== "standard-schema" || !isRecord(options)) {
+      continue;
+    }
+
+    const json = options["json"];
+
+    if (!isRecord(json)) {
+      continue;
+    }
+
+    for (const [key, spec] of Object.entries(json)) {
+      if (typeof spec === "string") {
+        found.set(key, spec);
+      }
+    }
+  }
+
+  return found;
+}
+
 function signatureOf(fn: FunctionModel): FunctionSignature {
   const { name: _name, schema: _schema, ...signature } = fn.meta;
 
@@ -236,6 +269,36 @@ function prepareCatalog(
   const jsonImports = new Map<string, JsonImport>();
   const unusedJson = new Set(Object.keys(config.json));
 
+  // The `json` option of the Standard Schema generator names a schema value per
+  // column; the column's type is that schema's output unless `json` says so.
+  const standardSchemas = standardSchemaJson(config.generators);
+
+  const standardSchemaTypeFor = (
+    schema: string,
+    table: string,
+    column: string,
+  ): string | undefined => {
+    const spec = [`${schema}.${table}.${column}`, `${table}.${column}`]
+      .map((candidate) => standardSchemas.get(candidate))
+      .find((entry) => entry !== undefined);
+
+    if (spec === undefined) {
+      return undefined;
+    }
+
+    const [from, name] = spec.split("#");
+
+    if (!from || !name) {
+      throw new TypeError(
+        `standardSchema({ json }) for ${table}.${column} must look like "./path.ts#schemaName"`,
+      );
+    }
+
+    jsonImports.set(name, { name, from, value: true });
+
+    return `StandardSchemaV1.InferOutput<typeof ${name}>`;
+  };
+
   const jsonTypeFor = (
     schema: string,
     table: string,
@@ -248,7 +311,7 @@ function prepareCatalog(
     const override = key === undefined ? undefined : config.json[key];
 
     if (key === undefined || !override) {
-      return undefined;
+      return standardSchemaTypeFor(schema, table, column);
     }
 
     unusedJson.delete(key);
@@ -681,12 +744,15 @@ function toTableModels(
       for (const column of columns) {
         const meta: {
           -readonly [K in keyof ColumnMeta]: ColumnMeta[K];
-        } = {
-          db: column.db,
-          type: column.snapshot.udt,
-          nullable: column.nullable,
-          hasDefault: column.filled,
-        };
+        } = { db: column.db, type: column.snapshot.udt };
+
+        if (column.nullable) {
+          meta.nullable = true;
+        }
+
+        if (column.filled) {
+          meta.hasDefault = true;
+        }
 
         if (column.readonly) {
           meta.generated = true;

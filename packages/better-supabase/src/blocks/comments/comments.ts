@@ -42,9 +42,9 @@ export interface CommentsOptions<
 >
   extends BlockTemporalOptions, BlockTenantOptions {
   /**
-   * A Standard Schema for the message extra columns
-   * (`blocks.messaging.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `create` and `edit`.
+   * A Standard Schema for the message extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `create` and `edit`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

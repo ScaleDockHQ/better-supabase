@@ -4,7 +4,6 @@ import { useAction } from "better-supabase/react";
 import { KeyRoundIcon, Trash2Icon, ZapIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 import * as v from "valibot";
 
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +25,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { TriggerRow } from "../builder-queries";

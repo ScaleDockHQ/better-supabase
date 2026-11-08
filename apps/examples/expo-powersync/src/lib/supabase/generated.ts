@@ -6,7 +6,7 @@ import { defineSchema, type ExtensionsOf, type Schema } from "better-supabase";
 import { membershipsExtension } from "better-supabase/blocks/memberships";
 import type { EnrichDatabase, GeneratedColumns, MutableWhere, OrderByArg, OrderByInput, WritableColumns } from "better-supabase";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
-import meta from "./generated.meta.js";
+
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
@@ -914,9 +914,9 @@ export type WritableColumnOf<T extends TableName> = WritableColumns<Models, T>;
 /** Columns of `T` the database fills (generated columns): in `Row`, never writable. */
 export type GeneratedColumnOf<T extends TableName> = GeneratedColumns<Models, T>;
 
-/** The installed blocks' repository extensions; `defineSupabase` installs them. */
-type Extensions = readonly [ReturnType<typeof membershipsExtension>];
-const extensions: Extensions = [membershipsExtension()];
+/** The installed blocks' repository extensions; `createSupabase` installs them. */
+export type Extensions = readonly [ReturnType<typeof membershipsExtension>];
+export const extensions: Extensions = [/*#__PURE__*/ membershipsExtension()];
 
 /** The app's subject types, from `config.subjects`. */
 export const subjectTypes = ["message", "conversation", "change_request", "project", "task"] as const;
@@ -924,4 +924,8 @@ export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */
 export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };
 
-export const schema: Schema<Models, Database, Functions, SubjectType, ExtensionsOf<Extensions>> = defineSchema(meta, extensions);
+/**
+ * The schema of a browser client without a table registry: it registers each
+ * table module a page uses through `bsb.table(...)`.
+ */
+export const clientSchema: Schema<Models, Database, Functions, SubjectType, ExtensionsOf<Extensions>> = /*#__PURE__*/ defineSchema({ version: 1, casing: "snake", lazyTables: true, tables: {}, enums: {}, functions: {} }, extensions);

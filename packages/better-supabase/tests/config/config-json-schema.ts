@@ -181,6 +181,7 @@ export function renderConfigSchema(): string {
     privilege,
     triggerValue,
     generator,
+    framework,
   } = configSchemas();
 
   const rendered: unknown = tidy(
@@ -197,7 +198,7 @@ export function renderConfigSchema(): string {
       // Schema keyword.
       ignoreActions: ["raw_check"],
       overrideSchema: ({ valibotSchema }) => {
-        if (valibotSchema === generator) {
+        if (valibotSchema === generator || valibotSchema === framework) {
           return { type: "object" };
         }
 

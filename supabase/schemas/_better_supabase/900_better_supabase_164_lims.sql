@@ -1,104 +1,21 @@
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:24b42b60da2125cbe7949bdc96ce5ecc7185181cb5eadf27f23bc7619cafff9f
+-- @bsb-hash sha256:8e87a04bea0f6859fe842e27c7bb91a95cfbe7db3200d1b02a49413ab145a895
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lims_methods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lims_methods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lims_methods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lims_methods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lims_methods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lims_samples";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lims_samples";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lims_samples";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lims_samples";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lims_samples";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lims_results";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lims_results";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lims_results";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lims_results";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lims_results";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- A laboratory information system: samples, test methods with specification
 -- limits, results and the instruments that produced them.
 
 -- What a laboratory measures: a key, a unit and the specification limits a
 -- result must stay within. form_id names the form that captures the readings.
-create table if not exists "better_supabase"."lims_methods" (
+create table "better_supabase"."lims_methods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "name" text not null check (length("name") between 1 and 200),
-  "unit" text check ("unit" is null or length("unit") <= 40),
+  "key" text not null constraint bsb_lims_methods_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "name" text not null constraint bsb_lims_methods_name_check check (length("name") >= 1 and length("name") <= 200),
+  "unit" text constraint bsb_lims_methods_unit_check check ("unit" is null or length("unit") <= 40),
   "lower_limit" numeric,
   "upper_limit" numeric,
   "form_id" uuid,
@@ -106,31 +23,30 @@ create table if not exists "better_supabase"."lims_methods" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
-  check ("lower_limit" is null or "upper_limit" is null or "lower_limit" <= "upper_limit")
+  constraint bsb_lims_methods_check check ("lower_limit" is null or "upper_limit" is null or "lower_limit" <= "upper_limit")
 );
 alter table "better_supabase"."lims_methods" enable row level security;
 revoke all on "better_supabase"."lims_methods" from public, anon, authenticated;
 grant select on "better_supabase"."lims_methods" to authenticated;
 grant all on "better_supabase"."lims_methods" to service_role;
-drop policy if exists lims_methods_read on "better_supabase"."lims_methods";
-create policy lims_methods_read on "better_supabase"."lims_methods"
+create policy bsb_lims_methods_read on "better_supabase"."lims_methods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
 -- A sample received for testing. The number is SMP-1, SMP-2 and so on, or the
 -- numbering block's format.
-create table if not exists "better_supabase"."lims_samples" (
+create table "better_supabase"."lims_samples" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") between 1 and 200),
-  "kind" text check ("kind" is null or length("kind") <= 100),
-  "lot" text check ("lot" is null or length("lot") <= 100),
+  "title" text not null constraint bsb_lims_samples_title_check check (length("title") >= 1 and length("title") <= 200),
+  "kind" text constraint bsb_lims_samples_kind_check check ("kind" is null or length("kind") <= 100),
+  "lot" text constraint bsb_lims_samples_lot_check check ("lot" is null or length("lot") <= 100),
   "received_on" date not null default current_date,
-  "status" text not null default 'registered' check ("status" in ('registered', 'in_testing', 'completed', 'released', 'rejected')),
-  "notes" text check ("notes" is null or length("notes") <= 4000),
-  "rejection_reason" text check ("rejection_reason" is null or length("rejection_reason") <= 500),
+  "status" text not null default 'registered' constraint bsb_lims_samples_status_check check ("status" in ('registered', 'in_testing', 'completed', 'released', 'rejected')),
+  "notes" text constraint bsb_lims_samples_notes_check check ("notes" is null or length("notes") <= 4000),
+  "rejection_reason" text constraint bsb_lims_samples_rejection_reason_check check ("rejection_reason" is null or length("rejection_reason") <= 500),
   "completed_at" timestamptz,
   "released_at" timestamptz,
   "created_by" uuid,
@@ -138,13 +54,12 @@ create table if not exists "better_supabase"."lims_samples" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "sequence")
 );
-create index if not exists "lims_samples_status_idx" on "better_supabase"."lims_samples" ("tenant_id", "status");
+create index "lims_samples_status_idx" on "better_supabase"."lims_samples" ("tenant_id", "status");
 alter table "better_supabase"."lims_samples" enable row level security;
 revoke all on "better_supabase"."lims_samples" from public, anon, authenticated;
 grant select on "better_supabase"."lims_samples" to authenticated;
 grant all on "better_supabase"."lims_samples" to service_role;
-drop policy if exists lims_samples_read on "better_supabase"."lims_samples";
-create policy lims_samples_read on "better_supabase"."lims_samples"
+create policy bsb_lims_samples_read on "better_supabase"."lims_samples"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -153,28 +68,27 @@ create policy lims_samples_read on "better_supabase"."lims_samples"
 -- latest per method counts. instrument_id is an asset, submission_id the form
 -- submission with the readings, case_id the nonconformity an out of
 -- specification result raised.
-create table if not exists "better_supabase"."lims_results" (
+create table "better_supabase"."lims_results" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "sample_id" uuid not null,
   "method_id" uuid not null,
   "value" numeric not null,
-  "outcome" text not null check ("outcome" in ('in_spec', 'out_of_spec')),
+  "outcome" text not null constraint bsb_lims_results_outcome_check check ("outcome" in ('in_spec', 'out_of_spec')),
   "instrument_id" uuid,
   "submission_id" uuid,
   "case_id" uuid,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_lims_results_note_check check ("note" is null or length("note") <= 2000),
   "tested_by" uuid,
   "tested_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now()
 );
-create index if not exists "lims_results_sample_idx" on "better_supabase"."lims_results" ("sample_id", "method_id", "tested_at" desc);
+create index "lims_results_sample_idx" on "better_supabase"."lims_results" ("sample_id", "method_id", "tested_at" desc);
 alter table "better_supabase"."lims_results" enable row level security;
 revoke all on "better_supabase"."lims_results" from public, anon, authenticated;
 grant select on "better_supabase"."lims_results" to authenticated;
 grant all on "better_supabase"."lims_results" to service_role;
-drop policy if exists lims_results_read on "better_supabase"."lims_results";
-create policy lims_results_read on "better_supabase"."lims_results"
+create policy bsb_lims_results_read on "better_supabase"."lims_results"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -772,123 +686,63 @@ grant execute on function "better_supabase"."instrument_status"(uuid, uuid, date
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."lims_methods";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lims_methods";
 create policy bsb_tenant_scope_select on "better_supabase"."lims_methods" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lims_methods";
 create policy bsb_tenant_scope_insert on "better_supabase"."lims_methods" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lims_methods";
 create policy bsb_tenant_scope_update on "better_supabase"."lims_methods" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lims_methods";
 create policy bsb_tenant_scope_delete on "better_supabase"."lims_methods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."lims_samples";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lims_samples";
 create policy bsb_tenant_scope_select on "better_supabase"."lims_samples" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lims_samples";
 create policy bsb_tenant_scope_insert on "better_supabase"."lims_samples" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lims_samples";
 create policy bsb_tenant_scope_update on "better_supabase"."lims_samples" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lims_samples";
 create policy bsb_tenant_scope_delete on "better_supabase"."lims_samples" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."lims_results";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lims_results";
 create policy bsb_tenant_scope_select on "better_supabase"."lims_results" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lims_results";
 create policy bsb_tenant_scope_insert on "better_supabase"."lims_results" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lims_results";
 create policy bsb_tenant_scope_update on "better_supabase"."lims_results" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lims_results";
 create policy bsb_tenant_scope_delete on "better_supabase"."lims_results" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.lims_samples', target_type => 'lims_sample', event_prefix => 'lims_sample', deferred => true);
-  perform better_supabase.audit('better_supabase.lims_methods', target_type => 'lims_method', event_prefix => 'lims_method', deferred => true);
-  perform better_supabase.audit('better_supabase.lims_results', target_type => 'lims_result', event_prefix => 'lims_result', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.lims_samples deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lims_sample","event_prefix":"lims_sample"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.lims_methods deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lims_method","event_prefix":"lims_method"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.lims_results deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lims_result","event_prefix":"lims_result"}');
 
 -- blocks.lims.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."import_run"()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."import_run"() $$;
-revoke execute on function "api"."import_run"() from public;
-grant execute on function "api"."import_run"() to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."save_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
 returns jsonb
@@ -992,16 +846,3 @@ set search_path = ''
 as $$ select "better_supabase"."instrument_status"($1, $2, $3) $$;
 revoke execute on function "api"."instrument_status"(uuid, uuid, date) from public, anon;
 grant execute on function "api"."instrument_status"(uuid, uuid, date) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

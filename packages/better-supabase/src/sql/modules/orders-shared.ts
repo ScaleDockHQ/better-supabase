@@ -15,7 +15,7 @@ export interface OrdersNames {
   readonly read: string;
   /** Moves lines through the kitchen (`options.kitchen`). */
   readonly prepare: string;
-  /** `options.extraColumns` of the orders table. */
+  /** The columns your schema files add of the orders table. */
   readonly extras: readonly ExtraColumn[];
 }
 

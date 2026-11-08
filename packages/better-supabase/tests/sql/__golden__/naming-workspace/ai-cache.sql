@@ -1,43 +1,27 @@
 -- ==== schema supabase/schemas/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:dbb784b83faac2c9d040e350cb0007c068eeb90692406e4d0b6c3ba476c56aa4
+-- @bsb-hash sha256:66968c6fabd2a7bc84bdeccba944e397328b9f59272e57733ee7e6cec254d7ac
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_cache_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_cache_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_cache_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_cache_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_cache_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Model responses cached by a key the application derives from the request
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
-create table if not exists "better_supabase"."ai_cache_entries" (
-  "key" text primary key check (length("key") between 1 and 256),
+create table "better_supabase"."ai_cache_entries" (
+  "key" text primary key constraint bsb_ai_cache_entries_key_check check (length("key") >= 1 and length("key") <= 256),
   "workspace_id" uuid,
-  "kind" text not null default 'generate' check ("kind" in ('generate', 'stream', 'embed', 'other')),
-  "model" text check (length("model") <= 200),
-  "value" jsonb not null check (octet_length("value"::text) <= 1048576),
+  "kind" text not null default 'generate' constraint bsb_ai_cache_entries_kind_check check ("kind" in ('generate', 'stream', 'embed', 'other')),
+  "model" text constraint bsb_ai_cache_entries_model_check check (length("model") <= 200),
+  "value" jsonb not null constraint bsb_ai_cache_entries_value_check check (octet_length("value"::text) <= 1048576),
   "hits" integer not null default 0,
   "created_at" timestamptz not null default now(),
   "last_hit_at" timestamptz,
   "expires_at" timestamptz not null
 );
-create index if not exists ai_cache_entries_expires_idx on "better_supabase"."ai_cache_entries" ("expires_at");
-create index if not exists ai_cache_entries_tenant_idx on "better_supabase"."ai_cache_entries" ("workspace_id");
+create index ai_cache_entries_expires_idx on "better_supabase"."ai_cache_entries" ("expires_at");
+create index ai_cache_entries_tenant_idx on "better_supabase"."ai_cache_entries" ("workspace_id");
 alter table "better_supabase"."ai_cache_entries" enable row level security;
 revoke all on "better_supabase"."ai_cache_entries" from public, anon, authenticated;
 grant all on "better_supabase"."ai_cache_entries" to service_role;
@@ -145,19 +129,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_ai_cache"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_ai_cache"(integer) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_055_ai_cache.sql
 -- better-supabase module: ai-cache

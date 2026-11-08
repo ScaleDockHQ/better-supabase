@@ -49,7 +49,7 @@ const BLOCKS: AnyBlocksConfig = {
   leave: {
     options: { owner: "employee", approvalOwner: "employee", policy: MANAGER },
   },
-  "time-tracking": {
+  "time-entries": {
     options: { owner: "employee", policy: MANAGER, overlap: "allow" },
   },
   expenses: {
@@ -58,7 +58,7 @@ const BLOCKS: AnyBlocksConfig = {
   },
 };
 
-const NAMES = ["employees", "leave", "time-tracking", "expenses"] as const;
+const NAMES = ["employees", "leave", "time-entries", "expenses"] as const;
 
 const BOOT = { timeout: 90_000 };
 

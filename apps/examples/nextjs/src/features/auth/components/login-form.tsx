@@ -23,25 +23,37 @@ import { isLocalizedRoute, Link } from "@/i18n/navigation";
 
 import { signInWithPassword } from "../auth-actions";
 
+/**
+ * What a rejected sign-in keeps, so the email the user typed stays in the
+ * field.
+ */
+type LoginState = { readonly email: string; readonly error: string | null };
+
 export function LoginForm() {
   const t = useExtracted("auth");
   const fieldId = useId();
   const locale = useLocale();
   const router = useRouter();
 
-  const [error, submit, pending] = useActionState(
-    async (_previous: string | null, form: FormData) => {
+  const [state, submit, pending] = useActionState(
+    async (_previous: LoginState, form: FormData): Promise<LoginState> => {
+      const email = String(form.get("email"));
+
       const result = await signInWithPassword({
-        email: String(form.get("email")),
+        email,
         password: String(form.get("password")),
         next: new URLSearchParams(window.location.search).get("next"),
         locale,
       });
 
       if (!result.ok) {
-        return result.error.code === "invalid_credentials"
-          ? t("That email and password don't match.")
-          : result.error.message;
+        return {
+          email,
+          error:
+            result.error.code === "invalid_credentials"
+              ? t("That email and password don't match.")
+              : result.error.message,
+        };
       }
 
       const { redirectTo, mfa } = result.data;
@@ -52,10 +64,12 @@ export function LoginForm() {
 
       router.replace(isLocalizedRoute(target) ? target : `/${locale}`);
 
-      return null;
+      return { email, error: null };
     },
-    null,
+    { email: "", error: null },
   );
+
+  const { error } = state;
 
   return (
     <Card>
@@ -72,6 +86,7 @@ export function LoginForm() {
                 id={`${fieldId}-email`}
                 name="email"
                 type="email"
+                defaultValue={state.email}
                 placeholder="you@acme.test"
                 autoComplete="email"
                 required

@@ -52,7 +52,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using: `(${dr("author")} = (select auth.uid()) or ${dr("source")} = 'ai') and ${q.staff(dr("tenant"), "reply")}`,
   }),
-  { drop: true, target: table },
+  { target: table },
 )}`;
 }
 

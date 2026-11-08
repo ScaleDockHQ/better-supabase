@@ -175,7 +175,7 @@ const { state } = useBlockController(createPermissionsController, {
 
 ```svelte title="ImportButton.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import { rpcTransport } from "better-supabase/blocks";
   import {
     batchPermissions,
@@ -185,7 +185,7 @@ const { state } = useBlockController(createPermissionsController, {
   } from "better-supabase/blocks/permissions";
 
   let { organizationId }: { organizationId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const access = useBlockController(createPermissionsController, {
     client: batchPermissions(createPermissions({ transport: rpcTransport(supabase), schema: "api" })),
     keys: ["imports.manage"],
@@ -595,10 +595,15 @@ tenant column of a referenced row. Rows stored before you add an entry are
 checked when they change. The triggers are written in managed ownership,
 over the block's tables and yours; in custom mode the module writes no SQL.
 
-`upgrade` can derive the entries from the foreign keys in the schema files
-instead. With `sameTenant: { auto: true }`, every single-column foreign key
+Without the option, `upgrade` derives the entries from the foreign keys in
+the schema files, so the config lists exceptions only. A list adds entries to
+the derived ones, `sameTenant: false` writes none, and `{ auto: false, entries }`
+writes only the listed entries. Every single-column foreign key
 from a table with the tenant column to another table with it gets an entry,
-unless the key already includes the tenant column. The scan reads
+unless the key already includes the tenant column or a composite key on the
+same table pairs the column with the tenant column on both sides, or an app
+trigger on the table (any trigger not named `bsb_*`) already reads or writes the
+column through `new.<column>`. The scan reads
 `references` on a column, `foreign key (...) references` table constraints
 and `alter table ... add constraint ... foreign key`; a key without a column
 list references the table's declared primary key. Keys over more than one

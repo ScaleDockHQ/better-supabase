@@ -2,9 +2,8 @@ import type { DateTimeFormatOptions } from "next-intl";
 
 import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
+import { io } from "next/cache";
 import { forbidden } from "next/navigation";
-import { connection } from "next/server";
-import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { Badge } from "@/components/reui/badge";
@@ -66,9 +65,9 @@ function weeksOf(first: Temporal.PlainDate) {
 
 // #region recipe:calendar-view
 export async function CalendarView({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
   const permissions = await getPermissions();
 
@@ -76,11 +75,10 @@ export async function CalendarView({
     forbidden();
   }
 
-  const [t, format, query] = await Promise.all([
+  const [t, format] = await Promise.all([
     getExtracted("calendar"),
     getFormatter(),
-    searchParams,
-    connection(),
+    io(),
   ]);
 
   const canWrite = can(permissions, "calendar.write");

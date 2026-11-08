@@ -1,106 +1,31 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:15a43420e54dd213daadbd77f913019683cf51e36c96084f94309e2d41f39f2b
+-- @bsb-hash sha256:18a5b866268a91fee0d16273675a0ebedb4bed5c12801e2b5cecbd3410fa85c4
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_updates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_updates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_snapshots";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_snapshots";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."document_suggestions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."document_suggestions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create table if not exists "better_supabase"."documents" (
+create table "better_supabase"."documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "name" text not null default 'body' check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null default 'body' constraint bsb_documents_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "name")
 );
-create index if not exists "documents_tenant_idx" on "better_supabase"."documents" ("tenant_id", "updated_at" desc);
+create index "documents_tenant_idx" on "better_supabase"."documents" ("tenant_id", "updated_at" desc);
 alter table "better_supabase"."documents" enable row level security;
 revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-drop policy if exists documents_read on "better_supabase"."documents";
-create policy documents_read on "better_supabase"."documents"
+create policy bsb_documents_read on "better_supabase"."documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
 
-create table if not exists "better_supabase"."document_updates" (
+create table "better_supabase"."document_updates" (
   "seq" bigint generated always as identity primary key,
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
@@ -108,12 +33,12 @@ create table if not exists "better_supabase"."document_updates" (
   "actor" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
+create index "document_updates_document_idx" on "better_supabase"."document_updates" ("document_id", "seq");
 alter table "better_supabase"."document_updates" enable row level security;
 revoke all on "better_supabase"."document_updates" from public, anon, authenticated;
 grant all on "better_supabase"."document_updates" to service_role;
 
-create table if not exists "better_supabase"."document_snapshots" (
+create table "better_supabase"."document_snapshots" (
   "document_id" uuid primary key references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "state" bytea not null,
@@ -124,20 +49,20 @@ alter table "better_supabase"."document_snapshots" enable row level security;
 revoke all on "better_supabase"."document_snapshots" from public, anon, authenticated;
 grant all on "better_supabase"."document_snapshots" to service_role;
 
-create table if not exists "better_supabase"."document_suggestions" (
+create table "better_supabase"."document_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "payload" bytea not null,
-  "summary" text check (length("summary") between 1 and 500),
-  "status" text not null default 'open' check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
+  "summary" text constraint bsb_document_suggestions_summary_check check (length("summary") >= 1 and length("summary") <= 500),
+  "status" text not null default 'open' constraint bsb_document_suggestions_status_check check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "note" text check (length("note") between 1 and 500)
+  "note" text constraint bsb_document_suggestions_note_check check (length("note") >= 1 and length("note") <= 500)
 );
-create index if not exists "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
+create index "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
 revoke all on "better_supabase"."document_suggestions" from public, anon, authenticated;
 grant all on "better_supabase"."document_suggestions" to service_role;
@@ -2367,22 +2292,14 @@ grant execute on function "better_supabase"."name_document_version"(uuid, uuid, 
 
 -- Readers join documents:{document} and track presence; editors broadcast
 -- updates on it.
-do $do$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_documents_receive on realtime.messages;
 create policy bsb_documents_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false));
-        drop policy if exists bsb_documents_send on realtime.messages;
 create policy bsb_documents_send on realtime.messages
   for insert to authenticated
   with check (((realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
-  end if;
-end;
-$do$;
 
 -- on with cascade: deleting a subject row deletes its documents rows.
 create or replace function "better_supabase"."documents_subject_deleted"()
@@ -2400,13 +2317,9 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."documents_subject_deleted"() from public, anon, authenticated;
-
-drop trigger if exists "bsb_documents_product_cascade" on "better_supabase"."products";
 create trigger "bsb_documents_product_cascade"
   after delete on "better_supabase"."products"
   for each row execute function "better_supabase"."documents_subject_deleted"('product', 'id');
-
-drop trigger if exists "bsb_documents_product_variant_cascade" on "better_supabase"."product_variants";
 create trigger "bsb_documents_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."documents_subject_deleted"('product_variant', 'id');
@@ -2414,70 +2327,30 @@ create trigger "bsb_documents_product_variant_cascade"
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."documents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."documents";
 create policy bsb_tenant_scope_select on "better_supabase"."documents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."documents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."documents";
 create policy bsb_tenant_scope_update on "better_supabase"."documents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."documents";
 create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.documents', target_type => 'document', event_prefix => 'document', deferred => true);
-  perform better_supabase.audit('better_supabase.document_suggestions', target_type => 'document_suggestion', event_prefix => 'document_suggestion', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.documents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document","event_prefix":"document"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.document_suggestions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document_suggestion","event_prefix":"document_suggestion"}');
 
 -- blocks.documents.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."document_access"(document_id uuid, write boolean)
 returns boolean
@@ -2611,16 +2484,3 @@ set search_path = ''
 as $$ select "better_supabase"."name_document_version"($1, $2, $3) $$;
 revoke execute on function "api"."name_document_version"(uuid, uuid, text) from public, anon;
 grant execute on function "api"."name_document_version"(uuid, uuid, text) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

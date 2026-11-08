@@ -28,26 +28,21 @@ const STATUS_EDGES: Readonly<Record<string, readonly string[]>> = {
   archived: ["draft"],
 };
 
-/** `options.extraColumns`, which the products table gets. */
+/** The columns your schema files add, which the products table gets. */
 export const productExtras = (ctx: BlockSqlContext): readonly ExtraColumn[] =>
   ctx.extraColumns("products", ["id", "slug", "status", "fields"]);
 
-/** `options.variantExtraColumns`, which `save_variant` writes from `fields`. */
+/** The columns your schema files add, which `save_variant` writes from `fields`. */
 export const variantExtras = (ctx: BlockSqlContext): readonly ExtraColumn[] =>
-  ctx.extraColumns(
-    "variants",
-    ["id", "sku", "rank", "fields"],
-    "variantExtraColumns",
-  );
+  ctx.extraColumns("variants", ["id", "sku", "rank", "fields"]);
 
-/** `options.categoryExtraColumns`, which `save_category` writes from `fields`. */
+/**
+ * The columns your schema files add, which `save_category` writes from
+ * `fields`.
+ */
 export const categoryExtras = (ctx: BlockSqlContext): readonly ExtraColumn[] =>
   ctx.hasTable("categories")
-    ? ctx.extraColumns(
-        "categories",
-        ["id", "slug", "rank", "fields"],
-        "categoryExtraColumns",
-      )
+    ? ctx.extraColumns("categories", ["id", "slug", "rank", "fields"])
     : [];
 
 /**
@@ -941,7 +936,7 @@ function variantFunctions(
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
 -- On an update a null argument keeps the column and clear names the columns
--- to empty. fields: the extra columns (options.variantExtraColumns) to set.
+-- to empty. fields: the extra columns (columns your schema files add) to set.
 drop function if exists ${fn("save_variant")}(${oldVariantArgs});
 drop function if exists ${fn("save_variant")}(${oldVariantArgs}, jsonb);
 ${extraArg.drop(fn("save_variant"), variantArgs)}

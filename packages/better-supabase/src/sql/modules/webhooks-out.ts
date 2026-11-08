@@ -19,7 +19,6 @@ import {
   schemaPreamble,
   updatedAt,
 } from "../shared.ts";
-import { eventTypeData, typeListRenames } from "./event-type-renames.ts";
 import { endpointFunctions } from "./webhooks-out-endpoints.ts";
 import {
   ADDED_COLUMNS,
@@ -66,7 +65,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant", credentials: ["credentialRef"] },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         name: "name",
         url: "url",
         enabled: "enabled",
@@ -76,7 +75,7 @@ const NAMES: BlockSqlNames = {
         signing: "signing",
         format: "format",
         credentialRef: "credential_ref",
-        failingSince: "failing_since",
+        failingSince: "first_failed_at",
         disabledAt: "disabled_at",
         disabledReason: "disabled_reason",
         createdBy: "created_by",
@@ -112,7 +111,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         endpoint: "endpoint_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         secret: "secret",
         vaultId: "vault_secret_id",
         expiresAt: "expires_at",
@@ -126,7 +125,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         endpoint: "endpoint_id",
         event: "event_id",
         run: "run_id",
@@ -136,7 +135,7 @@ const NAMES: BlockSqlNames = {
         status: "status",
         attempt: "attempt",
         availableAt: "available_at",
-        leasedUntil: "leased_until",
+        leasedUntil: "lease_expires_at",
         responseStatus: "response_status",
         responseBody: "response_body",
         durationMs: "duration_ms",
@@ -252,7 +251,7 @@ function tables(ctx: BlockSqlContext, n: HookNames): string {
         roles: ["authenticated"],
         ...spec,
       }),
-      { drop: true, target: n.table(table) },
+      { target: n.table(table) },
     )}`;
 
   const scoped = n.clientAccess;
@@ -554,14 +553,6 @@ export const WEBHOOKS_OUT: BlockSqlDefinition = {
   modes: ["managed", "custom"],
   version: 6,
   names: NAMES,
-  data: (ctx) =>
-    eventTypeData([
-      typeListRenames(
-        ctx,
-        ctx.table("endpoints"),
-        ctx.col("endpoints", "eventTypes"),
-      ),
-    ]),
   contract,
   upgrades: [
     {

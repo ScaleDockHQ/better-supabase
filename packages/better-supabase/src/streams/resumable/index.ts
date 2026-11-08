@@ -84,8 +84,8 @@ function integer(value: unknown): number {
 
 /**
  * A `resumable-stream` publisher on Postgres: `get`, `set` and `incr` run
- * against `stream_kv`, and `publish` sends a Realtime broadcast. Pass it with
- * `postgresSubscriber` to `createResumableStreamContext` from
+ * against `stream_entries`, and `publish` sends a Realtime broadcast. Pass it
+ * with `postgresSubscriber` to `createResumableStreamContext` from
  * `resumable-stream/generic`, so a deployment that has Supabase needs no
  * Redis.
  */

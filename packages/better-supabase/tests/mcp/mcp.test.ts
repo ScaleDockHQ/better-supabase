@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err } from "../../src/core/result.ts";
 import { defineListQuery } from "../../src/list/index.ts";
@@ -28,7 +28,7 @@ const ENDPOINT = "https://tools.test/mcp";
 const signer = await createTestSigner();
 
 describe("createMcp", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const list = defineListQuery(betterSupabase, "customers", {
     search: ["name"],
@@ -715,7 +715,7 @@ describe("createMcp versions", () => {
     const versions = { evict: () => undefined, epoch: 3 };
     const seen: unknown[] = [];
 
-    const mcp = createMcp(defineSupabase(schema), {
+    const mcp = createMcp(createSupabase(schema), {
       env,
       auth: { jwks: signer.jwks },
       name: "crm",
@@ -769,7 +769,7 @@ describe("createMcp approval", () => {
   it("lists a tool that needs an approval, refuses with its id and grants on resume", async () => {
     const seen: (string | undefined)[] = [];
 
-    const mcp = createMcp(defineSupabase(schema), {
+    const mcp = createMcp(createSupabase(schema), {
       env,
       auth: { jwks: signer.jwks },
       name: "crm",
@@ -858,7 +858,7 @@ describe("createMcp approval", () => {
 
 describe("createMcp table tool meta", () => {
   it("passes each operation's meta to visible and authorize", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     const seen: [string, unknown][] = [];
 
     const mcp = createMcp(betterSupabase, {
@@ -902,7 +902,7 @@ describe("createMcp table tool meta", () => {
   });
 
   it("reuses a token's visible list but checks visible on every call", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     let checks = 0;
 
     const mcp = createMcp(betterSupabase, {
@@ -953,7 +953,7 @@ describe("createMcp table tool meta", () => {
   });
 
   it("rebuilds cached visible lists after a tool is registered", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const mcp = createMcp(betterSupabase, {
       env,
@@ -993,7 +993,7 @@ describe("createMcp table tool meta", () => {
 
 describe("createMcp cursor lists", () => {
   it("describes cursor pagination in the list tool schemas", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
 
     const mcp = createMcp(betterSupabase, {
       env,
@@ -1054,7 +1054,7 @@ describe("createMcp on Supabase Edge Functions", () => {
     vi.unstubAllEnvs();
   });
 
-  const mcp = createMcp(defineSupabase(schema), {
+  const mcp = createMcp(createSupabase(schema), {
     env: { ...env, url: "http://kong:8000" },
     auth: { jwks: signer.jwks },
     name: "crm",
@@ -1171,7 +1171,7 @@ describe("createMcp on Supabase Edge Functions", () => {
 });
 
 describe("createMcp CORS", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const open = createMcp(betterSupabase, {
     env,
@@ -1253,7 +1253,7 @@ describe("createMcp CORS", () => {
 });
 
 describe("tool schemas per protocol version", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
   const calls: string[] = [];
 
   const throwsForDraft07 = {

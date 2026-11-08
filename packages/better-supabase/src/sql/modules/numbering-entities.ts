@@ -303,8 +303,21 @@ function entity(
       ? formatPeriod(format)
       : stated;
 
-  const table = record["table"];
-  const column = record["column"];
+  const subject = ctx.subjects[name];
+
+  // The number column is `number` unless the entry names another, and an
+  // entry that names only the column numbers the table of the subject of the
+  // same name.
+  const table =
+    record["table"] ??
+    (record["column"] !== undefined && subject !== undefined
+      ? subject.table.includes(".")
+        ? subject.table
+        : `public.${subject.table}`
+      : undefined);
+
+  const column =
+    record["column"] ?? (record["table"] === undefined ? undefined : "number");
 
   if (table !== undefined && typeof table !== "string") {
     throw new TypeError(`${where}.table must be "schema.table"`);
@@ -318,7 +331,9 @@ function entity(
   }
 
   if ((table === undefined) !== (column === undefined)) {
-    throw new TypeError(`${where} needs both table and column, or neither`);
+    throw new TypeError(
+      `${where}.column needs a table: set table, or add a subject named "${name}" in config.subjects`,
+    );
   }
 
   const sequenceColumn = record["sequenceColumn"];

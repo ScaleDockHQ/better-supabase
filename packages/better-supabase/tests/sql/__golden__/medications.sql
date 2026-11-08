@@ -1,91 +1,25 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:bc6fae6ead116fd89fcf48972fe3d536041efdf94b2d967c55c69c9a9cfdafe9
+-- @bsb-hash sha256:a5d93167825320d40f578c235f19168a5c0b4f0e08e24a8e7660ce3ab1f59f27
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_administrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Medications: the organization's catalog, orders for a record with a dose,
 -- route and schedule, planned doses, and each dose given, refused, skipped or
 -- missed, with a second check for high-risk medication.
 
-create table if not exists "better_supabase"."medications" (
+create table "better_supabase"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null constraint bsb_medications_name_check check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
-  "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") between 1 and 100),
-  "form" text check ("form" is null or length("form") <= 100),
-  "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") between 1 and 50),
+  "code_system" text not null default 'custom' constraint bsb_medications_code_system_check check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
+  "code" text constraint bsb_medications_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "form" text constraint bsb_medications_form_check check ("form" is null or length("form") <= 100),
+  "strength" text constraint bsb_medications_strength_check check ("strength" is null or length("strength") <= 100),
+  "unit" text not null constraint bsb_medications_unit_check check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -93,100 +27,97 @@ create table if not exists "better_supabase"."medications" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "medications_tenant_idx" on "better_supabase"."medications" ("tenant_id", "name");
-create unique index if not exists "medications_code_idx" on "better_supabase"."medications" ("tenant_id", "code_system", "code") where "code" is not null;
+create index "medications_tenant_idx" on "better_supabase"."medications" ("tenant_id", "name");
+create unique index "medications_code_idx" on "better_supabase"."medications" ("tenant_id", "code_system", "code") where "code" is not null;
 alter table "better_supabase"."medications" enable row level security;
 revoke all on "better_supabase"."medications" from public, anon, authenticated;
 grant select on "better_supabase"."medications" to authenticated;
 grant all on "better_supabase"."medications" to service_role;
 
-create table if not exists "better_supabase"."medication_orders" (
+create table "better_supabase"."medication_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The record the order is for, a type in config.subjects.
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
-  "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") between 1 and 50),
-  "route" text check ("route" is null or length("route") <= 100),
+  "dose" numeric not null constraint bsb_medication_orders_dose_check check ("dose" > 0),
+  "dose_unit" text not null constraint bsb_medication_orders_dose_unit_check check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
+  "route" text constraint bsb_medication_orders_route_check check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
   "schedule" jsonb,
   "as_needed" boolean not null default false,
-  "as_needed_reason" text check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
+  "as_needed_reason" text constraint bsb_medication_orders_as_needed_reason_check check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
   -- The most of the dose unit given in any 24 hours, for an as-needed order.
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
+  "max_per_day" numeric constraint bsb_medication_orders_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
   "starts_on" date not null,
   "ends_on" date,
-  "prescriber" text check ("prescriber" is null or length("prescriber") <= 300),
-  "source" text not null default 'prescriber' check ("source" in ('prescriber', 'pharmacy', 'import')),
+  "prescriber" text constraint bsb_medication_orders_prescriber_check check ("prescriber" is null or length("prescriber") <= 300),
+  "source" text not null default 'prescriber' constraint bsb_medication_orders_source_check check ("source" in ('prescriber', 'pharmacy', 'import')),
   -- The order's id in the pharmacy or prescribing system it was imported from.
-  "external_id" text check ("external_id" is null or length("external_id") <= 200),
+  "external_id" text constraint bsb_medication_orders_external_id_check check ("external_id" is null or length("external_id") <= 200),
   "requires_double_check" boolean not null default false,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped')),
-  "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000),
+  "status" text not null default 'active' constraint bsb_medication_orders_status_check check ("status" in ('active', 'paused', 'stopped')),
+  "stopped_reason" text constraint bsb_medication_orders_stopped_reason_check check ("stopped_reason" is null or length("stopped_reason") <= 1000),
   "signature_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
-  check ("as_needed" or "schedule" is not null),
+  constraint bsb_medication_orders_check check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_medication_orders_check1 check ("as_needed" or "schedule" is not null),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "medication_id") references "better_supabase"."medications" ("tenant_id", "id")
 );
-create index if not exists "medication_orders_item_idx" on "better_supabase"."medication_orders" ("tenant_id", "medication_id");
-create index if not exists "medication_orders_subject_idx" on "better_supabase"."medication_orders" ("subject_type", "subject_id");
-create index if not exists "medication_orders_status_idx" on "better_supabase"."medication_orders" ("tenant_id", "status");
-create unique index if not exists "medication_orders_external_idx" on "better_supabase"."medication_orders" ("tenant_id", "external_id") where "external_id" is not null;
+create index "medication_orders_item_idx" on "better_supabase"."medication_orders" ("tenant_id", "medication_id");
+create index "medication_orders_subject_idx" on "better_supabase"."medication_orders" ("subject_type", "subject_id");
+create index "medication_orders_status_idx" on "better_supabase"."medication_orders" ("tenant_id", "status");
+create unique index "medication_orders_external_idx" on "better_supabase"."medication_orders" ("tenant_id", "external_id") where "external_id" is not null;
 alter table "better_supabase"."medication_orders" enable row level security;
 revoke all on "better_supabase"."medication_orders" from public, anon, authenticated;
 grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
-drop policy if exists medication_orders_read on "better_supabase"."medication_orders";
-create policy medication_orders_read on "better_supabase"."medication_orders"
+create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
-drop policy if exists medications_read on "better_supabase"."medications";
-create policy medications_read on "better_supabase"."medications"
+create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
 
-create table if not exists "better_supabase"."medication_administrations" (
+create table "better_supabase"."medication_administrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null,
   -- The planned time; null for an as-needed dose.
   "scheduled_at" timestamptz,
   "administered_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
-  "dose" numeric check ("dose" is null or "dose" > 0),
+  "status" text not null default 'planned' constraint bsb_medication_administrations_status_check check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
+  "dose" numeric constraint bsb_medication_administrations_dose_check check ("dose" is null or "dose" > 0),
   "performer_id" uuid,
   -- The second member who checked a high-risk dose.
   "checked_by" uuid,
-  "reason" text check ("reason" is null or length("reason") <= 1000),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "reason" text constraint bsb_medication_administrations_reason_check check ("reason" is null or length("reason") <= 1000),
+  "note" text constraint bsb_medication_administrations_note_check check ("note" is null or length("note") <= 2000),
   "signature_id" uuid,
-  check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
+  constraint bsb_medication_administrations_check check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
   unique ("order_id", "scheduled_at"),
   foreign key ("tenant_id", "order_id") references "better_supabase"."medication_orders" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "medication_administrations_order_idx" on "better_supabase"."medication_administrations" ("tenant_id", "order_id");
-create index if not exists "medication_administrations_planned_idx" on "better_supabase"."medication_administrations" ("scheduled_at") where "status" = 'planned';
-create index if not exists "medication_administrations_given_idx" on "better_supabase"."medication_administrations" ("order_id", "administered_at") where "status" = 'given';
+create index "medication_administrations_order_idx" on "better_supabase"."medication_administrations" ("tenant_id", "order_id");
+create index "medication_administrations_planned_idx" on "better_supabase"."medication_administrations" ("scheduled_at") where "status" = 'planned';
+create index "medication_administrations_given_idx" on "better_supabase"."medication_administrations" ("order_id", "administered_at") where "status" = 'given';
 alter table "better_supabase"."medication_administrations" enable row level security;
 revoke all on "better_supabase"."medication_administrations" from public, anon, authenticated;
 grant select on "better_supabase"."medication_administrations" to authenticated;
 grant all on "better_supabase"."medication_administrations" to service_role;
-drop policy if exists medication_administrations_read on "better_supabase"."medication_administrations";
-create policy medication_administrations_read on "better_supabase"."medication_administrations"
+create policy bsb_medication_administrations_read on "better_supabase"."medication_administrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a medication to the organization's catalog, or changes one
 -- (medication_id). A code from a catalog other than custom is unique in the
 -- organization.
-drop function if exists "better_supabase"."save_medication"(uuid, text, text, text, text, text, text, boolean, uuid, jsonb);
+
 create or replace function "better_supabase"."save_medication"(tenant uuid, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
 returns jsonb
 language plpgsql
@@ -1065,9 +996,7 @@ grant execute on function "better_supabase"."plan_medication_administrations"(uu
 -- Records a planned or missed dose as given, refused or skipped. refused and
 -- skipped need a reason. A dose of a high-risk medication, or of an order that
 -- requires it, needs checked_by: another member who may administer.
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text);
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, jsonb);
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, uuid, jsonb);
+
 create or replace function "better_supabase"."record_medication_administration"(administration_id uuid, status text, dose numeric default null, reason text default null, checked_by uuid default null, note text default null, signature_id uuid default null)
 returns jsonb
 language plpgsql
@@ -1163,7 +1092,7 @@ grant execute on function "better_supabase"."record_medication_administration"(u
 
 -- Records a dose of an as-needed order, with the reason it was given. The
 -- doses given in the last 24 hours plus this one stay within max_per_day.
-drop function if exists "better_supabase"."record_as_needed_administration"(uuid, numeric, text, uuid, text, jsonb);
+
 create or replace function "better_supabase"."record_as_needed_administration"(order_id uuid, dose numeric default null, reason text default null, checked_by uuid default null, note text default null)
 returns jsonb
 language plpgsql
@@ -1324,94 +1253,54 @@ grant execute on function "better_supabase"."medication_chart"(text, text, times
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."medications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medications";
 create policy bsb_tenant_scope_select on "better_supabase"."medications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medications";
 create policy bsb_tenant_scope_insert on "better_supabase"."medications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medications";
 create policy bsb_tenant_scope_update on "better_supabase"."medications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medications";
 create policy bsb_tenant_scope_delete on "better_supabase"."medications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."medication_orders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_select on "better_supabase"."medication_orders" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_orders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_update on "better_supabase"."medication_orders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_delete on "better_supabase"."medication_orders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."medication_administrations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_select on "better_supabase"."medication_administrations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_administrations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_update on "better_supabase"."medication_administrations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_delete on "better_supabase"."medication_administrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
@@ -1430,108 +1319,25 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:e1e4dc390f4caa06a16319bf4a99ed66bdfb0442d0da96d298d5b4b189e8534f
+-- @bsb-hash sha256:f17b7c30ddb63622d830c2f146e9568882b2419bd31868e7f49844a18a2b4707
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_administrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Medications: the organization's catalog, orders for a record with a dose,
 -- route and schedule, planned doses, and each dose given, refused, skipped or
 -- missed, with a second check for high-risk medication.
 
-create table if not exists "better_supabase"."medications" (
+create table "better_supabase"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null constraint bsb_medications_name_check check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
-  "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") between 1 and 100),
-  "form" text check ("form" is null or length("form") <= 100),
-  "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") between 1 and 50),
+  "code_system" text not null default 'custom' constraint bsb_medications_code_system_check check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
+  "code" text constraint bsb_medications_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "form" text constraint bsb_medications_form_check check ("form" is null or length("form") <= 100),
+  "strength" text constraint bsb_medications_strength_check check ("strength" is null or length("strength") <= 100),
+  "unit" text not null constraint bsb_medications_unit_check check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -1539,100 +1345,97 @@ create table if not exists "better_supabase"."medications" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "medications_tenant_idx" on "better_supabase"."medications" ("tenant_id", "name");
-create unique index if not exists "medications_code_idx" on "better_supabase"."medications" ("tenant_id", "code_system", "code") where "code" is not null;
+create index "medications_tenant_idx" on "better_supabase"."medications" ("tenant_id", "name");
+create unique index "medications_code_idx" on "better_supabase"."medications" ("tenant_id", "code_system", "code") where "code" is not null;
 alter table "better_supabase"."medications" enable row level security;
 revoke all on "better_supabase"."medications" from public, anon, authenticated;
 grant select on "better_supabase"."medications" to authenticated;
 grant all on "better_supabase"."medications" to service_role;
 
-create table if not exists "better_supabase"."medication_orders" (
+create table "better_supabase"."medication_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The record the order is for, a type in config.subjects.
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
-  "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") between 1 and 50),
-  "route" text check ("route" is null or length("route") <= 100),
+  "dose" numeric not null constraint bsb_medication_orders_dose_check check ("dose" > 0),
+  "dose_unit" text not null constraint bsb_medication_orders_dose_unit_check check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
+  "route" text constraint bsb_medication_orders_route_check check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
   "schedule" jsonb,
   "as_needed" boolean not null default false,
-  "as_needed_reason" text check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
+  "as_needed_reason" text constraint bsb_medication_orders_as_needed_reason_check check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
   -- The most of the dose unit given in any 24 hours, for an as-needed order.
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
+  "max_per_day" numeric constraint bsb_medication_orders_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
   "starts_on" date not null,
   "ends_on" date,
-  "prescriber" text check ("prescriber" is null or length("prescriber") <= 300),
-  "source" text not null default 'prescriber' check ("source" in ('prescriber', 'pharmacy', 'import')),
+  "prescriber" text constraint bsb_medication_orders_prescriber_check check ("prescriber" is null or length("prescriber") <= 300),
+  "source" text not null default 'prescriber' constraint bsb_medication_orders_source_check check ("source" in ('prescriber', 'pharmacy', 'import')),
   -- The order's id in the pharmacy or prescribing system it was imported from.
-  "external_id" text check ("external_id" is null or length("external_id") <= 200),
+  "external_id" text constraint bsb_medication_orders_external_id_check check ("external_id" is null or length("external_id") <= 200),
   "requires_double_check" boolean not null default false,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped')),
-  "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000),
+  "status" text not null default 'active' constraint bsb_medication_orders_status_check check ("status" in ('active', 'paused', 'stopped')),
+  "stopped_reason" text constraint bsb_medication_orders_stopped_reason_check check ("stopped_reason" is null or length("stopped_reason") <= 1000),
   "signature_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
-  check ("as_needed" or "schedule" is not null),
+  constraint bsb_medication_orders_check check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_medication_orders_check1 check ("as_needed" or "schedule" is not null),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "medication_id") references "better_supabase"."medications" ("tenant_id", "id")
 );
-create index if not exists "medication_orders_item_idx" on "better_supabase"."medication_orders" ("tenant_id", "medication_id");
-create index if not exists "medication_orders_subject_idx" on "better_supabase"."medication_orders" ("subject_type", "subject_id");
-create index if not exists "medication_orders_status_idx" on "better_supabase"."medication_orders" ("tenant_id", "status");
-create unique index if not exists "medication_orders_external_idx" on "better_supabase"."medication_orders" ("tenant_id", "external_id") where "external_id" is not null;
+create index "medication_orders_item_idx" on "better_supabase"."medication_orders" ("tenant_id", "medication_id");
+create index "medication_orders_subject_idx" on "better_supabase"."medication_orders" ("subject_type", "subject_id");
+create index "medication_orders_status_idx" on "better_supabase"."medication_orders" ("tenant_id", "status");
+create unique index "medication_orders_external_idx" on "better_supabase"."medication_orders" ("tenant_id", "external_id") where "external_id" is not null;
 alter table "better_supabase"."medication_orders" enable row level security;
 revoke all on "better_supabase"."medication_orders" from public, anon, authenticated;
 grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
-drop policy if exists medication_orders_read on "better_supabase"."medication_orders";
-create policy medication_orders_read on "better_supabase"."medication_orders"
+create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
-drop policy if exists medications_read on "better_supabase"."medications";
-create policy medications_read on "better_supabase"."medications"
+create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
 
-create table if not exists "better_supabase"."medication_administrations" (
+create table "better_supabase"."medication_administrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null,
   -- The planned time; null for an as-needed dose.
   "scheduled_at" timestamptz,
   "administered_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
-  "dose" numeric check ("dose" is null or "dose" > 0),
+  "status" text not null default 'planned' constraint bsb_medication_administrations_status_check check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
+  "dose" numeric constraint bsb_medication_administrations_dose_check check ("dose" is null or "dose" > 0),
   "performer_id" uuid,
   -- The second member who checked a high-risk dose.
   "checked_by" uuid,
-  "reason" text check ("reason" is null or length("reason") <= 1000),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "reason" text constraint bsb_medication_administrations_reason_check check ("reason" is null or length("reason") <= 1000),
+  "note" text constraint bsb_medication_administrations_note_check check ("note" is null or length("note") <= 2000),
   "signature_id" uuid,
-  check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
+  constraint bsb_medication_administrations_check check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
   unique ("order_id", "scheduled_at"),
   foreign key ("tenant_id", "order_id") references "better_supabase"."medication_orders" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "medication_administrations_order_idx" on "better_supabase"."medication_administrations" ("tenant_id", "order_id");
-create index if not exists "medication_administrations_planned_idx" on "better_supabase"."medication_administrations" ("scheduled_at") where "status" = 'planned';
-create index if not exists "medication_administrations_given_idx" on "better_supabase"."medication_administrations" ("order_id", "administered_at") where "status" = 'given';
+create index "medication_administrations_order_idx" on "better_supabase"."medication_administrations" ("tenant_id", "order_id");
+create index "medication_administrations_planned_idx" on "better_supabase"."medication_administrations" ("scheduled_at") where "status" = 'planned';
+create index "medication_administrations_given_idx" on "better_supabase"."medication_administrations" ("order_id", "administered_at") where "status" = 'given';
 alter table "better_supabase"."medication_administrations" enable row level security;
 revoke all on "better_supabase"."medication_administrations" from public, anon, authenticated;
 grant select on "better_supabase"."medication_administrations" to authenticated;
 grant all on "better_supabase"."medication_administrations" to service_role;
-drop policy if exists medication_administrations_read on "better_supabase"."medication_administrations";
-create policy medication_administrations_read on "better_supabase"."medication_administrations"
+create policy bsb_medication_administrations_read on "better_supabase"."medication_administrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a medication to the organization's catalog, or changes one
 -- (medication_id). A code from a catalog other than custom is unique in the
 -- organization.
-drop function if exists "better_supabase"."save_medication"(uuid, text, text, text, text, text, text, boolean, uuid, jsonb);
+
 create or replace function "better_supabase"."save_medication"(tenant uuid, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
 returns jsonb
 language plpgsql
@@ -2583,9 +2386,7 @@ grant execute on function "better_supabase"."plan_medication_administrations"(uu
 -- Records a planned or missed dose as given, refused or skipped. refused and
 -- skipped need a reason. A dose of a high-risk medication, or of an order that
 -- requires it, needs checked_by: another member who may administer.
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text);
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, jsonb);
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, uuid, jsonb);
+
 create or replace function "better_supabase"."record_medication_administration"(administration_id uuid, status text, dose numeric default null, reason text default null, checked_by uuid default null, note text default null, signature_id uuid default null)
 returns jsonb
 language plpgsql
@@ -2699,7 +2500,7 @@ grant execute on function "better_supabase"."record_medication_administration"(u
 
 -- Records a dose of an as-needed order, with the reason it was given. The
 -- doses given in the last 24 hours plus this one stay within max_per_day.
-drop function if exists "better_supabase"."record_as_needed_administration"(uuid, numeric, text, uuid, text, jsonb);
+
 create or replace function "better_supabase"."record_as_needed_administration"(order_id uuid, dose numeric default null, reason text default null, checked_by uuid default null, note text default null)
 returns jsonb
 language plpgsql
@@ -2895,103 +2696,59 @@ grant execute on function "better_supabase"."medication_chart"(text, text, times
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."medications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medications";
 create policy bsb_tenant_scope_select on "better_supabase"."medications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medications";
 create policy bsb_tenant_scope_insert on "better_supabase"."medications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medications";
 create policy bsb_tenant_scope_update on "better_supabase"."medications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medications";
 create policy bsb_tenant_scope_delete on "better_supabase"."medications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."medication_orders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_select on "better_supabase"."medication_orders" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_orders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_update on "better_supabase"."medication_orders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_delete on "better_supabase"."medication_orders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."medication_administrations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_select on "better_supabase"."medication_administrations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_administrations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_update on "better_supabase"."medication_administrations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_delete on "better_supabase"."medication_administrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.medications', target_type => 'medication', event_prefix => 'medication', deferred => true);
-  perform better_supabase.audit('better_supabase.medication_orders', target_type => 'medication_order', event_prefix => 'medication_order', deferred => true);
-  perform better_supabase.audit('better_supabase.medication_administrations', target_type => 'medication_administration', event_prefix => 'medication_administration', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.medications deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"medication","event_prefix":"medication"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.medication_orders deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"medication_order","event_prefix":"medication_order"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.medication_administrations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"medication_administration","event_prefix":"medication_administration"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
@@ -3010,77 +2767,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:1998b173c4e96b1dad2e678b7ce72608332bbcff97cbdc5fd7922c070f323924
+-- @bsb-hash sha256:335447f08875f174f304a693dcf10ccf429f873d80acd0e68e3d935ec994a5be
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."medications";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."medications";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."medications";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."medications";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."medications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."medication_orders";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."medication_orders";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."medication_orders";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."medication_orders";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."medication_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."medication_administrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -3090,16 +2781,16 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- route and schedule, planned doses, and each dose given, refused, skipped or
 -- missed, with a second check for high-risk medication.
 
-create table if not exists "app_private"."medications" (
+create table "app_private"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null constraint bsb_medications_name_check check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
-  "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") between 1 and 100),
-  "form" text check ("form" is null or length("form") <= 100),
-  "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") between 1 and 50),
+  "code_system" text not null default 'custom' constraint bsb_medications_code_system_check check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
+  "code" text constraint bsb_medications_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "form" text constraint bsb_medications_form_check check ("form" is null or length("form") <= 100),
+  "strength" text constraint bsb_medications_strength_check check ("strength" is null or length("strength") <= 100),
+  "unit" text not null constraint bsb_medications_unit_check check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -3107,100 +2798,97 @@ create table if not exists "app_private"."medications" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "medications_tenant_idx" on "app_private"."medications" ("tenant_id", "name");
-create unique index if not exists "medications_code_idx" on "app_private"."medications" ("tenant_id", "code_system", "code") where "code" is not null;
+create index "medications_tenant_idx" on "app_private"."medications" ("tenant_id", "name");
+create unique index "medications_code_idx" on "app_private"."medications" ("tenant_id", "code_system", "code") where "code" is not null;
 alter table "app_private"."medications" enable row level security;
 revoke all on "app_private"."medications" from public, anon, authenticated;
 grant select on "app_private"."medications" to authenticated;
 grant all on "app_private"."medications" to service_role;
 
-create table if not exists "app_private"."medication_orders" (
+create table "app_private"."medication_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The record the order is for, a type in config.subjects.
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
-  "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") between 1 and 50),
-  "route" text check ("route" is null or length("route") <= 100),
+  "dose" numeric not null constraint bsb_medication_orders_dose_check check ("dose" > 0),
+  "dose_unit" text not null constraint bsb_medication_orders_dose_unit_check check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
+  "route" text constraint bsb_medication_orders_route_check check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
   "schedule" jsonb,
   "as_needed" boolean not null default false,
-  "as_needed_reason" text check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
+  "as_needed_reason" text constraint bsb_medication_orders_as_needed_reason_check check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
   -- The most of the dose unit given in any 24 hours, for an as-needed order.
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
+  "max_per_day" numeric constraint bsb_medication_orders_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
   "starts_on" date not null,
   "ends_on" date,
-  "prescriber" text check ("prescriber" is null or length("prescriber") <= 300),
-  "source" text not null default 'prescriber' check ("source" in ('prescriber', 'pharmacy', 'import')),
+  "prescriber" text constraint bsb_medication_orders_prescriber_check check ("prescriber" is null or length("prescriber") <= 300),
+  "source" text not null default 'prescriber' constraint bsb_medication_orders_source_check check ("source" in ('prescriber', 'pharmacy', 'import')),
   -- The order's id in the pharmacy or prescribing system it was imported from.
-  "external_id" text check ("external_id" is null or length("external_id") <= 200),
+  "external_id" text constraint bsb_medication_orders_external_id_check check ("external_id" is null or length("external_id") <= 200),
   "requires_double_check" boolean not null default false,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped')),
-  "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000),
+  "status" text not null default 'active' constraint bsb_medication_orders_status_check check ("status" in ('active', 'paused', 'stopped')),
+  "stopped_reason" text constraint bsb_medication_orders_stopped_reason_check check ("stopped_reason" is null or length("stopped_reason") <= 1000),
   "signature_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
-  check ("as_needed" or "schedule" is not null),
+  constraint bsb_medication_orders_check check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_medication_orders_check1 check ("as_needed" or "schedule" is not null),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "medication_id") references "app_private"."medications" ("tenant_id", "id")
 );
-create index if not exists "medication_orders_item_idx" on "app_private"."medication_orders" ("tenant_id", "medication_id");
-create index if not exists "medication_orders_subject_idx" on "app_private"."medication_orders" ("subject_type", "subject_id");
-create index if not exists "medication_orders_status_idx" on "app_private"."medication_orders" ("tenant_id", "status");
-create unique index if not exists "medication_orders_external_idx" on "app_private"."medication_orders" ("tenant_id", "external_id") where "external_id" is not null;
+create index "medication_orders_item_idx" on "app_private"."medication_orders" ("tenant_id", "medication_id");
+create index "medication_orders_subject_idx" on "app_private"."medication_orders" ("subject_type", "subject_id");
+create index "medication_orders_status_idx" on "app_private"."medication_orders" ("tenant_id", "status");
+create unique index "medication_orders_external_idx" on "app_private"."medication_orders" ("tenant_id", "external_id") where "external_id" is not null;
 alter table "app_private"."medication_orders" enable row level security;
 revoke all on "app_private"."medication_orders" from public, anon, authenticated;
 grant select on "app_private"."medication_orders" to authenticated;
 grant all on "app_private"."medication_orders" to service_role;
-drop policy if exists medication_orders_read on "app_private"."medication_orders";
-create policy medication_orders_read on "app_private"."medication_orders"
+create policy bsb_medication_orders_read on "app_private"."medication_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
-drop policy if exists medications_read on "app_private"."medications";
-create policy medications_read on "app_private"."medications"
+create policy bsb_medications_read on "app_private"."medications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
 
-create table if not exists "app_private"."medication_administrations" (
+create table "app_private"."medication_administrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null,
   -- The planned time; null for an as-needed dose.
   "scheduled_at" timestamptz,
   "administered_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
-  "dose" numeric check ("dose" is null or "dose" > 0),
+  "status" text not null default 'planned' constraint bsb_medication_administrations_status_check check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
+  "dose" numeric constraint bsb_medication_administrations_dose_check check ("dose" is null or "dose" > 0),
   "performer_id" uuid,
   -- The second member who checked a high-risk dose.
   "checked_by" uuid,
-  "reason" text check ("reason" is null or length("reason") <= 1000),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "reason" text constraint bsb_medication_administrations_reason_check check ("reason" is null or length("reason") <= 1000),
+  "note" text constraint bsb_medication_administrations_note_check check ("note" is null or length("note") <= 2000),
   "signature_id" uuid,
-  check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
+  constraint bsb_medication_administrations_check check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
   unique ("order_id", "scheduled_at"),
   foreign key ("tenant_id", "order_id") references "app_private"."medication_orders" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "medication_administrations_order_idx" on "app_private"."medication_administrations" ("tenant_id", "order_id");
-create index if not exists "medication_administrations_planned_idx" on "app_private"."medication_administrations" ("scheduled_at") where "status" = 'planned';
-create index if not exists "medication_administrations_given_idx" on "app_private"."medication_administrations" ("order_id", "administered_at") where "status" = 'given';
+create index "medication_administrations_order_idx" on "app_private"."medication_administrations" ("tenant_id", "order_id");
+create index "medication_administrations_planned_idx" on "app_private"."medication_administrations" ("scheduled_at") where "status" = 'planned';
+create index "medication_administrations_given_idx" on "app_private"."medication_administrations" ("order_id", "administered_at") where "status" = 'given';
 alter table "app_private"."medication_administrations" enable row level security;
 revoke all on "app_private"."medication_administrations" from public, anon, authenticated;
 grant select on "app_private"."medication_administrations" to authenticated;
 grant all on "app_private"."medication_administrations" to service_role;
-drop policy if exists medication_administrations_read on "app_private"."medication_administrations";
-create policy medication_administrations_read on "app_private"."medication_administrations"
+create policy bsb_medication_administrations_read on "app_private"."medication_administrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "app_private"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a medication to the organization's catalog, or changes one
 -- (medication_id). A code from a catalog other than custom is unique in the
 -- organization.
-drop function if exists "app_private"."save_medication"(uuid, text, text, text, text, text, text, boolean, uuid, jsonb);
+
 create or replace function "app_private"."save_medication"(tenant uuid, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
 returns jsonb
 language plpgsql
@@ -4079,9 +3767,7 @@ grant execute on function "app_private"."plan_medication_administrations"(uuid, 
 -- Records a planned or missed dose as given, refused or skipped. refused and
 -- skipped need a reason. A dose of a high-risk medication, or of an order that
 -- requires it, needs checked_by: another member who may administer.
-drop function if exists "app_private"."record_medication_administration"(uuid, text, numeric, text, uuid, text);
-drop function if exists "app_private"."record_medication_administration"(uuid, text, numeric, text, uuid, text, jsonb);
-drop function if exists "app_private"."record_medication_administration"(uuid, text, numeric, text, uuid, text, uuid, jsonb);
+
 create or replace function "app_private"."record_medication_administration"(administration_id uuid, status text, dose numeric default null, reason text default null, checked_by uuid default null, note text default null, signature_id uuid default null)
 returns jsonb
 language plpgsql
@@ -4177,7 +3863,7 @@ grant execute on function "app_private"."record_medication_administration"(uuid,
 
 -- Records a dose of an as-needed order, with the reason it was given. The
 -- doses given in the last 24 hours plus this one stay within max_per_day.
-drop function if exists "app_private"."record_as_needed_administration"(uuid, numeric, text, uuid, text, jsonb);
+
 create or replace function "app_private"."record_as_needed_administration"(order_id uuid, dose numeric default null, reason text default null, checked_by uuid default null, note text default null)
 returns jsonb
 language plpgsql
@@ -4338,94 +4024,54 @@ grant execute on function "app_private"."medication_chart"(text, text, timestamp
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."medications";
-drop policy if exists bsb_tenant_scope_select on "app_private"."medications";
 create policy bsb_tenant_scope_select on "app_private"."medications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."medications";
 create policy bsb_tenant_scope_insert on "app_private"."medications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."medications";
 create policy bsb_tenant_scope_update on "app_private"."medications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."medications";
 create policy bsb_tenant_scope_delete on "app_private"."medications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."medication_orders";
-drop policy if exists bsb_tenant_scope_select on "app_private"."medication_orders";
 create policy bsb_tenant_scope_select on "app_private"."medication_orders" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."medication_orders";
 create policy bsb_tenant_scope_insert on "app_private"."medication_orders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."medication_orders";
 create policy bsb_tenant_scope_update on "app_private"."medication_orders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."medication_orders";
 create policy bsb_tenant_scope_delete on "app_private"."medication_orders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."medication_administrations";
-drop policy if exists bsb_tenant_scope_select on "app_private"."medication_administrations";
 create policy bsb_tenant_scope_select on "app_private"."medication_administrations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "app_private"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."medication_administrations";
 create policy bsb_tenant_scope_insert on "app_private"."medication_administrations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."medication_administrations";
 create policy bsb_tenant_scope_update on "app_private"."medication_administrations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."medication_administrations";
 create policy bsb_tenant_scope_delete on "app_private"."medication_administrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
@@ -4444,91 +4090,25 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:ab259475ce6b55401b32cd1db67c9b418896b32a64ea14f3f663fdb38845a530
+-- @bsb-hash sha256:3042792ccf089542e7b77c53590567ab28f71645d329c0485c45fbfe990d328c
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_administrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Medications: the organization's catalog, orders for a record with a dose,
 -- route and schedule, planned doses, and each dose given, refused, skipped or
 -- missed, with a second check for high-risk medication.
 
-create table if not exists "better_supabase"."medications" (
+create table "better_supabase"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null constraint bsb_medications_name_check check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
-  "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") between 1 and 100),
-  "form" text check ("form" is null or length("form") <= 100),
-  "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") between 1 and 50),
+  "code_system" text not null default 'custom' constraint bsb_medications_code_system_check check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
+  "code" text constraint bsb_medications_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "form" text constraint bsb_medications_form_check check ("form" is null or length("form") <= 100),
+  "strength" text constraint bsb_medications_strength_check check ("strength" is null or length("strength") <= 100),
+  "unit" text not null constraint bsb_medications_unit_check check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -4536,100 +4116,97 @@ create table if not exists "better_supabase"."medications" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "medications_tenant_idx" on "better_supabase"."medications" ("tenant_id", "name");
-create unique index if not exists "medications_code_idx" on "better_supabase"."medications" ("tenant_id", "code_system", "code") where "code" is not null;
+create index "medications_tenant_idx" on "better_supabase"."medications" ("tenant_id", "name");
+create unique index "medications_code_idx" on "better_supabase"."medications" ("tenant_id", "code_system", "code") where "code" is not null;
 alter table "better_supabase"."medications" enable row level security;
 revoke all on "better_supabase"."medications" from public, anon, authenticated;
 grant select on "better_supabase"."medications" to authenticated;
 grant all on "better_supabase"."medications" to service_role;
 
-create table if not exists "better_supabase"."medication_orders" (
+create table "better_supabase"."medication_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The record the order is for, a type in config.subjects.
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
-  "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") between 1 and 50),
-  "route" text check ("route" is null or length("route") <= 100),
+  "dose" numeric not null constraint bsb_medication_orders_dose_check check ("dose" > 0),
+  "dose_unit" text not null constraint bsb_medication_orders_dose_unit_check check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
+  "route" text constraint bsb_medication_orders_route_check check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
   "schedule" jsonb,
   "as_needed" boolean not null default false,
-  "as_needed_reason" text check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
+  "as_needed_reason" text constraint bsb_medication_orders_as_needed_reason_check check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
   -- The most of the dose unit given in any 24 hours, for an as-needed order.
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
+  "max_per_day" numeric constraint bsb_medication_orders_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
   "starts_on" date not null,
   "ends_on" date,
-  "prescriber" text check ("prescriber" is null or length("prescriber") <= 300),
-  "source" text not null default 'prescriber' check ("source" in ('prescriber', 'pharmacy', 'import')),
+  "prescriber" text constraint bsb_medication_orders_prescriber_check check ("prescriber" is null or length("prescriber") <= 300),
+  "source" text not null default 'prescriber' constraint bsb_medication_orders_source_check check ("source" in ('prescriber', 'pharmacy', 'import')),
   -- The order's id in the pharmacy or prescribing system it was imported from.
-  "external_id" text check ("external_id" is null or length("external_id") <= 200),
+  "external_id" text constraint bsb_medication_orders_external_id_check check ("external_id" is null or length("external_id") <= 200),
   "requires_double_check" boolean not null default false,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped')),
-  "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000),
+  "status" text not null default 'active' constraint bsb_medication_orders_status_check check ("status" in ('active', 'paused', 'stopped')),
+  "stopped_reason" text constraint bsb_medication_orders_stopped_reason_check check ("stopped_reason" is null or length("stopped_reason") <= 1000),
   "signature_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
-  check ("as_needed" or "schedule" is not null),
+  constraint bsb_medication_orders_check check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_medication_orders_check1 check ("as_needed" or "schedule" is not null),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "medication_id") references "better_supabase"."medications" ("tenant_id", "id")
 );
-create index if not exists "medication_orders_item_idx" on "better_supabase"."medication_orders" ("tenant_id", "medication_id");
-create index if not exists "medication_orders_subject_idx" on "better_supabase"."medication_orders" ("subject_type", "subject_id");
-create index if not exists "medication_orders_status_idx" on "better_supabase"."medication_orders" ("tenant_id", "status");
-create unique index if not exists "medication_orders_external_idx" on "better_supabase"."medication_orders" ("tenant_id", "external_id") where "external_id" is not null;
+create index "medication_orders_item_idx" on "better_supabase"."medication_orders" ("tenant_id", "medication_id");
+create index "medication_orders_subject_idx" on "better_supabase"."medication_orders" ("subject_type", "subject_id");
+create index "medication_orders_status_idx" on "better_supabase"."medication_orders" ("tenant_id", "status");
+create unique index "medication_orders_external_idx" on "better_supabase"."medication_orders" ("tenant_id", "external_id") where "external_id" is not null;
 alter table "better_supabase"."medication_orders" enable row level security;
 revoke all on "better_supabase"."medication_orders" from public, anon, authenticated;
 grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
-drop policy if exists medication_orders_read on "better_supabase"."medication_orders";
-create policy medication_orders_read on "better_supabase"."medication_orders"
+create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
-drop policy if exists medications_read on "better_supabase"."medications";
-create policy medications_read on "better_supabase"."medications"
+create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
 
-create table if not exists "better_supabase"."medication_administrations" (
+create table "better_supabase"."medication_administrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null,
   -- The planned time; null for an as-needed dose.
   "scheduled_at" timestamptz,
   "administered_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
-  "dose" numeric check ("dose" is null or "dose" > 0),
+  "status" text not null default 'planned' constraint bsb_medication_administrations_status_check check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
+  "dose" numeric constraint bsb_medication_administrations_dose_check check ("dose" is null or "dose" > 0),
   "performer_id" uuid,
   -- The second member who checked a high-risk dose.
   "checked_by" uuid,
-  "reason" text check ("reason" is null or length("reason") <= 1000),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "reason" text constraint bsb_medication_administrations_reason_check check ("reason" is null or length("reason") <= 1000),
+  "note" text constraint bsb_medication_administrations_note_check check ("note" is null or length("note") <= 2000),
   "signature_id" uuid,
-  check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
+  constraint bsb_medication_administrations_check check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
   unique ("order_id", "scheduled_at"),
   foreign key ("tenant_id", "order_id") references "better_supabase"."medication_orders" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "medication_administrations_order_idx" on "better_supabase"."medication_administrations" ("tenant_id", "order_id");
-create index if not exists "medication_administrations_planned_idx" on "better_supabase"."medication_administrations" ("scheduled_at") where "status" = 'planned';
-create index if not exists "medication_administrations_given_idx" on "better_supabase"."medication_administrations" ("order_id", "administered_at") where "status" = 'given';
+create index "medication_administrations_order_idx" on "better_supabase"."medication_administrations" ("tenant_id", "order_id");
+create index "medication_administrations_planned_idx" on "better_supabase"."medication_administrations" ("scheduled_at") where "status" = 'planned';
+create index "medication_administrations_given_idx" on "better_supabase"."medication_administrations" ("order_id", "administered_at") where "status" = 'given';
 alter table "better_supabase"."medication_administrations" enable row level security;
 revoke all on "better_supabase"."medication_administrations" from public, anon, authenticated;
 grant select on "better_supabase"."medication_administrations" to authenticated;
 grant all on "better_supabase"."medication_administrations" to service_role;
-drop policy if exists medication_administrations_read on "better_supabase"."medication_administrations";
-create policy medication_administrations_read on "better_supabase"."medication_administrations"
+create policy bsb_medication_administrations_read on "better_supabase"."medication_administrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a medication to the organization's catalog, or changes one
 -- (medication_id). A code from a catalog other than custom is unique in the
 -- organization.
-drop function if exists "better_supabase"."save_medication"(uuid, text, text, text, text, text, text, boolean, uuid, jsonb);
+
 create or replace function "better_supabase"."save_medication"(tenant uuid, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
 returns jsonb
 language plpgsql
@@ -5508,9 +5085,7 @@ grant execute on function "better_supabase"."plan_medication_administrations"(uu
 -- Records a planned or missed dose as given, refused or skipped. refused and
 -- skipped need a reason. A dose of a high-risk medication, or of an order that
 -- requires it, needs checked_by: another member who may administer.
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text);
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, jsonb);
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, uuid, jsonb);
+
 create or replace function "better_supabase"."record_medication_administration"(administration_id uuid, status text, dose numeric default null, reason text default null, checked_by uuid default null, note text default null, signature_id uuid default null)
 returns jsonb
 language plpgsql
@@ -5606,7 +5181,7 @@ grant execute on function "better_supabase"."record_medication_administration"(u
 
 -- Records a dose of an as-needed order, with the reason it was given. The
 -- doses given in the last 24 hours plus this one stay within max_per_day.
-drop function if exists "better_supabase"."record_as_needed_administration"(uuid, numeric, text, uuid, text, jsonb);
+
 create or replace function "better_supabase"."record_as_needed_administration"(order_id uuid, dose numeric default null, reason text default null, checked_by uuid default null, note text default null)
 returns jsonb
 language plpgsql
@@ -5767,78 +5342,51 @@ grant execute on function "better_supabase"."medication_chart"(text, text, times
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."medications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medications";
 create policy bsb_tenant_scope_select on "better_supabase"."medications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medications";
 create policy bsb_tenant_scope_insert on "better_supabase"."medications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medications";
 create policy bsb_tenant_scope_update on "better_supabase"."medications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medications";
 create policy bsb_tenant_scope_delete on "better_supabase"."medications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."medication_orders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_select on "better_supabase"."medication_orders" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_orders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_update on "better_supabase"."medication_orders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_delete on "better_supabase"."medication_orders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."medication_administrations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_select on "better_supabase"."medication_administrations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_administrations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_update on "better_supabase"."medication_administrations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_delete on "better_supabase"."medication_administrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -5846,31 +5394,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."medication_administr
 -- blocks.medications.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."save_medication"(uuid, text, text, text, text, text, text, boolean, uuid, jsonb);
-drop function if exists "api"."record_medication_administration"(uuid, text, numeric, text, uuid, text);
-drop function if exists "api"."record_medication_administration"(uuid, text, numeric, text, uuid, text, jsonb);
-drop function if exists "api"."record_medication_administration"(uuid, text, numeric, text, uuid, text, uuid, jsonb);
-drop function if exists "api"."record_as_needed_administration"(uuid, numeric, text, uuid, text, jsonb);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."save_medication"(tenant uuid, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
 returns jsonb
@@ -6019,19 +5542,6 @@ as $$ select "better_supabase"."medication_chart"($1, $2, $3, $4) $$;
 revoke execute on function "api"."medication_chart"(text, text, timestamptz, timestamptz) from public, anon;
 grant execute on function "api"."medication_chart"(text, text, timestamptz, timestamptz) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block-data medications
@@ -6049,77 +5559,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:107406d733b7352daef048dcac8bc247b5cedd72448508dca6bda6dd38f96f01
+-- @bsb-hash sha256:44d1ded7c0434761b01185421e0ed568db987aff72eee137f3681242002a8abd
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_administrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Medications: the organization's catalog, orders for a record with a dose,
 -- route and schedule, planned doses, and each dose given, refused, skipped or
 -- missed, with a second check for high-risk medication.
@@ -6127,12 +5571,12 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- better_supabase.medications is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."medications" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."medications" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."medications" add column if not exists "name" text check (length("name") between 1 and 300);
-alter table "better_supabase"."medications" add column if not exists "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom'));
-alter table "better_supabase"."medications" add column if not exists "code" text check ("code" is null or length("code") between 1 and 100);
-alter table "better_supabase"."medications" add column if not exists "form" text check ("form" is null or length("form") <= 100);
-alter table "better_supabase"."medications" add column if not exists "strength" text check ("strength" is null or length("strength") <= 100);
-alter table "better_supabase"."medications" add column if not exists "unit" text check (length("unit") between 1 and 50);
+alter table "better_supabase"."medications" add column if not exists "name" text constraint bsb_medications_name_check check (length("name") >= 1 and length("name") <= 300);
+alter table "better_supabase"."medications" add column if not exists "code_system" text not null default 'custom' constraint bsb_medications_code_system_check check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom'));
+alter table "better_supabase"."medications" add column if not exists "code" text constraint bsb_medications_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100);
+alter table "better_supabase"."medications" add column if not exists "form" text constraint bsb_medications_form_check check ("form" is null or length("form") <= 100);
+alter table "better_supabase"."medications" add column if not exists "strength" text constraint bsb_medications_strength_check check ("strength" is null or length("strength") <= 100);
+alter table "better_supabase"."medications" add column if not exists "unit" text constraint bsb_medications_unit_check check (length("unit") >= 1 and length("unit") <= 50);
 alter table "better_supabase"."medications" add column if not exists "high_risk" boolean not null default false;
 alter table "better_supabase"."medications" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."medications" add column if not exists "created_at" timestamptz not null default now();
@@ -6150,21 +5594,21 @@ alter table "better_supabase"."medication_orders" add column if not exists "tena
 alter table "better_supabase"."medication_orders" add column if not exists "subject_type" text;
 alter table "better_supabase"."medication_orders" add column if not exists "subject_id" text;
 alter table "better_supabase"."medication_orders" add column if not exists "medication_id" uuid;
-alter table "better_supabase"."medication_orders" add column if not exists "dose" numeric check ("dose" > 0);
-alter table "better_supabase"."medication_orders" add column if not exists "dose_unit" text check (length("dose_unit") between 1 and 50);
-alter table "better_supabase"."medication_orders" add column if not exists "route" text check ("route" is null or length("route") <= 100);
+alter table "better_supabase"."medication_orders" add column if not exists "dose" numeric constraint bsb_medication_orders_dose_check check ("dose" > 0);
+alter table "better_supabase"."medication_orders" add column if not exists "dose_unit" text constraint bsb_medication_orders_dose_unit_check check (length("dose_unit") >= 1 and length("dose_unit") <= 50);
+alter table "better_supabase"."medication_orders" add column if not exists "route" text constraint bsb_medication_orders_route_check check ("route" is null or length("route") <= 100);
 alter table "better_supabase"."medication_orders" add column if not exists "schedule" jsonb;
 alter table "better_supabase"."medication_orders" add column if not exists "as_needed" boolean not null default false;
-alter table "better_supabase"."medication_orders" add column if not exists "as_needed_reason" text check ("as_needed_reason" is null or length("as_needed_reason") <= 500);
-alter table "better_supabase"."medication_orders" add column if not exists "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0);
+alter table "better_supabase"."medication_orders" add column if not exists "as_needed_reason" text constraint bsb_medication_orders_as_needed_reason_check check ("as_needed_reason" is null or length("as_needed_reason") <= 500);
+alter table "better_supabase"."medication_orders" add column if not exists "max_per_day" numeric constraint bsb_medication_orders_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0);
 alter table "better_supabase"."medication_orders" add column if not exists "starts_on" date;
 alter table "better_supabase"."medication_orders" add column if not exists "ends_on" date;
-alter table "better_supabase"."medication_orders" add column if not exists "prescriber" text check ("prescriber" is null or length("prescriber") <= 300);
-alter table "better_supabase"."medication_orders" add column if not exists "source" text not null default 'prescriber' check ("source" in ('prescriber', 'pharmacy', 'import'));
-alter table "better_supabase"."medication_orders" add column if not exists "external_id" text check ("external_id" is null or length("external_id") <= 200);
+alter table "better_supabase"."medication_orders" add column if not exists "prescriber" text constraint bsb_medication_orders_prescriber_check check ("prescriber" is null or length("prescriber") <= 300);
+alter table "better_supabase"."medication_orders" add column if not exists "source" text not null default 'prescriber' constraint bsb_medication_orders_source_check check ("source" in ('prescriber', 'pharmacy', 'import'));
+alter table "better_supabase"."medication_orders" add column if not exists "external_id" text constraint bsb_medication_orders_external_id_check check ("external_id" is null or length("external_id") <= 200);
 alter table "better_supabase"."medication_orders" add column if not exists "requires_double_check" boolean not null default false;
-alter table "better_supabase"."medication_orders" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped'));
-alter table "better_supabase"."medication_orders" add column if not exists "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000);
+alter table "better_supabase"."medication_orders" add column if not exists "status" text not null default 'active' constraint bsb_medication_orders_status_check check ("status" in ('active', 'paused', 'stopped'));
+alter table "better_supabase"."medication_orders" add column if not exists "stopped_reason" text constraint bsb_medication_orders_stopped_reason_check check ("stopped_reason" is null or length("stopped_reason") <= 1000);
 alter table "better_supabase"."medication_orders" add column if not exists "signature_id" uuid;
 alter table "better_supabase"."medication_orders" add column if not exists "created_by" uuid;
 alter table "better_supabase"."medication_orders" add column if not exists "created_at" timestamptz not null default now();
@@ -6177,11 +5621,9 @@ create unique index if not exists "medication_orders_external_idx" on "better_su
 alter table "better_supabase"."medication_orders" enable row level security;
 grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
-drop policy if exists bsb_medication_orders_read on "better_supabase"."medication_orders";
 create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
-drop policy if exists bsb_medications_read on "better_supabase"."medications";
 create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
@@ -6192,12 +5634,12 @@ alter table "better_supabase"."medication_administrations" add column if not exi
 alter table "better_supabase"."medication_administrations" add column if not exists "order_id" uuid;
 alter table "better_supabase"."medication_administrations" add column if not exists "scheduled_at" timestamptz;
 alter table "better_supabase"."medication_administrations" add column if not exists "administered_at" timestamptz;
-alter table "better_supabase"."medication_administrations" add column if not exists "status" text not null default 'planned' check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed'));
-alter table "better_supabase"."medication_administrations" add column if not exists "dose" numeric check ("dose" is null or "dose" > 0);
+alter table "better_supabase"."medication_administrations" add column if not exists "status" text not null default 'planned' constraint bsb_medication_administrations_status_check check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed'));
+alter table "better_supabase"."medication_administrations" add column if not exists "dose" numeric constraint bsb_medication_administrations_dose_check check ("dose" is null or "dose" > 0);
 alter table "better_supabase"."medication_administrations" add column if not exists "performer_id" uuid;
 alter table "better_supabase"."medication_administrations" add column if not exists "checked_by" uuid;
-alter table "better_supabase"."medication_administrations" add column if not exists "reason" text check ("reason" is null or length("reason") <= 1000);
-alter table "better_supabase"."medication_administrations" add column if not exists "note" text check ("note" is null or length("note") <= 2000);
+alter table "better_supabase"."medication_administrations" add column if not exists "reason" text constraint bsb_medication_administrations_reason_check check ("reason" is null or length("reason") <= 1000);
+alter table "better_supabase"."medication_administrations" add column if not exists "note" text constraint bsb_medication_administrations_note_check check ("note" is null or length("note") <= 2000);
 alter table "better_supabase"."medication_administrations" add column if not exists "signature_id" uuid;
 create unique index if not exists "bsb_medication_administrations_order_time_key_key" on "better_supabase"."medication_administrations" ("order_id", "scheduled_at");
 create index if not exists "medication_administrations_order_idx" on "better_supabase"."medication_administrations" ("tenant_id", "order_id");
@@ -6206,7 +5648,6 @@ create index if not exists "medication_administrations_given_idx" on "better_sup
 alter table "better_supabase"."medication_administrations" enable row level security;
 grant select on "better_supabase"."medication_administrations" to authenticated;
 grant all on "better_supabase"."medication_administrations" to service_role;
-drop policy if exists bsb_medication_administrations_read on "better_supabase"."medication_administrations";
 create policy bsb_medication_administrations_read on "better_supabase"."medication_administrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
@@ -6214,7 +5655,7 @@ create policy bsb_medication_administrations_read on "better_supabase"."medicati
 -- Adds a medication to the organization's catalog, or changes one
 -- (medication_id). A code from a catalog other than custom is unique in the
 -- organization.
-drop function if exists "better_supabase"."save_medication"(uuid, text, text, text, text, text, text, boolean, uuid, jsonb);
+
 create or replace function "better_supabase"."save_medication"(tenant uuid, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
 returns jsonb
 language plpgsql
@@ -7093,9 +6534,7 @@ grant execute on function "better_supabase"."plan_medication_administrations"(uu
 -- Records a planned or missed dose as given, refused or skipped. refused and
 -- skipped need a reason. A dose of a high-risk medication, or of an order that
 -- requires it, needs checked_by: another member who may administer.
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text);
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, jsonb);
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, uuid, jsonb);
+
 create or replace function "better_supabase"."record_medication_administration"(administration_id uuid, status text, dose numeric default null, reason text default null, checked_by uuid default null, note text default null, signature_id uuid default null)
 returns jsonb
 language plpgsql
@@ -7191,7 +6630,7 @@ grant execute on function "better_supabase"."record_medication_administration"(u
 
 -- Records a dose of an as-needed order, with the reason it was given. The
 -- doses given in the last 24 hours plus this one stay within max_per_day.
-drop function if exists "better_supabase"."record_as_needed_administration"(uuid, numeric, text, uuid, text, jsonb);
+
 create or replace function "better_supabase"."record_as_needed_administration"(order_id uuid, dose numeric default null, reason text default null, checked_by uuid default null, note text default null)
 returns jsonb
 language plpgsql
@@ -7352,94 +6791,54 @@ grant execute on function "better_supabase"."medication_chart"(text, text, times
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."medications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medications";
 create policy bsb_tenant_scope_select on "better_supabase"."medications" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medications";
 create policy bsb_tenant_scope_insert on "better_supabase"."medications" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medications";
 create policy bsb_tenant_scope_update on "better_supabase"."medications" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medications";
 create policy bsb_tenant_scope_delete on "better_supabase"."medications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."medication_orders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_select on "better_supabase"."medication_orders" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_orders" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_update on "better_supabase"."medication_orders" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_delete on "better_supabase"."medication_orders" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."medication_administrations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_select on "better_supabase"."medication_administrations" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_administrations" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_update on "better_supabase"."medication_administrations" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_delete on "better_supabase"."medication_administrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
@@ -7458,91 +6857,25 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:a46b54b3386033c7edb26a7bcdfff9c8a17e07c13c4f4936cf4204cb5bb9b1e5
+-- @bsb-hash sha256:ae9c02f2f7ec604668ffabf1c1d6ea98f66ca4542f505093901e7ff54a37dc5a
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medications";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medications";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_orders";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_orders";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_administrations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_administrations";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Medications: the organization's catalog, orders for a record with a dose,
 -- route and schedule, planned doses, and each dose given, refused, skipped or
 -- missed, with a second check for high-risk medication.
 
-create table if not exists "better_supabase"."medications" (
+create table "better_supabase"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") between 1 and 300),
+  "name" text not null constraint bsb_medications_name_check check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
-  "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") between 1 and 100),
-  "form" text check ("form" is null or length("form") <= 100),
-  "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") between 1 and 50),
+  "code_system" text not null default 'custom' constraint bsb_medications_code_system_check check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
+  "code" text constraint bsb_medications_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "form" text constraint bsb_medications_form_check check ("form" is null or length("form") <= 100),
+  "strength" text constraint bsb_medications_strength_check check ("strength" is null or length("strength") <= 100),
+  "unit" text not null constraint bsb_medications_unit_check check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -7550,100 +6883,97 @@ create table if not exists "better_supabase"."medications" (
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "id")
 );
-create index if not exists "medications_tenant_idx" on "better_supabase"."medications" ("org_id", "name");
-create unique index if not exists "medications_code_idx" on "better_supabase"."medications" ("org_id", "code_system", "code") where "code" is not null;
+create index "medications_tenant_idx" on "better_supabase"."medications" ("org_id", "name");
+create unique index "medications_code_idx" on "better_supabase"."medications" ("org_id", "code_system", "code") where "code" is not null;
 alter table "better_supabase"."medications" enable row level security;
 revoke all on "better_supabase"."medications" from public, anon, authenticated;
 grant select on "better_supabase"."medications" to authenticated;
 grant all on "better_supabase"."medications" to service_role;
 
-create table if not exists "better_supabase"."medication_orders" (
+create table "better_supabase"."medication_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- The record the order is for, a type in config.subjects.
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
-  "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") between 1 and 50),
-  "route" text check ("route" is null or length("route") <= 100),
+  "dose" numeric not null constraint bsb_medication_orders_dose_check check ("dose" > 0),
+  "dose_unit" text not null constraint bsb_medication_orders_dose_unit_check check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
+  "route" text constraint bsb_medication_orders_route_check check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
   "schedule" jsonb,
   "as_needed" boolean not null default false,
-  "as_needed_reason" text check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
+  "as_needed_reason" text constraint bsb_medication_orders_as_needed_reason_check check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
   -- The most of the dose unit given in any 24 hours, for an as-needed order.
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
+  "max_per_day" numeric constraint bsb_medication_orders_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
   "starts_on" date not null,
   "ends_on" date,
-  "prescriber" text check ("prescriber" is null or length("prescriber") <= 300),
-  "source" text not null default 'prescriber' check ("source" in ('prescriber', 'pharmacy', 'import')),
+  "prescriber" text constraint bsb_medication_orders_prescriber_check check ("prescriber" is null or length("prescriber") <= 300),
+  "source" text not null default 'prescriber' constraint bsb_medication_orders_source_check check ("source" in ('prescriber', 'pharmacy', 'import')),
   -- The order's id in the pharmacy or prescribing system it was imported from.
-  "external_id" text check ("external_id" is null or length("external_id") <= 200),
+  "external_id" text constraint bsb_medication_orders_external_id_check check ("external_id" is null or length("external_id") <= 200),
   "requires_double_check" boolean not null default false,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped')),
-  "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000),
+  "status" text not null default 'active' constraint bsb_medication_orders_status_check check ("status" in ('active', 'paused', 'stopped')),
+  "stopped_reason" text constraint bsb_medication_orders_stopped_reason_check check ("stopped_reason" is null or length("stopped_reason") <= 1000),
   "signature_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
-  check ("as_needed" or "schedule" is not null),
+  constraint bsb_medication_orders_check check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_medication_orders_check1 check ("as_needed" or "schedule" is not null),
   unique ("org_id", "id"),
   foreign key ("org_id", "medication_id") references "better_supabase"."medications" ("org_id", "id")
 );
-create index if not exists "medication_orders_item_idx" on "better_supabase"."medication_orders" ("org_id", "medication_id");
-create index if not exists "medication_orders_subject_idx" on "better_supabase"."medication_orders" ("subject_type", "subject_id");
-create index if not exists "medication_orders_status_idx" on "better_supabase"."medication_orders" ("org_id", "status");
-create unique index if not exists "medication_orders_external_idx" on "better_supabase"."medication_orders" ("org_id", "external_id") where "external_id" is not null;
+create index "medication_orders_item_idx" on "better_supabase"."medication_orders" ("org_id", "medication_id");
+create index "medication_orders_subject_idx" on "better_supabase"."medication_orders" ("subject_type", "subject_id");
+create index "medication_orders_status_idx" on "better_supabase"."medication_orders" ("org_id", "status");
+create unique index "medication_orders_external_idx" on "better_supabase"."medication_orders" ("org_id", "external_id") where "external_id" is not null;
 alter table "better_supabase"."medication_orders" enable row level security;
 revoke all on "better_supabase"."medication_orders" from public, anon, authenticated;
 grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
-drop policy if exists medication_orders_read on "better_supabase"."medication_orders";
-create policy medication_orders_read on "better_supabase"."medication_orders"
+create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
-drop policy if exists medications_read on "better_supabase"."medications";
-create policy medications_read on "better_supabase"."medications"
+create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('medications.read')));
 
-create table if not exists "better_supabase"."medication_administrations" (
+create table "better_supabase"."medication_administrations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "order_id" uuid not null,
   -- The planned time; null for an as-needed dose.
   "scheduled_at" timestamptz,
   "administered_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
-  "dose" numeric check ("dose" is null or "dose" > 0),
+  "status" text not null default 'planned' constraint bsb_medication_administrations_status_check check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
+  "dose" numeric constraint bsb_medication_administrations_dose_check check ("dose" is null or "dose" > 0),
   "performer_id" uuid,
   -- The second member who checked a high-risk dose.
   "checked_by" uuid,
-  "reason" text check ("reason" is null or length("reason") <= 1000),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "reason" text constraint bsb_medication_administrations_reason_check check ("reason" is null or length("reason") <= 1000),
+  "note" text constraint bsb_medication_administrations_note_check check ("note" is null or length("note") <= 2000),
   "signature_id" uuid,
-  check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
+  constraint bsb_medication_administrations_check check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
   unique ("order_id", "scheduled_at"),
   foreign key ("org_id", "order_id") references "better_supabase"."medication_orders" ("org_id", "id") on delete cascade
 );
-create index if not exists "medication_administrations_order_idx" on "better_supabase"."medication_administrations" ("org_id", "order_id");
-create index if not exists "medication_administrations_planned_idx" on "better_supabase"."medication_administrations" ("scheduled_at") where "status" = 'planned';
-create index if not exists "medication_administrations_given_idx" on "better_supabase"."medication_administrations" ("order_id", "administered_at") where "status" = 'given';
+create index "medication_administrations_order_idx" on "better_supabase"."medication_administrations" ("org_id", "order_id");
+create index "medication_administrations_planned_idx" on "better_supabase"."medication_administrations" ("scheduled_at") where "status" = 'planned';
+create index "medication_administrations_given_idx" on "better_supabase"."medication_administrations" ("order_id", "administered_at") where "status" = 'given';
 alter table "better_supabase"."medication_administrations" enable row level security;
 revoke all on "better_supabase"."medication_administrations" from public, anon, authenticated;
 grant select on "better_supabase"."medication_administrations" to authenticated;
 grant all on "better_supabase"."medication_administrations" to service_role;
-drop policy if exists medication_administrations_read on "better_supabase"."medication_administrations";
-create policy medication_administrations_read on "better_supabase"."medication_administrations"
+create policy bsb_medication_administrations_read on "better_supabase"."medication_administrations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 
 -- Adds a medication to the organization's catalog, or changes one
 -- (medication_id). A code from a catalog other than custom is unique in the
 -- organization.
-drop function if exists "better_supabase"."save_medication"(uuid, text, text, text, text, text, text, boolean, uuid, jsonb);
+
 create or replace function "better_supabase"."save_medication"(tenant uuid, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
 returns jsonb
 language plpgsql
@@ -8522,9 +7852,7 @@ grant execute on function "better_supabase"."plan_medication_administrations"(uu
 -- Records a planned or missed dose as given, refused or skipped. refused and
 -- skipped need a reason. A dose of a high-risk medication, or of an order that
 -- requires it, needs checked_by: another member who may administer.
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text);
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, jsonb);
-drop function if exists "better_supabase"."record_medication_administration"(uuid, text, numeric, text, uuid, text, uuid, jsonb);
+
 create or replace function "better_supabase"."record_medication_administration"(administration_id uuid, status text, dose numeric default null, reason text default null, checked_by uuid default null, note text default null, signature_id uuid default null)
 returns jsonb
 language plpgsql
@@ -8620,7 +7948,7 @@ grant execute on function "better_supabase"."record_medication_administration"(u
 
 -- Records a dose of an as-needed order, with the reason it was given. The
 -- doses given in the last 24 hours plus this one stay within max_per_day.
-drop function if exists "better_supabase"."record_as_needed_administration"(uuid, numeric, text, uuid, text, jsonb);
+
 create or replace function "better_supabase"."record_as_needed_administration"(order_id uuid, dose numeric default null, reason text default null, checked_by uuid default null, note text default null)
 returns jsonb
 language plpgsql
@@ -8781,94 +8109,54 @@ grant execute on function "better_supabase"."medication_chart"(text, text, times
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."medications";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medications";
 create policy bsb_tenant_scope_select on "better_supabase"."medications" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('medications.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medications";
 create policy bsb_tenant_scope_insert on "better_supabase"."medications" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medications";
 create policy bsb_tenant_scope_update on "better_supabase"."medications" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medications";
 create policy bsb_tenant_scope_delete on "better_supabase"."medications" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."medication_orders";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_select on "better_supabase"."medication_orders" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_orders" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_update on "better_supabase"."medication_orders" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_orders";
 create policy bsb_tenant_scope_delete on "better_supabase"."medication_orders" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."medication_administrations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_select on "better_supabase"."medication_administrations" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_administrations" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_update on "better_supabase"."medication_administrations" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."medication_administrations";
 create policy bsb_tenant_scope_delete on "better_supabase"."medication_administrations" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_150_medications.sql
 -- better-supabase module: medications

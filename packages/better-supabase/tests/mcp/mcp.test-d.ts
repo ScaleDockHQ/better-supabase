@@ -4,11 +4,11 @@ import { describe, expectTypeOf, it } from "vitest";
 import type { AuthState } from "../../src/auth/resolve.ts";
 import type { ToolDecision, ToolRef } from "../../src/mcp/index.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createMcp, defineTool } from "../../src/mcp/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 describe("mcp authorization hooks", () => {
   it("carries opaque meta to the hooks", () => {

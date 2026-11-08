@@ -4,7 +4,6 @@ import { useAction } from "better-supabase/react";
 import { LinkIcon, UnlinkIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,15 +32,12 @@ import {
 import {
   linkCustomerRelations,
   unlinkCustomerRelations,
-} from "@/features/customers/customer-record-actions";
+} from "@/features/customers/customers-actions";
 import { SubjectLink } from "@/features/subjects/components/subject-link";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type {
-  Loaded,
-  RelatedCustomer,
-  Relations,
-} from "../customer-record-queries";
+import type { Loaded, RelatedCustomer, Relations } from "../customers-queries";
 
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 

@@ -119,7 +119,7 @@ function domainOf(value: unknown): OrganizationDomain {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     domain: textOf(row["domain"]),
     verifiedAt: optionalInstant(row["verified_at"]),
     autoJoinRole: optionalText(row["auto_join_role"]),
@@ -135,7 +135,7 @@ function providerOf(value: unknown): SsoProvider {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     type: "saml",
     metadataUrl: optionalText(row["metadata_url"]),
     domains: stringsOf(row["domains"]),

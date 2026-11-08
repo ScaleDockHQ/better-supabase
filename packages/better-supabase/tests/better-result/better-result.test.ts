@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { DbError } from "../../src/core/errors.ts";
 
 import { withBetterResult } from "../../src/better-result/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import {
   AsyncResult,
@@ -30,7 +30,7 @@ const toResult = defineBetterResultErrors(
   DbFailure,
 );
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 const customer = { id: "c1", name: "Acme" };
 
 describe("withBetterResult", () => {

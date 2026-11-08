@@ -37,7 +37,7 @@ Writes go through the functions, which need `leases.manage`.
 
 ## Your own columns
 
-`extraColumns` adds columns to the `leases` table, and the client's `fields` schema types them.
+Columns you add to the `leases` table in your schema files are fields, and the client's `fields` schema types them.
 
 Server code calls the `leases` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
@@ -64,7 +64,7 @@ const rows = useLeases({ limit: 50 });
 
 ## No overlapping leases
 
-`noOverlap: true` adds the `leases_no_overlap` exclusion constraint. A unit
+`noOverlap: true` adds the `leases_no_overlap_excl` exclusion constraint. A unit
 can't have two active leases whose date ranges overlap; an open-ended lease
 counts as running to infinity. It is off by default because existing data may
 already overlap.
@@ -89,7 +89,7 @@ const lease = await leases
 await leases.activate(lease.id).orThrow();
 ```
 
-`create` makes a draft. The party is any record in `config.subjects`, and the
+`create` makes a draft. The party is any record in `config.recordTypes`, and the
 deposit is in the rent's currency. `activate` starts the lease: it fails with
 `LEASE_OVERLAP` while another active lease of the unit overlaps the dates,
 posts the deposit on the lease's deposit account and holds it there. A lease
@@ -176,16 +176,9 @@ back to the party. A draft is terminated without touching the ledger.
 Install a second [tasks](/docs/blocks/tasks) instance for maintenance
 requests, with the unit and the lease as extra columns:
 
-```ts
-// better-supabase.config.ts
-blocks: {
-  maintenance: {
-    block: "tasks",
-    names: { work_item: "maintenance_request" },
-    tables: { projects: null, iterations: null },
-    options: { prefix: "MR", extraColumns: { unit_id: "uuid", lease_id: "uuid" } },
-  },
-},
+```sql title="supabase/schemas/leases.sql"
+alter table "better_supabase"."leases" add column "unit_id" uuid;
+alter table "better_supabase"."leases" add column "lease_id" uuid;
 ```
 
 Its tables are `maintenance_requests`, `maintenance_request_comments` and the
@@ -212,7 +205,7 @@ record.
 | ----------------------- | -------------------------------------------------------------------------------------------- |
 | `LEASES_FORBIDDEN`      | the caller lacks `leases.read` or `leases.manage`                                            |
 | `LEASE_UNIT_INVALID`    | the unit isn't an asset of the organization                                                  |
-| `LEASE_PARTY_INVALID`   | the party isn't a record of the organization in `config.subjects`                            |
+| `LEASE_PARTY_INVALID`   | the party isn't a record of the organization in `config.recordTypes`                         |
 | `LEASE_TERMS_INVALID`   | the rent isn't above zero, the dates don't make sense, or the deposit is in another currency |
 | `LEASE_DEPOSIT_INVALID` | the deposit deduction is negative or above the deposit                                       |
 | `LEASE_OVERLAP`         | another active lease of the unit overlaps these dates                                        |
@@ -230,16 +223,6 @@ record.
 
 `db.leases` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
 
-```ts
-// better-supabase.config.ts
-blocks: {
-  leases: { options: { extraColumns: { cost_center: "text" } } },
-},
-
-// the client
-const leases = createLeases({
-  transport,
-  tenant,
-  fields: v.object({ cost_center: v.optional(v.string()) }),
-});
+```sql title="supabase/schemas/leases.sql"
+alter table "better_supabase"."leases" add column "cost_center" text;
 ```

@@ -77,8 +77,6 @@ export interface SchemaData {
   readonly softRefs: readonly SchemaSoftRef[];
   /** Table id to the block manifest that installs it. */
   readonly manifests: Readonly<Record<string, string>>;
-  /** The table ids `blocks.<module>.options.extraColumns` adds columns to. */
-  readonly extraColumns: readonly string[];
   /**
    * Table id to its module and logical table, the names an app table's
    * reference uses.

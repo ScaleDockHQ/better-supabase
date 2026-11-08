@@ -1,7 +1,7 @@
 import type { DbError } from "../core/errors.ts";
 import type { TemplateValues } from "../core/template.ts";
 import type {
-  Bucket,
+  ClientBucket,
   BucketClient,
   BucketConnectOptions,
   ObjectTarget,
@@ -130,7 +130,7 @@ export function connectBucket<
   Id extends string,
   V extends string = never,
 >(
-  bucket: Bucket<P, Id, V>,
+  bucket: ClientBucket<P, Id, V>,
   client: StorageClient,
   resolveTarget: (target: ObjectTarget<P, Id>) => StoragePath<Id>,
   connectOptions: BucketConnectOptions,

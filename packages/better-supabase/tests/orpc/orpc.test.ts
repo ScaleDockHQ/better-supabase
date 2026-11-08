@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { OrpcRequestContext } from "../../src/orpc/index.ts";
 
 import { writeSession } from "../../src/auth/session.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { createOrpc, orpcCode } from "../../src/orpc/index.ts";
@@ -25,7 +25,7 @@ const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
 describe("createOrpc", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   const bsb = createOrpc(betterSupabase, { env, auth: { jwks: signer.jwks } });
 

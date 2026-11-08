@@ -290,14 +290,14 @@ them unless you set `runAs`. A
 [service principal](/docs/blocks/service-accounts) is the usual
 publisher for work an organization owns.
 
-| Helper                                      | Does                                                                                                              |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `workflowStarter({ name: workflow }, opts)` | The `start` callback for `schedules.tick` and `admission.tick`; schedules run as `runAs`                          |
-| `startOnEvent(workflow, { types, runAs })`  | An outbox handler that starts the workflow as `runAs` per matching event (`invoice.paid`, `invoice.*`, `*`), once |
-| `hookMetadata(ctx, permission?)`            | Metadata for `createHook`, naming the actor and the permission a tenant member needs to resume it                 |
-| `authorizeHook(token, ctx, { can })`        | The hook, when the caller created it or holds its permission; `HookForbiddenError` (403) otherwise                |
-| `protectWebHandler(handler, key, { can })`  | Answers 401 or 403 as `application/problem+json` before a workflow UI route or a run's stream                     |
-| `approvalWaiter.wait` and `.wake`           | Pauses a run on an approval token until a deadline, and resumes it by token                                       |
+| Helper                                       | Does                                                                                                              |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `workflowStarter({ name: workflow }, opts)`  | The `start` callback for `schedules.tick` and `admission.tick`; schedules run as `runAs`                          |
+| `startOnEvent(workflow, { types, runAs })`   | An outbox handler that starts the workflow as `runAs` per matching event (`invoice.paid`, `invoice.*`, `*`), once |
+| `hookMetadata(ctx, permission?)`             | Metadata for `createHook`, naming the actor and the permission a tenant member needs to resume it                 |
+| `authorizeHook(token, ctx, { can })`         | The hook, when the caller created it or holds its permission; `HookForbiddenError` (403) otherwise                |
+| `protectWebHandler(handler, key, { can })`   | Answers 401 or 403 as `application/problem+json` before a workflow UI route or a run's stream                     |
+| `approvalWaiter.create`, `.wait` and `.wake` | Pauses a run on an approval token until a deadline, and resumes it by token                                       |
 
 ### Starting a run once
 
@@ -374,8 +374,10 @@ export async function GET(request: Request, { params }) {
 ```
 
 A negative `startIndex` reads the last N chunks, and `namespace` picks a
-named stream (`getWritable({ namespace })`). Check that the caller may read
-the run first, for example through `workflow_runs` under RLS.
+named stream (`getWritable({ namespace })`). Pass `sse: true` to answer as
+`text/event-stream`, and `transform` to pipe the chunks through a
+`TransformStream` that frames them. Check that the caller may read the run
+first, for example through `workflow_runs` under RLS.
 
 ## Approvals with hooks
 
@@ -433,6 +435,10 @@ export async function approveInvoice(approvalId: string, expiresAt: string) {
   // outcome.payload.approved
 }
 ```
+
+To register the hook before the workflow does other steps, call
+`approvalWaiter.create(approvalId)` and `wait` on the returned handle later,
+so a wake in between is not missed.
 
 The code that records the decision wakes the run once it has checked the
 approver:
@@ -647,7 +653,7 @@ blocks: {
 ```
 
 `retention` takes a number of `days` or `hours`. Without pg_cron, run
-[`db prune-workflows`](/docs/cli/db#prune-workflows) on a schedule, or call
+[`workflows prune`](/docs/cli/workflows#prune) on a schedule, or call
 `world.purgeRuns({ olderThan: "30 days" })`. Each deletes completed, failed
 and cancelled runs (`statuses` narrows it) that ended longer ago than the
 cutoff, 500 runs per statement until none are left. A hook whose token

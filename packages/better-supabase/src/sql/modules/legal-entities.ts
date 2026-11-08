@@ -16,6 +16,7 @@ import { legalEntityFunctions } from "./legal-entities-functions.ts";
 import {
   defaultSwitchGuardSql,
   disableCheckSql,
+  numberDuplicateWarningSql,
   numberGuardSql,
   restoreNumberKeysSql,
 } from "./legal-entities-numbers.ts";
@@ -275,6 +276,40 @@ function restoredKeys(ctx: BlockSqlContext): string {
 }
 
 /**
+ * The warning for each table `options.on` names whose numbers the default
+ * entity and the documents without one already share.
+ */
+function duplicateWarnings(ctx: BlockSqlContext): string {
+  const lines: string[] = [];
+
+  for (const key of onKeys(ctx)) {
+    const target = ON_TABLES[key];
+
+    if (target === undefined) {
+      continue;
+    }
+
+    const own = ctx.of(target.module);
+
+    for (const table of target.tables) {
+      if (!own.owns(table) && !own.appOwned.includes(table)) {
+        continue;
+      }
+
+      const numbered = numberedOf(ctx, key).find(
+        (each) => each.table === table,
+      );
+
+      if (numbered !== undefined) {
+        lines.push(numberDuplicateWarningSql(ctx, numbered));
+      }
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
  * A nullable `legal_entity_id` on each table `options.on` names, tied to the
  * same tenant. A null column means the default entity (`legal_entity_of`).
  */
@@ -321,7 +356,6 @@ create index if not exists ${index} on ${own.table(table)} (${tenant}, ${LEGAL_E
   lines.push(
     defaultSwitchGuardSql(ctx, numbered),
     disableCheckSql(ctx, numbered),
-    restoredKeys(ctx),
   );
 
   const fields = ctx.installed("custom-fields")
@@ -345,20 +379,6 @@ create index if not exists ${index} on ${own.table(table)} (${tenant}, ${LEGAL_E
 alter table ${values} drop constraint if exists ${constraint};
 alter table ${values} add constraint ${constraint} foreign key (${tenant}, ${LEGAL_ENTITY_COLUMN}) references ${entities} (${e("tenant")}, ${e("id")}) on delete restrict;
 create index if not exists ${index} on ${values} (${tenant}, ${LEGAL_ENTITY_COLUMN}) where ${LEGAL_ENTITY_COLUMN} is not null;
-do $$
-declare
-  v_constraint name;
-begin
-  for v_constraint in
-    select c.conname from pg_constraint c
-    where c.conrelid = '${values}'::regclass and c.contype = 'u'
-      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = c.conrelid and a.attnum = any (c.conkey))
-        @> array[${[tenant, type, id, definition].map((column) => sqlString(column.replaceAll('"', ""))).join(", ")}]
-      and cardinality(c.conkey) = 4
-  loop
-    execute format('alter table ${values} drop constraint %I', v_constraint);
-  end loop;
-end $$;
 create unique index if not exists ${unique} on ${values} (${tenant}, ${type}, ${id}, ${definition}, coalesce(${LEGAL_ENTITY_COLUMN}, '00000000-0000-0000-0000-000000000000'::uuid));`);
   }
 
@@ -391,7 +411,7 @@ function tables(ctx: BlockSqlContext): string {
         roles: ["authenticated"],
         using: ctx.scope.check(tenant, read),
       }),
-      { drop: true, target: ctx.table(logical) },
+      { target: ctx.table(logical) },
     );
 
   const text = (column: string, max: number): string =>
@@ -534,6 +554,54 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+/**
+ * What an installed database needs once, before its keys match the options: the
+ * per-organization number keys of a kind `options.on` no longer names (after a
+ * check that no number collides), and the per-record unique constraint of
+ * `field_values` that the per-entity key replaces. A schema diff can't check
+ * rows, so these run from the data file, and a fresh database finds nothing to
+ * do.
+ */
+function data(ctx: BlockSqlContext): string {
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
+  const fields = ctx.installed("custom-fields")
+    ? ctx.of("custom-fields")
+    : undefined;
+
+  const parts = [restoredKeys(ctx), duplicateWarnings(ctx)];
+
+  if (fields !== undefined && perEntityValues(fields)) {
+    const values = fields.table("values");
+    const tenant = fields.col("values", "tenant");
+    const type = fields.col("values", "subjectType");
+    const id = fields.col("values", "subjectId");
+    const definition = fields.col("values", "definition");
+
+    parts.push(`do $$
+declare
+  v_constraint name;
+begin
+  if to_regclass('${values}') is null then
+    return;
+  end if;
+  for v_constraint in
+    select c.conname from pg_constraint c
+    where c.conrelid = '${values}'::regclass and c.contype = 'u'
+      and (select array_agg(a.attname::text) from pg_attribute a where a.attrelid = c.conrelid and a.attnum = any (c.conkey))
+        @> array[${[tenant, type, id, definition].map((column) => sqlString(column.replaceAll('"', ""))).join(", ")}]
+      and cardinality(c.conkey) = 4
+  loop
+    execute format('alter table ${values} drop constraint %I', v_constraint);
+  end loop;
+end $$;`);
+  }
+
+  return parts.filter((part) => part !== "").join("\n");
+}
+
 export const LEGAL_ENTITIES: BlockSqlDefinition = {
   name: "legal-entities",
   scopes: ["tenant"],
@@ -558,4 +626,5 @@ export const LEGAL_ENTITIES: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  data,
 };

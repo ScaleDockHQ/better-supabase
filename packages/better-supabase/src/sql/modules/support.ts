@@ -9,7 +9,6 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  SCHEMA,
   SERVICE_CALLER,
   revokeTable,
   userGrant,
@@ -82,7 +81,7 @@ const NAMES: BlockSqlNames = {
         admin: "admin_id",
         target: "target_user_id",
         reason: "reason",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         readOnly: "read_only",
         startedAt: "started_at",
         expiresAt: "expires_at",
@@ -101,7 +100,7 @@ const NAMES: BlockSqlNames = {
         admin: "admin_id",
         target: "target_user_id",
         reason: "reason",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         readOnly: "read_only",
         metadata: "metadata",
         requestedAt: "requested_at",
@@ -179,7 +178,7 @@ alter table ${sessions} enable row level security;
 ${revokeTable(sessions)}
 grant select on ${sessions} to service_role;
 -- Platform staff read every session.
-${renderPolicy(makePolicy({ table: sessions, name: "bsb_support_read", command: "select", roles: ["authenticated"], using: `(select ${ctx.of("permissions").fn("is_platform")}(${ctx.permission("read", OPERATIONS["impersonation.read"])}))` }), { drop: true, target: sessions })}
+${renderPolicy(makePolicy({ table: sessions, name: "bsb_support_read", command: "select", roles: ["authenticated"], using: `(select ${ctx.of("permissions").fn("is_platform")}(${ctx.permission("read", OPERATIONS["impersonation.read"])}))` }), { target: sessions })}
 grant select on ${sessions} to authenticated;
 `;
 }
@@ -250,7 +249,7 @@ ${renderPolicy(
     using: `${c("admin")} = (select auth.uid())
     or (select ${isPlatform}(${ctx.permission("read", OPERATIONS["impersonation.read"])}))`,
   }),
-  { drop: true, target: requests },
+  { target: requests },
 )}
 grant select on ${requests} to authenticated;
 `;
@@ -1028,7 +1027,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   }
 
   return [
-    `${SCHEMA}${table(ctx)}${requestsTable(ctx)}`,
+    `${table(ctx)}${requestsTable(ctx)}`,
     requestFunctions(ctx, layout),
     start(ctx),
     end(ctx),

@@ -49,6 +49,11 @@ export interface RunResult {
 /** A command to run next, and when it applies. */
 export interface NextStep {
   readonly command: string;
+  /**
+   * `command` as arguments, so a caller needs no shell parsing. Filled in when
+   * unset.
+   */
+  readonly argv?: readonly string[];
   readonly when: string;
 }
 
@@ -58,12 +63,16 @@ export interface CommandResult {
   readonly error?: string;
   /**
    * The error code `--json` reports when `code` is not 0. Without it, exit code
-   * 2 reports `usage`, 3 `input_required`, 130 `cancelled`, and any other
-   * `failed`.
+   * 2 reports `usage`, 130 `cancelled`, and any other `failed`.
    */
   readonly errorCode?: CliErrorCode;
   /** The `data` of the `--json` envelope. */
   readonly data?: unknown;
+  /**
+   * Problems that did not stop the run: the envelope's `warnings`, `!` lines on
+   * stderr.
+   */
+  readonly warnings?: readonly string[];
   readonly next?: readonly NextStep[];
   /**
    * Printed on stdout exactly as is, in place of `output` and the envelope: a

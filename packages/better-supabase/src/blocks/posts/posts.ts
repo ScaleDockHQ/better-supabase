@@ -170,9 +170,9 @@ export interface PostsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the post's extra columns
-   * (`blocks.posts.options.extraColumns`), keyed by database name. It types and
-   * parses them on reads, and validates them on writes.
+   * A Standard Schema for the post's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on writes.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Posts<FieldsOf<S>>>>;

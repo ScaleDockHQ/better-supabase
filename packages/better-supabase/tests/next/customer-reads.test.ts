@@ -2,7 +2,7 @@ import type * as ServerCore from "@supabase/server/core";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { createNext } from "../../src/next/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -51,7 +51,7 @@ const USER = "11111111-1111-4111-8111-111111111111";
 const CUSTOMER = "22222222-2222-4222-8222-222222222222";
 const signer = await createTestSigner();
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 // The customer hub of CentraKit's customer page: the customer list, its
 // notes and tags, behind one permission, in one call.

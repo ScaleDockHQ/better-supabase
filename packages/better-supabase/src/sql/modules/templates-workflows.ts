@@ -100,7 +100,7 @@ create table if not exists ${wf} (
 );${appUniqueIndex(ctx, "workflows", ["template", "definition"])}
 create index if not exists template_workflows_definition_idx on ${wf} (${cw("definition")});${has("createdBy") ? `\ncreate index if not exists template_workflows_created_by_idx on ${wf} (${cw("createdBy")});` : ""}
 ${lockModuleTable(ctx, "workflows", { read: true })}
-${renderPolicy(makePolicy({ table: wf, name: "template_workflows_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t} x where x.${ct("id")} = ${cw("template")})` }), { drop: true, target: wf })}
+${renderPolicy(makePolicy({ table: wf, name: "template_workflows_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t} x where x.${ct("id")} = ${cw("template")})` }), { target: wf })}
 
 -- Why inputs don't match the input_schema of definition's published version:
 -- empty when it matches, has no published version or no schema. The

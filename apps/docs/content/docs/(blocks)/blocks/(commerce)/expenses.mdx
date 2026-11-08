@@ -43,7 +43,7 @@ reimbursement.
 
 ## Your own columns
 
-`extraColumns` adds columns to the `expense_reports` table, and the client's `fields` schema types them.
+Columns you add to the `expense_reports` table in your schema files are fields, and the client's `fields` schema types them.
 
 Server code calls the `expenses` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
@@ -97,24 +97,13 @@ one. Without a currency column, map `limitAmount` and `receiptOver` to `null`
 too, since a limit is in a currency. The ledger names a category's account by
 its id then.
 
-`options.categoryExtraColumns` lists other columns of the categories table,
+Columns you add to the categories table in your schema files,
 such as a ledger code or an icon. `saveCategory({ ..., fields })` writes them
 in the same statement, and every category read returns them under `fields`.
 
-```ts title="better-supabase.config.ts"
-expenses: {
-  tables: { reports: null, lines: null, categories: "public.expense_categories" },
-  columns: {
-    categories: {
-      tenant: "organization_id",
-      key: null,
-      currency: null,
-      limitAmount: null,
-      receiptOver: null,
-    },
-  },
-  options: { categoryExtraColumns: { gl_code: "text", icon_name: "text" } },
-},
+```sql title="supabase/schemas/expense_categories.sql"
+alter table "better_supabase"."expense_categories" add column "gl_code" text;
+alter table "better_supabase"."expense_reports" add column "icon_name" text;
 ```
 
 ## File and submit a report
@@ -349,18 +338,8 @@ approvals block. The
 
 `db.expenses` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
 
-```ts
-// better-supabase.config.ts
-blocks: {
-  expenses: { options: { extraColumns: { project_code: "text" } } },
-},
-
-// the client
-const expenses = createExpenses({
-  transport,
-  tenant,
-  fields: v.object({ project_code: v.optional(v.string()) }),
-});
+```sql title="supabase/schemas/expense_reports.sql"
+alter table "better_supabase"."expense_reports" add column "project_code" text;
 ```
 
 ## File a report

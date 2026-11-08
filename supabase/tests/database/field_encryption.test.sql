@@ -103,14 +103,14 @@ select is(
 select is(
   (select count(*)::int from better_supabase.audit_events
     where event_type = 'field_value.viewed' and category = 'read'
-      and organization_id = '00000000-0000-4000-8000-000000000001'),
+      and tenant_id = '00000000-0000-4000-8000-000000000001'),
   1,
   'reading the encrypted field writes one read audit entry'
 );
 select is(
   (select count(*)::int from better_supabase.audit_events
     where event_type = 'client_notes.viewed' and category = 'read'
-      and organization_id = '00000000-0000-4000-8000-000000000001'
+      and tenant_id = '00000000-0000-4000-8000-000000000001'
       and actor_id = '00000000-0000-4000-8000-0000000000a1'),
   2,
   'each reveal writes one read audit entry naming the member'

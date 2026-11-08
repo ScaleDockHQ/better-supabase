@@ -1,3 +1,4 @@
+import { existsSync, watch } from "node:fs";
 import { stat } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -65,8 +66,98 @@ export function onceReporter(): (message: string) => boolean {
   };
 }
 
+/** The pause after the last file event before a run starts. */
+const DEBOUNCE = 100;
+
+export interface Waker {
+  /**
+   * Resolves on the next file event (after a short pause for more), once
+   * `fallback` milliseconds pass without one, or when the signal aborts.
+   */
+  readonly wait: (fallback: number) => Promise<void>;
+  readonly close: () => void;
+}
+
+/**
+ * Wakes a watch loop when something under `paths` changes. A path that does not
+ * exist is skipped; the loop's polling interval still covers it, and so it
+ * covers a platform where recursive watching fails.
+ */
+export function fileWaker(
+  paths: readonly string[],
+  signal: AbortSignal | undefined,
+): Waker {
+  let pending: (() => void) | undefined;
+  let queued = false;
+  let timer: NodeJS.Timeout | undefined;
+
+  const wake = (): void => {
+    queued = true;
+    clearTimeout(timer);
+
+    timer = setTimeout(() => {
+      timer = undefined;
+      pending?.();
+    }, DEBOUNCE);
+  };
+
+  const watchers = [...new Set(paths)]
+    .filter((path) => existsSync(path))
+    .flatMap((path) => {
+      try {
+        return [watch(path, { recursive: true }, wake)];
+      } catch {
+        return [];
+      }
+    });
+
+  for (const watcher of watchers) {
+    watcher.on("error", () => undefined);
+  }
+
+  return {
+    wait: (fallback) =>
+      new Promise<void>((done) => {
+        const finish = (): void => {
+          clearTimeout(timeout);
+          pending = undefined;
+          signal?.removeEventListener("abort", finish);
+          queued = false;
+          done();
+        };
+
+        if (signal?.aborted === true) {
+          done();
+
+          return;
+        }
+
+        const timeout = setTimeout(finish, fallback);
+        signal?.addEventListener("abort", finish, { once: true });
+        pending = finish;
+
+        // An event that arrived while a run was going starts the next one.
+        if (queued && timer === undefined) {
+          finish();
+        }
+      }),
+    close: () => {
+      clearTimeout(timer);
+
+      for (const watcher of watchers) {
+        watcher.close();
+      }
+    },
+  };
+}
+
 export interface WatchLoopOptions {
   readonly interval: number;
+  /**
+   * What the loop does between rounds; a sleep of `interval` by default. A
+   * waker ends it early when a watched file changes.
+   */
+  readonly wait?: (interval: number) => Promise<void>;
   readonly context: Pick<
     CliContext,
     "configFile" | "emit" | "reloadConfig" | "signal"
@@ -92,6 +183,7 @@ export async function watchLoop(
   options: WatchLoopOptions,
 ): Promise<CommandResult> {
   const { interval, context, reload, tick } = options;
+  const pause = options.wait ?? ((ms: number) => sleep(ms, context.signal));
   const { configFile, emit, reloadConfig, signal } = context;
   const fresh = onceReporter();
   let stamp = await modifiedTime(configFile);
@@ -121,7 +213,7 @@ export async function watchLoop(
         stamp = changed;
       } catch (cause) {
         report(failed(cause));
-        await sleep(interval, signal);
+        await pause(interval);
         continue;
       }
     }
@@ -132,7 +224,7 @@ export async function watchLoop(
       report(result);
     }
 
-    await sleep(interval, signal);
+    await pause(interval);
   }
 
   return { code: 0, streamed: true };

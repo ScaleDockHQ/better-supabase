@@ -78,7 +78,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     using,
   }),
-  { drop: true, target: table },
+  { target: table },
 )}
 `;
 }

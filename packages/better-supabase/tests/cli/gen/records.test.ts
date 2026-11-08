@@ -1,12 +1,28 @@
 import { describe, expect, it } from "vitest";
 
+import type { ResolveInput } from "../../../src/config/resolve.ts";
+
 import { emitRecords } from "../../../src/cli/gen/records.ts";
-import { resolveConfig } from "../../../src/config/resolve.ts";
+import { resolveConfig as resolveDefault } from "../../../src/config/resolve.ts";
+
+/**
+ * These tests read the single-module layout; the default layout has its own in
+ * render.test.ts.
+ */
+function resolveConfig(input: ResolveInput, root: string) {
+  return resolveDefault(
+    {
+      ...input,
+      gen: { tableModules: false, blockModules: false, ...input.gen },
+    },
+    root,
+  );
+}
 
 function config(extra: Record<string, unknown> = {}) {
   return resolveConfig(
     {
-      subjects: {
+      recordTypes: {
         customer: { table: "customers" },
         project: {
           table: "projects",
@@ -63,7 +79,7 @@ describe("record types", () => {
 
     const bare = resolveConfig(
       {
-        subjects: { customer: { table: "customers" } },
+        recordTypes: { customer: { table: "customers" } },
         blocks: { memberships: {}, permissions: {} },
       },
       "/project",

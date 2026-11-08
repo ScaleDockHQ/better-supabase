@@ -72,12 +72,12 @@ select is(
 
 reset role;
 select isnt(
-  (select deleted_at from better_supabase.drive_nodes where id = current_setting('test.a')::uuid),
+  (select archived_at from better_supabase.drive_nodes where id = current_setting('test.a')::uuid),
   null,
   'the swept file is in the bin'
 );
 select is(
-  (select deleted_at from better_supabase.drive_nodes where id = current_setting('test.b')::uuid),
+  (select archived_at from better_supabase.drive_nodes where id = current_setting('test.b')::uuid),
   null,
   'the held file is not'
 );

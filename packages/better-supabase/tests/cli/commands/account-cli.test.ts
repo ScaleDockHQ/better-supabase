@@ -59,7 +59,7 @@ describe("login, whoami and logout commands", () => {
   it("logs in over the device flow, then logs out", async () => {
     const server = await cloud();
     const dir = await mkdtemp(join(tmpdir(), "bsb-account-cli-"));
-    const env = { XDG_CONFIG_HOME: dir, BSB_CLOUD_URL: server.url };
+    const env = { XDG_CONFIG_HOME: dir, BETTER_SUPABASE_CLOUD_URL: server.url };
 
     try {
       const login = await run(["login", "--cwd", dir], { env });
@@ -82,6 +82,6 @@ describe("login, whoami and logout commands", () => {
       env: { XDG_CONFIG_HOME: dir },
     });
 
-    expect(result.code).toBe(3);
+    expect(result.code).toBe(2);
   });
 });

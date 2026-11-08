@@ -32,10 +32,10 @@ export interface VersionsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the version's extra columns
-   * (`blocks.versions.options.extraColumns`), keyed by database name. It types
-   * and parses them on `list` and `get`, and validates them on `snapshot`.
-   * `getShared` leaves them out.
+   * A Standard Schema for the version's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on `list` and `get`, and validates them on `snapshot`. `getShared` leaves
+   * them out.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

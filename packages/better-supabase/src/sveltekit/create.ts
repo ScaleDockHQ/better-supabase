@@ -23,6 +23,7 @@ import type { BetterServer } from "../server/server-types.ts";
 import { around, bufferInPlace } from "../bridges/shared.ts";
 import { dbErrorOf, DbException } from "../core/errors.ts";
 import { toProblem } from "../core/problem.ts";
+import { adapterBase } from "../server/adapter-base.ts";
 import { withFlush } from "../server/adapter.ts";
 import {
   actionInput,
@@ -32,11 +33,10 @@ import {
 } from "../server/framework.ts";
 import { requireCaller, runAction } from "../server/kit.ts";
 import { refusalTarget } from "../server/refusal.ts";
-import { defaultExpose } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 /** SvelteKit's `fail()` result, typed structurally. */
-export interface SvelteKitFailure<T> {
+export interface SvelteKitError<T> {
   readonly status: number;
   readonly data: T;
 }
@@ -49,10 +49,7 @@ export interface SvelteKitFailure<T> {
 export interface SvelteKitHelpers {
   error(status: number, message: string): never;
   redirect(status: 303, location: string): never;
-  fail(
-    status: number,
-    data: Record<string, unknown>,
-  ): SvelteKitFailure<unknown>;
+  fail(status: number, data: Record<string, unknown>): SvelteKitError<unknown>;
 }
 
 export interface SvelteKitOptions extends FrameworkOptions {
@@ -142,7 +139,7 @@ export interface BetterSvelteKit<
   ): (
     event: SvelteKitRequestEvent,
   ) => Promise<
-    ActionResult<Unwrapped<Awaited<T>>> | SvelteKitFailure<ActionResult<never>>
+    ActionResult<Unwrapped<Awaited<T>>> | SvelteKitError<ActionResult<never>>
   >;
   /**
    * `handleError` for `hooks.server.ts`: `DbError`s keep their message and kind
@@ -172,7 +169,7 @@ export function createSvelteKit<
   options: SvelteKitOptions & { readonly authorizer?: A } = {},
 ): BetterSvelteKit<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
-  const expose = options.exposeErrors ?? defaultExpose();
+  const { expose } = adapterBase(server, options);
   const run = around([frameworkEntry(server, options, expose)]);
 
   type Locals = FrameworkLocals<M, F, E, C, P, B>;

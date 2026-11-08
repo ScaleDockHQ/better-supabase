@@ -2,7 +2,7 @@
 "use client";
 
 import { Can } from "@/hooks/use-permissions";
-import { permissions } from "@/lib/supabase/blocks.config";
+import { permissions } from "@/lib/supabase/blocks/permissions";
 
 import { TaskImportDialog } from "./task-import-dialog";
 

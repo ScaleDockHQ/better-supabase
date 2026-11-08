@@ -21,13 +21,7 @@ async function retry() {
 }
 
 /** Render inside `<Suspense>`: the customer's notes in the editor. */
-export async function DocumentEditorView({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-
+export async function DocumentEditorView({ id }: { id: string }) {
   const [view, t] = await Promise.all([
     getDocumentTarget(id),
     getExtracted("documents"),
@@ -57,6 +51,6 @@ export async function DocumentEditorView({
   return <DocumentEditor {...view.data} />;
 }
 
-export function DocumentEditorSkeleton() {
+export function DocumentEditorViewSkeleton() {
   return <Skeleton className="h-96 rounded-xl" aria-busy="true" />;
 }

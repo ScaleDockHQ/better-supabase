@@ -11,7 +11,7 @@ import type {
 
 import { writeSession } from "../../src/auth/session.ts";
 import { requestOf } from "../../src/core/authorizer.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { TENANT_HEADER } from "../../src/server/server-types.ts";
 import { createServer } from "../../src/server/server.ts";
@@ -42,7 +42,7 @@ describe("createServer headers", () => {
 
     vi.stubGlobal("fetch", fetch);
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       auth: { jwks: signer.jwks },
       headers: (request) => ({
@@ -87,7 +87,7 @@ describe("createServer headers", () => {
       Promise.resolve(Response.json([])),
     );
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env: { ...env, secretKey: "sb_secret_test" },
       auth: { jwks: signer.jwks },
       fetch: traced,
@@ -123,7 +123,7 @@ describe("createServer db options", () => {
       );
 
       const server = createServer(
-        defineSupabase(schema, { postgrestVersion: "12.2" }),
+        createSupabase(schema, { postgrestVersion: "12.2" }),
         { env, auth: { jwks: signer.jwks }, fetch, ...options },
       );
 
@@ -152,7 +152,7 @@ describe("createServer db options", () => {
         }),
     );
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       auth: { jwks: signer.jwks },
       fetch,
@@ -176,7 +176,7 @@ describe("createServer db options", () => {
 
 describe("createServer claims", () => {
   it("validates claims with the schema from betterSupabase.claims()", async () => {
-    const betterSupabase = defineSupabase(schema).claims(
+    const betterSupabase = createSupabase(schema).claims(
       v.object({ tenant_id: v.pipe(v.string(), v.minLength(1)) }),
     );
 
@@ -203,7 +203,7 @@ describe("createServer claims", () => {
   });
 
   it("keeps provider claims a loose schema does not list", async () => {
-    const betterSupabase = defineSupabase(schema).claims(
+    const betterSupabase = createSupabase(schema).claims(
       v.looseObject({
         tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
         memberships: v.optional(
@@ -274,7 +274,7 @@ describe("createServer userMetadata", () => {
       error: vi.fn(),
     };
 
-    const betterSupabase = defineSupabase(schema, { logger }).userMetadata(
+    const betterSupabase = createSupabase(schema, { logger }).userMetadata(
       v.object({ display_name: v.string() }),
     );
 
@@ -360,7 +360,7 @@ const user = (token: string): AuthState => ({
 describe("createServer clients", () => {
   it("shares the service and anon clients for the primary only", async () => {
     const { sent } = stubFetch();
-    const server = createServer(defineSupabase(schema), { env: secretEnv });
+    const server = createServer(createSupabase(schema), { env: secretEnv });
     expect(server.contextClient(service)).toBe(server.contextClient(service));
     expect(server.contextClient(anon)).toBe(server.contextClient(anon));
     expect(
@@ -387,7 +387,7 @@ describe("createServer clients", () => {
 
   it("sends user requests with the user's token and the given headers", async () => {
     const { sent } = stubFetch();
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
     await server
       .contextClient(user("user-token"), { "x-request-id": "r9" })
       .from("customers")
@@ -398,7 +398,7 @@ describe("createServer clients", () => {
 
   it("runs a user's db on PostgREST with the token, key and headers", async () => {
     const { sent } = stubFetch();
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
     const ctx = server.contextFor(user("user-token"));
     await ctx.db.customers.list({ limit: 1 });
     expect(sent(0).url).toMatch(
@@ -415,7 +415,7 @@ describe("createServer clients", () => {
 
   it("answers unauthorized to queries on invalid credentials, without a request", async () => {
     const { fetch } = stubFetch();
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
 
     const invalid: AuthState = {
       kind: "invalid",
@@ -441,7 +441,7 @@ describe("createServer clients", () => {
   });
 
   it("builds contexts from one resolution", async () => {
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
     const request = new Request("https://app.test/");
     const resolution = await server.resolve(request);
     const first = server.contextFromResolution(resolution, request);
@@ -452,7 +452,7 @@ describe("createServer clients", () => {
   });
 
   it("reuses the context of a request for the same refresh and cookies options", async () => {
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
     const request = new Request("https://app.test/");
     const first = await server.context(request);
     expect(await server.context(request, { refresh: false })).toBe(first);
@@ -465,7 +465,7 @@ describe("createServer clients", () => {
 
   it("prefetches the JWKS when asked, and never with an inline JWKS", async () => {
     const { fetch } = stubFetch();
-    createServer(defineSupabase(schema), {
+    createServer(createSupabase(schema), {
       env: { ...env, jwksUrl: new URL("https://prefetch.test/jwks.json") },
       prefetchJwks: true,
     });
@@ -477,7 +477,7 @@ describe("createServer clients", () => {
       ).toBe(true);
     });
     fetch.mockClear();
-    createServer(defineSupabase(schema), {
+    createServer(createSupabase(schema), {
       env,
       prefetchJwks: true,
       auth: { jwks: { keys: [] } },
@@ -489,7 +489,7 @@ describe("createServer clients", () => {
   });
 
   it("needs a secret key for service clients and admin()", () => {
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
     expect(() => server.admin()).toThrow(
       "admin() needs SUPABASE_SECRET_KEY; it is not set",
     );
@@ -500,7 +500,7 @@ describe("createServer clients", () => {
 
   it("runs admin() as the service role over the secret key", async () => {
     const { sent } = stubFetch();
-    const server = createServer(defineSupabase(schema), { env: secretEnv });
+    const server = createServer(createSupabase(schema), { env: secretEnv });
     const db = server.admin({ claims: { role: "service_role", job: "sync" } });
     expect(db.$context.actor).toEqual({
       id: "service",
@@ -515,7 +515,7 @@ describe("createServer clients", () => {
 
   it("sends $authAdmin and $storage calls from admin() with the secret key", async () => {
     const { sent } = stubFetch();
-    const server = createServer(defineSupabase(schema), { env: secretEnv });
+    const server = createServer(createSupabase(schema), { env: secretEnv });
     const db = server.admin({}, { as: USER });
 
     await db.$authAdmin.listUsers();
@@ -527,7 +527,7 @@ describe("createServer clients", () => {
   });
 
   it("binds dbFor to the caller and merges extra context", () => {
-    const server = createServer(defineSupabase(schema), { env: secretEnv });
+    const server = createServer(createSupabase(schema), { env: secretEnv });
     expect(server.dbFor(service).$context.actor).toEqual({
       id: "service:default",
       kind: "service",
@@ -542,7 +542,7 @@ describe("createServer clients", () => {
 
 describe("createServer contextFor", () => {
   it("builds a request-free context with lazy clients and no cookies", () => {
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       readUrl: false,
     });
@@ -560,7 +560,7 @@ describe("createServer contextFor", () => {
 
   it("opens ctx.sql as the user or anon, never for service callers", async () => {
     const { postgres, claims, fake } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
     const signed = server.contextFor(user("t"));
     expect(signed.sql).toBe(signed.sql);
     await signed.sql!.customers.list({ select: ["id"] }).orThrow();
@@ -587,7 +587,7 @@ describe("createServer approval", () => {
     });
 
   it("reads the approval id from the configured header into the context, not the subject", async () => {
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       auth: { jwks: signer.jwks },
       approval: { header: "X-Approval-Id" },
@@ -612,7 +612,7 @@ describe("createServer approval", () => {
   });
 
   it("ignores the header without the option, and an id that isn't a token", async () => {
-    const off = createServer(defineSupabase(schema), {
+    const off = createServer(createSupabase(schema), {
       env,
       auth: { jwks: signer.jwks },
     });
@@ -623,7 +623,7 @@ describe("createServer approval", () => {
 
     expect(ignored.approval).toBeUndefined();
 
-    const on = createServer(defineSupabase(schema), {
+    const on = createServer(createSupabase(schema), {
       env,
       auth: { jwks: signer.jwks },
       approval: { header: "x-approval-id" },
@@ -648,7 +648,7 @@ describe("createServer request ids", () => {
   it("forwards valid incoming ids to PostgREST and the Postgres settings", async () => {
     const { sent } = stubFetch();
     const { postgres, sessions } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
 
     const ctx = await server.context(
       new Request("https://app.test/", {
@@ -677,7 +677,7 @@ describe("createServer request ids", () => {
 
   it("generates one id per request when the incoming one is missing or invalid", async () => {
     const { sent } = stubFetch();
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
 
     const request = new Request("https://app.test/", {
       headers: {
@@ -703,7 +703,7 @@ describe("createServer request ids", () => {
   it("takes header names, explicit ids and app headers from the options", async () => {
     const { sent } = stubFetch();
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       requestIds: {
         requestHeader: "X-Trace",
@@ -729,7 +729,7 @@ describe("createServer request ids", () => {
   it("sends nothing with requestIds false, and only explicit ids without a request", async () => {
     const { sent } = stubFetch();
 
-    const off = createServer(defineSupabase(schema), {
+    const off = createServer(createSupabase(schema), {
       env,
       requestIds: false,
     });
@@ -742,7 +742,7 @@ describe("createServer request ids", () => {
     await ctx.db.customers.list({ select: ["id"] }).orThrow();
     expect(sent(0).headers.get("x-request-id")).toBeNull();
 
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
     expect(server.contextFor(anon).requestId).toBeUndefined();
     const job = server.contextFor(anon, { requestId: "job-1" });
     expect(job.correlationId).toBe("job-1");
@@ -764,7 +764,7 @@ describe("createServer tenant", () => {
         new URL(request.url).searchParams.get("organization") ?? undefined,
     );
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       postgres,
       tenant: resolver,
@@ -797,7 +797,7 @@ describe("createServer tenant", () => {
   });
 
   it("prefers options.tenant, and needs it for async resolvers without context()", async () => {
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       tenant: async () => "from-resolver",
     });
@@ -819,7 +819,7 @@ describe("createServer tenant", () => {
       TENANT,
     );
 
-    const sync = createServer(defineSupabase(schema), {
+    const sync = createServer(createSupabase(schema), {
       env,
       tenant: () => "sync",
     });
@@ -832,7 +832,7 @@ describe("createServer tenant", () => {
 
 describe("createServer actingAs", () => {
   it("needs postgres", () => {
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
     expect(() => server.actingAs(USER)).toThrow(
       "Direct Postgres access needs createServer(betterSupabase, { postgres: createPostgres() })",
     );
@@ -840,7 +840,7 @@ describe("createServer actingAs", () => {
 
   it("runs as the user, with the impersonator in act", () => {
     const { postgres, claims } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
     const plain = server.actingAs(USER, { tenant_id: "t1" });
     expect(plain.$context.actor).toEqual({
       id: USER,
@@ -881,7 +881,7 @@ describe("createServer forContext", () => {
 
   it("runs as the recorded user, scoped to the recorded tenant", async () => {
     const { postgres, claims, sessions } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
 
     const db = await server
       .forContext({ actor: userActor, tenant: TENANT })
@@ -903,7 +903,7 @@ describe("createServer forContext", () => {
 
   it("keeps the impersonator in act", async () => {
     const { postgres, claims } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
     const actor = { ...userActor, impersonator: "admin-1" };
     const db = await server.forContext({ actor }).orThrow();
     await server.forContext({ actor }, { reason: "replay 42" }).orThrow();
@@ -916,7 +916,7 @@ describe("createServer forContext", () => {
 
   it("keeps a recorded support session read-only, with its act claim", async () => {
     const { postgres, claims, sessions } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
 
     const act = {
       kind: "support",
@@ -939,7 +939,7 @@ describe("createServer forContext", () => {
 
   it("refuses a context whose act claim is not a valid chain", async () => {
     const { postgres, claims } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
 
     const result = await server.forContext({
       actor: userActor,
@@ -960,7 +960,7 @@ describe("createServer forContext", () => {
       user_role: "admin",
     }));
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       postgres,
       claimsFor,
@@ -978,7 +978,7 @@ describe("createServer forContext", () => {
       },
     ]);
 
-    const sync = createServer(defineSupabase(schema), {
+    const sync = createServer(createSupabase(schema), {
       env,
       postgres,
       claimsFor: () => ({ organization_ids: [TENANT] }),
@@ -994,7 +994,7 @@ describe("createServer forContext", () => {
 
   it("refuses contexts without a user and never falls back to admin", async () => {
     const { postgres, claims } = fakePostgres();
-    const server = createServer(defineSupabase(schema), { env, postgres });
+    const server = createServer(createSupabase(schema), { env, postgres });
 
     for (const [context, kind] of [
       [{}, "none"],
@@ -1010,7 +1010,7 @@ describe("createServer forContext", () => {
   });
 
   it("fails with invalid_request without postgres", async () => {
-    const server = createServer(defineSupabase(schema), { env });
+    const server = createServer(createSupabase(schema), { env });
     const result = await server.forContext({ actor: userActor });
     expect(result.error).toMatchObject({
       kind: "invalid_request",
@@ -1022,7 +1022,7 @@ describe("createServer forContext", () => {
   it("returns claimsFor failures as a result", async () => {
     const { postgres } = fakePostgres();
 
-    const server = createServer(defineSupabase(schema), {
+    const server = createServer(createSupabase(schema), {
       env,
       postgres,
       claimsFor: () => Promise.reject(new Error("profile lookup failed")),
@@ -1035,7 +1035,7 @@ describe("createServer forContext", () => {
 
 describe("createServer events", () => {
   it("emits an auth event per resolution with its source", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     const events: AuthEvent[] = [];
     betterSupabase.on("auth", (event) => events.push(event));
 
@@ -1089,7 +1089,7 @@ describe("createServer events", () => {
   });
 
   it("reports refreshes to the auth option and the betterSupabase event bus", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     const events: RefreshEvent[] = [];
     betterSupabase.on("refresh", (event) => events.push(event));
     const onRefresh = vi.fn();
@@ -1136,7 +1136,7 @@ describe("createServer buckets", () => {
   it("reads db.$buckets from the caller's Storage", async () => {
     const logos = defineBucket({ id: "logos", path: "{userId}/logo.webp" });
 
-    const server = createServer(defineSupabase(schema).buckets({ logos }), {
+    const server = createServer(createSupabase(schema).buckets({ logos }), {
       env,
       auth: { jwks: signer.jwks },
     });

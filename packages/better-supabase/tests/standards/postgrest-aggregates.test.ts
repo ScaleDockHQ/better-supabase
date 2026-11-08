@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -40,7 +40,7 @@ function items(select: string): string[] {
 }
 
 describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregates}+)`, () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   it("compiles aggregate() to the aggregate select grammar with group-by columns", async () => {
     const { client, last } = capturingClient(() => ({

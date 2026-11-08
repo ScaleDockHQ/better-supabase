@@ -1,56 +1,20 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:3e8ec5a1a28618be5ec1df35389693aecd92c531610b92253fc856719dc1e49b
+-- @bsb-hash sha256:c48a81e485399fb70e2fd83e41ae881c2903b14127b1c0e1596c2865e0208419
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Announcements staff publish to everyone, to tenants, to members with a
 -- role, or (with entitlements) to tenants on a plan, between starts_at and
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
-create table if not exists "better_supabase"."announcements" (
+create table "better_supabase"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
-  "title" text not null check (length("title") between 1 and 200),
-  "body" text not null default '' check (length("body") <= 10000),
-  "severity" text not null default 'info' check ("severity" in ('info', 'success', 'warning', 'critical')),
-  "href" text check ("href" ~ '^(https://|/)'),
+  "title" text not null constraint bsb_announcements_title_check check (length("title") >= 1 and length("title") <= 200),
+  "body" text not null default '' constraint bsb_announcements_body_check check (length("body") <= 10000),
+  "severity" text not null default 'info' constraint bsb_announcements_severity_check check ("severity" in ('info', 'success', 'warning', 'critical')),
+  "href" text constraint bsb_announcements_href_check check ("href" ~ '^(https://|/)'),
   "audience" text not null default 'all',
   "targets" text[] not null default '{}',
   "starts_at" timestamptz not null default now(),
@@ -59,26 +23,26 @@ create table if not exists "better_supabase"."announcements" (
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check (("audience" = 'all') = (cardinality("targets") = 0))
+  constraint bsb_announcements_check check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_announcements_check1 check (("audience" = 'all') = (cardinality("targets") = 0))
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "better_supabase"."announcements" drop constraint if exists bsb_announcements_audience;
+
 alter table "better_supabase"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
-create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
-create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
+create index announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
+create index announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
 revoke all on "better_supabase"."announcements" from public, anon, authenticated;
 grant all on "better_supabase"."announcements" to service_role;
 
-create table if not exists "better_supabase"."announcement_dismissals" (
+create table "better_supabase"."announcement_dismissals" (
   "announcement_id" uuid not null references "better_supabase"."announcements" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "dismissed_at" timestamptz not null default now(),
   primary key ("announcement_id", "user_id")
 );
-create index if not exists announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
+create index announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
 alter table "better_supabase"."announcement_dismissals" enable row level security;
 revoke all on "better_supabase"."announcement_dismissals" from public, anon, authenticated;
 grant all on "better_supabase"."announcement_dismissals" to service_role;
@@ -270,19 +234,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_announcements_receive on realtime.messages;
 create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
-  end if;
-end;
-$$;
 
 revoke execute on function "better_supabase"."active_announcements"(uuid) from public, anon;
 revoke execute on function "better_supabase"."dismiss_announcement"(uuid) from public, anon;
@@ -294,19 +250,6 @@ grant execute on function "better_supabase"."dismiss_announcement"(uuid) to auth
 grant execute on function "better_supabase"."list_announcements"() to authenticated, service_role;
 grant execute on function "better_supabase"."save_announcement"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_announcement"(uuid) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
@@ -325,56 +268,20 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:b787603adb5af21d030fab482a366b12d5c9d47ffa66b144f51e5e9a60ca4699
+-- @bsb-hash sha256:fc6c8f55de4a86a8c83ed421eea9c090c689814d2c10660dab3767fdc0c9487f
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Announcements staff publish to everyone, to tenants, to members with a
 -- role, or (with entitlements) to tenants on a plan, between starts_at and
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
-create table if not exists "better_supabase"."announcements" (
+create table "better_supabase"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
-  "title" text not null check (length("title") between 1 and 200),
-  "body" text not null default '' check (length("body") <= 10000),
-  "severity" text not null default 'info' check ("severity" in ('info', 'success', 'warning', 'critical')),
-  "href" text check ("href" ~ '^(https://|/)'),
+  "title" text not null constraint bsb_announcements_title_check check (length("title") >= 1 and length("title") <= 200),
+  "body" text not null default '' constraint bsb_announcements_body_check check (length("body") <= 10000),
+  "severity" text not null default 'info' constraint bsb_announcements_severity_check check ("severity" in ('info', 'success', 'warning', 'critical')),
+  "href" text constraint bsb_announcements_href_check check ("href" ~ '^(https://|/)'),
   "audience" text not null default 'all',
   "targets" text[] not null default '{}',
   "starts_at" timestamptz not null default now(),
@@ -383,26 +290,26 @@ create table if not exists "better_supabase"."announcements" (
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check (("audience" = 'all') = (cardinality("targets") = 0))
+  constraint bsb_announcements_check check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_announcements_check1 check (("audience" = 'all') = (cardinality("targets") = 0))
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "better_supabase"."announcements" drop constraint if exists bsb_announcements_audience;
+
 alter table "better_supabase"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role', 'plan'));
-create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
-create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
+create index announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
+create index announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
 revoke all on "better_supabase"."announcements" from public, anon, authenticated;
 grant all on "better_supabase"."announcements" to service_role;
 
-create table if not exists "better_supabase"."announcement_dismissals" (
+create table "better_supabase"."announcement_dismissals" (
   "announcement_id" uuid not null references "better_supabase"."announcements" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "dismissed_at" timestamptz not null default now(),
   primary key ("announcement_id", "user_id")
 );
-create index if not exists announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
+create index announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
 alter table "better_supabase"."announcement_dismissals" enable row level security;
 revoke all on "better_supabase"."announcement_dismissals" from public, anon, authenticated;
 grant all on "better_supabase"."announcement_dismissals" to service_role;
@@ -615,19 +522,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_announcements_receive on realtime.messages;
 create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
-  end if;
-end;
-$$;
 
 revoke execute on function "better_supabase"."active_announcements"(uuid) from public, anon;
 revoke execute on function "better_supabase"."dismiss_announcement"(uuid) from public, anon;
@@ -641,24 +540,7 @@ grant execute on function "better_supabase"."save_announcement"(uuid, jsonb) to 
 grant execute on function "better_supabase"."delete_announcement"(uuid) to authenticated, service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.announcements', target_type => 'announcement', event_prefix => 'announcement', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.announcements deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"announcement","event_prefix":"announcement"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
@@ -677,47 +559,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:65389e6fb148f32db5dba22ea1e08b6e0ef5fc8684f3f68887173ea06ba53450
+-- @bsb-hash sha256:c48054c1e589e3e976d2d498d89011e24e2eca694729db72896d67eb142c4722
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -726,12 +572,12 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Announcements staff publish to everyone, to tenants, to members with a
 -- role, or (with entitlements) to tenants on a plan, between starts_at and
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
-create table if not exists "app_private"."announcements" (
+create table "app_private"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
-  "title" text not null check (length("title") between 1 and 200),
-  "body" text not null default '' check (length("body") <= 10000),
-  "severity" text not null default 'info' check ("severity" in ('info', 'success', 'warning', 'critical')),
-  "href" text check ("href" ~ '^(https://|/)'),
+  "title" text not null constraint bsb_announcements_title_check check (length("title") >= 1 and length("title") <= 200),
+  "body" text not null default '' constraint bsb_announcements_body_check check (length("body") <= 10000),
+  "severity" text not null default 'info' constraint bsb_announcements_severity_check check ("severity" in ('info', 'success', 'warning', 'critical')),
+  "href" text constraint bsb_announcements_href_check check ("href" ~ '^(https://|/)'),
   "audience" text not null default 'all',
   "targets" text[] not null default '{}',
   "starts_at" timestamptz not null default now(),
@@ -740,26 +586,26 @@ create table if not exists "app_private"."announcements" (
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check (("audience" = 'all') = (cardinality("targets") = 0))
+  constraint bsb_announcements_check check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_announcements_check1 check (("audience" = 'all') = (cardinality("targets") = 0))
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "app_private"."announcements" drop constraint if exists bsb_announcements_audience;
+
 alter table "app_private"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
-create index if not exists announcements_window_idx on "app_private"."announcements" ("starts_at", "ends_at");
-create index if not exists announcements_created_by_idx on "app_private"."announcements" ("created_by");
+create index announcements_window_idx on "app_private"."announcements" ("starts_at", "ends_at");
+create index announcements_created_by_idx on "app_private"."announcements" ("created_by");
 alter table "app_private"."announcements" enable row level security;
 revoke all on "app_private"."announcements" from public, anon, authenticated;
 grant all on "app_private"."announcements" to service_role;
 
-create table if not exists "app_private"."announcement_dismissals" (
+create table "app_private"."announcement_dismissals" (
   "announcement_id" uuid not null references "app_private"."announcements" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "dismissed_at" timestamptz not null default now(),
   primary key ("announcement_id", "user_id")
 );
-create index if not exists announcement_dismissals_user_idx on "app_private"."announcement_dismissals" ("user_id");
+create index announcement_dismissals_user_idx on "app_private"."announcement_dismissals" ("user_id");
 alter table "app_private"."announcement_dismissals" enable row level security;
 revoke all on "app_private"."announcement_dismissals" from public, anon, authenticated;
 grant all on "app_private"."announcement_dismissals" to service_role;
@@ -951,19 +797,11 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bsb_announcements_broadcast" on "app_private"."announcements";
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "app_private"."announcements"
   for each row execute function "app_private"."broadcast_announcement"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_announcements_receive on realtime.messages;
 create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
-  end if;
-end;
-$$;
 
 revoke execute on function "app_private"."active_announcements"(uuid) from public, anon;
 revoke execute on function "app_private"."dismiss_announcement"(uuid) from public, anon;
@@ -975,19 +813,6 @@ grant execute on function "app_private"."dismiss_announcement"(uuid) to authenti
 grant execute on function "app_private"."list_announcements"() to authenticated, service_role;
 grant execute on function "app_private"."save_announcement"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "app_private"."delete_announcement"(uuid) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
@@ -1006,56 +831,20 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:fc923771d8775c2ccf8dabdfceac980abc37935179deb2ed7213decfafa07fa8
+-- @bsb-hash sha256:b7e50e926ccd953539492383acfac7115238849c369a8f6605f5410b0d453d1c
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Announcements staff publish to everyone, to tenants, to members with a
 -- role, or (with entitlements) to tenants on a plan, between starts_at and
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
-create table if not exists "better_supabase"."announcements" (
+create table "better_supabase"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
-  "title" text not null check (length("title") between 1 and 200),
-  "body" text not null default '' check (length("body") <= 10000),
-  "severity" text not null default 'info' check ("severity" in ('info', 'success', 'warning', 'critical')),
-  "href" text check ("href" ~ '^(https://|/)'),
+  "title" text not null constraint bsb_announcements_title_check check (length("title") >= 1 and length("title") <= 200),
+  "body" text not null default '' constraint bsb_announcements_body_check check (length("body") <= 10000),
+  "severity" text not null default 'info' constraint bsb_announcements_severity_check check ("severity" in ('info', 'success', 'warning', 'critical')),
+  "href" text constraint bsb_announcements_href_check check ("href" ~ '^(https://|/)'),
   "audience" text not null default 'all',
   "targets" text[] not null default '{}',
   "starts_at" timestamptz not null default now(),
@@ -1064,26 +853,26 @@ create table if not exists "better_supabase"."announcements" (
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check (("audience" = 'all') = (cardinality("targets") = 0))
+  constraint bsb_announcements_check check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_announcements_check1 check (("audience" = 'all') = (cardinality("targets") = 0))
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "better_supabase"."announcements" drop constraint if exists bsb_announcements_audience;
+
 alter table "better_supabase"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
-create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
-create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
+create index announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
+create index announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" enable row level security;
 revoke all on "better_supabase"."announcements" from public, anon, authenticated;
 grant all on "better_supabase"."announcements" to service_role;
 
-create table if not exists "better_supabase"."announcement_dismissals" (
+create table "better_supabase"."announcement_dismissals" (
   "announcement_id" uuid not null references "better_supabase"."announcements" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "dismissed_at" timestamptz not null default now(),
   primary key ("announcement_id", "user_id")
 );
-create index if not exists announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
+create index announcement_dismissals_user_idx on "better_supabase"."announcement_dismissals" ("user_id");
 alter table "better_supabase"."announcement_dismissals" enable row level security;
 revoke all on "better_supabase"."announcement_dismissals" from public, anon, authenticated;
 grant all on "better_supabase"."announcement_dismissals" to service_role;
@@ -1275,19 +1064,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_announcements_receive on realtime.messages;
 create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
-  end if;
-end;
-$$;
 
 revoke execute on function "better_supabase"."active_announcements"(uuid) from public, anon;
 revoke execute on function "better_supabase"."dismiss_announcement"(uuid) from public, anon;
@@ -1303,25 +1084,6 @@ grant execute on function "better_supabase"."delete_announcement"(uuid) to authe
 -- blocks.announcements.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."active_announcements"(tenant uuid default null)
 returns jsonb
@@ -1370,19 +1132,6 @@ as $$ select "better_supabase"."delete_announcement"($1) $$;
 revoke execute on function "api"."delete_announcement"(uuid) from public, anon;
 grant execute on function "api"."delete_announcement"(uuid) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block-data announcements
@@ -1400,56 +1149,20 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:43524a2094df5eaffad8cf1814f2634189a2232feb1ff8fec31e0f7ef8a798e3
+-- @bsb-hash sha256:decdc704164133c4466f58aaf10432490b9f1c0aef200b42a8c550d93126dfa9
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Announcements staff publish to everyone, to tenants, to members with a
 -- role, or (with entitlements) to tenants on a plan, between starts_at and
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
 -- better_supabase.announcements is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."announcements" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."announcements" add column if not exists "title" text check (length("title") between 1 and 200);
-alter table "better_supabase"."announcements" add column if not exists "body" text not null default '' check (length("body") <= 10000);
-alter table "better_supabase"."announcements" add column if not exists "severity" text not null default 'info' check ("severity" in ('info', 'success', 'warning', 'critical'));
-alter table "better_supabase"."announcements" add column if not exists "href" text check ("href" ~ '^(https://|/)');
+alter table "better_supabase"."announcements" add column if not exists "title" text constraint bsb_announcements_title_check check (length("title") >= 1 and length("title") <= 200);
+alter table "better_supabase"."announcements" add column if not exists "body" text not null default '' constraint bsb_announcements_body_check check (length("body") <= 10000);
+alter table "better_supabase"."announcements" add column if not exists "severity" text not null default 'info' constraint bsb_announcements_severity_check check ("severity" in ('info', 'success', 'warning', 'critical'));
+alter table "better_supabase"."announcements" add column if not exists "href" text constraint bsb_announcements_href_check check ("href" ~ '^(https://|/)');
 alter table "better_supabase"."announcements" add column if not exists "audience" text not null default 'all';
 alter table "better_supabase"."announcements" add column if not exists "targets" text[] not null default '{}';
 alter table "better_supabase"."announcements" add column if not exists "starts_at" timestamptz not null default now();
@@ -1661,19 +1374,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
 create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
-do $$
-begin
-  if to_regclass('realtime.messages') is not null then
-        drop policy if exists bsb_announcements_receive on realtime.messages;
 create policy bsb_announcements_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
-  end if;
-end;
-$$;
 
 revoke execute on function "better_supabase"."active_announcements"(uuid) from public, anon;
 revoke execute on function "better_supabase"."dismiss_announcement"(uuid) from public, anon;
@@ -1685,19 +1390,6 @@ grant execute on function "better_supabase"."dismiss_announcement"(uuid) to auth
 grant execute on function "better_supabase"."list_announcements"() to authenticated, service_role;
 grant execute on function "better_supabase"."save_announcement"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_announcement"(uuid) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements

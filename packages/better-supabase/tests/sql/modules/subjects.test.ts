@@ -137,7 +137,7 @@ describe("subject actions beyond tenant keys", () => {
     },
     thread: {
       table: "public.threads",
-      permissions: { share: { owner: "owner_user_id" } },
+      permissions: { share: { owner: "owner_id" } },
     },
   };
 
@@ -165,12 +165,12 @@ describe("subject actions beyond tenant keys", () => {
     expect(sql).toContain(
       `s."id"::text in (select r.id::text from authz.rows_file_node('file.update', array[s."id"::text]) as r(id))`,
     );
-    expect(sql).toContain(`when 'share' then s."owner_user_id" = auth.uid()`);
+    expect(sql).toContain(`when 'share' then s."owner_id" = auth.uid()`);
     expect(sql).toContain(
       `authz.rows_file_node_for(can_subject_for.member, 'file.read', array[s."id"::text])`,
     );
     expect(sql).toContain(
-      `when 'share' then s."owner_user_id" = can_subject_for.member`,
+      `when 'share' then s."owner_id" = can_subject_for.member`,
     );
   });
 

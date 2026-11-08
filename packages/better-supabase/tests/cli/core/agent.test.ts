@@ -8,7 +8,7 @@ import type { AgentProbe } from "../../../src/cli/core/agent.ts";
 
 import {
   checkConsent,
-  consentToken,
+  consentDigest,
   databaseHost,
   detectAgent,
   isLocalDatabaseUrl,
@@ -19,6 +19,7 @@ import {
 import { defineCliCommand } from "../../../src/cli/core/command.ts";
 import { CliError } from "../../../src/cli/core/errors.ts";
 import { createCli } from "../../../src/cli/core/run.ts";
+import { errorDoc } from "../error-doc.ts";
 
 const PIPE: AgentProbe = { stdoutIsTty: false, exists: () => false };
 const TERMINAL: AgentProbe = { stdoutIsTty: true, exists: () => false };
@@ -172,31 +173,38 @@ describe("consent", () => {
     detail: "init --force overwrites files",
   };
 
-  it("passes with the token for the same command, ignoring --confirm itself", () => {
-    const token = consentToken(["init", "--force"], request);
+  it("passes with the token for the same command, ignoring --effects-digest itself", () => {
+    const token = consentDigest(["init", "--force"], request);
 
     expect(token).toMatch(/^[\da-f]{16}$/);
-    expect(consentToken(["init", "--force", "--confirm", token], request)).toBe(
-      token,
-    );
+    expect(
+      consentDigest(["init", "--force", "--effects-digest", token], request),
+    ).toBe(token);
     expect(() => {
-      checkConsent(["init", "--force", "--confirm", token], request, token);
+      checkConsent(
+        ["init", "--force", "--yes", "--effects-digest", token],
+        request,
+        { yes: true, digest: token },
+      );
     }).not.toThrow();
   });
 
   it("asks for consent with the token and the command to run after it", () => {
-    const token = consentToken(["init", "--force"], request);
+    const token = consentDigest(["init", "--force"], request);
 
     expect(() => {
-      checkConsent(["init", "--force"], request, undefined);
+      checkConsent(["init", "--force"], request, {
+        yes: undefined,
+        digest: undefined,
+      });
     }).toThrow(
       expect.objectContaining({
-        code: "consent_required",
-        exitCode: 3,
-        problem: expect.objectContaining({ token }),
+        code: "confirmation_required",
+        exitCode: 2,
+        problem: expect.objectContaining({ digest: token }),
         next: [
           {
-            command: `better-supabase init --force --confirm ${token}`,
+            command: `better-supabase init --force --yes --effects-digest ${token}`,
             when: "after the user agrees",
           },
         ],
@@ -205,19 +213,19 @@ describe("consent", () => {
   });
 
   it("rejects a token for another command", () => {
-    const other = consentToken(
+    const other = consentDigest(
       ["init", "--force", "--cwd", "elsewhere"],
       request,
     );
 
     expect(() => {
-      checkConsent(["init", "--force"], request, other);
+      checkConsent(["init", "--force"], request, { yes: true, digest: other });
     }).toThrow(/for another command or another target/);
   });
 
   it("keeps the token when only presentation flags change", () => {
     const argv = ["dev", "stack", "prune", "--stop-idle"];
-    const token = consentToken(argv, request);
+    const token = consentDigest(argv, request);
 
     for (const extra of [
       ["--yes"],
@@ -226,18 +234,22 @@ describe("consent", () => {
       ["--no-json"],
       ["--no-color"],
       ["--debug"],
+      ["--non-interactive"],
       ["--agent", "yes"],
       ["--agent=no"],
     ]) {
-      expect(consentToken([...argv, ...extra], request)).toBe(token);
+      expect(consentDigest([...argv, ...extra], request)).toBe(token);
     }
 
     expect(() => {
-      checkConsent([...argv, "--yes", "--confirm", token], request, token);
+      checkConsent([...argv, "--yes", "--effects-digest", token], request, {
+        yes: true,
+        digest: token,
+      });
     }).not.toThrow();
-    expect(consentToken(["dev", "stack", "prune"], request)).not.toBe(token);
-    expect(consentToken([...argv, "--env", "ci"], request)).not.toBe(token);
-    expect(consentToken([...argv, "--", "--yes"], request)).not.toBe(token);
+    expect(consentDigest(["dev", "stack", "prune"], request)).not.toBe(token);
+    expect(consentDigest([...argv, "--env", "ci"], request)).not.toBe(token);
+    expect(consentDigest([...argv, "--", "--yes"], request)).not.toBe(token);
   });
 
   it("treats only this machine as a local database", () => {
@@ -358,28 +370,18 @@ describe("agent mode in run()", () => {
     );
   });
 
-  it("points the old skills install --agent at --for instead of agent mode", async () => {
-    const result = await cli.run(
-      ["skills", "install", "--agent", "cursor", "--json", "--cwd", dir],
-      { env: {} },
-    );
-
-    expect(result.code).toBe(2);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      error: { code: "flag_renamed" },
-    });
-  });
-
   it("answers a missing input with action_required and the next command", async () => {
     const result = await cli.run(["ask", "--cwd", dir], {
       env: { CLAUDECODE: "1" },
     });
 
-    expect(result.code).toBe(3);
-    expect(JSON.parse(result.stdout)).toMatchObject({
+    expect(result.code).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(errorDoc(result)).toMatchObject({
       status: "action_required",
-      error: {
-        code: "input_required",
+      reason: "input_required",
+      userActionRequired: true,
+      data: {
         missing: ["--package"],
         choices: { "--package": ["apps/web", "."] },
       },
@@ -391,28 +393,39 @@ describe("agent mode in run()", () => {
     });
   });
 
-  it("asks for consent before --force overwrites, and runs with the token", async () => {
+  it("asks for consent before --force overwrites, and runs with the digest", async () => {
     const argv = ["mode", "--force", "--cwd", dir];
     const first = await cli.run(argv, { env: { CLAUDECODE: "1" } });
 
-    expect(first.code).toBe(3);
+    expect(first.code).toBe(2);
 
-    const body = JSON.parse(first.stdout) as {
+    const body = errorDoc(first) as {
       readonly status: string;
-      readonly error: { readonly code: string; readonly token: string };
+      readonly reason: string;
+      readonly data: { readonly digest: string };
     };
 
     expect(body.status).toBe("action_required");
-    expect(body.error.code).toBe("consent_required");
+    expect(body.reason).toBe("confirmation_required");
 
-    const agreed = await cli.run([...argv, "--confirm", body.error.token], {
-      env: { CLAUDECODE: "1" },
-    });
+    const agreed = await cli.run(
+      [...argv, "--yes", "--effects-digest", body.data.digest],
+      { env: { CLAUDECODE: "1" } },
+    );
 
     expect(agreed.code).toBe(0);
 
     const yes = await cli.run([...argv, "--yes"], { env: { CLAUDECODE: "1" } });
-    expect(yes.code).toBe(3);
+    expect(yes.code).toBe(2);
+
+    const confirm = await cli.run([...argv, "--confirm", "abc"], {
+      env: { CLAUDECODE: "1" },
+    });
+
+    expect(errorDoc(confirm)).toMatchObject({
+      reason: "flag_renamed",
+      data: { flag: "--confirm" },
+    });
 
     const person = await cli.run(argv, { env: {} });
     expect(person.code).toBe(0);

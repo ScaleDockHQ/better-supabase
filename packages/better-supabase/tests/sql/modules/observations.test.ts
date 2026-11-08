@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
 import { OBSERVATIONS } from "../../../src/sql/modules/observations.ts";
-import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { customContracts } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -73,9 +74,7 @@ describe("observations module", () => {
   it("partitions by month and drops the keys a partition can't hold", () => {
     const plain = sqlOf();
     expect(plain).toMatch(/"replaces_id" uuid references/);
-    expect(plain).toMatch(
-      /create unique index if not exists "observations_external_key"/,
-    );
+    expect(plain).toMatch(/create unique index "observations_external_key"/);
 
     const sql = sqlOf(BASE, {
       modules: { observations: { options: { partitioned: true } } },

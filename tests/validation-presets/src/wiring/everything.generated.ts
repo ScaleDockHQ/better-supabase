@@ -21,7 +21,7 @@ import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
 import { bookingsBlock } from "better-supabase/blocks/bookings";
-import { bulkBlock } from "better-supabase/blocks/bulk";
+import { bulkActionsBlock } from "better-supabase/blocks/bulk-actions";
 import { calendarBlock } from "better-supabase/blocks/calendar";
 import { carePlansBlock } from "better-supabase/blocks/care-plans";
 import { catalogBlock } from "better-supabase/blocks/catalog";
@@ -154,7 +154,7 @@ import { tagsBlock } from "better-supabase/blocks/tags";
 import { goalsBlock } from "better-supabase/blocks/goals";
 import { teamsBlock } from "better-supabase/blocks/teams";
 import { templatesBlock } from "better-supabase/blocks/templates";
-import { timeTrackingBlock } from "better-supabase/blocks/time-tracking";
+import { timeEntriesBlock } from "better-supabase/blocks/time-entries";
 import { trashBlock } from "better-supabase/blocks/trash";
 import { usageBlock } from "better-supabase/blocks/usage";
 import { versionsBlock } from "better-supabase/blocks/versions";
@@ -187,7 +187,7 @@ export const blockSet = defineBlocks(blockConfig, {
   audit: auditBlock,
   billing: billingBlock,
   bookings: bookingsBlock,
-  bulk: bulkBlock,
+  bulkActions: bulkActionsBlock,
   calendar: calendarBlock,
   carePlans: carePlansBlock,
   catalog: catalogBlock,
@@ -320,7 +320,7 @@ export const blockSet = defineBlocks(blockConfig, {
   goals: goalsBlock,
   teams: teamsBlock,
   templates: templatesBlock,
-  timeTracking: timeTrackingBlock,
+  timeEntries: timeEntriesBlock,
   trash: trashBlock,
   usage: usageBlock,
   versions: versionsBlock,

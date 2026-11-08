@@ -6,7 +6,6 @@ import { ShieldCheckIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import Image from "next/image";
 import { useId, useState, useTransition } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,8 +29,9 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { useSupabase } from "@/lib/hooks";
+import { toast } from "@/lib/toast";
 
-import type { AuthRead } from "../security-queries";
+import type { AuthRead } from "../user-queries";
 
 import { sessionChanged } from "../user-actions";
 

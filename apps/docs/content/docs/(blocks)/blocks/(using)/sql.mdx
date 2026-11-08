@@ -51,8 +51,20 @@ inside the schema folder (`supabase/schemas/block`), the data files still go
 next to the schema folder, and `declarative_schema_path` in
 `supabase/config.toml` moves both. `better-supabase add --adopt` writes those files into one
 migration, stamped after the newest one so it runs after the schema migration.
-Its statements are idempotent, and it writes nothing when the latest data
-migration already has them. `add` and `upgrade` say when to run it.
+Its statements are idempotent keyed upserts. It compares them with the
+statements of the data migrations already in the folder and writes only the
+ones no migration holds, so a block upgrade adds one small migration instead of
+repeating every row. It writes nothing when every statement is already there,
+and `--check` exits with 1 when one is missing. `add` and `upgrade` say when to
+run it. The `memberships` backfill of `membership_roles` (with
+`roles.many`) lives in this file too, not in the schema file.
+
+Your own reference data stays yours: `upgrade` never writes rows into
+`supabase/seeds`, and a block never seeds a table your seed files write to
+([doctor BS358](/docs/cli/doctor#bs358)). An insert in a data file that has no
+`on conflict` or `not exists` key fails [BS357](/docs/cli/doctor#bs357), and a
+`seed_<name>_defaults` function without a `p_locale` parameter fails
+[BS359](/docs/cli/doctor#bs359).
 
 Event triggers belong to no schema, so a diff limited to some schemas
 (`supabase db schema declarative sync -s public,better_supabase`) leaves
@@ -64,12 +76,19 @@ the schema migration lacks them, and
 [doctor BS323](/docs/cli/doctor#bs323) reports a module event trigger that
 the database, or every migration, lacks.
 
+`upgrade` writes every event trigger, and every trigger on an `auth` table (the
+profile, SSO and waitlist triggers), to one file,
+`900_better_supabase_999_unscoped.sql`, so the statements no schema filter
+covers sit in one place. The module files keep the functions they call. The
+migrations workflow keeps each statement in its module, because it applies them
+in file order.
+
 ## Commands
 
 | Command                     | What it does                                                      | Side effects  |
 | --------------------------- | ----------------------------------------------------------------- | ------------- |
 | `add <block...>`            | Writes the module files and config entries, and wires the clients | Writes files. |
-| `add --adopt`               | Writes the data migration from `supabase/better-supabase-data`    | Writes files. |
+| `add --adopt`               | Writes the data statements no data migration holds yet            | Writes files. |
 | `upgrade`                   | Writes the upgrade steps, then every module file again            | Writes files. |
 | `remove <block...>`         | Takes blocks out of the config and deletes their module files     | Writes files. |
 | `blocks list --installed`   | Lists the installed blocks with their versions                    | None.         |
@@ -113,6 +132,10 @@ it to an existing `config.toml` under this workflow.
 
 ### migra (Declarative Schemas 1.0)
 
+The tables your earlier migrations create count as yours, as they do under
+`migrations`, so the module files that `upgrade` writes into `supabase/schemas`
+never create them again.
+
 The legacy engine reads `supabase/schemas` while the stack is stopped. The
 CLI and doctor name its command, `supabase db diff -f better_supabase_block`.
 When `supabase/config.toml` lists `[db.migrations] schema_paths`, migra reads
@@ -140,6 +163,30 @@ differ from the newest `*_better_supabase_modules.sql`.
 - `add --adopt` writes nothing, because the rows are already in the migration.
 - `gen` writes the read-sets module into `<stamp>_better_supabase_read_sets.sql`.
 - The pgTAP files still go to `database.sql.testsDir`.
+
+### Columns your files add to a block table
+
+A column you add to a block's table with `alter table ... add column` in one of
+your own schema files is a field of that block: its functions read it and write
+it through `fields`, and the block never adds or drops it. Put the statement in
+the file that already alters the table, beside its checks and comments, or in
+`<table>.ext.sql` next to your schema files when none does. `upgrade` never
+rewrites a file without a `@bsb-block` line, and the CLI reads the type text
+after the column name, so `text not null default 'en'` gives the field its
+default. The `extraColumns` options this replaces were removed:
+`better-supabase codemod extra-columns` moves them into your files. On a table you create yourself and map a block over, the columns the block
+takes as fields are the ones its table comment lists: `comment on table ... is
+'@bsb fields plan, seats'`.
+
+### Migration names
+
+Every migration the CLI writes is named `<stamp>_better_supabase_<name>_<hash>.sql`.
+The stamp is later than the newest name in the migrations folder, whichever tool
+wrote it, so an authorization library's generator never shares a version with
+`upgrade`. The hash is the first 8 hex digits of the statements without their
+comments. A command that would write statements an existing migration already
+holds leaves the folder alone, and `--force` writes them again as a new
+migration. Names without a hash, from earlier releases, are still read.
 
 ## Modules
 
@@ -214,12 +261,12 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `share-links`               | Hashed share links, views and per-user state. See [Share links](/docs/blocks/share-links).                                                                                                                                                                                                                                                                                                                                                                                         |
 | `reminders`                 | RFC 5545 recurrence and reminder delivery. See [Reminders](/docs/blocks/reminders).                                                                                                                                                                                                                                                                                                                                                                                                |
 | `imports`                   | CSV import runs. See [Imports](/docs/blocks/imports).                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `subjects`                  | The app-wide subject registry from `config.subjects`: `subject_title`, `subject_url`, `subject_titles`, `can_subject` and `can_subject_for`. See [Subject registry](#subject-registry) and [Subjects](/docs/repository/record-types).                                                                                                                                                                                                                                              |
+| `subjects`                  | The app-wide subject registry from `config.recordTypes`: `subject_title`, `subject_url`, `subject_titles`, `can_subject` and `can_subject_for`. See [Subject registry](#subject-registry) and [Subjects](/docs/repository/record-types).                                                                                                                                                                                                                                           |
 | `rank`                      | Fractional rank keys for subjects with a `rank` column: `rank_between`, `move` and the `rank.rebalance` job. See [Rank](/docs/blocks/rank).                                                                                                                                                                                                                                                                                                                                        |
 | `saved-views`               | Named list views per user, team or organization, with a default per slot and rank order. See [Saved views](/docs/blocks/saved-views).                                                                                                                                                                                                                                                                                                                                              |
 | `relations`                 | Typed links between subjects with inverse names, cycle checks, one-target kinds, ancestors, descendants and rollups. See [Relations](/docs/blocks/relations).                                                                                                                                                                                                                                                                                                                      |
-| `bulk`                      | One action over many rows with a result per row, and background runs on the jobs queue as the user who started them. See [Bulk actions](/docs/blocks/bulk).                                                                                                                                                                                                                                                                                                                        |
-| `search`                    | A `search_documents` index kept up by triggers from each `search` entry in `config.subjects`; `search(q)` as the caller with websearch, prefix and trigram matching and `can_subject`, hybrid ranking with embeddings, and recents and favorites from share-links. See [Search](/docs/blocks/search).                                                                                                                                                                              |
+| `bulk`                      | One action over many rows with a result per row, and background runs on the jobs queue as the user who started them. See [Bulk actions](/docs/blocks/bulk-actions).                                                                                                                                                                                                                                                                                                                |
+| `search`                    | A `search_documents` index kept up by triggers from each `search` entry in `config.recordTypes`; `search(q)` as the caller with websearch, prefix and trigram matching and `can_subject`, hybrid ranking with embeddings, and recents and favorites from share-links. See [Search](/docs/blocks/search).                                                                                                                                                                           |
 | `metrics`                   | Metrics declared with `defineMetric`: `metric_points` rollups per grain and time zone, `metric_series` and `metric_value` checked against a permission in the tenant, and a `metrics.rollup` job. See [Metrics](/docs/blocks/metrics).                                                                                                                                                                                                                                             |
 | `calendar`                  | Calendars, events with RFC 5545 recurrence, overrides and attendees, an iCalendar import and an iCal feed through a share link. See [Calendar](/docs/blocks/calendar).                                                                                                                                                                                                                                                                                                             |
 | `bookings`                  | Bookable resources with weekly hours and exceptions, services with buffers, `available_slots` in SQL, holds that expire, an exclusion constraint against double bookings (needs `btree_gist`) and public booking through a share link. With `recurring`, a weekly or daily rule books a series one occurrence at a time. See [Bookings](/docs/blocks/bookings).                                                                                                                    |
@@ -249,7 +296,7 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `promotions`                | Percentage, fixed and free-shipping promotions, automatic or by code, scoped to the order, products, categories or collections, with usage and per-customer limits, stacking and priority; orders prices them into carts and redeems them at checkout. See [Promotions](/docs/blocks/promotions).                                                                                                                                                                                  |
 | `forms`                     | Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that `pg_jsonschema` checks on every submission, drafts, public links through share-links with a rate limit and a bot-check hook, and handlers that turn a submission into a record. See [Forms](/docs/blocks/forms).                                                                                                                                                               |
 | `signatures`                | Simple electronic signatures on a frozen version from the versions module: click, typed or drawn signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide. See [Signatures](/docs/blocks/signatures).                                                                                                                                                                                                                 |
-| `time-tracking`             | Timers and logged time on any record with one running timer per member and no overlaps, weekly timesheets approved through approvals, and weeks that lock while pending or approved. See [Time tracking](/docs/blocks/time-tracking).                                                                                                                                                                                                                                              |
+| `time-entries`              | Timers and logged time on any record with one running timer per member and no overlaps, weekly timesheets approved through approvals, and weeks that lock while pending or approved. See [Time tracking](/docs/blocks/time-entries).                                                                                                                                                                                                                                               |
 | `identities`                | Links an email address or a chat user to an app user or a contact, through a one-time code or a confirmed address. See [Identities](/docs/blocks/identities).                                                                                                                                                                                                                                                                                                                      |
 | `service-accounts`          | Organization members that aren't people: `auth.users` rows that can't sign in, with a role through a membership. Organization-owned workflow versions and service webhook endpoints run as the default one. See [Service principals](/docs/blocks/service-accounts).                                                                                                                                                                                                               |
 | `signing-keys`              | Ed25519 and ES256 keys per owner, private keys in Vault, one active key per owner, retired keys published until their tokens expire, and a JWK Set per owner. See [Signing keys](/docs/blocks/signing-keys).                                                                                                                                                                                                                                                                       |
@@ -294,8 +341,8 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `templates`                 | Versioned templates of a type that create records, system starters kept by key and forked per organization, a default per type and language, the applications each template made, and the workflow-editor workflows each new record starts. See [Templates](/docs/blocks/templates).                                                                                                                                                                                               |
 | `pipelines`                 | Tenant-editable pipelines for registered subjects: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency, and a status column set from the stage. See [Pipelines](/docs/blocks/pipelines).                                                                                                                                                                                                                |
 | `contacts`                  | Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search. See [Parties](/docs/blocks/contacts).                                                                                                                                                                                                                                                       |
-| `activities`                | Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks. With `recordings`, calls and meetings keep recordings and transcripts with speaker segments, and with `bookings`, confirmed bookings become meetings. See [Engagements](/docs/blocks/activities).                                                                                       |
-| `mail-sync`                 | Gmail, Outlook and custom mailboxes synced per member through their own OAuth grant: threads and messages matched to the people and companies they name, logged as email engagements, private or shared mailboxes, and the mail members send. See [Mail sync](/docs/blocks/mail-sync).                                                                                                                                                                                             |
+| `activities`                | Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks. With `recordings`, calls and meetings keep recordings and transcripts with speaker segments, and with `bookings`, confirmed bookings become meetings. See [Activities](/docs/blocks/activities).                                                                                        |
+| `mail-sync`                 | Gmail, Outlook and custom mailboxes synced per member through their own OAuth grant: threads and messages matched to the people and companies they name, logged as email activities, private or shared mailboxes, and the mail members send. See [Mail sync](/docs/blocks/mail-sync).                                                                                                                                                                                              |
 | `segments`                  | Saved filter trees over one registered record type whose matching records are kept in Postgres, refreshed on demand or on a schedule, with an event for each record that enters or leaves. See [Segments](/docs/blocks/segments).                                                                                                                                                                                                                                                  |
 | `assignment`                | Queues that pick an owner for a new record by round robin or weighted round robin among their members, within a territory filter, with a log of every pick. See [Assignment](/docs/blocks/assignment).                                                                                                                                                                                                                                                                             |
 | `enrichment`                | Company and person profiles from People Data Labs or a custom provider, stored per record and provider, filling only empty columns, with a backlog of records never or long ago enriched. See [Enrichment](/docs/blocks/enrichment).                                                                                                                                                                                                                                               |
@@ -587,9 +634,8 @@ declare it, and doctor reports it as [BS342](/docs/cli/doctor#bs342). A
 column the module only writes string literals into may be an enum whose
 labels include those literals.
 
-`organizations` and `profiles` also take `options.extraColumns`: your own
-columns, keyed by name with their SQL type, which the module adds to its
-managed table, copies on writes and returns from its reads. A name the module
+`organizations` and `profiles` also read the columns your own schema files add
+to their managed table: the module copies them on writes and returns them from its reads. A name the module
 already uses is refused. A `not null` column without a `default` is required on
 input; one with a `default` (such as `risk text not null default 'low'`) may
 be left out and the database fills it, and it is still required on output.
@@ -1330,7 +1376,7 @@ The [Hono](/docs/frameworks/hono#rate-limits) and
 draft-ietf-httpapi-ratelimit-headers (`SPEC_PINS.ratelimitHeaders`), and
 `RateLimit-Policy` when the route gives a `rule`. A refused request gets a
 429 with `Retry-After`. Elsewhere, `rateLimitHeader()` and
-`rateLimitPolicyHeader()` from `better-supabase/server` build the two fields.
+`rateLimitPolicyHeader()` from `better-supabase/server/rate-limit` build the two fields.
 
 ## Enforcing jsonb shapes
 
@@ -1394,7 +1440,7 @@ restore with `session_replication_role = replica`; its failures also map to
 
 Tags, comments, attachments, reminders and the other modules that attach to
 your rows take the record types they attach to from `on`. Declare the types
-once in `config.subjects`, and every block that you don't give its own `on`
+once in `config.recordTypes`, and every block that you don't give its own `on`
 uses the registry.
 
 A record type is lowercase letters, digits, hyphens and underscores, starting
@@ -1493,7 +1539,7 @@ export default defineConfig({
     },
     thread: {
       table: "public.threads",
-      permissions: { share: { owner: "owner_user_id" } },
+      permissions: { share: { owner: "owner_id" } },
     },
   },
 });
@@ -1640,7 +1686,7 @@ Set `auditReads: true` on a type to log who reads its records. It needs the
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  subjects: {
+  recordTypes: {
     patient: {
       table: "public.patients",
       title: "name",
@@ -1823,10 +1869,16 @@ better-supabase upgrade
 
 It reads the version from each file's `@bsb-block` line (a file without one,
 written before the line existed, counts as version 1). It then writes the
-forward steps into `<timestamp>_better_supabase_block_upgrade.sql` in the
-`migrations` folder next to your `config.toml` and rewrites the module files. Create the schema migration afterwards, so the
-steps run first. `upgrade --check` exits with 1 when a module is behind or
-a file is stale, and `--dry-run` lists the steps without writing. The pgTAP
+forward steps into a migration in the `migrations` folder next to your
+`config.toml` and rewrites the module files. Under pg-delta that migration is
+`<timestamp>_better_supabase_reviewed_upgrade_<hash>.sql`, marked
+`-- destructive: reviewed`: it holds only what a schema diff can't express
+(renames, backfills, expression changes), and the module files hold every other
+statement, so `upgrade` never writes a schema migration. Under the other
+workflows it is `<timestamp>_better_supabase_block_upgrade_<hash>.sql`. Review
+the migration, then create the schema migration afterwards, so the steps run
+first. `upgrade --check` exits with 1 when a module is behind, a
+file is stale or a data statement is in no data migration, and `--dry-run` lists the steps without writing. The pgTAP
 files a module writes for your tables (the audit tests, say) carry no module
 version; `upgrade --check` keeps them current, and `upgrade` leaves them
 out.
@@ -1960,26 +2012,40 @@ import { policy, renderPolicy } from "better-supabase/sql";
 renderPolicy(
   policy({
     table: "app.notes",
-    name: "notes_read",
+    name: "bsb_notes_read",
     command: "select",
     roles: ["authenticated"],
-    using: "bsb.is_member(tenant_id)",
+    using: "better_supabase.is_member(tenant_id)",
   }),
-  { drop: true },
 );
 ```
+
+`renderPolicy` writes the `create policy` statement only. A schema diff drops a
+policy the files no longer declare, so the statement needs no `drop policy if
+exists` before it.
+
+Every policy a block module generates is named `bsb_<name>`, shortened with a
+hash when the name passes 63 bytes. `bsbPolicyName()` returns the name a
+generated policy carries for the name a module wrote, and `codemod naming`
+uses it to write one `alter policy ... rename to` for each policy of an
+installed block, so no row moves.
+
+Checks follow the same rule. A check a block adds is named
+`bsb_<table>_<column>_check` (`bsb_<table>_check` when it reads several
+columns), and `codemod naming` renames the checks of an installed block with
+one loop over the catalog.
 
 ### The rule DSL
 
 A `Rule` is a small tree: `public`, `owner`, `member`, `can`, `compare`,
 `null`, `and`, `or` and `not`. `rulePolicy()` renders it into a policy that
-calls only `bsb.is_member`, `bsb.can`, `bsb.owns` and `bsb.uid`, and
+calls only `better_supabase.is_member`, `better_supabase.can`, `better_supabase.owns` and `better_supabase.uid`, and
 `renderRulePolicy()` puts the tree in a `-- @bsb rule` comment above the
 statement. `readRulePolicies()` recovers the tree and reports `inSync: false`
 once someone edits the SQL by hand, so a UI knows to show the SQL instead of
 the tree.
 
-`policyFunctionsSql()` returns the `bsb` schema with the four functions.
+`policyFunctionsSql()` returns the `better_supabase` schema functions `uid`, `owns`, `is_member` and `can`.
 `uid()` and `owns()` are fixed. `is_member()` and `can()` delegate to the
 functions you name, so your own tables or an authorization library answer
 them. A hand written policy is kept as it is; `disallowedPolicyCalls()` lists

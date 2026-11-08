@@ -35,7 +35,7 @@ const ROW = {
   company_id: "c1",
   motion: "new_logo",
   priority: "hot",
-  owner_user_id: "u1",
+  owner_id: "u1",
   product: "pro",
   seats: 60,
   amount: "4800000",

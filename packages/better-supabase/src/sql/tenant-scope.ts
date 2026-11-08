@@ -177,7 +177,7 @@ export function tenantScopePolicy(table: TenantScopeTarget): string {
         using: command === "insert" ? null : using,
         check: command === "insert" || command === "update" ? check : null,
       }),
-      { drop: true, target: table.target },
+      { target: table.target },
     );
   };
 
@@ -192,7 +192,6 @@ export function tenantScopePolicy(table: TenantScopeTarget): string {
   ];
 
   return [
-    `drop policy if exists ${TENANT_SCOPE_POLICY} on ${table.target};`,
     ...SCOPE_COMMANDS.map(make),
     ...(roles.length === 0 ? [] : [exemptGrants(clauses, roles)]),
   ].join("\n");
@@ -261,31 +260,6 @@ function grantedBy(
   }
 
   return by;
-}
-
-/**
- * The memberships module's `member_organization_ids` as an empty set when it
- * doesn't exist yet, so a module that installs before memberships can create
- * its tenant scope policies. Memberships replaces it with `create or replace`,
- * which needs the same name, arguments and return type.
- */
-function membersStub(ctx: BlockSqlContext): string {
-  const fn = ctx.scope.members().replace(/\(\)$/, "");
-  const id = ctx.idType;
-
-  return `-- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure(${sqlString(`${fn}(text[])`)}) is null then
-    create function ${fn}(roles text[] default null)
-    returns setof ${id}
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::${id} where false $members$;
-  end if;
-end $$;
-`;
 }
 
 /**
@@ -359,28 +333,13 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-${ctx.module === "memberships" ? "" : membersStub(ctx)}${statements.join("\n")}`;
+${statements.join("\n")}`;
 
-  return `-- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-${targets
-  .map(
-    (target) => `  begin
-    drop policy if exists ${TENANT_SCOPE_POLICY} on ${target};
-${TENANT_SCOPE_NAMES.map((name) => `    drop policy if exists ${name} on ${target};`).join("\n")}
-  exception when undefined_table or invalid_schema_name then null;
-  end;`,
-  )
-  .join("\n")}
-end $$;
-
-${sql.trimEnd()}${scope}
+  return `${sql.trimEnd()}${scope}
 `;
 }
 
-/** A `drop` and `create` of one policy `to authenticated` on `table`. */
+/** A `create policy` `to authenticated` on `table`. */
 export function authenticatedPolicy(
   table: string,
   name: string,
@@ -389,6 +348,6 @@ export function authenticatedPolicy(
 ): string {
   return renderPolicy(
     buildPolicy({ table, name, command, roles: ["authenticated"], ...spec }),
-    { drop: true, target: table },
+    { target: table },
   );
 }

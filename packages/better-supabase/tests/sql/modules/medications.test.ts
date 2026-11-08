@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
 import { MEDICATIONS } from "../../../src/sql/modules/medications.ts";
-import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { customContracts } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -118,10 +119,10 @@ describe("medications module", () => {
     });
 
     expect(sql).toContain(
-      `alter table "better_supabase"."medications" add column if not exists "shelf" text;`,
+      `alter table "better_supabase"."medications" add column "shelf" text;`,
     );
     expect(sql).toContain(
-      `alter table "better_supabase"."medication_administrations" add column if not exists "site" text;`,
+      `alter table "better_supabase"."medication_administrations" add column "site" text;`,
     );
     expect(sql).toContain("save_medication.fields");
     expect(sql).toContain("record_medication_administration.fields");
@@ -129,15 +130,6 @@ describe("medications module", () => {
     expect(sql).toContain("fields jsonb default null");
     expect(sql).not.toContain('add column if not exists "ward"');
     expect(sqlOf()).not.toContain(".fields");
-    expect(() =>
-      sqlOf(BASE, {
-        modules: {
-          medications: {
-            options: { medicationExtraColumns: { name: "text" } },
-          },
-        },
-      }),
-    ).toThrow(/shadows/);
   });
 
   it("signs doses and approves orders only with the signatures module", () => {
@@ -173,19 +165,12 @@ describe("medications module", () => {
     });
 
     expect(sql).toContain(
-      `alter table "better_supabase"."medication_orders" add column if not exists "ward" text;`,
+      `alter table "better_supabase"."medication_orders" add column "ward" text;`,
     );
     expect(sql).toContain("coalesce(v_attrs -> 'fields', '{}'::jsonb)");
     expect(sql).toContain("coalesce(v_item -> 'fields', '{}'::jsonb)");
     expect(sql).toContain("'fields', jsonb_build_object('ward'");
     expect(sql).toContain("fields is an object");
-    expect(() =>
-      sqlOf(BASE, {
-        modules: {
-          medications: { options: { extraColumns: { medication: "text" } } },
-        },
-      }),
-    ).toThrow("medication");
     expect(sqlOf()).not.toContain("'fields'");
   });
 

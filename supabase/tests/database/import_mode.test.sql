@@ -14,17 +14,17 @@ select set_config(
 set local role authenticated;
 
 select set_config(
-  'bsb.run',
+  'better_supabase.run',
   (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'mode', '{}'::jsonb) ->> 'id'),
   true
 );
 
 -- A user session can never turn import mode on.
-select set_config('better_supabase.import_run', current_setting('bsb.run'), true);
+select set_config('better_supabase.import_run', current_setting('better_supabase.run'), true);
 select is(better_supabase.import_run(), null, 'a user who sets the setting is not importing');
 select set_config('better_supabase.import_run', '', true);
 select throws_ok(
-  format($$select better_supabase.begin_import_session(%L::uuid)$$, current_setting('bsb.run')),
+  format($$select better_supabase.begin_import_session(%L::uuid)$$, current_setting('better_supabase.run')),
   '42501',
   null,
   'a user cannot begin an import session'
@@ -35,12 +35,12 @@ select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
 
 select throws_ok(
-  format($$select better_supabase.begin_import_session(%L::uuid)$$, current_setting('bsb.run')),
+  format($$select better_supabase.begin_import_session(%L::uuid)$$, current_setting('better_supabase.run')),
   '55000',
   null,
   'a pending run takes no session'
 );
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
 
 select is(better_supabase.import_run(), null, 'the service role is not importing outside a session');
 
@@ -48,14 +48,14 @@ select is(better_supabase.import_run(), null, 'the service role is not importing
 select isnt(better_supabase.emit_event('plain.event', '{}'::jsonb), null, 'outside a session an event is emitted');
 
 select is(
-  better_supabase.begin_import_session(current_setting('bsb.run')::uuid),
-  current_setting('bsb.run')::uuid,
+  better_supabase.begin_import_session(current_setting('better_supabase.run')::uuid),
+  current_setting('better_supabase.run')::uuid,
   'the service role begins a session'
 );
-select is(better_supabase.import_run(), current_setting('bsb.run')::uuid, 'import_run names the run');
+select is(better_supabase.import_run(), current_setting('better_supabase.run')::uuid, 'import_run names the run');
 select is(
   current_setting('better_supabase.correlation_id'),
-  'import:' || current_setting('bsb.run'),
+  'import:' || current_setting('better_supabase.run'),
   'the session sets the correlation id'
 );
 
@@ -65,7 +65,7 @@ select is((select count(*)::int from better_supabase.outbox_events where type = 
 select isnt(better_supabase.emit_event('customer.imported', '{"a":1}'::jsonb), null, 'a tagged event is emitted');
 select is(
   (select payload ->> 'importRunId' from better_supabase.outbox_events where type = 'customer.imported'),
-  current_setting('bsb.run'),
+  current_setting('better_supabase.run'),
   'a tagged event carries the run id'
 );
 select isnt(better_supabase.emit_event('customer.synced', '{"a":1}'::jsonb), null, 'a listed event is emitted');
@@ -93,7 +93,7 @@ select is(
 );
 select is(
   (select correlation_id from better_supabase.audit_events where event_type = 'row.imported'),
-  'import:' || current_setting('bsb.run'),
+  'import:' || current_setting('better_supabase.run'),
   'an entry carries the import correlation id'
 );
 
@@ -128,7 +128,7 @@ select is(
 -- import_upsert_batch begins its own session and leaves none behind.
 select is(
   (select better_supabase.import_upsert_batch(
-    current_setting('bsb.run')::uuid, 'customer', '[{"key":"m1","data":{"name":"Mode","kvk":"91"}}]'::jsonb
+    current_setting('better_supabase.run')::uuid, 'customer', '[{"key":"m1","data":{"name":"Mode","kvk":"91"}}]'::jsonb
   ) -> 'inserted'),
   '1'::jsonb,
   'the batch inserts the customer'
@@ -136,10 +136,10 @@ select is(
 select is(better_supabase.import_run(), null, 'the batch leaves no session behind');
 select is(current_setting('better_supabase.correlation_id', true), '', 'the batch restores the correlation id');
 
-select better_supabase.finish_import_run(current_setting('bsb.run')::uuid);
+select better_supabase.finish_import_run(current_setting('better_supabase.run')::uuid);
 select is(
   (select count(*)::int from better_supabase.audit_events
-    where event_type = 'import.entity_completed' and correlation_id = 'import:' || current_setting('bsb.run')),
+    where event_type = 'import.entity_completed' and correlation_id = 'import:' || current_setting('better_supabase.run')),
   1,
   'finishing writes one summary entry for the entity'
 );

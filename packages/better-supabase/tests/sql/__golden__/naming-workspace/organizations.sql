@@ -1,89 +1,36 @@
 -- ==== schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:eb9559ddada78a17099cfe883109832fc420090f2c18faeb6806ae96bfdfc56e
+-- @bsb-hash sha256:89167faa0571766c684e2699607edf1659be6de82090e60311c18dc44840881c
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
-create table if not exists "better_supabase"."workspaces" (
+create table "better_supabase"."workspaces" (
   "id" uuid primary key default gen_random_uuid(),
-  "name" text not null check (length(btrim("name")) > 0),
+  "name" text not null constraint bsb_workspaces_name_check check (length(btrim("name")) > 0),
   "slug" text not null,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "disabled_at" timestamptz,
   "deleted_at" timestamptz
 );
-create unique index if not exists workspaces_slug_idx on "better_supabase"."workspaces" (lower("slug"::text)) where "deleted_at" is null;
-create index if not exists workspaces_created_by_idx on "better_supabase"."workspaces" ("created_by");
-alter table "better_supabase"."workspaces" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."workspaces";
+create unique index workspaces_slug_idx on "better_supabase"."workspaces" (lower("slug"::text)) where "deleted_at" is null;
+create index workspaces_created_by_idx on "better_supabase"."workspaces" ("created_by");
+alter table "better_supabase"."workspaces" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."workspaces"
-  for each row execute function better_supabase.set_updated_at('updated_at');
+  for each row
+  execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."workspaces" enable row level security;
 revoke all on "better_supabase"."workspaces" from public, anon, authenticated;
 grant select on "better_supabase"."workspaces" to authenticated;
 grant all on "better_supabase"."workspaces" to service_role;
-drop policy if exists bsb_workspaces_read on "better_supabase"."workspaces";
 create policy bsb_workspaces_read on "better_supabase"."workspaces"
   for select to authenticated
   using ("id" in (select better_supabase.member_workspace_ids()));
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = '"better_supabase"."memberships"'::regclass and conname = 'memberships_workspace_fkey'
-  ) then
-    alter table "better_supabase"."memberships" add constraint "memberships_workspace_fkey"
-      foreign key ("workspace_id") references "better_supabase"."workspaces" ("id") on delete cascade not valid;
-    begin
-      alter table "better_supabase"."memberships" validate constraint "memberships_workspace_fkey";
-    exception when foreign_key_violation then
-      raise warning '% has rows without a match, so only new rows are checked. Delete them, then run: alter table % validate constraint %',
-        '"better_supabase"."memberships"', '"better_supabase"."memberships"', 'memberships_workspace_fkey';
-    end;
-  end if;
-end;
-$$;
+alter table "better_supabase"."memberships" add constraint "memberships_workspace_fkey"
+  foreign key ("workspace_id") references "better_supabase"."workspaces" ("id") on delete cascade;
 
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
 -- blocks.organizations.options), 'reserved' or 'taken'. except_organization skips the
@@ -264,7 +211,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_workspace_owner"() from public, anon, authenticated;
-drop trigger if exists "bsb_workspace_owner" on "better_supabase"."memberships";
 create constraint trigger "bsb_workspace_owner" after update of "role", "workspace_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_workspace_owner"();
@@ -317,7 +263,6 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bsb_workspace_role_guard" on "better_supabase"."memberships";
 create trigger "bsb_workspace_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
@@ -509,10 +454,6 @@ begin
 end;
 $$;
 
-
-drop function if exists "better_supabase"."add_member_role"(uuid, uuid, text);
-drop function if exists "better_supabase"."remove_member_role"(uuid, uuid, text);
-
 -- Records that the caller opened the organization (the last_used_at column of
 -- memberships, when it has one), for "recent organizations" lists.
 create or replace function "better_supabase"."mark_used"(organization uuid)
@@ -664,8 +605,6 @@ begin
   return jsonb_build_object('organization_id', organization, 'refresh', false);
 end;
 $$;
-
-drop function if exists "better_supabase"."list_my_workspaces"();
 create or replace function "better_supabase"."list_my_workspaces"()
 returns table (
   id uuid,
@@ -686,8 +625,6 @@ as $$
     and not better_supabase.tenant_disabled(o."id")
   order by o."name"
 $$;
-
-drop function if exists "better_supabase"."list_members"(uuid);
 create or replace function "better_supabase"."list_members"(organization uuid)
 returns table (user_id uuid, role text, disabled_at timestamptz)
 language plpgsql
@@ -776,19 +713,6 @@ revoke execute on function "better_supabase"."suspend_member"(uuid, uuid) from p
 grant execute on function "better_supabase"."suspend_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."resume_member"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."resume_member"(uuid, uuid) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations

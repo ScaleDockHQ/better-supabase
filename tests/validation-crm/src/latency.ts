@@ -1,9 +1,9 @@
-import { defineReadSet, defineSupabase } from "better-supabase";
+import { defineReadSet, createSupabase } from "better-supabase";
 import { defineListQuery } from "better-supabase/list";
 
-import { schema } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
-export const betterSupabase = defineSupabase(schema);
+export const betterSupabase = createSupabase(schema);
 
 /**
  * The customers overview: the page, the per-status counts and each row's

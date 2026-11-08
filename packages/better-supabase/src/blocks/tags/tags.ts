@@ -31,9 +31,9 @@ export interface TagsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the tag's extra columns
-   * (`blocks.tags.options.extraColumns`), keyed by database name. It types and
-   * parses them on reads, and validates them on `create` and `update`.
+   * A Standard Schema for the tag's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `create` and `update`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

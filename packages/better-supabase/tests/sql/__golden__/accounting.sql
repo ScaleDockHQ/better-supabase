@@ -1,201 +1,22 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:9107c3ff6d2f5acd6b70c0271b990dabbac230e19167df7854cae80a7f1a4bcb
+-- @bsb-hash sha256:6094fd69bdb29d4ea6c6123f3a9abe79eaa935450a30a7a31a3cbb7d83ae403d
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budgets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Accounting: a chart of accounts with roles, journals, fiscal periods, and
 -- balanced journal entries in minor units of the organization's functional
 -- currency, with dimensions, exchange rates, tax codes, reports and the
 -- period and year-end close, the documents other blocks book, tax reports
 -- and budgets.
 
-create table if not exists "better_supabase"."accounting_settings" (
+create table "better_supabase"."accounting_settings" (
   "tenant_id" uuid primary key,
   -- Every debit and credit is in minor units of this currency.
-  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
-  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  "functional_currency" text not null constraint bsb_accounting_settings_functional_currency_check check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 constraint bsb_accounting_settings_fiscal_year_start_month_check check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
   -- Nothing posts on or before this date, whatever the period's status.
   "lock_date" date,
   "created_at" timestamptz not null default now(),
@@ -205,26 +26,25 @@ alter table "better_supabase"."accounting_settings" enable row level security;
 revoke all on "better_supabase"."accounting_settings" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_settings" to authenticated;
 grant all on "better_supabase"."accounting_settings" to service_role;
-drop policy if exists accounting_settings_read on "better_supabase"."accounting_settings";
-create policy accounting_settings_read on "better_supabase"."accounting_settings"
+create policy bsb_accounting_settings_read on "better_supabase"."accounting_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_accounts" (
+create table "better_supabase"."accounting_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "code" text not null constraint bsb_accounting_accounts_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_accounting_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_accounts_type_check check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
   "subtype" text,
   "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Lines on the account must be in this currency; null takes any.
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "reconcilable" boolean not null default false,
   -- The side a positive balance sits on; reports show it next to the amount.
-  "normal_side" text not null default 'debit' check ("normal_side" in ('debit', 'credit')),
+  "normal_side" text not null default 'debit' constraint bsb_accounting_accounts_normal_side_check check ("normal_side" in ('debit', 'credit')),
   -- 1 for a top-level account, one more than the parent's for the rest.
-  "level" smallint not null default 1 check ("level" >= 1),
+  "level" smallint not null default 1 constraint bsb_accounting_accounts_level_check check ("level" >= 1),
   -- The tax code a line on this account takes when it names none.
   "default_tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete set null,
   -- An inactive account stays on the chart and in reports but takes no new lines.
@@ -234,43 +54,41 @@ create table if not exists "better_supabase"."accounting_accounts" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
 );
-create index if not exists "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
-create index if not exists "accounting_accounts_tax_idx" on "better_supabase"."accounting_accounts" ("default_tax_code_id") where "default_tax_code_id" is not null;
+create index "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
+create index "accounting_accounts_tax_idx" on "better_supabase"."accounting_accounts" ("default_tax_code_id") where "default_tax_code_id" is not null;
 alter table "better_supabase"."accounting_accounts" enable row level security;
 revoke all on "better_supabase"."accounting_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_accounts" to authenticated;
 grant all on "better_supabase"."accounting_accounts" to service_role;
-drop policy if exists accounting_accounts_read on "better_supabase"."accounting_accounts";
-create policy accounting_accounts_read on "better_supabase"."accounting_accounts"
+create policy bsb_accounting_accounts_read on "better_supabase"."accounting_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_account_roles" (
+create table "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null constraint bsb_accounting_account_roles_role_check check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
 );
-create index if not exists "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
+create index "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
 alter table "better_supabase"."accounting_account_roles" enable row level security;
 revoke all on "better_supabase"."accounting_account_roles" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_account_roles" to authenticated;
 grant all on "better_supabase"."accounting_account_roles" to service_role;
-drop policy if exists accounting_account_roles_read on "better_supabase"."accounting_account_roles";
-create policy accounting_account_roles_read on "better_supabase"."accounting_account_roles"
+create policy bsb_accounting_account_roles_read on "better_supabase"."accounting_account_roles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_journals" (
+create table "better_supabase"."accounting_journals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  "code" text not null constraint bsb_accounting_journals_code_check check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null constraint bsb_accounting_journals_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_journals_type_check check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
   -- The bank or cash account a bank or cash journal posts against.
   "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_journals_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   -- The counter account a bank or cash journal's lines offset by default.
   "contra_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The bank account (banking block) the journal books; its statements post here.
@@ -279,46 +97,44 @@ create table if not exists "better_supabase"."accounting_journals" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
 );
-create index if not exists "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
-create index if not exists "accounting_journals_contra_idx" on "better_supabase"."accounting_journals" ("contra_account_id") where "contra_account_id" is not null;
+create index "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
+create index "accounting_journals_contra_idx" on "better_supabase"."accounting_journals" ("contra_account_id") where "contra_account_id" is not null;
 alter table "better_supabase"."accounting_journals" enable row level security;
 revoke all on "better_supabase"."accounting_journals" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_journals" to authenticated;
 grant all on "better_supabase"."accounting_journals" to service_role;
-drop policy if exists accounting_journals_read on "better_supabase"."accounting_journals";
-create policy accounting_journals_read on "better_supabase"."accounting_journals"
+create policy bsb_accounting_journals_read on "better_supabase"."accounting_journals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_periods" (
+create table "better_supabase"."accounting_periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The calendar year the fiscal year starts in.
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "fiscal_year" integer not null constraint bsb_accounting_periods_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null constraint bsb_accounting_periods_number_check check ("number" >= 1 and "number" <= 12),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'closed', 'locked')),
+  "status" text not null default 'open' constraint bsb_accounting_periods_status_check check ("status" in ('open', 'closed', 'locked')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   -- A locked period takes no posting at all, not even an import.
   "locked_at" timestamptz,
   "locked_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "fiscal_year", "number")
 );
-create index if not exists "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
+create index "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
 alter table "better_supabase"."accounting_periods" enable row level security;
 revoke all on "better_supabase"."accounting_periods" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_periods" to authenticated;
 grant all on "better_supabase"."accounting_periods" to service_role;
-drop policy if exists accounting_periods_read on "better_supabase"."accounting_periods";
-create policy accounting_periods_read on "better_supabase"."accounting_periods"
+create policy bsb_accounting_periods_read on "better_supabase"."accounting_periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_entries" (
+create table "better_supabase"."accounting_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "journal_id" uuid not null references "better_supabase"."accounting_journals" ("id") on delete restrict,
@@ -328,42 +144,41 @@ create table if not exists "better_supabase"."accounting_entries" (
   "number" text,
   "entry_date" date not null,
   "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict,
-  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'draft' constraint bsb_accounting_entries_status_check check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text constraint bsb_accounting_entries_reference_check check ("reference" is null or length("reference") <= 200),
   -- The document the entry books, such as invoice and its id.
-  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_type" text constraint bsb_accounting_entries_source_type_check check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "source_id" text,
   "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict,
-  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "memo" text constraint bsb_accounting_entries_memo_check check ("memo" is null or length("memo") <= 2000),
   "posted_at" timestamptz,
   "posted_by" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("source_type" is null) = ("source_id" is null)),
-  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+  constraint bsb_accounting_entries_check check (("source_type" is null) = ("source_id" is null)),
+  constraint bsb_accounting_entries_check1 check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
 );
-create unique index if not exists "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
+create unique index "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
-create unique index if not exists "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
-create unique index if not exists "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
-create index if not exists "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("tenant_id", "entry_date" desc);
-create index if not exists "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
+create unique index "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
+create unique index "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
+create index "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("tenant_id", "entry_date" desc);
+create index "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
 alter table "better_supabase"."accounting_entries" enable row level security;
 revoke all on "better_supabase"."accounting_entries" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entries" to authenticated;
 grant all on "better_supabase"."accounting_entries" to service_role;
-drop policy if exists accounting_entries_read on "better_supabase"."accounting_entries";
-create policy accounting_entries_read on "better_supabase"."accounting_entries"
+create policy bsb_accounting_entries_read on "better_supabase"."accounting_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_dimensions" (
+create table "better_supabase"."accounting_dimensions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The key lines use in their dimensions object, such as project or department.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_accounting_dimensions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_accounting_dimensions_name_check check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
@@ -371,17 +186,16 @@ alter table "better_supabase"."accounting_dimensions" enable row level security;
 revoke all on "better_supabase"."accounting_dimensions" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimensions" to authenticated;
 grant all on "better_supabase"."accounting_dimensions" to service_role;
-drop policy if exists accounting_dimensions_read on "better_supabase"."accounting_dimensions";
-create policy accounting_dimensions_read on "better_supabase"."accounting_dimensions"
+create policy bsb_accounting_dimensions_read on "better_supabase"."accounting_dimensions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_dimension_values" (
+create table "better_supabase"."accounting_dimension_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "dimension_id" uuid not null references "better_supabase"."accounting_dimensions" ("id") on delete cascade,
-  "code" text not null check (length("code") >= 1 and length("code") <= 100),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "code" text not null constraint bsb_accounting_dimension_values_code_check check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null constraint bsb_accounting_dimension_values_name_check check (length("name") >= 1 and length("name") <= 200),
   "archived_at" timestamptz,
   unique ("dimension_id", "code")
 );
@@ -389,88 +203,84 @@ alter table "better_supabase"."accounting_dimension_values" enable row level sec
 revoke all on "better_supabase"."accounting_dimension_values" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimension_values" to authenticated;
 grant all on "better_supabase"."accounting_dimension_values" to service_role;
-drop policy if exists accounting_dimension_values_read on "better_supabase"."accounting_dimension_values";
-create policy accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
+create policy bsb_accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_fx_rates" (
+create table "better_supabase"."accounting_fx_rates" (
   "tenant_id" uuid not null,
-  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
-  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "base" text not null constraint bsb_accounting_fx_rates_base_check check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null constraint bsb_accounting_fx_rates_quote_check check ("quote" ~ '^[A-Z]{3}$'),
   "on_date" date not null,
   -- One unit of base costs rate units of quote.
-  "rate" numeric not null check ("rate" > 0),
+  "rate" numeric not null constraint bsb_accounting_fx_rates_rate_check check ("rate" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "base", "quote", "on_date"),
-  check ("base" <> "quote")
+  constraint bsb_accounting_fx_rates_check check ("base" <> "quote")
 );
 alter table "better_supabase"."accounting_fx_rates" enable row level security;
 revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_fx_rates" to authenticated;
 grant all on "better_supabase"."accounting_fx_rates" to service_role;
-drop policy if exists accounting_fx_rates_read on "better_supabase"."accounting_fx_rates";
-create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
+create policy bsb_accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_entry_lines" (
+create table "better_supabase"."accounting_entry_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "entry_id" uuid not null references "better_supabase"."accounting_entries" ("id") on delete cascade,
   "position" smallint not null default 0,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Minor units of the functional currency; a line has one side.
-  "debit" bigint not null default 0 check ("debit" >= 0),
-  "credit" bigint not null default 0 check ("credit" >= 0),
+  "debit" bigint not null default 0 constraint bsb_accounting_entry_lines_debit_check check ("debit" >= 0),
+  "credit" bigint not null default 0 constraint bsb_accounting_entry_lines_credit_check check ("credit" >= 0),
   -- The transaction currency and its signed amount (positive is a debit).
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text not null constraint bsb_accounting_entry_lines_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount_currency" bigint not null,
-  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "fx_rate" numeric constraint bsb_accounting_entry_lines_fx_rate_check check ("fx_rate" is null or "fx_rate" > 0),
   "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict,
   -- The part of the line that is tax, in minor units of the functional currency.
-  "tax_amount" bigint not null default 0 check ("tax_amount" >= 0),
+  "tax_amount" bigint not null default 0 constraint bsb_accounting_entry_lines_tax_amount_check check ("tax_amount" >= 0),
   -- The customer, supplier or employee the line concerns.
   "party_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
-  "description" text check ("description" is null or length("description") <= 500),
-  check (("debit" = 0) <> ("credit" = 0)),
-  check ("tax_amount" <= "debit" + "credit")
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_entry_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
+  "description" text constraint bsb_accounting_entry_lines_description_check check ("description" is null or length("description") <= 500),
+  constraint bsb_accounting_entry_lines_check check (("debit" = 0) <> ("credit" = 0)),
+  constraint bsb_accounting_entry_lines_check1 check ("tax_amount" <= "debit" + "credit")
 );
-create index if not exists "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
-create index if not exists "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
-create index if not exists "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
-create index if not exists "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
+create index "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
+create index "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
+create index "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
+create index "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
 alter table "better_supabase"."accounting_entry_lines" enable row level security;
 revoke all on "better_supabase"."accounting_entry_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entry_lines" to authenticated;
 grant all on "better_supabase"."accounting_entry_lines" to service_role;
-drop policy if exists accounting_entry_lines_read on "better_supabase"."accounting_entry_lines";
-create policy accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
+create policy bsb_accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_opening_balances" (
+create table "better_supabase"."accounting_opening_balances" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "fiscal_year" integer not null constraint bsb_accounting_opening_balances_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "party_id" uuid,
   -- Signed minor units of the functional currency; a debit balance is positive.
-  "amount" bigint not null check ("amount" <> 0),
+  "amount" bigint not null constraint bsb_accounting_opening_balances_amount_check check ("amount" <> 0),
   -- imported rows come from the old books, carried rows from close_fiscal_year.
-  "source" text not null default 'imported' check ("source" in ('imported', 'carried')),
+  "source" text not null default 'imported' constraint bsb_accounting_opening_balances_source_check check ("source" in ('imported', 'carried')),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "accounting_opening_balances_key_idx" on "better_supabase"."accounting_opening_balances" ("tenant_id", "fiscal_year", "account_id", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
-create index if not exists "accounting_opening_balances_account_idx" on "better_supabase"."accounting_opening_balances" ("account_id");
+create unique index "accounting_opening_balances_key_idx" on "better_supabase"."accounting_opening_balances" ("tenant_id", "fiscal_year", "account_id", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
+create index "accounting_opening_balances_account_idx" on "better_supabase"."accounting_opening_balances" ("account_id");
 alter table "better_supabase"."accounting_opening_balances" enable row level security;
 revoke all on "better_supabase"."accounting_opening_balances" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_opening_balances" to authenticated;
 grant all on "better_supabase"."accounting_opening_balances" to service_role;
-drop policy if exists accounting_opening_balances_read on "better_supabase"."accounting_opening_balances";
-create policy accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
+create policy bsb_accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -488,7 +298,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_account_level"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_accounts_level" on "better_supabase"."accounting_accounts";
 create trigger "bsb_accounting_accounts_level" before insert or update of "parent_id" on "better_supabase"."accounting_accounts"
   for each row execute function "better_supabase"."accounting_account_level"();
 
@@ -508,7 +317,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_account_level_children"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_accounts_level_children" on "better_supabase"."accounting_accounts";
 create trigger "bsb_accounting_accounts_level_children" after update of "parent_id" on "better_supabase"."accounting_accounts"
   for each row when (old."parent_id" is distinct from new."parent_id") execute function "better_supabase"."accounting_account_level_children"();
 
@@ -534,7 +342,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_entry_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_entries_guard" on "better_supabase"."accounting_entries";
 create trigger "bsb_accounting_entries_guard" before update or delete on "better_supabase"."accounting_entries"
   for each row execute function "better_supabase"."accounting_entry_guard"('tenant_id');
 
@@ -555,7 +362,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_entry_line_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_entry_lines_guard" on "better_supabase"."accounting_entry_lines";
 create trigger "bsb_accounting_entry_lines_guard" before insert or update or delete on "better_supabase"."accounting_entry_lines"
   for each row execute function "better_supabase"."accounting_entry_line_guard"('tenant_id');
 
@@ -667,7 +473,7 @@ grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, dat
 -- debit for assets and expenses and credit for the rest; the level follows
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
-drop function if exists "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid);
+
 create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
@@ -854,7 +660,7 @@ revoke execute on function "better_supabase"."list_accounting_accounts"(uuid, bo
 grant execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
-drop function if exists "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid);
+
 create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
@@ -1249,7 +1055,7 @@ revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) fr
 -- currency gives amountCurrency (signed, positive is a debit) and either the
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
-drop function if exists "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+
 create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language plpgsql
@@ -2114,7 +1920,7 @@ begin
     where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "better_supabase"."accounting_entries" y
@@ -2166,7 +1972,7 @@ begin
     v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "better_supabase"."accounting_opening_balances" y
   where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';
@@ -2869,12 +2675,12 @@ $$;
 revoke execute on function "better_supabase"."accounting_tax_report"(uuid, date, date) from public, anon;
 grant execute on function "better_supabase"."accounting_tax_report"(uuid, date, date) to authenticated, service_role;
 
-create table if not exists "better_supabase"."accounting_budgets" (
+create table "better_supabase"."accounting_budgets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'archived')),
+  "name" text not null constraint bsb_accounting_budgets_name_check check (length("name") >= 1 and length("name") <= 200),
+  "fiscal_year" integer not null constraint bsb_accounting_budgets_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "status" text not null default 'draft' constraint bsb_accounting_budgets_status_check check ("status" in ('draft', 'approved', 'archived')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -2884,31 +2690,29 @@ alter table "better_supabase"."accounting_budgets" enable row level security;
 revoke all on "better_supabase"."accounting_budgets" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budgets" to authenticated;
 grant all on "better_supabase"."accounting_budgets" to service_role;
-drop policy if exists accounting_budgets_read on "better_supabase"."accounting_budgets";
-create policy accounting_budgets_read on "better_supabase"."accounting_budgets"
+create policy bsb_accounting_budgets_read on "better_supabase"."accounting_budgets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_budget_lines" (
+create table "better_supabase"."accounting_budget_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "budget_id" uuid not null references "better_supabase"."accounting_budgets" ("id") on delete cascade,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The period of the budget's fiscal year, 1 to 12.
-  "period_number" smallint not null check ("period_number" >= 1 and "period_number" <= 12),
+  "period_number" smallint not null constraint bsb_accounting_budget_lines_period_number_check check ("period_number" >= 1 and "period_number" <= 12),
   -- The dimension values the amount is for; actuals match lines that carry them.
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_budget_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   -- Minor units of the functional currency, in the account's natural sign.
   "amount" bigint not null,
   unique ("budget_id", "account_id", "period_number", "dimensions")
 );
-create index if not exists "accounting_budget_lines_account_idx" on "better_supabase"."accounting_budget_lines" ("account_id");
+create index "accounting_budget_lines_account_idx" on "better_supabase"."accounting_budget_lines" ("account_id");
 alter table "better_supabase"."accounting_budget_lines" enable row level security;
 revoke all on "better_supabase"."accounting_budget_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budget_lines" to authenticated;
 grant all on "better_supabase"."accounting_budget_lines" to service_role;
-drop policy if exists accounting_budget_lines_read on "better_supabase"."accounting_budget_lines";
-create policy accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
+create policy bsb_accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -3073,19 +2877,19 @@ grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, 
 
 -- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
 -- one per source line, so scheduling a line twice returns the first schedule.
-create table if not exists "better_supabase"."accounting_recognition_schedules" (
+create table "better_supabase"."accounting_recognition_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "source_type" text not null check (length("source_type") between 1 and 100),
-  "source_id" text not null check (length("source_id") between 1 and 200),
-  "line_ref" text not null default '' check (length("line_ref") <= 200),
-  "amount" bigint not null check ("amount" > 0),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "source_type" text not null constraint bsb_accounting_recognition_schedules_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null constraint bsb_accounting_recognition_schedules_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200),
+  "line_ref" text not null default '' constraint bsb_accounting_recognition_schedules_line_ref_check check (length("line_ref") <= 200),
+  "amount" bigint not null constraint bsb_accounting_recognition_schedules_amount_check check ("amount" > 0),
+  "currency" text not null constraint bsb_accounting_recognition_schedules_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "starts_on" date not null,
   "ends_on" date not null,
   "deferral_entry_id" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_recognition_schedules_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "source_type", "source_id", "line_ref")
 );
 alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
@@ -3094,18 +2898,18 @@ grant all on "better_supabase"."accounting_recognition_schedules" to service_rol
 
 -- The part of a schedule earned in one month, due on the month's last day (or
 -- the schedule's end). The period close posts pending rows into the books.
-create table if not exists "better_supabase"."accounting_recognition_rows" (
+create table "better_supabase"."accounting_recognition_rows" (
   "id" uuid primary key default gen_random_uuid(),
   "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "due_on" date not null,
-  "amount" bigint not null check ("amount" > 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "amount" bigint not null constraint bsb_accounting_recognition_rows_amount_check check ("amount" > 0),
+  "status" text not null default 'pending' constraint bsb_accounting_recognition_rows_status_check check ("status" in ('pending', 'posted')),
   "entry_id" uuid,
   "posted_at" timestamptz
 );
-create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
-create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+create index accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
+create index accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
 alter table "better_supabase"."accounting_recognition_rows" enable row level security;
 revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
 grant all on "better_supabase"."accounting_recognition_rows" to service_role;
@@ -3427,304 +3231,214 @@ grant execute on function "better_supabase"."seed_accounting_defaults"(uuid, tex
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_settings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_settings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_settings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_settings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_accounts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_accounts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_accounts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_accounts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_account_roles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_account_roles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_journals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_journals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_journals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_journals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_periods" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_periods" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_periods" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_periods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimensions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimensions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_opening_balances";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budgets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_budgets" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_budgets" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_budgets" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budgets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budget_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
@@ -3759,201 +3473,22 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:2dedfdacc75f824c731ed12bdedf1d1a2c07d92d0a35419f23c4d6a4938c3d56
+-- @bsb-hash sha256:15389239bd1d5e885d5b9b2aec580d539a2afcf5101f8e2257207d12a9dcb508
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budgets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Accounting: a chart of accounts with roles, journals, fiscal periods, and
 -- balanced journal entries in minor units of the organization's functional
 -- currency, with dimensions, exchange rates, tax codes, reports and the
 -- period and year-end close, the documents other blocks book, tax reports
 -- and budgets.
 
-create table if not exists "better_supabase"."accounting_settings" (
+create table "better_supabase"."accounting_settings" (
   "tenant_id" uuid primary key,
   -- Every debit and credit is in minor units of this currency.
-  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
-  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  "functional_currency" text not null constraint bsb_accounting_settings_functional_currency_check check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 constraint bsb_accounting_settings_fiscal_year_start_month_check check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
   -- Nothing posts on or before this date, whatever the period's status.
   "lock_date" date,
   "created_at" timestamptz not null default now(),
@@ -3963,26 +3498,25 @@ alter table "better_supabase"."accounting_settings" enable row level security;
 revoke all on "better_supabase"."accounting_settings" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_settings" to authenticated;
 grant all on "better_supabase"."accounting_settings" to service_role;
-drop policy if exists accounting_settings_read on "better_supabase"."accounting_settings";
-create policy accounting_settings_read on "better_supabase"."accounting_settings"
+create policy bsb_accounting_settings_read on "better_supabase"."accounting_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_accounts" (
+create table "better_supabase"."accounting_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "code" text not null constraint bsb_accounting_accounts_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_accounting_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_accounts_type_check check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
   "subtype" text,
   "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Lines on the account must be in this currency; null takes any.
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "reconcilable" boolean not null default false,
   -- The side a positive balance sits on; reports show it next to the amount.
-  "normal_side" text not null default 'debit' check ("normal_side" in ('debit', 'credit')),
+  "normal_side" text not null default 'debit' constraint bsb_accounting_accounts_normal_side_check check ("normal_side" in ('debit', 'credit')),
   -- 1 for a top-level account, one more than the parent's for the rest.
-  "level" smallint not null default 1 check ("level" >= 1),
+  "level" smallint not null default 1 constraint bsb_accounting_accounts_level_check check ("level" >= 1),
   -- The tax code a line on this account takes when it names none.
   "default_tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete set null,
   -- An inactive account stays on the chart and in reports but takes no new lines.
@@ -3992,43 +3526,41 @@ create table if not exists "better_supabase"."accounting_accounts" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
 );
-create index if not exists "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
-create index if not exists "accounting_accounts_tax_idx" on "better_supabase"."accounting_accounts" ("default_tax_code_id") where "default_tax_code_id" is not null;
+create index "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
+create index "accounting_accounts_tax_idx" on "better_supabase"."accounting_accounts" ("default_tax_code_id") where "default_tax_code_id" is not null;
 alter table "better_supabase"."accounting_accounts" enable row level security;
 revoke all on "better_supabase"."accounting_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_accounts" to authenticated;
 grant all on "better_supabase"."accounting_accounts" to service_role;
-drop policy if exists accounting_accounts_read on "better_supabase"."accounting_accounts";
-create policy accounting_accounts_read on "better_supabase"."accounting_accounts"
+create policy bsb_accounting_accounts_read on "better_supabase"."accounting_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_account_roles" (
+create table "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null constraint bsb_accounting_account_roles_role_check check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
 );
-create index if not exists "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
+create index "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
 alter table "better_supabase"."accounting_account_roles" enable row level security;
 revoke all on "better_supabase"."accounting_account_roles" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_account_roles" to authenticated;
 grant all on "better_supabase"."accounting_account_roles" to service_role;
-drop policy if exists accounting_account_roles_read on "better_supabase"."accounting_account_roles";
-create policy accounting_account_roles_read on "better_supabase"."accounting_account_roles"
+create policy bsb_accounting_account_roles_read on "better_supabase"."accounting_account_roles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_journals" (
+create table "better_supabase"."accounting_journals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  "code" text not null constraint bsb_accounting_journals_code_check check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null constraint bsb_accounting_journals_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_journals_type_check check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
   -- The bank or cash account a bank or cash journal posts against.
   "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_journals_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   -- The counter account a bank or cash journal's lines offset by default.
   "contra_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The bank account (banking block) the journal books; its statements post here.
@@ -4037,46 +3569,44 @@ create table if not exists "better_supabase"."accounting_journals" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
 );
-create index if not exists "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
-create index if not exists "accounting_journals_contra_idx" on "better_supabase"."accounting_journals" ("contra_account_id") where "contra_account_id" is not null;
+create index "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
+create index "accounting_journals_contra_idx" on "better_supabase"."accounting_journals" ("contra_account_id") where "contra_account_id" is not null;
 alter table "better_supabase"."accounting_journals" enable row level security;
 revoke all on "better_supabase"."accounting_journals" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_journals" to authenticated;
 grant all on "better_supabase"."accounting_journals" to service_role;
-drop policy if exists accounting_journals_read on "better_supabase"."accounting_journals";
-create policy accounting_journals_read on "better_supabase"."accounting_journals"
+create policy bsb_accounting_journals_read on "better_supabase"."accounting_journals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_periods" (
+create table "better_supabase"."accounting_periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The calendar year the fiscal year starts in.
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "fiscal_year" integer not null constraint bsb_accounting_periods_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null constraint bsb_accounting_periods_number_check check ("number" >= 1 and "number" <= 12),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'closed', 'locked')),
+  "status" text not null default 'open' constraint bsb_accounting_periods_status_check check ("status" in ('open', 'closed', 'locked')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   -- A locked period takes no posting at all, not even an import.
   "locked_at" timestamptz,
   "locked_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "fiscal_year", "number")
 );
-create index if not exists "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
+create index "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
 alter table "better_supabase"."accounting_periods" enable row level security;
 revoke all on "better_supabase"."accounting_periods" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_periods" to authenticated;
 grant all on "better_supabase"."accounting_periods" to service_role;
-drop policy if exists accounting_periods_read on "better_supabase"."accounting_periods";
-create policy accounting_periods_read on "better_supabase"."accounting_periods"
+create policy bsb_accounting_periods_read on "better_supabase"."accounting_periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_entries" (
+create table "better_supabase"."accounting_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "journal_id" uuid not null references "better_supabase"."accounting_journals" ("id") on delete restrict,
@@ -4086,42 +3616,41 @@ create table if not exists "better_supabase"."accounting_entries" (
   "number" text,
   "entry_date" date not null,
   "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict,
-  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'draft' constraint bsb_accounting_entries_status_check check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text constraint bsb_accounting_entries_reference_check check ("reference" is null or length("reference") <= 200),
   -- The document the entry books, such as invoice and its id.
-  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_type" text constraint bsb_accounting_entries_source_type_check check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "source_id" text,
   "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict,
-  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "memo" text constraint bsb_accounting_entries_memo_check check ("memo" is null or length("memo") <= 2000),
   "posted_at" timestamptz,
   "posted_by" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("source_type" is null) = ("source_id" is null)),
-  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+  constraint bsb_accounting_entries_check check (("source_type" is null) = ("source_id" is null)),
+  constraint bsb_accounting_entries_check1 check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
 );
-create unique index if not exists "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
+create unique index "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
-create unique index if not exists "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
-create unique index if not exists "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
-create index if not exists "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("tenant_id", "entry_date" desc);
-create index if not exists "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
+create unique index "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
+create unique index "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
+create index "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("tenant_id", "entry_date" desc);
+create index "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
 alter table "better_supabase"."accounting_entries" enable row level security;
 revoke all on "better_supabase"."accounting_entries" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entries" to authenticated;
 grant all on "better_supabase"."accounting_entries" to service_role;
-drop policy if exists accounting_entries_read on "better_supabase"."accounting_entries";
-create policy accounting_entries_read on "better_supabase"."accounting_entries"
+create policy bsb_accounting_entries_read on "better_supabase"."accounting_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_dimensions" (
+create table "better_supabase"."accounting_dimensions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The key lines use in their dimensions object, such as project or department.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_accounting_dimensions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_accounting_dimensions_name_check check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
@@ -4129,17 +3658,16 @@ alter table "better_supabase"."accounting_dimensions" enable row level security;
 revoke all on "better_supabase"."accounting_dimensions" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimensions" to authenticated;
 grant all on "better_supabase"."accounting_dimensions" to service_role;
-drop policy if exists accounting_dimensions_read on "better_supabase"."accounting_dimensions";
-create policy accounting_dimensions_read on "better_supabase"."accounting_dimensions"
+create policy bsb_accounting_dimensions_read on "better_supabase"."accounting_dimensions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_dimension_values" (
+create table "better_supabase"."accounting_dimension_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "dimension_id" uuid not null references "better_supabase"."accounting_dimensions" ("id") on delete cascade,
-  "code" text not null check (length("code") >= 1 and length("code") <= 100),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "code" text not null constraint bsb_accounting_dimension_values_code_check check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null constraint bsb_accounting_dimension_values_name_check check (length("name") >= 1 and length("name") <= 200),
   "archived_at" timestamptz,
   unique ("dimension_id", "code")
 );
@@ -4147,88 +3675,84 @@ alter table "better_supabase"."accounting_dimension_values" enable row level sec
 revoke all on "better_supabase"."accounting_dimension_values" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimension_values" to authenticated;
 grant all on "better_supabase"."accounting_dimension_values" to service_role;
-drop policy if exists accounting_dimension_values_read on "better_supabase"."accounting_dimension_values";
-create policy accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
+create policy bsb_accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_fx_rates" (
+create table "better_supabase"."accounting_fx_rates" (
   "tenant_id" uuid not null,
-  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
-  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "base" text not null constraint bsb_accounting_fx_rates_base_check check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null constraint bsb_accounting_fx_rates_quote_check check ("quote" ~ '^[A-Z]{3}$'),
   "on_date" date not null,
   -- One unit of base costs rate units of quote.
-  "rate" numeric not null check ("rate" > 0),
+  "rate" numeric not null constraint bsb_accounting_fx_rates_rate_check check ("rate" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "base", "quote", "on_date"),
-  check ("base" <> "quote")
+  constraint bsb_accounting_fx_rates_check check ("base" <> "quote")
 );
 alter table "better_supabase"."accounting_fx_rates" enable row level security;
 revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_fx_rates" to authenticated;
 grant all on "better_supabase"."accounting_fx_rates" to service_role;
-drop policy if exists accounting_fx_rates_read on "better_supabase"."accounting_fx_rates";
-create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
+create policy bsb_accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_entry_lines" (
+create table "better_supabase"."accounting_entry_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "entry_id" uuid not null references "better_supabase"."accounting_entries" ("id") on delete cascade,
   "position" smallint not null default 0,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Minor units of the functional currency; a line has one side.
-  "debit" bigint not null default 0 check ("debit" >= 0),
-  "credit" bigint not null default 0 check ("credit" >= 0),
+  "debit" bigint not null default 0 constraint bsb_accounting_entry_lines_debit_check check ("debit" >= 0),
+  "credit" bigint not null default 0 constraint bsb_accounting_entry_lines_credit_check check ("credit" >= 0),
   -- The transaction currency and its signed amount (positive is a debit).
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text not null constraint bsb_accounting_entry_lines_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount_currency" bigint not null,
-  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "fx_rate" numeric constraint bsb_accounting_entry_lines_fx_rate_check check ("fx_rate" is null or "fx_rate" > 0),
   "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict,
   -- The part of the line that is tax, in minor units of the functional currency.
-  "tax_amount" bigint not null default 0 check ("tax_amount" >= 0),
+  "tax_amount" bigint not null default 0 constraint bsb_accounting_entry_lines_tax_amount_check check ("tax_amount" >= 0),
   -- The customer, supplier or employee the line concerns.
   "party_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
-  "description" text check ("description" is null or length("description") <= 500),
-  check (("debit" = 0) <> ("credit" = 0)),
-  check ("tax_amount" <= "debit" + "credit")
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_entry_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
+  "description" text constraint bsb_accounting_entry_lines_description_check check ("description" is null or length("description") <= 500),
+  constraint bsb_accounting_entry_lines_check check (("debit" = 0) <> ("credit" = 0)),
+  constraint bsb_accounting_entry_lines_check1 check ("tax_amount" <= "debit" + "credit")
 );
-create index if not exists "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
-create index if not exists "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
-create index if not exists "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
-create index if not exists "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
+create index "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
+create index "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
+create index "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
+create index "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
 alter table "better_supabase"."accounting_entry_lines" enable row level security;
 revoke all on "better_supabase"."accounting_entry_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entry_lines" to authenticated;
 grant all on "better_supabase"."accounting_entry_lines" to service_role;
-drop policy if exists accounting_entry_lines_read on "better_supabase"."accounting_entry_lines";
-create policy accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
+create policy bsb_accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_opening_balances" (
+create table "better_supabase"."accounting_opening_balances" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "fiscal_year" integer not null constraint bsb_accounting_opening_balances_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "party_id" uuid,
   -- Signed minor units of the functional currency; a debit balance is positive.
-  "amount" bigint not null check ("amount" <> 0),
+  "amount" bigint not null constraint bsb_accounting_opening_balances_amount_check check ("amount" <> 0),
   -- imported rows come from the old books, carried rows from close_fiscal_year.
-  "source" text not null default 'imported' check ("source" in ('imported', 'carried')),
+  "source" text not null default 'imported' constraint bsb_accounting_opening_balances_source_check check ("source" in ('imported', 'carried')),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "accounting_opening_balances_key_idx" on "better_supabase"."accounting_opening_balances" ("tenant_id", "fiscal_year", "account_id", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
-create index if not exists "accounting_opening_balances_account_idx" on "better_supabase"."accounting_opening_balances" ("account_id");
+create unique index "accounting_opening_balances_key_idx" on "better_supabase"."accounting_opening_balances" ("tenant_id", "fiscal_year", "account_id", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
+create index "accounting_opening_balances_account_idx" on "better_supabase"."accounting_opening_balances" ("account_id");
 alter table "better_supabase"."accounting_opening_balances" enable row level security;
 revoke all on "better_supabase"."accounting_opening_balances" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_opening_balances" to authenticated;
 grant all on "better_supabase"."accounting_opening_balances" to service_role;
-drop policy if exists accounting_opening_balances_read on "better_supabase"."accounting_opening_balances";
-create policy accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
+create policy bsb_accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -4246,7 +3770,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_account_level"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_accounts_level" on "better_supabase"."accounting_accounts";
 create trigger "bsb_accounting_accounts_level" before insert or update of "parent_id" on "better_supabase"."accounting_accounts"
   for each row execute function "better_supabase"."accounting_account_level"();
 
@@ -4266,7 +3789,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_account_level_children"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_accounts_level_children" on "better_supabase"."accounting_accounts";
 create trigger "bsb_accounting_accounts_level_children" after update of "parent_id" on "better_supabase"."accounting_accounts"
   for each row when (old."parent_id" is distinct from new."parent_id") execute function "better_supabase"."accounting_account_level_children"();
 
@@ -4280,8 +3802,8 @@ begin
   if tg_op = 'DELETE' and current_setting('better_supabase.purge_tenant', true) = to_jsonb(old) ->> tg_argv[0] then
     if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
       select 1 from "better_supabase"."organization_deletions" x
-      where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
-        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+      where x."tenant_id"::text = to_jsonb(old) ->> tg_argv[0]
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_at" <= now()
     ) then
       return old;
     end if;
@@ -4301,7 +3823,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_entry_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_entries_guard" on "better_supabase"."accounting_entries";
 create trigger "bsb_accounting_entries_guard" before update or delete on "better_supabase"."accounting_entries"
   for each row execute function "better_supabase"."accounting_entry_guard"('tenant_id');
 
@@ -4317,8 +3838,8 @@ begin
   if tg_op = 'DELETE' and current_setting('better_supabase.purge_tenant', true) = to_jsonb(old) ->> tg_argv[0] then
     if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
       select 1 from "better_supabase"."organization_deletions" x
-      where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
-        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+      where x."tenant_id"::text = to_jsonb(old) ->> tg_argv[0]
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_at" <= now()
     ) then
       return old;
     end if;
@@ -4331,7 +3852,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_entry_line_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_entry_lines_guard" on "better_supabase"."accounting_entry_lines";
 create trigger "bsb_accounting_entry_lines_guard" before insert or update or delete on "better_supabase"."accounting_entry_lines"
   for each row execute function "better_supabase"."accounting_entry_line_guard"('tenant_id');
 
@@ -4443,7 +3963,7 @@ grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, dat
 -- debit for assets and expenses and credit for the rest; the level follows
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
-drop function if exists "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid);
+
 create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
@@ -4630,7 +4150,7 @@ revoke execute on function "better_supabase"."list_accounting_accounts"(uuid, bo
 grant execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
-drop function if exists "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid);
+
 create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
@@ -5035,7 +4555,7 @@ revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) fr
 -- currency gives amountCurrency (signed, positive is a debit) and either the
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
-drop function if exists "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+
 create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language plpgsql
@@ -6006,7 +5526,7 @@ begin
     where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "better_supabase"."accounting_entries" y
@@ -6058,7 +5578,7 @@ begin
     v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "better_supabase"."accounting_opening_balances" y
   where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';
@@ -6781,12 +6301,12 @@ $$;
 revoke execute on function "better_supabase"."accounting_tax_report"(uuid, date, date) from public, anon;
 grant execute on function "better_supabase"."accounting_tax_report"(uuid, date, date) to authenticated, service_role;
 
-create table if not exists "better_supabase"."accounting_budgets" (
+create table "better_supabase"."accounting_budgets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'archived')),
+  "name" text not null constraint bsb_accounting_budgets_name_check check (length("name") >= 1 and length("name") <= 200),
+  "fiscal_year" integer not null constraint bsb_accounting_budgets_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "status" text not null default 'draft' constraint bsb_accounting_budgets_status_check check ("status" in ('draft', 'approved', 'archived')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -6796,31 +6316,29 @@ alter table "better_supabase"."accounting_budgets" enable row level security;
 revoke all on "better_supabase"."accounting_budgets" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budgets" to authenticated;
 grant all on "better_supabase"."accounting_budgets" to service_role;
-drop policy if exists accounting_budgets_read on "better_supabase"."accounting_budgets";
-create policy accounting_budgets_read on "better_supabase"."accounting_budgets"
+create policy bsb_accounting_budgets_read on "better_supabase"."accounting_budgets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_budget_lines" (
+create table "better_supabase"."accounting_budget_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "budget_id" uuid not null references "better_supabase"."accounting_budgets" ("id") on delete cascade,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The period of the budget's fiscal year, 1 to 12.
-  "period_number" smallint not null check ("period_number" >= 1 and "period_number" <= 12),
+  "period_number" smallint not null constraint bsb_accounting_budget_lines_period_number_check check ("period_number" >= 1 and "period_number" <= 12),
   -- The dimension values the amount is for; actuals match lines that carry them.
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_budget_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   -- Minor units of the functional currency, in the account's natural sign.
   "amount" bigint not null,
   unique ("budget_id", "account_id", "period_number", "dimensions")
 );
-create index if not exists "accounting_budget_lines_account_idx" on "better_supabase"."accounting_budget_lines" ("account_id");
+create index "accounting_budget_lines_account_idx" on "better_supabase"."accounting_budget_lines" ("account_id");
 alter table "better_supabase"."accounting_budget_lines" enable row level security;
 revoke all on "better_supabase"."accounting_budget_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budget_lines" to authenticated;
 grant all on "better_supabase"."accounting_budget_lines" to service_role;
-drop policy if exists accounting_budget_lines_read on "better_supabase"."accounting_budget_lines";
-create policy accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
+create policy bsb_accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -7005,19 +6523,19 @@ grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, 
 
 -- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
 -- one per source line, so scheduling a line twice returns the first schedule.
-create table if not exists "better_supabase"."accounting_recognition_schedules" (
+create table "better_supabase"."accounting_recognition_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "source_type" text not null check (length("source_type") between 1 and 100),
-  "source_id" text not null check (length("source_id") between 1 and 200),
-  "line_ref" text not null default '' check (length("line_ref") <= 200),
-  "amount" bigint not null check ("amount" > 0),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "source_type" text not null constraint bsb_accounting_recognition_schedules_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null constraint bsb_accounting_recognition_schedules_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200),
+  "line_ref" text not null default '' constraint bsb_accounting_recognition_schedules_line_ref_check check (length("line_ref") <= 200),
+  "amount" bigint not null constraint bsb_accounting_recognition_schedules_amount_check check ("amount" > 0),
+  "currency" text not null constraint bsb_accounting_recognition_schedules_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "starts_on" date not null,
   "ends_on" date not null,
   "deferral_entry_id" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_recognition_schedules_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "source_type", "source_id", "line_ref")
 );
 alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
@@ -7026,18 +6544,18 @@ grant all on "better_supabase"."accounting_recognition_schedules" to service_rol
 
 -- The part of a schedule earned in one month, due on the month's last day (or
 -- the schedule's end). The period close posts pending rows into the books.
-create table if not exists "better_supabase"."accounting_recognition_rows" (
+create table "better_supabase"."accounting_recognition_rows" (
   "id" uuid primary key default gen_random_uuid(),
   "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "due_on" date not null,
-  "amount" bigint not null check ("amount" > 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "amount" bigint not null constraint bsb_accounting_recognition_rows_amount_check check ("amount" > 0),
+  "status" text not null default 'pending' constraint bsb_accounting_recognition_rows_status_check check ("status" in ('pending', 'posted')),
   "entry_id" uuid,
   "posted_at" timestamptz
 );
-create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
-create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+create index accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
+create index accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
 alter table "better_supabase"."accounting_recognition_rows" enable row level security;
 revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
 grant all on "better_supabase"."accounting_recognition_rows" to service_role;
@@ -7359,316 +6877,222 @@ grant execute on function "better_supabase"."seed_accounting_defaults"(uuid, tex
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_settings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_settings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_settings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_settings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_accounts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_accounts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_accounts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_accounts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_account_roles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_account_roles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_journals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_journals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_journals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_journals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_periods" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_periods" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_periods" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_periods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimensions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimensions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_opening_balances";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budgets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_budgets" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_budgets" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_budgets" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budgets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budget_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.accounting_accounts', target_type => 'accounting_account', event_prefix => 'accounting_account', deferred => true);
-  perform better_supabase.audit('better_supabase.accounting_journals', target_type => 'accounting_journal', event_prefix => 'accounting_journal', deferred => true);
-  perform better_supabase.audit('better_supabase.accounting_periods', target_type => 'accounting_period', event_prefix => 'accounting_period', deferred => true);
-  perform better_supabase.audit('better_supabase.accounting_entries', target_type => 'accounting_entry', event_prefix => 'accounting_entry', deferred => true);
-  perform better_supabase.audit('better_supabase.accounting_dimensions', target_type => 'accounting_dimension', event_prefix => 'accounting_dimension', deferred => true);
-  perform better_supabase.audit('better_supabase.accounting_budgets', target_type => 'accounting_budget', event_prefix => 'accounting_budget', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_accounts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_account","event_prefix":"accounting_account"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_journals deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_journal","event_prefix":"accounting_journal"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_periods deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_period","event_prefix":"accounting_period"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_entries deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_entry","event_prefix":"accounting_entry"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_dimensions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_dimension","event_prefix":"accounting_dimension"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_budgets deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_budget","event_prefix":"accounting_budget"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
@@ -7703,190 +7127,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:2be78a7298c34221ec480a7c75ed64efcf815604ef5c3b20b5d97628999b2fc2
+-- @bsb-hash sha256:5f4c6a5349ac0a45d131c7d2e5a6522abb26cf1d9e66c2d99a268b2926128e2e
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_recognition_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_recognition_rows";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_accounts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_account_roles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_journals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_entry_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_dimensions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_dimension_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_fx_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_opening_balances";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_budgets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_budget_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -7898,11 +7143,11 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- period and year-end close, the documents other blocks book, tax reports
 -- and budgets.
 
-create table if not exists "app_private"."accounting_settings" (
+create table "app_private"."accounting_settings" (
   "tenant_id" uuid primary key,
   -- Every debit and credit is in minor units of this currency.
-  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
-  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  "functional_currency" text not null constraint bsb_accounting_settings_functional_currency_check check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 constraint bsb_accounting_settings_fiscal_year_start_month_check check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
   -- Nothing posts on or before this date, whatever the period's status.
   "lock_date" date,
   "created_at" timestamptz not null default now(),
@@ -7912,26 +7157,25 @@ alter table "app_private"."accounting_settings" enable row level security;
 revoke all on "app_private"."accounting_settings" from public, anon, authenticated;
 grant select on "app_private"."accounting_settings" to authenticated;
 grant all on "app_private"."accounting_settings" to service_role;
-drop policy if exists accounting_settings_read on "app_private"."accounting_settings";
-create policy accounting_settings_read on "app_private"."accounting_settings"
+create policy bsb_accounting_settings_read on "app_private"."accounting_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "app_private"."accounting_accounts" (
+create table "app_private"."accounting_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "code" text not null constraint bsb_accounting_accounts_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_accounting_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_accounts_type_check check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
   "subtype" text,
   "parent_id" uuid references "app_private"."accounting_accounts" ("id") on delete restrict,
   -- Lines on the account must be in this currency; null takes any.
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "reconcilable" boolean not null default false,
   -- The side a positive balance sits on; reports show it next to the amount.
-  "normal_side" text not null default 'debit' check ("normal_side" in ('debit', 'credit')),
+  "normal_side" text not null default 'debit' constraint bsb_accounting_accounts_normal_side_check check ("normal_side" in ('debit', 'credit')),
   -- 1 for a top-level account, one more than the parent's for the rest.
-  "level" smallint not null default 1 check ("level" >= 1),
+  "level" smallint not null default 1 constraint bsb_accounting_accounts_level_check check ("level" >= 1),
   -- The tax code a line on this account takes when it names none.
   "default_tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete set null,
   -- An inactive account stays on the chart and in reports but takes no new lines.
@@ -7941,43 +7185,41 @@ create table if not exists "app_private"."accounting_accounts" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
 );
-create index if not exists "accounting_accounts_parent_idx" on "app_private"."accounting_accounts" ("parent_id") where "parent_id" is not null;
-create index if not exists "accounting_accounts_tax_idx" on "app_private"."accounting_accounts" ("default_tax_code_id") where "default_tax_code_id" is not null;
+create index "accounting_accounts_parent_idx" on "app_private"."accounting_accounts" ("parent_id") where "parent_id" is not null;
+create index "accounting_accounts_tax_idx" on "app_private"."accounting_accounts" ("default_tax_code_id") where "default_tax_code_id" is not null;
 alter table "app_private"."accounting_accounts" enable row level security;
 revoke all on "app_private"."accounting_accounts" from public, anon, authenticated;
 grant select on "app_private"."accounting_accounts" to authenticated;
 grant all on "app_private"."accounting_accounts" to service_role;
-drop policy if exists accounting_accounts_read on "app_private"."accounting_accounts";
-create policy accounting_accounts_read on "app_private"."accounting_accounts"
+create policy bsb_accounting_accounts_read on "app_private"."accounting_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "app_private"."accounting_account_roles" (
+create table "app_private"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null constraint bsb_accounting_account_roles_role_check check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
 );
-create index if not exists "accounting_account_roles_account_idx" on "app_private"."accounting_account_roles" ("account_id");
+create index "accounting_account_roles_account_idx" on "app_private"."accounting_account_roles" ("account_id");
 alter table "app_private"."accounting_account_roles" enable row level security;
 revoke all on "app_private"."accounting_account_roles" from public, anon, authenticated;
 grant select on "app_private"."accounting_account_roles" to authenticated;
 grant all on "app_private"."accounting_account_roles" to service_role;
-drop policy if exists accounting_account_roles_read on "app_private"."accounting_account_roles";
-create policy accounting_account_roles_read on "app_private"."accounting_account_roles"
+create policy bsb_accounting_account_roles_read on "app_private"."accounting_account_roles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "app_private"."accounting_journals" (
+create table "app_private"."accounting_journals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  "code" text not null constraint bsb_accounting_journals_code_check check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null constraint bsb_accounting_journals_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_journals_type_check check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
   -- The bank or cash account a bank or cash journal posts against.
   "default_account_id" uuid references "app_private"."accounting_accounts" ("id") on delete restrict,
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_journals_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   -- The counter account a bank or cash journal's lines offset by default.
   "contra_account_id" uuid references "app_private"."accounting_accounts" ("id") on delete restrict,
   -- The bank account (banking block) the journal books; its statements post here.
@@ -7986,46 +7228,44 @@ create table if not exists "app_private"."accounting_journals" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
 );
-create index if not exists "accounting_journals_account_idx" on "app_private"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
-create index if not exists "accounting_journals_contra_idx" on "app_private"."accounting_journals" ("contra_account_id") where "contra_account_id" is not null;
+create index "accounting_journals_account_idx" on "app_private"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
+create index "accounting_journals_contra_idx" on "app_private"."accounting_journals" ("contra_account_id") where "contra_account_id" is not null;
 alter table "app_private"."accounting_journals" enable row level security;
 revoke all on "app_private"."accounting_journals" from public, anon, authenticated;
 grant select on "app_private"."accounting_journals" to authenticated;
 grant all on "app_private"."accounting_journals" to service_role;
-drop policy if exists accounting_journals_read on "app_private"."accounting_journals";
-create policy accounting_journals_read on "app_private"."accounting_journals"
+create policy bsb_accounting_journals_read on "app_private"."accounting_journals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "app_private"."accounting_periods" (
+create table "app_private"."accounting_periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The calendar year the fiscal year starts in.
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "fiscal_year" integer not null constraint bsb_accounting_periods_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null constraint bsb_accounting_periods_number_check check ("number" >= 1 and "number" <= 12),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'closed', 'locked')),
+  "status" text not null default 'open' constraint bsb_accounting_periods_status_check check ("status" in ('open', 'closed', 'locked')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   -- A locked period takes no posting at all, not even an import.
   "locked_at" timestamptz,
   "locked_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "fiscal_year", "number")
 );
-create index if not exists "accounting_periods_dates_idx" on "app_private"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
+create index "accounting_periods_dates_idx" on "app_private"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
 alter table "app_private"."accounting_periods" enable row level security;
 revoke all on "app_private"."accounting_periods" from public, anon, authenticated;
 grant select on "app_private"."accounting_periods" to authenticated;
 grant all on "app_private"."accounting_periods" to service_role;
-drop policy if exists accounting_periods_read on "app_private"."accounting_periods";
-create policy accounting_periods_read on "app_private"."accounting_periods"
+create policy bsb_accounting_periods_read on "app_private"."accounting_periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "app_private"."accounting_entries" (
+create table "app_private"."accounting_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "journal_id" uuid not null references "app_private"."accounting_journals" ("id") on delete restrict,
@@ -8035,42 +7275,41 @@ create table if not exists "app_private"."accounting_entries" (
   "number" text,
   "entry_date" date not null,
   "period_id" uuid references "app_private"."accounting_periods" ("id") on delete restrict,
-  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'draft' constraint bsb_accounting_entries_status_check check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text constraint bsb_accounting_entries_reference_check check ("reference" is null or length("reference") <= 200),
   -- The document the entry books, such as invoice and its id.
-  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_type" text constraint bsb_accounting_entries_source_type_check check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "source_id" text,
   "reverses_id" uuid references "app_private"."accounting_entries" ("id") on delete restrict,
-  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "memo" text constraint bsb_accounting_entries_memo_check check ("memo" is null or length("memo") <= 2000),
   "posted_at" timestamptz,
   "posted_by" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("source_type" is null) = ("source_id" is null)),
-  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+  constraint bsb_accounting_entries_check check (("source_type" is null) = ("source_id" is null)),
+  constraint bsb_accounting_entries_check1 check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
 );
-create unique index if not exists "accounting_entries_number_idx" on "app_private"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
+create unique index "accounting_entries_number_idx" on "app_private"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
-create unique index if not exists "accounting_entries_source_idx" on "app_private"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
-create unique index if not exists "accounting_entries_reverses_idx" on "app_private"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
-create index if not exists "accounting_entries_date_idx" on "app_private"."accounting_entries" ("tenant_id", "entry_date" desc);
-create index if not exists "accounting_entries_period_idx" on "app_private"."accounting_entries" ("period_id", "status");
+create unique index "accounting_entries_source_idx" on "app_private"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
+create unique index "accounting_entries_reverses_idx" on "app_private"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
+create index "accounting_entries_date_idx" on "app_private"."accounting_entries" ("tenant_id", "entry_date" desc);
+create index "accounting_entries_period_idx" on "app_private"."accounting_entries" ("period_id", "status");
 alter table "app_private"."accounting_entries" enable row level security;
 revoke all on "app_private"."accounting_entries" from public, anon, authenticated;
 grant select on "app_private"."accounting_entries" to authenticated;
 grant all on "app_private"."accounting_entries" to service_role;
-drop policy if exists accounting_entries_read on "app_private"."accounting_entries";
-create policy accounting_entries_read on "app_private"."accounting_entries"
+create policy bsb_accounting_entries_read on "app_private"."accounting_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "app_private"."accounting_dimensions" (
+create table "app_private"."accounting_dimensions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The key lines use in their dimensions object, such as project or department.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_accounting_dimensions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_accounting_dimensions_name_check check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
@@ -8078,17 +7317,16 @@ alter table "app_private"."accounting_dimensions" enable row level security;
 revoke all on "app_private"."accounting_dimensions" from public, anon, authenticated;
 grant select on "app_private"."accounting_dimensions" to authenticated;
 grant all on "app_private"."accounting_dimensions" to service_role;
-drop policy if exists accounting_dimensions_read on "app_private"."accounting_dimensions";
-create policy accounting_dimensions_read on "app_private"."accounting_dimensions"
+create policy bsb_accounting_dimensions_read on "app_private"."accounting_dimensions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "app_private"."accounting_dimension_values" (
+create table "app_private"."accounting_dimension_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "dimension_id" uuid not null references "app_private"."accounting_dimensions" ("id") on delete cascade,
-  "code" text not null check (length("code") >= 1 and length("code") <= 100),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "code" text not null constraint bsb_accounting_dimension_values_code_check check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null constraint bsb_accounting_dimension_values_name_check check (length("name") >= 1 and length("name") <= 200),
   "archived_at" timestamptz,
   unique ("dimension_id", "code")
 );
@@ -8096,88 +7334,84 @@ alter table "app_private"."accounting_dimension_values" enable row level securit
 revoke all on "app_private"."accounting_dimension_values" from public, anon, authenticated;
 grant select on "app_private"."accounting_dimension_values" to authenticated;
 grant all on "app_private"."accounting_dimension_values" to service_role;
-drop policy if exists accounting_dimension_values_read on "app_private"."accounting_dimension_values";
-create policy accounting_dimension_values_read on "app_private"."accounting_dimension_values"
+create policy bsb_accounting_dimension_values_read on "app_private"."accounting_dimension_values"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "app_private"."accounting_fx_rates" (
+create table "app_private"."accounting_fx_rates" (
   "tenant_id" uuid not null,
-  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
-  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "base" text not null constraint bsb_accounting_fx_rates_base_check check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null constraint bsb_accounting_fx_rates_quote_check check ("quote" ~ '^[A-Z]{3}$'),
   "on_date" date not null,
   -- One unit of base costs rate units of quote.
-  "rate" numeric not null check ("rate" > 0),
+  "rate" numeric not null constraint bsb_accounting_fx_rates_rate_check check ("rate" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "base", "quote", "on_date"),
-  check ("base" <> "quote")
+  constraint bsb_accounting_fx_rates_check check ("base" <> "quote")
 );
 alter table "app_private"."accounting_fx_rates" enable row level security;
 revoke all on "app_private"."accounting_fx_rates" from public, anon, authenticated;
 grant select on "app_private"."accounting_fx_rates" to authenticated;
 grant all on "app_private"."accounting_fx_rates" to service_role;
-drop policy if exists accounting_fx_rates_read on "app_private"."accounting_fx_rates";
-create policy accounting_fx_rates_read on "app_private"."accounting_fx_rates"
+create policy bsb_accounting_fx_rates_read on "app_private"."accounting_fx_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "app_private"."accounting_entry_lines" (
+create table "app_private"."accounting_entry_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "entry_id" uuid not null references "app_private"."accounting_entries" ("id") on delete cascade,
   "position" smallint not null default 0,
   "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
   -- Minor units of the functional currency; a line has one side.
-  "debit" bigint not null default 0 check ("debit" >= 0),
-  "credit" bigint not null default 0 check ("credit" >= 0),
+  "debit" bigint not null default 0 constraint bsb_accounting_entry_lines_debit_check check ("debit" >= 0),
+  "credit" bigint not null default 0 constraint bsb_accounting_entry_lines_credit_check check ("credit" >= 0),
   -- The transaction currency and its signed amount (positive is a debit).
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text not null constraint bsb_accounting_entry_lines_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount_currency" bigint not null,
-  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "fx_rate" numeric constraint bsb_accounting_entry_lines_fx_rate_check check ("fx_rate" is null or "fx_rate" > 0),
   "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict,
   -- The part of the line that is tax, in minor units of the functional currency.
-  "tax_amount" bigint not null default 0 check ("tax_amount" >= 0),
+  "tax_amount" bigint not null default 0 constraint bsb_accounting_entry_lines_tax_amount_check check ("tax_amount" >= 0),
   -- The customer, supplier or employee the line concerns.
   "party_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
-  "description" text check ("description" is null or length("description") <= 500),
-  check (("debit" = 0) <> ("credit" = 0)),
-  check ("tax_amount" <= "debit" + "credit")
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_entry_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
+  "description" text constraint bsb_accounting_entry_lines_description_check check ("description" is null or length("description") <= 500),
+  constraint bsb_accounting_entry_lines_check check (("debit" = 0) <> ("credit" = 0)),
+  constraint bsb_accounting_entry_lines_check1 check ("tax_amount" <= "debit" + "credit")
 );
-create index if not exists "accounting_entry_lines_entry_idx" on "app_private"."accounting_entry_lines" ("entry_id", "position");
-create index if not exists "accounting_entry_lines_account_idx" on "app_private"."accounting_entry_lines" ("account_id");
-create index if not exists "accounting_entry_lines_party_idx" on "app_private"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
-create index if not exists "accounting_entry_lines_tax_idx" on "app_private"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
+create index "accounting_entry_lines_entry_idx" on "app_private"."accounting_entry_lines" ("entry_id", "position");
+create index "accounting_entry_lines_account_idx" on "app_private"."accounting_entry_lines" ("account_id");
+create index "accounting_entry_lines_party_idx" on "app_private"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
+create index "accounting_entry_lines_tax_idx" on "app_private"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
 alter table "app_private"."accounting_entry_lines" enable row level security;
 revoke all on "app_private"."accounting_entry_lines" from public, anon, authenticated;
 grant select on "app_private"."accounting_entry_lines" to authenticated;
 grant all on "app_private"."accounting_entry_lines" to service_role;
-drop policy if exists accounting_entry_lines_read on "app_private"."accounting_entry_lines";
-create policy accounting_entry_lines_read on "app_private"."accounting_entry_lines"
+create policy bsb_accounting_entry_lines_read on "app_private"."accounting_entry_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "app_private"."accounting_opening_balances" (
+create table "app_private"."accounting_opening_balances" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "fiscal_year" integer not null constraint bsb_accounting_opening_balances_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
   "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
   "party_id" uuid,
   -- Signed minor units of the functional currency; a debit balance is positive.
-  "amount" bigint not null check ("amount" <> 0),
+  "amount" bigint not null constraint bsb_accounting_opening_balances_amount_check check ("amount" <> 0),
   -- imported rows come from the old books, carried rows from close_fiscal_year.
-  "source" text not null default 'imported' check ("source" in ('imported', 'carried')),
+  "source" text not null default 'imported' constraint bsb_accounting_opening_balances_source_check check ("source" in ('imported', 'carried')),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "accounting_opening_balances_key_idx" on "app_private"."accounting_opening_balances" ("tenant_id", "fiscal_year", "account_id", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
-create index if not exists "accounting_opening_balances_account_idx" on "app_private"."accounting_opening_balances" ("account_id");
+create unique index "accounting_opening_balances_key_idx" on "app_private"."accounting_opening_balances" ("tenant_id", "fiscal_year", "account_id", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
+create index "accounting_opening_balances_account_idx" on "app_private"."accounting_opening_balances" ("account_id");
 alter table "app_private"."accounting_opening_balances" enable row level security;
 revoke all on "app_private"."accounting_opening_balances" from public, anon, authenticated;
 grant select on "app_private"."accounting_opening_balances" to authenticated;
 grant all on "app_private"."accounting_opening_balances" to service_role;
-drop policy if exists accounting_opening_balances_read on "app_private"."accounting_opening_balances";
-create policy accounting_opening_balances_read on "app_private"."accounting_opening_balances"
+create policy bsb_accounting_opening_balances_read on "app_private"."accounting_opening_balances"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -8195,7 +7429,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."accounting_account_level"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_accounts_level" on "app_private"."accounting_accounts";
 create trigger "bsb_accounting_accounts_level" before insert or update of "parent_id" on "app_private"."accounting_accounts"
   for each row execute function "app_private"."accounting_account_level"();
 
@@ -8215,7 +7448,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."accounting_account_level_children"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_accounts_level_children" on "app_private"."accounting_accounts";
 create trigger "bsb_accounting_accounts_level_children" after update of "parent_id" on "app_private"."accounting_accounts"
   for each row when (old."parent_id" is distinct from new."parent_id") execute function "app_private"."accounting_account_level_children"();
 
@@ -8241,7 +7473,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."accounting_entry_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_entries_guard" on "app_private"."accounting_entries";
 create trigger "bsb_accounting_entries_guard" before update or delete on "app_private"."accounting_entries"
   for each row execute function "app_private"."accounting_entry_guard"('tenant_id');
 
@@ -8262,7 +7493,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."accounting_entry_line_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_entry_lines_guard" on "app_private"."accounting_entry_lines";
 create trigger "bsb_accounting_entry_lines_guard" before insert or update or delete on "app_private"."accounting_entry_lines"
   for each row execute function "app_private"."accounting_entry_line_guard"('tenant_id');
 
@@ -8374,7 +7604,7 @@ grant execute on function "app_private"."set_accounting_lock_date"(uuid, date) t
 -- debit for assets and expenses and credit for the rest; the level follows
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
-drop function if exists "app_private"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid);
+
 create or replace function "app_private"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
@@ -8561,7 +7791,7 @@ revoke execute on function "app_private"."list_accounting_accounts"(uuid, boolea
 grant execute on function "app_private"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
-drop function if exists "app_private"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid);
+
 create or replace function "app_private"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
@@ -8956,7 +8186,7 @@ revoke execute on function "app_private"."accounting_post"(uuid, boolean) from p
 -- currency gives amountCurrency (signed, positive is a debit) and either the
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
-drop function if exists "app_private"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+
 create or replace function "app_private"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language plpgsql
@@ -9821,7 +9051,7 @@ begin
     where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "app_private"."accounting_entries" y
@@ -9873,7 +9103,7 @@ begin
     v_entry := "app_private"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "app_private"."accounting_opening_balances" y
   where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';
@@ -10576,12 +9806,12 @@ $$;
 revoke execute on function "app_private"."accounting_tax_report"(uuid, date, date) from public, anon;
 grant execute on function "app_private"."accounting_tax_report"(uuid, date, date) to authenticated, service_role;
 
-create table if not exists "app_private"."accounting_budgets" (
+create table "app_private"."accounting_budgets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'archived')),
+  "name" text not null constraint bsb_accounting_budgets_name_check check (length("name") >= 1 and length("name") <= 200),
+  "fiscal_year" integer not null constraint bsb_accounting_budgets_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "status" text not null default 'draft' constraint bsb_accounting_budgets_status_check check ("status" in ('draft', 'approved', 'archived')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -10591,31 +9821,29 @@ alter table "app_private"."accounting_budgets" enable row level security;
 revoke all on "app_private"."accounting_budgets" from public, anon, authenticated;
 grant select on "app_private"."accounting_budgets" to authenticated;
 grant all on "app_private"."accounting_budgets" to service_role;
-drop policy if exists accounting_budgets_read on "app_private"."accounting_budgets";
-create policy accounting_budgets_read on "app_private"."accounting_budgets"
+create policy bsb_accounting_budgets_read on "app_private"."accounting_budgets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "app_private"."accounting_budget_lines" (
+create table "app_private"."accounting_budget_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "budget_id" uuid not null references "app_private"."accounting_budgets" ("id") on delete cascade,
   "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
   -- The period of the budget's fiscal year, 1 to 12.
-  "period_number" smallint not null check ("period_number" >= 1 and "period_number" <= 12),
+  "period_number" smallint not null constraint bsb_accounting_budget_lines_period_number_check check ("period_number" >= 1 and "period_number" <= 12),
   -- The dimension values the amount is for; actuals match lines that carry them.
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_budget_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   -- Minor units of the functional currency, in the account's natural sign.
   "amount" bigint not null,
   unique ("budget_id", "account_id", "period_number", "dimensions")
 );
-create index if not exists "accounting_budget_lines_account_idx" on "app_private"."accounting_budget_lines" ("account_id");
+create index "accounting_budget_lines_account_idx" on "app_private"."accounting_budget_lines" ("account_id");
 alter table "app_private"."accounting_budget_lines" enable row level security;
 revoke all on "app_private"."accounting_budget_lines" from public, anon, authenticated;
 grant select on "app_private"."accounting_budget_lines" to authenticated;
 grant all on "app_private"."accounting_budget_lines" to service_role;
-drop policy if exists accounting_budget_lines_read on "app_private"."accounting_budget_lines";
-create policy accounting_budget_lines_read on "app_private"."accounting_budget_lines"
+create policy bsb_accounting_budget_lines_read on "app_private"."accounting_budget_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -10780,19 +10008,19 @@ grant execute on function "app_private"."accounting_budget_vs_actual"(uuid, inte
 
 -- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
 -- one per source line, so scheduling a line twice returns the first schedule.
-create table if not exists "app_private"."accounting_recognition_schedules" (
+create table "app_private"."accounting_recognition_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "source_type" text not null check (length("source_type") between 1 and 100),
-  "source_id" text not null check (length("source_id") between 1 and 200),
-  "line_ref" text not null default '' check (length("line_ref") <= 200),
-  "amount" bigint not null check ("amount" > 0),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "source_type" text not null constraint bsb_accounting_recognition_schedules_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null constraint bsb_accounting_recognition_schedules_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200),
+  "line_ref" text not null default '' constraint bsb_accounting_recognition_schedules_line_ref_check check (length("line_ref") <= 200),
+  "amount" bigint not null constraint bsb_accounting_recognition_schedules_amount_check check ("amount" > 0),
+  "currency" text not null constraint bsb_accounting_recognition_schedules_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "starts_on" date not null,
   "ends_on" date not null,
   "deferral_entry_id" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_recognition_schedules_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "source_type", "source_id", "line_ref")
 );
 alter table "app_private"."accounting_recognition_schedules" enable row level security;
@@ -10801,18 +10029,18 @@ grant all on "app_private"."accounting_recognition_schedules" to service_role;
 
 -- The part of a schedule earned in one month, due on the month's last day (or
 -- the schedule's end). The period close posts pending rows into the books.
-create table if not exists "app_private"."accounting_recognition_rows" (
+create table "app_private"."accounting_recognition_rows" (
   "id" uuid primary key default gen_random_uuid(),
   "schedule_id" uuid not null references "app_private"."accounting_recognition_schedules" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "due_on" date not null,
-  "amount" bigint not null check ("amount" > 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "amount" bigint not null constraint bsb_accounting_recognition_rows_amount_check check ("amount" > 0),
+  "status" text not null default 'pending' constraint bsb_accounting_recognition_rows_status_check check ("status" in ('pending', 'posted')),
   "entry_id" uuid,
   "posted_at" timestamptz
 );
-create index if not exists accounting_recognition_rows_schedule_idx on "app_private"."accounting_recognition_rows" ("schedule_id");
-create index if not exists accounting_recognition_rows_due_idx on "app_private"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+create index accounting_recognition_rows_schedule_idx on "app_private"."accounting_recognition_rows" ("schedule_id");
+create index accounting_recognition_rows_due_idx on "app_private"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
 alter table "app_private"."accounting_recognition_rows" enable row level security;
 revoke all on "app_private"."accounting_recognition_rows" from anon, authenticated;
 grant all on "app_private"."accounting_recognition_rows" to service_role;
@@ -11134,304 +10362,214 @@ grant execute on function "app_private"."seed_accounting_defaults"(uuid, text, t
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_settings";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_settings";
 create policy bsb_tenant_scope_select on "app_private"."accounting_settings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_settings";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_settings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_settings";
 create policy bsb_tenant_scope_update on "app_private"."accounting_settings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_settings";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_settings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_accounts";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_accounts";
 create policy bsb_tenant_scope_select on "app_private"."accounting_accounts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_accounts";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_accounts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_accounts";
 create policy bsb_tenant_scope_update on "app_private"."accounting_accounts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_accounts";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_accounts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_account_roles";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_account_roles";
 create policy bsb_tenant_scope_select on "app_private"."accounting_account_roles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_account_roles";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_account_roles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_account_roles";
 create policy bsb_tenant_scope_update on "app_private"."accounting_account_roles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_account_roles";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_account_roles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_journals";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_journals";
 create policy bsb_tenant_scope_select on "app_private"."accounting_journals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_journals";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_journals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_journals";
 create policy bsb_tenant_scope_update on "app_private"."accounting_journals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_journals";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_journals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_periods";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_periods";
 create policy bsb_tenant_scope_select on "app_private"."accounting_periods" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_periods";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_periods" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_periods";
 create policy bsb_tenant_scope_update on "app_private"."accounting_periods" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_periods";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_periods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_entries";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_entries";
 create policy bsb_tenant_scope_select on "app_private"."accounting_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_entries";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_entries";
 create policy bsb_tenant_scope_update on "app_private"."accounting_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_entries";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_entry_lines";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_entry_lines";
 create policy bsb_tenant_scope_select on "app_private"."accounting_entry_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_entry_lines";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_entry_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_entry_lines";
 create policy bsb_tenant_scope_update on "app_private"."accounting_entry_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_entry_lines";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_entry_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_dimensions";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_dimensions";
 create policy bsb_tenant_scope_select on "app_private"."accounting_dimensions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_dimensions";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_dimensions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_dimensions";
 create policy bsb_tenant_scope_update on "app_private"."accounting_dimensions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_dimensions";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_dimensions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_dimension_values";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_dimension_values";
 create policy bsb_tenant_scope_select on "app_private"."accounting_dimension_values" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_dimension_values";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_dimension_values" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_dimension_values";
 create policy bsb_tenant_scope_update on "app_private"."accounting_dimension_values" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_dimension_values";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_dimension_values" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_fx_rates";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_fx_rates";
 create policy bsb_tenant_scope_select on "app_private"."accounting_fx_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_fx_rates";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_fx_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_fx_rates";
 create policy bsb_tenant_scope_update on "app_private"."accounting_fx_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_fx_rates";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_fx_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_opening_balances";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_opening_balances";
 create policy bsb_tenant_scope_select on "app_private"."accounting_opening_balances" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_opening_balances";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_opening_balances" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_opening_balances";
 create policy bsb_tenant_scope_update on "app_private"."accounting_opening_balances" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_opening_balances";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_opening_balances" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_budgets";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_budgets";
 create policy bsb_tenant_scope_select on "app_private"."accounting_budgets" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_budgets";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_budgets" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_budgets";
 create policy bsb_tenant_scope_update on "app_private"."accounting_budgets" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_budgets";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_budgets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."accounting_budget_lines";
-drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_budget_lines";
 create policy bsb_tenant_scope_select on "app_private"."accounting_budget_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_budget_lines";
 create policy bsb_tenant_scope_insert on "app_private"."accounting_budget_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_budget_lines";
 create policy bsb_tenant_scope_update on "app_private"."accounting_budget_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_budget_lines";
 create policy bsb_tenant_scope_delete on "app_private"."accounting_budget_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
@@ -11466,201 +10604,22 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:17479689ea04480fd23f0e9aca75126665fd6a0d72d4580ad1010ba7ca4f582a
+-- @bsb-hash sha256:7925011d47d4440994cab132e1f7a6747c6e7effe088daaf0f467eb3c0e4fadf
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budgets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Accounting: a chart of accounts with roles, journals, fiscal periods, and
 -- balanced journal entries in minor units of the organization's functional
 -- currency, with dimensions, exchange rates, tax codes, reports and the
 -- period and year-end close, the documents other blocks book, tax reports
 -- and budgets.
 
-create table if not exists "better_supabase"."accounting_settings" (
+create table "better_supabase"."accounting_settings" (
   "tenant_id" uuid primary key,
   -- Every debit and credit is in minor units of this currency.
-  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
-  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  "functional_currency" text not null constraint bsb_accounting_settings_functional_currency_check check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 constraint bsb_accounting_settings_fiscal_year_start_month_check check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
   -- Nothing posts on or before this date, whatever the period's status.
   "lock_date" date,
   "created_at" timestamptz not null default now(),
@@ -11670,26 +10629,25 @@ alter table "better_supabase"."accounting_settings" enable row level security;
 revoke all on "better_supabase"."accounting_settings" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_settings" to authenticated;
 grant all on "better_supabase"."accounting_settings" to service_role;
-drop policy if exists accounting_settings_read on "better_supabase"."accounting_settings";
-create policy accounting_settings_read on "better_supabase"."accounting_settings"
+create policy bsb_accounting_settings_read on "better_supabase"."accounting_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_accounts" (
+create table "better_supabase"."accounting_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "code" text not null constraint bsb_accounting_accounts_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_accounting_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_accounts_type_check check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
   "subtype" text,
   "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Lines on the account must be in this currency; null takes any.
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "reconcilable" boolean not null default false,
   -- The side a positive balance sits on; reports show it next to the amount.
-  "normal_side" text not null default 'debit' check ("normal_side" in ('debit', 'credit')),
+  "normal_side" text not null default 'debit' constraint bsb_accounting_accounts_normal_side_check check ("normal_side" in ('debit', 'credit')),
   -- 1 for a top-level account, one more than the parent's for the rest.
-  "level" smallint not null default 1 check ("level" >= 1),
+  "level" smallint not null default 1 constraint bsb_accounting_accounts_level_check check ("level" >= 1),
   -- The tax code a line on this account takes when it names none.
   "default_tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete set null,
   -- An inactive account stays on the chart and in reports but takes no new lines.
@@ -11699,43 +10657,41 @@ create table if not exists "better_supabase"."accounting_accounts" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
 );
-create index if not exists "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
-create index if not exists "accounting_accounts_tax_idx" on "better_supabase"."accounting_accounts" ("default_tax_code_id") where "default_tax_code_id" is not null;
+create index "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
+create index "accounting_accounts_tax_idx" on "better_supabase"."accounting_accounts" ("default_tax_code_id") where "default_tax_code_id" is not null;
 alter table "better_supabase"."accounting_accounts" enable row level security;
 revoke all on "better_supabase"."accounting_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_accounts" to authenticated;
 grant all on "better_supabase"."accounting_accounts" to service_role;
-drop policy if exists accounting_accounts_read on "better_supabase"."accounting_accounts";
-create policy accounting_accounts_read on "better_supabase"."accounting_accounts"
+create policy bsb_accounting_accounts_read on "better_supabase"."accounting_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_account_roles" (
+create table "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null constraint bsb_accounting_account_roles_role_check check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
 );
-create index if not exists "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
+create index "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
 alter table "better_supabase"."accounting_account_roles" enable row level security;
 revoke all on "better_supabase"."accounting_account_roles" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_account_roles" to authenticated;
 grant all on "better_supabase"."accounting_account_roles" to service_role;
-drop policy if exists accounting_account_roles_read on "better_supabase"."accounting_account_roles";
-create policy accounting_account_roles_read on "better_supabase"."accounting_account_roles"
+create policy bsb_accounting_account_roles_read on "better_supabase"."accounting_account_roles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_journals" (
+create table "better_supabase"."accounting_journals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  "code" text not null constraint bsb_accounting_journals_code_check check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null constraint bsb_accounting_journals_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_journals_type_check check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
   -- The bank or cash account a bank or cash journal posts against.
   "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_journals_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   -- The counter account a bank or cash journal's lines offset by default.
   "contra_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The bank account (banking block) the journal books; its statements post here.
@@ -11744,46 +10700,44 @@ create table if not exists "better_supabase"."accounting_journals" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
 );
-create index if not exists "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
-create index if not exists "accounting_journals_contra_idx" on "better_supabase"."accounting_journals" ("contra_account_id") where "contra_account_id" is not null;
+create index "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
+create index "accounting_journals_contra_idx" on "better_supabase"."accounting_journals" ("contra_account_id") where "contra_account_id" is not null;
 alter table "better_supabase"."accounting_journals" enable row level security;
 revoke all on "better_supabase"."accounting_journals" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_journals" to authenticated;
 grant all on "better_supabase"."accounting_journals" to service_role;
-drop policy if exists accounting_journals_read on "better_supabase"."accounting_journals";
-create policy accounting_journals_read on "better_supabase"."accounting_journals"
+create policy bsb_accounting_journals_read on "better_supabase"."accounting_journals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_periods" (
+create table "better_supabase"."accounting_periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The calendar year the fiscal year starts in.
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "fiscal_year" integer not null constraint bsb_accounting_periods_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null constraint bsb_accounting_periods_number_check check ("number" >= 1 and "number" <= 12),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'closed', 'locked')),
+  "status" text not null default 'open' constraint bsb_accounting_periods_status_check check ("status" in ('open', 'closed', 'locked')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   -- A locked period takes no posting at all, not even an import.
   "locked_at" timestamptz,
   "locked_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "fiscal_year", "number")
 );
-create index if not exists "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
+create index "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
 alter table "better_supabase"."accounting_periods" enable row level security;
 revoke all on "better_supabase"."accounting_periods" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_periods" to authenticated;
 grant all on "better_supabase"."accounting_periods" to service_role;
-drop policy if exists accounting_periods_read on "better_supabase"."accounting_periods";
-create policy accounting_periods_read on "better_supabase"."accounting_periods"
+create policy bsb_accounting_periods_read on "better_supabase"."accounting_periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_entries" (
+create table "better_supabase"."accounting_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "journal_id" uuid not null references "better_supabase"."accounting_journals" ("id") on delete restrict,
@@ -11793,42 +10747,41 @@ create table if not exists "better_supabase"."accounting_entries" (
   "number" text,
   "entry_date" date not null,
   "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict,
-  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'draft' constraint bsb_accounting_entries_status_check check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text constraint bsb_accounting_entries_reference_check check ("reference" is null or length("reference") <= 200),
   -- The document the entry books, such as invoice and its id.
-  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_type" text constraint bsb_accounting_entries_source_type_check check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "source_id" text,
   "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict,
-  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "memo" text constraint bsb_accounting_entries_memo_check check ("memo" is null or length("memo") <= 2000),
   "posted_at" timestamptz,
   "posted_by" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("source_type" is null) = ("source_id" is null)),
-  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+  constraint bsb_accounting_entries_check check (("source_type" is null) = ("source_id" is null)),
+  constraint bsb_accounting_entries_check1 check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
 );
-create unique index if not exists "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
+create unique index "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
-create unique index if not exists "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
-create unique index if not exists "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
-create index if not exists "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("tenant_id", "entry_date" desc);
-create index if not exists "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
+create unique index "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
+create unique index "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
+create index "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("tenant_id", "entry_date" desc);
+create index "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
 alter table "better_supabase"."accounting_entries" enable row level security;
 revoke all on "better_supabase"."accounting_entries" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entries" to authenticated;
 grant all on "better_supabase"."accounting_entries" to service_role;
-drop policy if exists accounting_entries_read on "better_supabase"."accounting_entries";
-create policy accounting_entries_read on "better_supabase"."accounting_entries"
+create policy bsb_accounting_entries_read on "better_supabase"."accounting_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_dimensions" (
+create table "better_supabase"."accounting_dimensions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The key lines use in their dimensions object, such as project or department.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_accounting_dimensions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_accounting_dimensions_name_check check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
@@ -11836,17 +10789,16 @@ alter table "better_supabase"."accounting_dimensions" enable row level security;
 revoke all on "better_supabase"."accounting_dimensions" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimensions" to authenticated;
 grant all on "better_supabase"."accounting_dimensions" to service_role;
-drop policy if exists accounting_dimensions_read on "better_supabase"."accounting_dimensions";
-create policy accounting_dimensions_read on "better_supabase"."accounting_dimensions"
+create policy bsb_accounting_dimensions_read on "better_supabase"."accounting_dimensions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_dimension_values" (
+create table "better_supabase"."accounting_dimension_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "dimension_id" uuid not null references "better_supabase"."accounting_dimensions" ("id") on delete cascade,
-  "code" text not null check (length("code") >= 1 and length("code") <= 100),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "code" text not null constraint bsb_accounting_dimension_values_code_check check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null constraint bsb_accounting_dimension_values_name_check check (length("name") >= 1 and length("name") <= 200),
   "archived_at" timestamptz,
   unique ("dimension_id", "code")
 );
@@ -11854,88 +10806,84 @@ alter table "better_supabase"."accounting_dimension_values" enable row level sec
 revoke all on "better_supabase"."accounting_dimension_values" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimension_values" to authenticated;
 grant all on "better_supabase"."accounting_dimension_values" to service_role;
-drop policy if exists accounting_dimension_values_read on "better_supabase"."accounting_dimension_values";
-create policy accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
+create policy bsb_accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_fx_rates" (
+create table "better_supabase"."accounting_fx_rates" (
   "tenant_id" uuid not null,
-  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
-  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "base" text not null constraint bsb_accounting_fx_rates_base_check check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null constraint bsb_accounting_fx_rates_quote_check check ("quote" ~ '^[A-Z]{3}$'),
   "on_date" date not null,
   -- One unit of base costs rate units of quote.
-  "rate" numeric not null check ("rate" > 0),
+  "rate" numeric not null constraint bsb_accounting_fx_rates_rate_check check ("rate" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "base", "quote", "on_date"),
-  check ("base" <> "quote")
+  constraint bsb_accounting_fx_rates_check check ("base" <> "quote")
 );
 alter table "better_supabase"."accounting_fx_rates" enable row level security;
 revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_fx_rates" to authenticated;
 grant all on "better_supabase"."accounting_fx_rates" to service_role;
-drop policy if exists accounting_fx_rates_read on "better_supabase"."accounting_fx_rates";
-create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
+create policy bsb_accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_entry_lines" (
+create table "better_supabase"."accounting_entry_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "entry_id" uuid not null references "better_supabase"."accounting_entries" ("id") on delete cascade,
   "position" smallint not null default 0,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Minor units of the functional currency; a line has one side.
-  "debit" bigint not null default 0 check ("debit" >= 0),
-  "credit" bigint not null default 0 check ("credit" >= 0),
+  "debit" bigint not null default 0 constraint bsb_accounting_entry_lines_debit_check check ("debit" >= 0),
+  "credit" bigint not null default 0 constraint bsb_accounting_entry_lines_credit_check check ("credit" >= 0),
   -- The transaction currency and its signed amount (positive is a debit).
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text not null constraint bsb_accounting_entry_lines_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount_currency" bigint not null,
-  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "fx_rate" numeric constraint bsb_accounting_entry_lines_fx_rate_check check ("fx_rate" is null or "fx_rate" > 0),
   "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict,
   -- The part of the line that is tax, in minor units of the functional currency.
-  "tax_amount" bigint not null default 0 check ("tax_amount" >= 0),
+  "tax_amount" bigint not null default 0 constraint bsb_accounting_entry_lines_tax_amount_check check ("tax_amount" >= 0),
   -- The customer, supplier or employee the line concerns.
   "party_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
-  "description" text check ("description" is null or length("description") <= 500),
-  check (("debit" = 0) <> ("credit" = 0)),
-  check ("tax_amount" <= "debit" + "credit")
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_entry_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
+  "description" text constraint bsb_accounting_entry_lines_description_check check ("description" is null or length("description") <= 500),
+  constraint bsb_accounting_entry_lines_check check (("debit" = 0) <> ("credit" = 0)),
+  constraint bsb_accounting_entry_lines_check1 check ("tax_amount" <= "debit" + "credit")
 );
-create index if not exists "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
-create index if not exists "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
-create index if not exists "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
-create index if not exists "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
+create index "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
+create index "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
+create index "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
+create index "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
 alter table "better_supabase"."accounting_entry_lines" enable row level security;
 revoke all on "better_supabase"."accounting_entry_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entry_lines" to authenticated;
 grant all on "better_supabase"."accounting_entry_lines" to service_role;
-drop policy if exists accounting_entry_lines_read on "better_supabase"."accounting_entry_lines";
-create policy accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
+create policy bsb_accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_opening_balances" (
+create table "better_supabase"."accounting_opening_balances" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "fiscal_year" integer not null constraint bsb_accounting_opening_balances_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "party_id" uuid,
   -- Signed minor units of the functional currency; a debit balance is positive.
-  "amount" bigint not null check ("amount" <> 0),
+  "amount" bigint not null constraint bsb_accounting_opening_balances_amount_check check ("amount" <> 0),
   -- imported rows come from the old books, carried rows from close_fiscal_year.
-  "source" text not null default 'imported' check ("source" in ('imported', 'carried')),
+  "source" text not null default 'imported' constraint bsb_accounting_opening_balances_source_check check ("source" in ('imported', 'carried')),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "accounting_opening_balances_key_idx" on "better_supabase"."accounting_opening_balances" ("tenant_id", "fiscal_year", "account_id", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
-create index if not exists "accounting_opening_balances_account_idx" on "better_supabase"."accounting_opening_balances" ("account_id");
+create unique index "accounting_opening_balances_key_idx" on "better_supabase"."accounting_opening_balances" ("tenant_id", "fiscal_year", "account_id", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
+create index "accounting_opening_balances_account_idx" on "better_supabase"."accounting_opening_balances" ("account_id");
 alter table "better_supabase"."accounting_opening_balances" enable row level security;
 revoke all on "better_supabase"."accounting_opening_balances" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_opening_balances" to authenticated;
 grant all on "better_supabase"."accounting_opening_balances" to service_role;
-drop policy if exists accounting_opening_balances_read on "better_supabase"."accounting_opening_balances";
-create policy accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
+create policy bsb_accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -11953,7 +10901,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_account_level"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_accounts_level" on "better_supabase"."accounting_accounts";
 create trigger "bsb_accounting_accounts_level" before insert or update of "parent_id" on "better_supabase"."accounting_accounts"
   for each row execute function "better_supabase"."accounting_account_level"();
 
@@ -11973,7 +10920,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_account_level_children"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_accounts_level_children" on "better_supabase"."accounting_accounts";
 create trigger "bsb_accounting_accounts_level_children" after update of "parent_id" on "better_supabase"."accounting_accounts"
   for each row when (old."parent_id" is distinct from new."parent_id") execute function "better_supabase"."accounting_account_level_children"();
 
@@ -11999,7 +10945,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_entry_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_entries_guard" on "better_supabase"."accounting_entries";
 create trigger "bsb_accounting_entries_guard" before update or delete on "better_supabase"."accounting_entries"
   for each row execute function "better_supabase"."accounting_entry_guard"('tenant_id');
 
@@ -12020,7 +10965,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_entry_line_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_entry_lines_guard" on "better_supabase"."accounting_entry_lines";
 create trigger "bsb_accounting_entry_lines_guard" before insert or update or delete on "better_supabase"."accounting_entry_lines"
   for each row execute function "better_supabase"."accounting_entry_line_guard"('tenant_id');
 
@@ -12132,7 +11076,7 @@ grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, dat
 -- debit for assets and expenses and credit for the rest; the level follows
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
-drop function if exists "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid);
+
 create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
@@ -12319,7 +11263,7 @@ revoke execute on function "better_supabase"."list_accounting_accounts"(uuid, bo
 grant execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
-drop function if exists "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid);
+
 create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
@@ -12714,7 +11658,7 @@ revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) fr
 -- currency gives amountCurrency (signed, positive is a debit) and either the
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
-drop function if exists "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+
 create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language plpgsql
@@ -13579,7 +12523,7 @@ begin
     where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "better_supabase"."accounting_entries" y
@@ -13631,7 +12575,7 @@ begin
     v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "better_supabase"."accounting_opening_balances" y
   where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';
@@ -14334,12 +13278,12 @@ $$;
 revoke execute on function "better_supabase"."accounting_tax_report"(uuid, date, date) from public, anon;
 grant execute on function "better_supabase"."accounting_tax_report"(uuid, date, date) to authenticated, service_role;
 
-create table if not exists "better_supabase"."accounting_budgets" (
+create table "better_supabase"."accounting_budgets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'archived')),
+  "name" text not null constraint bsb_accounting_budgets_name_check check (length("name") >= 1 and length("name") <= 200),
+  "fiscal_year" integer not null constraint bsb_accounting_budgets_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "status" text not null default 'draft' constraint bsb_accounting_budgets_status_check check ("status" in ('draft', 'approved', 'archived')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -14349,31 +13293,29 @@ alter table "better_supabase"."accounting_budgets" enable row level security;
 revoke all on "better_supabase"."accounting_budgets" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budgets" to authenticated;
 grant all on "better_supabase"."accounting_budgets" to service_role;
-drop policy if exists accounting_budgets_read on "better_supabase"."accounting_budgets";
-create policy accounting_budgets_read on "better_supabase"."accounting_budgets"
+create policy bsb_accounting_budgets_read on "better_supabase"."accounting_budgets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_budget_lines" (
+create table "better_supabase"."accounting_budget_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "budget_id" uuid not null references "better_supabase"."accounting_budgets" ("id") on delete cascade,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The period of the budget's fiscal year, 1 to 12.
-  "period_number" smallint not null check ("period_number" >= 1 and "period_number" <= 12),
+  "period_number" smallint not null constraint bsb_accounting_budget_lines_period_number_check check ("period_number" >= 1 and "period_number" <= 12),
   -- The dimension values the amount is for; actuals match lines that carry them.
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_budget_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   -- Minor units of the functional currency, in the account's natural sign.
   "amount" bigint not null,
   unique ("budget_id", "account_id", "period_number", "dimensions")
 );
-create index if not exists "accounting_budget_lines_account_idx" on "better_supabase"."accounting_budget_lines" ("account_id");
+create index "accounting_budget_lines_account_idx" on "better_supabase"."accounting_budget_lines" ("account_id");
 alter table "better_supabase"."accounting_budget_lines" enable row level security;
 revoke all on "better_supabase"."accounting_budget_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budget_lines" to authenticated;
 grant all on "better_supabase"."accounting_budget_lines" to service_role;
-drop policy if exists accounting_budget_lines_read on "better_supabase"."accounting_budget_lines";
-create policy accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
+create policy bsb_accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -14538,19 +13480,19 @@ grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, 
 
 -- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
 -- one per source line, so scheduling a line twice returns the first schedule.
-create table if not exists "better_supabase"."accounting_recognition_schedules" (
+create table "better_supabase"."accounting_recognition_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "source_type" text not null check (length("source_type") between 1 and 100),
-  "source_id" text not null check (length("source_id") between 1 and 200),
-  "line_ref" text not null default '' check (length("line_ref") <= 200),
-  "amount" bigint not null check ("amount" > 0),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "source_type" text not null constraint bsb_accounting_recognition_schedules_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null constraint bsb_accounting_recognition_schedules_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200),
+  "line_ref" text not null default '' constraint bsb_accounting_recognition_schedules_line_ref_check check (length("line_ref") <= 200),
+  "amount" bigint not null constraint bsb_accounting_recognition_schedules_amount_check check ("amount" > 0),
+  "currency" text not null constraint bsb_accounting_recognition_schedules_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "starts_on" date not null,
   "ends_on" date not null,
   "deferral_entry_id" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_recognition_schedules_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "source_type", "source_id", "line_ref")
 );
 alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
@@ -14559,18 +13501,18 @@ grant all on "better_supabase"."accounting_recognition_schedules" to service_rol
 
 -- The part of a schedule earned in one month, due on the month's last day (or
 -- the schedule's end). The period close posts pending rows into the books.
-create table if not exists "better_supabase"."accounting_recognition_rows" (
+create table "better_supabase"."accounting_recognition_rows" (
   "id" uuid primary key default gen_random_uuid(),
   "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "due_on" date not null,
-  "amount" bigint not null check ("amount" > 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "amount" bigint not null constraint bsb_accounting_recognition_rows_amount_check check ("amount" > 0),
+  "status" text not null default 'pending' constraint bsb_accounting_recognition_rows_status_check check ("status" in ('pending', 'posted')),
   "entry_id" uuid,
   "posted_at" timestamptz
 );
-create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
-create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
+create index accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
+create index accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("tenant_id", "due_on") where "status" = 'pending';
 alter table "better_supabase"."accounting_recognition_rows" enable row level security;
 revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
 grant all on "better_supabase"."accounting_recognition_rows" to service_role;
@@ -14892,288 +13834,211 @@ grant execute on function "better_supabase"."seed_accounting_defaults"(uuid, tex
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_settings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_settings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_settings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_settings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_accounts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_accounts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_accounts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_accounts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_account_roles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_account_roles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_journals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_journals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_journals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_journals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_periods" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_periods" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_periods" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_periods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimensions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimensions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_opening_balances";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budgets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_budgets" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_budgets" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_budgets" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budgets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budget_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -15183,41 +14048,7 @@ create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."accounting_range_close_blockers"(uuid, date, date);
-drop function if exists "api"."accounting_close_range"(uuid, date, date);
 
-drop function if exists "api"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid);
-drop function if exists "api"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid);
-drop function if exists "api"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
-
-create or replace function "api"."import_run"()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."import_run"() $$;
-revoke execute on function "api"."import_run"() from public;
-grant execute on function "api"."import_run"() to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."setup_accounting"(tenant uuid, functional_currency text default null, fiscal_year_start_month integer default null)
 returns jsonb
@@ -15681,19 +14512,6 @@ as $$ select "better_supabase"."seed_accounting_defaults"($1, $2, $3) $$;
 revoke execute on function "api"."seed_accounting_defaults"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "api"."seed_accounting_defaults"(uuid, text, text) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
@@ -15727,190 +14545,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:60b7828a81017b25c1e3eaa40baa3e42327641907b97d96673f5625a3a2221d2
+-- @bsb-hash sha256:4e91187cd5149aebad710d9da0e302d422470f57fe5549f75e74cdcdf634996c
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budgets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Accounting: a chart of accounts with roles, journals, fiscal periods, and
 -- balanced journal entries in minor units of the organization's functional
 -- currency, with dimensions, exchange rates, tax codes, reports and the
@@ -15919,8 +14558,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- better_supabase.accounting_settings is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_settings" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_settings" add column if not exists "functional_currency" text check ("functional_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."accounting_settings" add column if not exists "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12);
+alter table "better_supabase"."accounting_settings" add column if not exists "functional_currency" text constraint bsb_accounting_settings_functional_currency_check check ("functional_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_settings" add column if not exists "fiscal_year_start_month" smallint not null default 1 constraint bsb_accounting_settings_fiscal_year_start_month_check check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12);
 alter table "better_supabase"."accounting_settings" add column if not exists "lock_date" date;
 alter table "better_supabase"."accounting_settings" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."accounting_settings" add column if not exists "updated_at" timestamptz not null default now();
@@ -15928,7 +14567,6 @@ create unique index if not exists "accounting_settings_tenant_id_key" on "better
 alter table "better_supabase"."accounting_settings" enable row level security;
 grant select on "better_supabase"."accounting_settings" to authenticated;
 grant all on "better_supabase"."accounting_settings" to service_role;
-drop policy if exists bsb_accounting_settings_select on "better_supabase"."accounting_settings";
 create policy bsb_accounting_settings_select on "better_supabase"."accounting_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
@@ -15936,15 +14574,15 @@ create policy bsb_accounting_settings_select on "better_supabase"."accounting_se
 -- better_supabase.accounting_accounts is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_accounts" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_accounts" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_accounts" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 50);
-alter table "better_supabase"."accounting_accounts" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."accounting_accounts" add column if not exists "type" text check ("type" in ('asset', 'liability', 'equity', 'income', 'expense'));
+alter table "better_supabase"."accounting_accounts" add column if not exists "code" text constraint bsb_accounting_accounts_code_check check (length("code") >= 1 and length("code") <= 50);
+alter table "better_supabase"."accounting_accounts" add column if not exists "name" text constraint bsb_accounting_accounts_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_accounts" add column if not exists "type" text constraint bsb_accounting_accounts_type_check check ("type" in ('asset', 'liability', 'equity', 'income', 'expense'));
 alter table "better_supabase"."accounting_accounts" add column if not exists "subtype" text;
 alter table "better_supabase"."accounting_accounts" add column if not exists "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
-alter table "better_supabase"."accounting_accounts" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_accounts" add column if not exists "currency" text constraint bsb_accounting_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."accounting_accounts" add column if not exists "reconcilable" boolean not null default false;
-alter table "better_supabase"."accounting_accounts" add column if not exists "normal_side" text not null default 'debit' check ("normal_side" in ('debit', 'credit'));
-alter table "better_supabase"."accounting_accounts" add column if not exists "level" smallint not null default 1 check ("level" >= 1);
+alter table "better_supabase"."accounting_accounts" add column if not exists "normal_side" text not null default 'debit' constraint bsb_accounting_accounts_normal_side_check check ("normal_side" in ('debit', 'credit'));
+alter table "better_supabase"."accounting_accounts" add column if not exists "level" smallint not null default 1 constraint bsb_accounting_accounts_level_check check ("level" >= 1);
 alter table "better_supabase"."accounting_accounts" add column if not exists "default_tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete set null;
 alter table "better_supabase"."accounting_accounts" add column if not exists "active" boolean not null default true;
 alter table "better_supabase"."accounting_accounts" add column if not exists "archived_at" timestamptz;
@@ -15956,14 +14594,13 @@ create index if not exists "accounting_accounts_tax_idx" on "better_supabase"."a
 alter table "better_supabase"."accounting_accounts" enable row level security;
 grant select on "better_supabase"."accounting_accounts" to authenticated;
 grant all on "better_supabase"."accounting_accounts" to service_role;
-drop policy if exists bsb_accounting_accounts_select on "better_supabase"."accounting_accounts";
 create policy bsb_accounting_accounts_select on "better_supabase"."accounting_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
 -- better_supabase.accounting_account_roles is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_account_roles" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_account_roles" add column if not exists "role" text check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense'));
+alter table "better_supabase"."accounting_account_roles" add column if not exists "role" text constraint bsb_accounting_account_roles_role_check check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense'));
 alter table "better_supabase"."accounting_account_roles" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
 alter table "better_supabase"."accounting_account_roles" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "accounting_account_roles_tenant_id_role_key" on "better_supabase"."accounting_account_roles" ("tenant_id", "role");
@@ -15971,7 +14608,6 @@ create index if not exists "accounting_account_roles_account_idx" on "better_sup
 alter table "better_supabase"."accounting_account_roles" enable row level security;
 grant select on "better_supabase"."accounting_account_roles" to authenticated;
 grant all on "better_supabase"."accounting_account_roles" to service_role;
-drop policy if exists bsb_accounting_account_roles_select on "better_supabase"."accounting_account_roles";
 create policy bsb_accounting_account_roles_select on "better_supabase"."accounting_account_roles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
@@ -15979,11 +14615,11 @@ create policy bsb_accounting_account_roles_select on "better_supabase"."accounti
 -- better_supabase.accounting_journals is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_journals" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_journals" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_journals" add column if not exists "code" text check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$');
-alter table "better_supabase"."accounting_journals" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."accounting_journals" add column if not exists "type" text check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general'));
+alter table "better_supabase"."accounting_journals" add column if not exists "code" text constraint bsb_accounting_journals_code_check check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$');
+alter table "better_supabase"."accounting_journals" add column if not exists "name" text constraint bsb_accounting_journals_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_journals" add column if not exists "type" text constraint bsb_accounting_journals_type_check check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general'));
 alter table "better_supabase"."accounting_journals" add column if not exists "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
-alter table "better_supabase"."accounting_journals" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_journals" add column if not exists "currency" text constraint bsb_accounting_journals_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."accounting_journals" add column if not exists "contra_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
 alter table "better_supabase"."accounting_journals" add column if not exists "bank_account_id" uuid;
 alter table "better_supabase"."accounting_journals" add column if not exists "created_at" timestamptz not null default now();
@@ -15994,7 +14630,6 @@ create index if not exists "accounting_journals_contra_idx" on "better_supabase"
 alter table "better_supabase"."accounting_journals" enable row level security;
 grant select on "better_supabase"."accounting_journals" to authenticated;
 grant all on "better_supabase"."accounting_journals" to service_role;
-drop policy if exists bsb_accounting_journals_select on "better_supabase"."accounting_journals";
 create policy bsb_accounting_journals_select on "better_supabase"."accounting_journals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
@@ -16002,11 +14637,11 @@ create policy bsb_accounting_journals_select on "better_supabase"."accounting_jo
 -- better_supabase.accounting_periods is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_periods" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_periods" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_periods" add column if not exists "fiscal_year" integer check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
-alter table "better_supabase"."accounting_periods" add column if not exists "number" smallint check ("number" >= 1 and "number" <= 12);
+alter table "better_supabase"."accounting_periods" add column if not exists "fiscal_year" integer constraint bsb_accounting_periods_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
+alter table "better_supabase"."accounting_periods" add column if not exists "number" smallint constraint bsb_accounting_periods_number_check check ("number" >= 1 and "number" <= 12);
 alter table "better_supabase"."accounting_periods" add column if not exists "starts_on" date;
 alter table "better_supabase"."accounting_periods" add column if not exists "ends_on" date;
-alter table "better_supabase"."accounting_periods" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'closed', 'locked'));
+alter table "better_supabase"."accounting_periods" add column if not exists "status" text not null default 'open' constraint bsb_accounting_periods_status_check check ("status" in ('open', 'closed', 'locked'));
 alter table "better_supabase"."accounting_periods" add column if not exists "closed_at" timestamptz;
 alter table "better_supabase"."accounting_periods" add column if not exists "closed_by" uuid;
 alter table "better_supabase"."accounting_periods" add column if not exists "locked_at" timestamptz;
@@ -16017,7 +14652,6 @@ create index if not exists "accounting_periods_dates_idx" on "better_supabase"."
 alter table "better_supabase"."accounting_periods" enable row level security;
 grant select on "better_supabase"."accounting_periods" to authenticated;
 grant all on "better_supabase"."accounting_periods" to service_role;
-drop policy if exists bsb_accounting_periods_select on "better_supabase"."accounting_periods";
 create policy bsb_accounting_periods_select on "better_supabase"."accounting_periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
@@ -16031,12 +14665,12 @@ alter table "better_supabase"."accounting_entries" add column if not exists "seq
 alter table "better_supabase"."accounting_entries" add column if not exists "number" text;
 alter table "better_supabase"."accounting_entries" add column if not exists "entry_date" date;
 alter table "better_supabase"."accounting_entries" add column if not exists "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict;
-alter table "better_supabase"."accounting_entries" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed'));
-alter table "better_supabase"."accounting_entries" add column if not exists "reference" text check ("reference" is null or length("reference") <= 200);
-alter table "better_supabase"."accounting_entries" add column if not exists "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."accounting_entries" add column if not exists "status" text not null default 'draft' constraint bsb_accounting_entries_status_check check ("status" in ('draft', 'posted', 'reversed'));
+alter table "better_supabase"."accounting_entries" add column if not exists "reference" text constraint bsb_accounting_entries_reference_check check ("reference" is null or length("reference") <= 200);
+alter table "better_supabase"."accounting_entries" add column if not exists "source_type" text constraint bsb_accounting_entries_source_type_check check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$');
 alter table "better_supabase"."accounting_entries" add column if not exists "source_id" text;
 alter table "better_supabase"."accounting_entries" add column if not exists "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict;
-alter table "better_supabase"."accounting_entries" add column if not exists "memo" text check ("memo" is null or length("memo") <= 2000);
+alter table "better_supabase"."accounting_entries" add column if not exists "memo" text constraint bsb_accounting_entries_memo_check check ("memo" is null or length("memo") <= 2000);
 alter table "better_supabase"."accounting_entries" add column if not exists "posted_at" timestamptz;
 alter table "better_supabase"."accounting_entries" add column if not exists "posted_by" uuid;
 alter table "better_supabase"."accounting_entries" add column if not exists "created_by" uuid;
@@ -16051,7 +14685,6 @@ create index if not exists "accounting_entries_period_idx" on "better_supabase".
 alter table "better_supabase"."accounting_entries" enable row level security;
 grant select on "better_supabase"."accounting_entries" to authenticated;
 grant all on "better_supabase"."accounting_entries" to service_role;
-drop policy if exists bsb_accounting_entries_select on "better_supabase"."accounting_entries";
 create policy bsb_accounting_entries_select on "better_supabase"."accounting_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
@@ -16059,14 +14692,13 @@ create policy bsb_accounting_entries_select on "better_supabase"."accounting_ent
 -- better_supabase.accounting_dimensions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_dimensions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_dimensions" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_dimensions" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."accounting_dimensions" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_dimensions" add column if not exists "key" text constraint bsb_accounting_dimensions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."accounting_dimensions" add column if not exists "name" text constraint bsb_accounting_dimensions_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."accounting_dimensions" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "accounting_dimensions_tenant_id_key_key" on "better_supabase"."accounting_dimensions" ("tenant_id", "key");
 alter table "better_supabase"."accounting_dimensions" enable row level security;
 grant select on "better_supabase"."accounting_dimensions" to authenticated;
 grant all on "better_supabase"."accounting_dimensions" to service_role;
-drop policy if exists bsb_accounting_dimensions_select on "better_supabase"."accounting_dimensions";
 create policy bsb_accounting_dimensions_select on "better_supabase"."accounting_dimensions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
@@ -16075,30 +14707,28 @@ create policy bsb_accounting_dimensions_select on "better_supabase"."accounting_
 alter table "better_supabase"."accounting_dimension_values" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_dimension_values" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."accounting_dimension_values" add column if not exists "dimension_id" uuid references "better_supabase"."accounting_dimensions" ("id") on delete cascade;
-alter table "better_supabase"."accounting_dimension_values" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 100);
-alter table "better_supabase"."accounting_dimension_values" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_dimension_values" add column if not exists "code" text constraint bsb_accounting_dimension_values_code_check check (length("code") >= 1 and length("code") <= 100);
+alter table "better_supabase"."accounting_dimension_values" add column if not exists "name" text constraint bsb_accounting_dimension_values_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."accounting_dimension_values" add column if not exists "archived_at" timestamptz;
 create unique index if not exists "accounting_dimension_values_dimension_id_code_key" on "better_supabase"."accounting_dimension_values" ("dimension_id", "code");
 alter table "better_supabase"."accounting_dimension_values" enable row level security;
 grant select on "better_supabase"."accounting_dimension_values" to authenticated;
 grant all on "better_supabase"."accounting_dimension_values" to service_role;
-drop policy if exists bsb_accounting_dimension_values_select on "better_supabase"."accounting_dimension_values";
 create policy bsb_accounting_dimension_values_select on "better_supabase"."accounting_dimension_values"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
 -- better_supabase.accounting_fx_rates is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_fx_rates" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_fx_rates" add column if not exists "base" text check ("base" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."accounting_fx_rates" add column if not exists "quote" text check ("quote" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_fx_rates" add column if not exists "base" text constraint bsb_accounting_fx_rates_base_check check ("base" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_fx_rates" add column if not exists "quote" text constraint bsb_accounting_fx_rates_quote_check check ("quote" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."accounting_fx_rates" add column if not exists "on_date" date;
-alter table "better_supabase"."accounting_fx_rates" add column if not exists "rate" numeric check ("rate" > 0);
+alter table "better_supabase"."accounting_fx_rates" add column if not exists "rate" numeric constraint bsb_accounting_fx_rates_rate_check check ("rate" > 0);
 alter table "better_supabase"."accounting_fx_rates" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "accounting_fx_rates_tenant_id_base_quote_on_date_key" on "better_supabase"."accounting_fx_rates" ("tenant_id", "base", "quote", "on_date");
 alter table "better_supabase"."accounting_fx_rates" enable row level security;
 grant select on "better_supabase"."accounting_fx_rates" to authenticated;
 grant all on "better_supabase"."accounting_fx_rates" to service_role;
-drop policy if exists bsb_accounting_fx_rates_select on "better_supabase"."accounting_fx_rates";
 create policy bsb_accounting_fx_rates_select on "better_supabase"."accounting_fx_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
@@ -16109,16 +14739,16 @@ alter table "better_supabase"."accounting_entry_lines" add column if not exists 
 alter table "better_supabase"."accounting_entry_lines" add column if not exists "entry_id" uuid references "better_supabase"."accounting_entries" ("id") on delete cascade;
 alter table "better_supabase"."accounting_entry_lines" add column if not exists "position" smallint not null default 0;
 alter table "better_supabase"."accounting_entry_lines" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "debit" bigint not null default 0 check ("debit" >= 0);
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "credit" bigint not null default 0 check ("credit" >= 0);
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "debit" bigint not null default 0 constraint bsb_accounting_entry_lines_debit_check check ("debit" >= 0);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "credit" bigint not null default 0 constraint bsb_accounting_entry_lines_credit_check check ("credit" >= 0);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "currency" text constraint bsb_accounting_entry_lines_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."accounting_entry_lines" add column if not exists "amount_currency" bigint;
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "fx_rate" numeric constraint bsb_accounting_entry_lines_fx_rate_check check ("fx_rate" is null or "fx_rate" > 0);
 alter table "better_supabase"."accounting_entry_lines" add column if not exists "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict;
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "tax_amount" bigint not null default 0 check ("tax_amount" >= 0);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "tax_amount" bigint not null default 0 constraint bsb_accounting_entry_lines_tax_amount_check check ("tax_amount" >= 0);
 alter table "better_supabase"."accounting_entry_lines" add column if not exists "party_id" uuid;
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "description" text check ("description" is null or length("description") <= 500);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_entry_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object');
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "description" text constraint bsb_accounting_entry_lines_description_check check ("description" is null or length("description") <= 500);
 create index if not exists "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
 create index if not exists "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
 create index if not exists "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
@@ -16126,7 +14756,6 @@ create index if not exists "accounting_entry_lines_tax_idx" on "better_supabase"
 alter table "better_supabase"."accounting_entry_lines" enable row level security;
 grant select on "better_supabase"."accounting_entry_lines" to authenticated;
 grant all on "better_supabase"."accounting_entry_lines" to service_role;
-drop policy if exists bsb_accounting_entry_lines_select on "better_supabase"."accounting_entry_lines";
 create policy bsb_accounting_entry_lines_select on "better_supabase"."accounting_entry_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
@@ -16134,11 +14763,11 @@ create policy bsb_accounting_entry_lines_select on "better_supabase"."accounting
 -- better_supabase.accounting_opening_balances is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_opening_balances" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_opening_balances" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_opening_balances" add column if not exists "fiscal_year" integer check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
+alter table "better_supabase"."accounting_opening_balances" add column if not exists "fiscal_year" integer constraint bsb_accounting_opening_balances_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
 alter table "better_supabase"."accounting_opening_balances" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
 alter table "better_supabase"."accounting_opening_balances" add column if not exists "party_id" uuid;
-alter table "better_supabase"."accounting_opening_balances" add column if not exists "amount" bigint check ("amount" <> 0);
-alter table "better_supabase"."accounting_opening_balances" add column if not exists "source" text not null default 'imported' check ("source" in ('imported', 'carried'));
+alter table "better_supabase"."accounting_opening_balances" add column if not exists "amount" bigint constraint bsb_accounting_opening_balances_amount_check check ("amount" <> 0);
+alter table "better_supabase"."accounting_opening_balances" add column if not exists "source" text not null default 'imported' constraint bsb_accounting_opening_balances_source_check check ("source" in ('imported', 'carried'));
 alter table "better_supabase"."accounting_opening_balances" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."accounting_opening_balances" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "accounting_opening_balances_key_idx" on "better_supabase"."accounting_opening_balances" ("tenant_id", "fiscal_year", "account_id", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
@@ -16146,7 +14775,6 @@ create index if not exists "accounting_opening_balances_account_idx" on "better_
 alter table "better_supabase"."accounting_opening_balances" enable row level security;
 grant select on "better_supabase"."accounting_opening_balances" to authenticated;
 grant all on "better_supabase"."accounting_opening_balances" to service_role;
-drop policy if exists bsb_accounting_opening_balances_select on "better_supabase"."accounting_opening_balances";
 create policy bsb_accounting_opening_balances_select on "better_supabase"."accounting_opening_balances"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
@@ -16165,7 +14793,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_account_level"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_accounts_level" on "better_supabase"."accounting_accounts";
 create trigger "bsb_accounting_accounts_level" before insert or update of "parent_id" on "better_supabase"."accounting_accounts"
   for each row execute function "better_supabase"."accounting_account_level"();
 
@@ -16185,7 +14812,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_account_level_children"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_accounts_level_children" on "better_supabase"."accounting_accounts";
 create trigger "bsb_accounting_accounts_level_children" after update of "parent_id" on "better_supabase"."accounting_accounts"
   for each row when (old."parent_id" is distinct from new."parent_id") execute function "better_supabase"."accounting_account_level_children"();
 
@@ -16211,7 +14837,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_entry_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_entries_guard" on "better_supabase"."accounting_entries";
 create trigger "bsb_accounting_entries_guard" before update or delete on "better_supabase"."accounting_entries"
   for each row execute function "better_supabase"."accounting_entry_guard"('tenant_id');
 
@@ -16232,7 +14857,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_entry_line_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_entry_lines_guard" on "better_supabase"."accounting_entry_lines";
 create trigger "bsb_accounting_entry_lines_guard" before insert or update or delete on "better_supabase"."accounting_entry_lines"
   for each row execute function "better_supabase"."accounting_entry_line_guard"('tenant_id');
 
@@ -16344,7 +14968,7 @@ grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, dat
 -- debit for assets and expenses and credit for the rest; the level follows
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
-drop function if exists "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid);
+
 create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
@@ -16531,7 +15155,7 @@ revoke execute on function "better_supabase"."list_accounting_accounts"(uuid, bo
 grant execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
-drop function if exists "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid);
+
 create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
@@ -16926,7 +15550,7 @@ revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) fr
 -- currency gives amountCurrency (signed, positive is a debit) and either the
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
-drop function if exists "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+
 create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language plpgsql
@@ -17791,7 +16415,7 @@ begin
     where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "better_supabase"."accounting_entries" y
@@ -17843,7 +16467,7 @@ begin
     v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "better_supabase"."accounting_opening_balances" y
   where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';
@@ -18549,9 +17173,9 @@ grant execute on function "better_supabase"."accounting_tax_report"(uuid, date, 
 -- better_supabase.accounting_budgets is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_budgets" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_budgets" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_budgets" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."accounting_budgets" add column if not exists "fiscal_year" integer check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
-alter table "better_supabase"."accounting_budgets" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'archived'));
+alter table "better_supabase"."accounting_budgets" add column if not exists "name" text constraint bsb_accounting_budgets_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_budgets" add column if not exists "fiscal_year" integer constraint bsb_accounting_budgets_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
+alter table "better_supabase"."accounting_budgets" add column if not exists "status" text not null default 'draft' constraint bsb_accounting_budgets_status_check check ("status" in ('draft', 'approved', 'archived'));
 alter table "better_supabase"."accounting_budgets" add column if not exists "created_by" uuid;
 alter table "better_supabase"."accounting_budgets" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."accounting_budgets" add column if not exists "updated_at" timestamptz not null default now();
@@ -18559,7 +17183,6 @@ create unique index if not exists "accounting_budgets_tenant_id_fiscal_year_name
 alter table "better_supabase"."accounting_budgets" enable row level security;
 grant select on "better_supabase"."accounting_budgets" to authenticated;
 grant all on "better_supabase"."accounting_budgets" to service_role;
-drop policy if exists bsb_accounting_budgets_select on "better_supabase"."accounting_budgets";
 create policy bsb_accounting_budgets_select on "better_supabase"."accounting_budgets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
@@ -18569,15 +17192,14 @@ alter table "better_supabase"."accounting_budget_lines" add column if not exists
 alter table "better_supabase"."accounting_budget_lines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."accounting_budget_lines" add column if not exists "budget_id" uuid references "better_supabase"."accounting_budgets" ("id") on delete cascade;
 alter table "better_supabase"."accounting_budget_lines" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
-alter table "better_supabase"."accounting_budget_lines" add column if not exists "period_number" smallint check ("period_number" >= 1 and "period_number" <= 12);
-alter table "better_supabase"."accounting_budget_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
+alter table "better_supabase"."accounting_budget_lines" add column if not exists "period_number" smallint constraint bsb_accounting_budget_lines_period_number_check check ("period_number" >= 1 and "period_number" <= 12);
+alter table "better_supabase"."accounting_budget_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_budget_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object');
 alter table "better_supabase"."accounting_budget_lines" add column if not exists "amount" bigint;
 create unique index if not exists "accounting_budget_lines_budget_id_account_id_period_number_dime" on "better_supabase"."accounting_budget_lines" ("budget_id", "account_id", "period_number", "dimensions");
 create index if not exists "accounting_budget_lines_account_idx" on "better_supabase"."accounting_budget_lines" ("account_id");
 alter table "better_supabase"."accounting_budget_lines" enable row level security;
 grant select on "better_supabase"."accounting_budget_lines" to authenticated;
 grant all on "better_supabase"."accounting_budget_lines" to service_role;
-drop policy if exists bsb_accounting_budget_lines_select on "better_supabase"."accounting_budget_lines";
 create policy bsb_accounting_budget_lines_select on "better_supabase"."accounting_budget_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
@@ -18746,11 +17368,11 @@ grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, 
 -- better_supabase.accounting_recognition_schedules is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "source_type" text check (length("source_type") between 1 and 100);
-alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "source_id" text check (length("source_id") between 1 and 200);
-alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "line_ref" text not null default '' check (length("line_ref") <= 200);
-alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "amount" bigint check ("amount" > 0);
-alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "source_type" text constraint bsb_accounting_recognition_schedules_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "source_id" text constraint bsb_accounting_recognition_schedules_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "line_ref" text not null default '' constraint bsb_accounting_recognition_schedules_line_ref_check check (length("line_ref") <= 200);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "amount" bigint constraint bsb_accounting_recognition_schedules_amount_check check ("amount" > 0);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "currency" text constraint bsb_accounting_recognition_schedules_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "starts_on" date;
 alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "ends_on" date;
 alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "deferral_entry_id" uuid;
@@ -18765,8 +17387,8 @@ alter table "better_supabase"."accounting_recognition_rows" add column if not ex
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "schedule_id" uuid references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade;
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "due_on" date;
-alter table "better_supabase"."accounting_recognition_rows" add column if not exists "amount" bigint check ("amount" > 0);
-alter table "better_supabase"."accounting_recognition_rows" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'posted'));
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "amount" bigint constraint bsb_accounting_recognition_rows_amount_check check ("amount" > 0);
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "status" text not null default 'pending' constraint bsb_accounting_recognition_rows_status_check check ("status" in ('pending', 'posted'));
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "entry_id" uuid;
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "posted_at" timestamptz;
 create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
@@ -19091,304 +17713,214 @@ grant execute on function "better_supabase"."seed_accounting_defaults"(uuid, tex
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_settings" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_settings" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_settings" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_settings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_accounts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_accounts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_accounts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_accounts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_account_roles" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_account_roles" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_journals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_journals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_journals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_journals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_periods" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_periods" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_periods" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_periods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimensions" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimensions" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_opening_balances";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budgets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_budgets" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_budgets" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_budgets" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budgets" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budget_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
@@ -19423,201 +17955,22 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:e31ed8f00fe8e24eb6bd1ce69b35103c49f4fee17f98cfe762e50d57e3617608
+-- @bsb-hash sha256:2160e7c502c470bff323be264050380f7735beebd3604e35156f356a55d3187a
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-create or replace function better_supabase.import_run()
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when nullif(current_setting('better_supabase.import_run', true), '') is not null and coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    then nullif(current_setting('better_supabase.import_run', true), '')::uuid
-  end;
-$$;
-revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
-
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_schedules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_schedules";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_recognition_rows";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_recognition_rows";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budgets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budgets";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Accounting: a chart of accounts with roles, journals, fiscal periods, and
 -- balanced journal entries in minor units of the organization's functional
 -- currency, with dimensions, exchange rates, tax codes, reports and the
 -- period and year-end close, the documents other blocks book, tax reports
 -- and budgets.
 
-create table if not exists "better_supabase"."accounting_settings" (
+create table "better_supabase"."accounting_settings" (
   "org_id" uuid primary key,
   -- Every debit and credit is in minor units of this currency.
-  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
-  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  "functional_currency" text not null constraint bsb_accounting_settings_functional_currency_check check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 constraint bsb_accounting_settings_fiscal_year_start_month_check check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
   -- Nothing posts on or before this date, whatever the period's status.
   "lock_date" date,
   "created_at" timestamptz not null default now(),
@@ -19627,26 +17980,25 @@ alter table "better_supabase"."accounting_settings" enable row level security;
 revoke all on "better_supabase"."accounting_settings" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_settings" to authenticated;
 grant all on "better_supabase"."accounting_settings" to service_role;
-drop policy if exists accounting_settings_read on "better_supabase"."accounting_settings";
-create policy accounting_settings_read on "better_supabase"."accounting_settings"
+create policy bsb_accounting_settings_read on "better_supabase"."accounting_settings"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_accounts" (
+create table "better_supabase"."accounting_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "code" text not null constraint bsb_accounting_accounts_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_accounting_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_accounts_type_check check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
   "subtype" text,
   "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Lines on the account must be in this currency; null takes any.
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "reconcilable" boolean not null default false,
   -- The side a positive balance sits on; reports show it next to the amount.
-  "normal_side" text not null default 'debit' check ("normal_side" in ('debit', 'credit')),
+  "normal_side" text not null default 'debit' constraint bsb_accounting_accounts_normal_side_check check ("normal_side" in ('debit', 'credit')),
   -- 1 for a top-level account, one more than the parent's for the rest.
-  "level" smallint not null default 1 check ("level" >= 1),
+  "level" smallint not null default 1 constraint bsb_accounting_accounts_level_check check ("level" >= 1),
   -- The tax code a line on this account takes when it names none.
   "default_tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete set null,
   -- An inactive account stays on the chart and in reports but takes no new lines.
@@ -19656,43 +18008,41 @@ create table if not exists "better_supabase"."accounting_accounts" (
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "code")
 );
-create index if not exists "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
-create index if not exists "accounting_accounts_tax_idx" on "better_supabase"."accounting_accounts" ("default_tax_code_id") where "default_tax_code_id" is not null;
+create index "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
+create index "accounting_accounts_tax_idx" on "better_supabase"."accounting_accounts" ("default_tax_code_id") where "default_tax_code_id" is not null;
 alter table "better_supabase"."accounting_accounts" enable row level security;
 revoke all on "better_supabase"."accounting_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_accounts" to authenticated;
 grant all on "better_supabase"."accounting_accounts" to service_role;
-drop policy if exists accounting_accounts_read on "better_supabase"."accounting_accounts";
-create policy accounting_accounts_read on "better_supabase"."accounting_accounts"
+create policy bsb_accounting_accounts_read on "better_supabase"."accounting_accounts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_account_roles" (
+create table "better_supabase"."accounting_account_roles" (
   "org_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null constraint bsb_accounting_account_roles_role_check check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "role")
 );
-create index if not exists "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
+create index "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
 alter table "better_supabase"."accounting_account_roles" enable row level security;
 revoke all on "better_supabase"."accounting_account_roles" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_account_roles" to authenticated;
 grant all on "better_supabase"."accounting_account_roles" to service_role;
-drop policy if exists accounting_account_roles_read on "better_supabase"."accounting_account_roles";
-create policy accounting_account_roles_read on "better_supabase"."accounting_account_roles"
+create policy bsb_accounting_account_roles_read on "better_supabase"."accounting_account_roles"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_journals" (
+create table "better_supabase"."accounting_journals" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  "code" text not null constraint bsb_accounting_journals_code_check check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null constraint bsb_accounting_journals_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_journals_type_check check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
   -- The bank or cash account a bank or cash journal posts against.
   "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_journals_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   -- The counter account a bank or cash journal's lines offset by default.
   "contra_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The bank account (banking block) the journal books; its statements post here.
@@ -19701,46 +18051,44 @@ create table if not exists "better_supabase"."accounting_journals" (
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "code")
 );
-create index if not exists "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
-create index if not exists "accounting_journals_contra_idx" on "better_supabase"."accounting_journals" ("contra_account_id") where "contra_account_id" is not null;
+create index "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
+create index "accounting_journals_contra_idx" on "better_supabase"."accounting_journals" ("contra_account_id") where "contra_account_id" is not null;
 alter table "better_supabase"."accounting_journals" enable row level security;
 revoke all on "better_supabase"."accounting_journals" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_journals" to authenticated;
 grant all on "better_supabase"."accounting_journals" to service_role;
-drop policy if exists accounting_journals_read on "better_supabase"."accounting_journals";
-create policy accounting_journals_read on "better_supabase"."accounting_journals"
+create policy bsb_accounting_journals_read on "better_supabase"."accounting_journals"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_periods" (
+create table "better_supabase"."accounting_periods" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- The calendar year the fiscal year starts in.
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "fiscal_year" integer not null constraint bsb_accounting_periods_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null constraint bsb_accounting_periods_number_check check ("number" >= 1 and "number" <= 12),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'closed', 'locked')),
+  "status" text not null default 'open' constraint bsb_accounting_periods_status_check check ("status" in ('open', 'closed', 'locked')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   -- A locked period takes no posting at all, not even an import.
   "locked_at" timestamptz,
   "locked_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_periods_check check ("ends_on" >= "starts_on"),
   unique ("org_id", "fiscal_year", "number")
 );
-create index if not exists "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("org_id", "starts_on", "ends_on");
+create index "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("org_id", "starts_on", "ends_on");
 alter table "better_supabase"."accounting_periods" enable row level security;
 revoke all on "better_supabase"."accounting_periods" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_periods" to authenticated;
 grant all on "better_supabase"."accounting_periods" to service_role;
-drop policy if exists accounting_periods_read on "better_supabase"."accounting_periods";
-create policy accounting_periods_read on "better_supabase"."accounting_periods"
+create policy bsb_accounting_periods_read on "better_supabase"."accounting_periods"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_entries" (
+create table "better_supabase"."accounting_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "journal_id" uuid not null references "better_supabase"."accounting_journals" ("id") on delete restrict,
@@ -19750,42 +18098,41 @@ create table if not exists "better_supabase"."accounting_entries" (
   "number" text,
   "entry_date" date not null,
   "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict,
-  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'draft' constraint bsb_accounting_entries_status_check check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text constraint bsb_accounting_entries_reference_check check ("reference" is null or length("reference") <= 200),
   -- The document the entry books, such as invoice and its id.
-  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_type" text constraint bsb_accounting_entries_source_type_check check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "source_id" text,
   "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict,
-  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "memo" text constraint bsb_accounting_entries_memo_check check ("memo" is null or length("memo") <= 2000),
   "posted_at" timestamptz,
   "posted_by" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("source_type" is null) = ("source_id" is null)),
-  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+  constraint bsb_accounting_entries_check check (("source_type" is null) = ("source_id" is null)),
+  constraint bsb_accounting_entries_check1 check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
 );
-create unique index if not exists "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
+create unique index "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
-create unique index if not exists "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("org_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
-create unique index if not exists "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
-create index if not exists "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("org_id", "entry_date" desc);
-create index if not exists "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
+create unique index "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("org_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
+create unique index "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
+create index "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("org_id", "entry_date" desc);
+create index "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
 alter table "better_supabase"."accounting_entries" enable row level security;
 revoke all on "better_supabase"."accounting_entries" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entries" to authenticated;
 grant all on "better_supabase"."accounting_entries" to service_role;
-drop policy if exists accounting_entries_read on "better_supabase"."accounting_entries";
-create policy accounting_entries_read on "better_supabase"."accounting_entries"
+create policy bsb_accounting_entries_read on "better_supabase"."accounting_entries"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_dimensions" (
+create table "better_supabase"."accounting_dimensions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- The key lines use in their dimensions object, such as project or department.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_accounting_dimensions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_accounting_dimensions_name_check check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   unique ("org_id", "key")
 );
@@ -19793,17 +18140,16 @@ alter table "better_supabase"."accounting_dimensions" enable row level security;
 revoke all on "better_supabase"."accounting_dimensions" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimensions" to authenticated;
 grant all on "better_supabase"."accounting_dimensions" to service_role;
-drop policy if exists accounting_dimensions_read on "better_supabase"."accounting_dimensions";
-create policy accounting_dimensions_read on "better_supabase"."accounting_dimensions"
+create policy bsb_accounting_dimensions_read on "better_supabase"."accounting_dimensions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_dimension_values" (
+create table "better_supabase"."accounting_dimension_values" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "dimension_id" uuid not null references "better_supabase"."accounting_dimensions" ("id") on delete cascade,
-  "code" text not null check (length("code") >= 1 and length("code") <= 100),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "code" text not null constraint bsb_accounting_dimension_values_code_check check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null constraint bsb_accounting_dimension_values_name_check check (length("name") >= 1 and length("name") <= 200),
   "archived_at" timestamptz,
   unique ("dimension_id", "code")
 );
@@ -19811,88 +18157,84 @@ alter table "better_supabase"."accounting_dimension_values" enable row level sec
 revoke all on "better_supabase"."accounting_dimension_values" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimension_values" to authenticated;
 grant all on "better_supabase"."accounting_dimension_values" to service_role;
-drop policy if exists accounting_dimension_values_read on "better_supabase"."accounting_dimension_values";
-create policy accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
+create policy bsb_accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_fx_rates" (
+create table "better_supabase"."accounting_fx_rates" (
   "org_id" uuid not null,
-  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
-  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "base" text not null constraint bsb_accounting_fx_rates_base_check check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null constraint bsb_accounting_fx_rates_quote_check check ("quote" ~ '^[A-Z]{3}$'),
   "on_date" date not null,
   -- One unit of base costs rate units of quote.
-  "rate" numeric not null check ("rate" > 0),
+  "rate" numeric not null constraint bsb_accounting_fx_rates_rate_check check ("rate" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("org_id", "base", "quote", "on_date"),
-  check ("base" <> "quote")
+  constraint bsb_accounting_fx_rates_check check ("base" <> "quote")
 );
 alter table "better_supabase"."accounting_fx_rates" enable row level security;
 revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_fx_rates" to authenticated;
 grant all on "better_supabase"."accounting_fx_rates" to service_role;
-drop policy if exists accounting_fx_rates_read on "better_supabase"."accounting_fx_rates";
-create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
+create policy bsb_accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_entry_lines" (
+create table "better_supabase"."accounting_entry_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "entry_id" uuid not null references "better_supabase"."accounting_entries" ("id") on delete cascade,
   "position" smallint not null default 0,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Minor units of the functional currency; a line has one side.
-  "debit" bigint not null default 0 check ("debit" >= 0),
-  "credit" bigint not null default 0 check ("credit" >= 0),
+  "debit" bigint not null default 0 constraint bsb_accounting_entry_lines_debit_check check ("debit" >= 0),
+  "credit" bigint not null default 0 constraint bsb_accounting_entry_lines_credit_check check ("credit" >= 0),
   -- The transaction currency and its signed amount (positive is a debit).
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text not null constraint bsb_accounting_entry_lines_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount_currency" bigint not null,
-  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "fx_rate" numeric constraint bsb_accounting_entry_lines_fx_rate_check check ("fx_rate" is null or "fx_rate" > 0),
   "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict,
   -- The part of the line that is tax, in minor units of the functional currency.
-  "tax_amount" bigint not null default 0 check ("tax_amount" >= 0),
+  "tax_amount" bigint not null default 0 constraint bsb_accounting_entry_lines_tax_amount_check check ("tax_amount" >= 0),
   -- The customer, supplier or employee the line concerns.
   "party_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
-  "description" text check ("description" is null or length("description") <= 500),
-  check (("debit" = 0) <> ("credit" = 0)),
-  check ("tax_amount" <= "debit" + "credit")
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_entry_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
+  "description" text constraint bsb_accounting_entry_lines_description_check check ("description" is null or length("description") <= 500),
+  constraint bsb_accounting_entry_lines_check check (("debit" = 0) <> ("credit" = 0)),
+  constraint bsb_accounting_entry_lines_check1 check ("tax_amount" <= "debit" + "credit")
 );
-create index if not exists "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
-create index if not exists "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
-create index if not exists "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("org_id", "party_id") where "party_id" is not null;
-create index if not exists "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
+create index "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
+create index "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
+create index "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("org_id", "party_id") where "party_id" is not null;
+create index "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
 alter table "better_supabase"."accounting_entry_lines" enable row level security;
 revoke all on "better_supabase"."accounting_entry_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entry_lines" to authenticated;
 grant all on "better_supabase"."accounting_entry_lines" to service_role;
-drop policy if exists accounting_entry_lines_read on "better_supabase"."accounting_entry_lines";
-create policy accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
+create policy bsb_accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_opening_balances" (
+create table "better_supabase"."accounting_opening_balances" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "fiscal_year" integer not null constraint bsb_accounting_opening_balances_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "party_id" uuid,
   -- Signed minor units of the functional currency; a debit balance is positive.
-  "amount" bigint not null check ("amount" <> 0),
+  "amount" bigint not null constraint bsb_accounting_opening_balances_amount_check check ("amount" <> 0),
   -- imported rows come from the old books, carried rows from close_fiscal_year.
-  "source" text not null default 'imported' check ("source" in ('imported', 'carried')),
+  "source" text not null default 'imported' constraint bsb_accounting_opening_balances_source_check check ("source" in ('imported', 'carried')),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "accounting_opening_balances_key_idx" on "better_supabase"."accounting_opening_balances" ("org_id", "fiscal_year", "account_id", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
-create index if not exists "accounting_opening_balances_account_idx" on "better_supabase"."accounting_opening_balances" ("account_id");
+create unique index "accounting_opening_balances_key_idx" on "better_supabase"."accounting_opening_balances" ("org_id", "fiscal_year", "account_id", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
+create index "accounting_opening_balances_account_idx" on "better_supabase"."accounting_opening_balances" ("account_id");
 alter table "better_supabase"."accounting_opening_balances" enable row level security;
 revoke all on "better_supabase"."accounting_opening_balances" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_opening_balances" to authenticated;
 grant all on "better_supabase"."accounting_opening_balances" to service_role;
-drop policy if exists accounting_opening_balances_read on "better_supabase"."accounting_opening_balances";
-create policy accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
+create policy bsb_accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -19910,7 +18252,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_account_level"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_accounts_level" on "better_supabase"."accounting_accounts";
 create trigger "bsb_accounting_accounts_level" before insert or update of "parent_id" on "better_supabase"."accounting_accounts"
   for each row execute function "better_supabase"."accounting_account_level"();
 
@@ -19930,7 +18271,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_account_level_children"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_accounts_level_children" on "better_supabase"."accounting_accounts";
 create trigger "bsb_accounting_accounts_level_children" after update of "parent_id" on "better_supabase"."accounting_accounts"
   for each row when (old."parent_id" is distinct from new."parent_id") execute function "better_supabase"."accounting_account_level_children"();
 
@@ -19956,7 +18296,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_entry_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_entries_guard" on "better_supabase"."accounting_entries";
 create trigger "bsb_accounting_entries_guard" before update or delete on "better_supabase"."accounting_entries"
   for each row execute function "better_supabase"."accounting_entry_guard"('org_id');
 
@@ -19977,7 +18316,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."accounting_entry_line_guard"() from public, anon, authenticated;
-drop trigger if exists "bsb_accounting_entry_lines_guard" on "better_supabase"."accounting_entry_lines";
 create trigger "bsb_accounting_entry_lines_guard" before insert or update or delete on "better_supabase"."accounting_entry_lines"
   for each row execute function "better_supabase"."accounting_entry_line_guard"('org_id');
 
@@ -20089,7 +18427,7 @@ grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, dat
 -- debit for assets and expenses and credit for the rest; the level follows
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
-drop function if exists "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid);
+
 create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
@@ -20276,7 +18614,7 @@ revoke execute on function "better_supabase"."list_accounting_accounts"(uuid, bo
 grant execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
-drop function if exists "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid);
+
 create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
@@ -20671,7 +19009,7 @@ revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) fr
 -- currency gives amountCurrency (signed, positive is a debit) and either the
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
-drop function if exists "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+
 create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language plpgsql
@@ -21536,7 +19874,7 @@ begin
     where y."org_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
       and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
   ) then
-    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   if exists (
     select 1 from "better_supabase"."accounting_entries" y
@@ -21588,7 +19926,7 @@ begin
     v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
     v_closing := v_entry."id";
   elsif v_open = 0 then
-    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'PERIOD_CLOSED';
   end if;
   delete from "better_supabase"."accounting_opening_balances" y
   where y."org_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year + 1 and y."source" = 'carried';
@@ -22291,12 +20629,12 @@ $$;
 revoke execute on function "better_supabase"."accounting_tax_report"(uuid, date, date) from public, anon;
 grant execute on function "better_supabase"."accounting_tax_report"(uuid, date, date) to authenticated, service_role;
 
-create table if not exists "better_supabase"."accounting_budgets" (
+create table "better_supabase"."accounting_budgets" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'archived')),
+  "name" text not null constraint bsb_accounting_budgets_name_check check (length("name") >= 1 and length("name") <= 200),
+  "fiscal_year" integer not null constraint bsb_accounting_budgets_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "status" text not null default 'draft' constraint bsb_accounting_budgets_status_check check ("status" in ('draft', 'approved', 'archived')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -22306,31 +20644,29 @@ alter table "better_supabase"."accounting_budgets" enable row level security;
 revoke all on "better_supabase"."accounting_budgets" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budgets" to authenticated;
 grant all on "better_supabase"."accounting_budgets" to service_role;
-drop policy if exists accounting_budgets_read on "better_supabase"."accounting_budgets";
-create policy accounting_budgets_read on "better_supabase"."accounting_budgets"
+create policy bsb_accounting_budgets_read on "better_supabase"."accounting_budgets"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create table if not exists "better_supabase"."accounting_budget_lines" (
+create table "better_supabase"."accounting_budget_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "budget_id" uuid not null references "better_supabase"."accounting_budgets" ("id") on delete cascade,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The period of the budget's fiscal year, 1 to 12.
-  "period_number" smallint not null check ("period_number" >= 1 and "period_number" <= 12),
+  "period_number" smallint not null constraint bsb_accounting_budget_lines_period_number_check check ("period_number" >= 1 and "period_number" <= 12),
   -- The dimension values the amount is for; actuals match lines that carry them.
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_budget_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   -- Minor units of the functional currency, in the account's natural sign.
   "amount" bigint not null,
   unique ("budget_id", "account_id", "period_number", "dimensions")
 );
-create index if not exists "accounting_budget_lines_account_idx" on "better_supabase"."accounting_budget_lines" ("account_id");
+create index "accounting_budget_lines_account_idx" on "better_supabase"."accounting_budget_lines" ("account_id");
 alter table "better_supabase"."accounting_budget_lines" enable row level security;
 revoke all on "better_supabase"."accounting_budget_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budget_lines" to authenticated;
 grant all on "better_supabase"."accounting_budget_lines" to service_role;
-drop policy if exists accounting_budget_lines_read on "better_supabase"."accounting_budget_lines";
-create policy accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
+create policy bsb_accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -22495,19 +20831,19 @@ grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, 
 
 -- A schedule defers amount (minor units of currency) over [starts_on, ends_on]:
 -- one per source line, so scheduling a line twice returns the first schedule.
-create table if not exists "better_supabase"."accounting_recognition_schedules" (
+create table "better_supabase"."accounting_recognition_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "source_type" text not null check (length("source_type") between 1 and 100),
-  "source_id" text not null check (length("source_id") between 1 and 200),
-  "line_ref" text not null default '' check (length("line_ref") <= 200),
-  "amount" bigint not null check ("amount" > 0),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "source_type" text not null constraint bsb_accounting_recognition_schedules_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null constraint bsb_accounting_recognition_schedules_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200),
+  "line_ref" text not null default '' constraint bsb_accounting_recognition_schedules_line_ref_check check (length("line_ref") <= 200),
+  "amount" bigint not null constraint bsb_accounting_recognition_schedules_amount_check check ("amount" > 0),
+  "currency" text not null constraint bsb_accounting_recognition_schedules_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "starts_on" date not null,
   "ends_on" date not null,
   "deferral_entry_id" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_recognition_schedules_check check ("ends_on" >= "starts_on"),
   unique ("org_id", "source_type", "source_id", "line_ref")
 );
 alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
@@ -22516,18 +20852,18 @@ grant all on "better_supabase"."accounting_recognition_schedules" to service_rol
 
 -- The part of a schedule earned in one month, due on the month's last day (or
 -- the schedule's end). The period close posts pending rows into the books.
-create table if not exists "better_supabase"."accounting_recognition_rows" (
+create table "better_supabase"."accounting_recognition_rows" (
   "id" uuid primary key default gen_random_uuid(),
   "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
   "org_id" uuid not null,
   "due_on" date not null,
-  "amount" bigint not null check ("amount" > 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "amount" bigint not null constraint bsb_accounting_recognition_rows_amount_check check ("amount" > 0),
+  "status" text not null default 'pending' constraint bsb_accounting_recognition_rows_status_check check ("status" in ('pending', 'posted')),
   "entry_id" uuid,
   "posted_at" timestamptz
 );
-create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
-create index if not exists accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("org_id", "due_on") where "status" = 'pending';
+create index accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
+create index accounting_recognition_rows_due_idx on "better_supabase"."accounting_recognition_rows" ("org_id", "due_on") where "status" = 'pending';
 alter table "better_supabase"."accounting_recognition_rows" enable row level security;
 revoke all on "better_supabase"."accounting_recognition_rows" from anon, authenticated;
 grant all on "better_supabase"."accounting_recognition_rows" to service_role;
@@ -22849,304 +21185,214 @@ grant execute on function "better_supabase"."seed_accounting_defaults"(uuid, tex
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_settings" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_settings" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_settings" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_settings" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_accounts" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_accounts" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_accounts" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_accounts" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_account_roles" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_account_roles" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_journals" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_journals" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_journals" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_journals" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_periods" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_periods" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_periods" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_periods" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_entries" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entries" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_entries" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entries" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimensions" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimensions" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_opening_balances";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_opening_balances" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_opening_balances" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_opening_balances" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_opening_balances" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budgets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_budgets" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_budgets" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_budgets" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budgets";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budgets" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_budget_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_select on "better_supabase"."accounting_budget_lines" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_insert on "better_supabase"."accounting_budget_lines" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_update on "better_supabase"."accounting_budget_lines" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budget_lines" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting

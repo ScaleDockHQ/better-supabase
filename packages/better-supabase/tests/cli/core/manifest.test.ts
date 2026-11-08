@@ -37,9 +37,15 @@ const PAGE_FILES = new Map<string, string>(
 
 const { loaders } = builtinCommands();
 
-const leaves = specPaths()
-  .filter((path) => (findSpec(path)?.subcommands ?? []).length === 0)
-  .map((path) => path.join(" "));
+/** A group that also runs (`dev`) has a loader of its own. */
+const RUNNABLE_GROUPS = ["dev"];
+
+const leaves = [
+  ...specPaths()
+    .filter((path) => (findSpec(path)?.subcommands ?? []).length === 0)
+    .map((path) => path.join(" ")),
+  ...RUNNABLE_GROUPS,
+];
 
 /** The heading anchors Fumadocs generates for a page. */
 function anchors(markdown: string): Set<string> {

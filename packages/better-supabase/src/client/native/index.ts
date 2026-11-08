@@ -15,7 +15,7 @@ export {
 } from "./auth-link.ts";
 
 export type {
-  AuthFailure,
+  AuthLinkError,
   AuthLinkClient,
   AuthLinkResult,
   OAuthClient,

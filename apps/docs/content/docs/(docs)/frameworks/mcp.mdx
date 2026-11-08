@@ -387,7 +387,7 @@ const RoleClaims = v.looseObject({
   user_role: v.fallback(v.optional(v.string()), undefined),
 });
 
-export const betterSupabase = defineSupabase(schema).claims(RoleClaims);
+export const betterSupabase = createSupabase(schema).claims(RoleClaims);
 ```
 
 ```ts

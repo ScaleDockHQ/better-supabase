@@ -5,7 +5,7 @@ import {
   blockActions,
   createActionRegistry,
   createRuleDispatcher,
-  createRuleSink,
+  automationSink,
   createAutomationsAdmin,
   eventTarget,
   rpcTransport,
@@ -88,7 +88,7 @@ export async function GET(request: Request): Promise<Response> {
     setFieldAction(setTaskField),
   ]);
 
-  const sink = createRuleSink({
+  const sink = automationSink({
     rules: createAutomationsAdmin({
       transport: rpcTransport(admin.$client, { schema }),
       schema,

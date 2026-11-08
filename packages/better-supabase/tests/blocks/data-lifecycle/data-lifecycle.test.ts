@@ -16,7 +16,7 @@ const exportRow = (overrides: Record<string, unknown> = {}) => ({
   id: "x1",
   subject: "user",
   user_id: "u1",
-  organization_id: null,
+  tenant_id: null,
   status: "ready",
   bucket: "data-exports",
   files: ["x1/public.projects.ndjson", "x1/better_supabase.memberships.ndjson"],
@@ -29,10 +29,10 @@ const exportRow = (overrides: Record<string, unknown> = {}) => ({
 });
 
 const deletionRow = (overrides: Record<string, unknown> = {}) => ({
-  organization_id: "org-1",
+  tenant_id: "org-1",
   requested_by: "u1",
   requested_at: "2026-10-06T12:00:00Z",
-  purge_after: "2026-11-05T12:00:00Z",
+  purge_at: "2026-11-05T12:00:00Z",
   cancelled_at: null,
   purged_at: null,
   previously_disabled: false,
@@ -120,7 +120,7 @@ describe("createDataLifecycle", () => {
     const { transport, calls } = fakeTransport({
       request_data_export: exportRow({ status: "pending", files: [] }),
       list_data_exports: [
-        exportRow({ subject: "organization", organization_id: "org-1" }),
+        exportRow({ subject: "organization", tenant_id: "org-1" }),
       ],
     });
 
@@ -145,7 +145,7 @@ describe("createDataLifecycle", () => {
       request_subject_export: exportRow({
         subject: "record",
         user_id: null,
-        organization_id: "org-1",
+        tenant_id: "org-1",
         subject_type: "chart",
         subject_id: "c1",
         format: "csv",
@@ -1044,7 +1044,7 @@ describe("createOrganizationPurger", () => {
     const { transport } = fakeTransport({
       due_organization_deletions: [
         deletionRow(),
-        deletionRow({ organization_id: "org-2" }),
+        deletionRow({ tenant_id: "org-2" }),
       ],
       purge_organization: (args: Record<string, unknown>) => {
         purges += 1;

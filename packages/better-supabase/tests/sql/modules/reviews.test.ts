@@ -88,7 +88,9 @@ describe("reviews module", () => {
   });
 
   it("checks the rating against options.scale", () => {
-    expect(sqlOf(COMMERCE)).toContain(`check ("rating" between 1 and 5)`);
+    expect(sqlOf(COMMERCE)).toContain(
+      `check ("rating" >= 1 and "rating" <= 5)`,
+    );
     expect(sqlOf(COMMERCE, options({ scale: 10 }))).toContain(
       "rating must be from 1 to 10",
     );

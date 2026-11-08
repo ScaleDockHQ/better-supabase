@@ -366,9 +366,9 @@ export interface TemplatesOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the template's extra columns
-   * (`blocks.templates.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `upsert`.
+   * A Standard Schema for the template's extra columns (columns the app's
+   * schema files add to the table), keyed by database name. It types and parses
+   * them on reads, and validates them on `upsert`.
    */
   readonly fields?: S;
   /** The template types, by name. A type without `apply` can't be applied. */

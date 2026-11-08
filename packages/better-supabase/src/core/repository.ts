@@ -11,7 +11,7 @@ import type {
 import type { TableMeta } from "../schema/types.ts";
 import type { ExecuteResult } from "./executor.ts";
 import type { Result } from "./result.ts";
-import type { OperationRunner, Args } from "./runner.ts";
+import type { OperationRunner, CallParams } from "./runner.ts";
 
 import { invalidRequest } from "../ir/build.ts";
 import { decodeRows } from "../ir/codec.ts";
@@ -66,7 +66,7 @@ export function createRepository(
     (plugin) => plugin.beforeMutation,
   );
 
-  const selection = (args: Args | undefined): Selection => {
+  const selection = (args: CallParams | undefined): Selection => {
     const misplaced = RELATED_MEASURES.find((key) => args?.[key] !== undefined);
 
     if (misplaced !== undefined) {
@@ -85,7 +85,7 @@ export function createRepository(
   };
 
   const rowCount = (
-    args: Args | undefined,
+    args: CallParams | undefined,
     name: "limit" | "offset",
   ): number | undefined => {
     const value = args?.[name];
@@ -109,7 +109,7 @@ export function createRepository(
   };
 
   const selectOp = (
-    args: Args | undefined,
+    args: CallParams | undefined,
     patch: Partial<SelectOp> = {},
   ): SelectOp => ({
     kind: "select",
@@ -129,7 +129,7 @@ export function createRepository(
    * Writes return every column but the sensitive ones unless they are asked
    * for.
    */
-  const returning = (args: Args | undefined): Selection | undefined => {
+  const returning = (args: CallParams | undefined): Selection | undefined => {
     if (args?.["returning"] === false) {
       return undefined;
     }
@@ -149,7 +149,7 @@ export function createRepository(
 
   const run = (
     op: Operation,
-    args: Args | undefined,
+    args: CallParams | undefined,
   ): Promise<Result<ExecuteResult>> =>
     runner.run(op, optionsOf(args), signalOf(args), tuningOf(args));
 
@@ -185,7 +185,7 @@ export function createRepository(
       }
     });
 
-  const createOne = (data: unknown, args?: Args) =>
+  const createOne = (data: unknown, args?: CallParams) =>
     guarded(async () => {
       const op = insertOp([data], args, undefined);
       const result = await run(op, args);
@@ -199,7 +199,7 @@ export function createRepository(
       );
     });
 
-  const createRows = (rows: readonly unknown[], args?: Args) =>
+  const createRows = (rows: readonly unknown[], args?: CallParams) =>
     guarded(async () => {
       if (rows.length === 0) {
         return ok(args?.["returning"] === false ? { count: 0 } : []);
@@ -218,7 +218,7 @@ export function createRepository(
       );
     });
 
-  const updateOne = (id: unknown, patch: unknown, args?: Args) =>
+  const updateOne = (id: unknown, patch: unknown, args?: CallParams) =>
     guarded(async () => {
       const key = and(
         builder.primaryKey(table, id),
@@ -292,7 +292,7 @@ export function createRepository(
       return ok(op.returning ? (result.data.rows[0] ?? null) : null);
     });
 
-  const updateWhere = (args: Args) =>
+  const updateWhere = (args: CallParams) =>
     guarded(async () => {
       const where = builder.where(table, args["where"]);
 
@@ -347,7 +347,7 @@ export function createRepository(
       return ok(rows ? result.data.rows : { count: result.data.count ?? 0 });
     });
 
-  const upsertOne = (data: unknown, args?: Args) =>
+  const upsertOne = (data: unknown, args?: CallParams) =>
     guarded(async () => {
       const op = insertOp([data], args, conflictColumns(args?.["onConflict"]));
 
@@ -362,7 +362,7 @@ export function createRepository(
       );
     });
 
-  const upsertRows = (rows: readonly unknown[], args?: Args) =>
+  const upsertRows = (rows: readonly unknown[], args?: CallParams) =>
     guarded(async () => {
       if (rows.length === 0) {
         return ok(args?.["returning"] === false ? { count: 0 } : []);
@@ -382,7 +382,7 @@ export function createRepository(
       );
     });
 
-  const deleteOne = (id: unknown, args?: Args) =>
+  const deleteOne = (id: unknown, args?: CallParams) =>
     guarded(async () => {
       const op: DeleteOp = {
         kind: "delete",
@@ -402,7 +402,7 @@ export function createRepository(
         : ok(undefined);
     });
 
-  const deleteWhere = (args: Args) =>
+  const deleteWhere = (args: CallParams) =>
     guarded(async () => {
       const where = builder.where(table, args["where"]);
 
@@ -451,7 +451,7 @@ export function createRepository(
     $tableName: table.key,
     $meta: table,
 
-    list(args?: Args) {
+    list(args?: CallParams) {
       return guarded(async () => {
         const op = selectOp(args);
 
@@ -466,13 +466,13 @@ export function createRepository(
       });
     },
 
-    page(args: Args) {
+    page(args: CallParams) {
       return guarded(async () =>
         "after" in args ? cursorPage(args) : offsetPage(args),
       );
     },
 
-    get(key: unknown, args?: Args) {
+    get(key: unknown, args?: CallParams) {
       return guarded(async () => {
         const filter = filterOf(key);
 
@@ -508,7 +508,7 @@ export function createRepository(
       });
     },
 
-    count(args?: Args) {
+    count(args?: CallParams) {
       return guarded(async () => {
         const mode = args?.["mode"];
 
@@ -527,7 +527,7 @@ export function createRepository(
       });
     },
 
-    aggregate(args: Args) {
+    aggregate(args: CallParams) {
       return guarded<unknown>(async () => {
         const aggregation = builder.aggregation(table, args);
 
@@ -563,13 +563,13 @@ export function createRepository(
       });
     },
 
-    create(data: unknown, args?: Args) {
+    create(data: unknown, args?: CallParams) {
       return Array.isArray(data)
         ? createRows(data, args)
         : createOne(data, args);
     },
 
-    update(target: unknown, patch: unknown, args?: Args) {
+    update(target: unknown, patch: unknown, args?: CallParams) {
       const filter = filterOf(target);
 
       return filter === undefined
@@ -577,13 +577,13 @@ export function createRepository(
         : updateWhere({ ...args, where: filter.where, data: patch });
     },
 
-    upsert(data: unknown, args?: Args) {
+    upsert(data: unknown, args?: CallParams) {
       return Array.isArray(data)
         ? upsertRows(data, args)
         : upsertOne(data, args);
     },
 
-    delete(target: unknown, args?: Args) {
+    delete(target: unknown, args?: CallParams) {
       const filter = filterOf(target);
 
       return filter === undefined
@@ -594,7 +594,7 @@ export function createRepository(
 
   function insertOp(
     rows: readonly unknown[],
-    args: Args | undefined,
+    args: CallParams | undefined,
     conflict: readonly string[] | undefined,
   ): InsertOp {
     const built = rows.map((row) => builder.row(table, row));
@@ -662,7 +662,7 @@ export function createRepository(
     return invalidRequest(`Invalid onConflict on "${table.key}"`, table.key);
   }
 
-  async function offsetPage(args: Args): Promise<Result<unknown>> {
+  async function offsetPage(args: CallParams): Promise<Result<unknown>> {
     const window = pageWindow(args);
 
     if ("invalid" in window) {
@@ -701,7 +701,7 @@ export function createRepository(
     );
   }
 
-  async function cursorPage(args: Args): Promise<Result<unknown>> {
+  async function cursorPage(args: CallParams): Promise<Result<unknown>> {
     const size = Number(args["size"]);
 
     if (!Number.isInteger(size) || size < 1) {
@@ -754,11 +754,12 @@ export function createRepository(
       }
 
       const { byDb } = lookupOf(table);
-      after = keysetCondition(
-        orderBy,
-        values,
-        (name) => byDb.get(name)?.[1].nullable ?? true,
-      );
+      after = keysetCondition(orderBy, values, (name) => {
+        const column = byDb.get(name)?.[1];
+
+        // `gen` leaves `nullable` out for a column that can't be null.
+        return column === undefined || column.nullable === true;
+      });
     }
 
     const op = selectOp(args, {

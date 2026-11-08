@@ -9,7 +9,7 @@ dependency. Set up an SDK as usual. Nothing is recorded without one.
 ```ts
 import { otel, traceAuth, tracedFetch } from "better-supabase/otel";
 
-export const betterSupabase = defineSupabase(schema).use(otel());
+export const betterSupabase = createSupabase(schema).use(otel());
 traceAuth(server); // auth.resolve and auth.refresh spans from betterSupabase.events
 
 const supabase = createClient(url, key, { global: { fetch: tracedFetch() } });

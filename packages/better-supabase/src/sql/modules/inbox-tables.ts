@@ -33,7 +33,7 @@ const policy = (table: string, name: string, using: string): string =>
       roles: ["authenticated"],
       using,
     }),
-    { drop: true, target: table },
+    { target: table },
   );
 
 /** An optional column's line, followed by a comma, or nothing. */
@@ -232,7 +232,7 @@ ${policy(T.deliveries, sqlIdent(`${q.ctx.tableName("deliveries").name}_staff_rea
 -- Webhook deliveries from the channels, stored before the ack so a slow or
 -- failed handler loses nothing. external_id dedupes a platform's retries.
 -- attempts counts only starts of processing; available_at delays a retry and
--- locked_until is the lease of a processing row, after which it is picked
+-- lock_expires_at is the lease of a processing row, after which it is picked
 -- again.
 create table if not exists ${T.inbound} (
   ${ie("id")} uuid primary key default gen_random_uuid(),
@@ -270,7 +270,7 @@ ${lockTable(T.templates, { read: true })}
 ${policy(T.templates, sqlIdent(`${q.ctx.tableName("templates").name}_staff_read`), q.staff(tp("tenant")))}
 
 -- Staff replies to send later. publish_due_inbox_messages sends each one
--- through the normal reply path once scheduled_for passes; until then only
+-- through the normal reply path once scheduled_at passes; until then only
 -- its author sees it.
 create table if not exists ${T.scheduled} (
   ${sm("id")} uuid primary key default gen_random_uuid(),
@@ -457,8 +457,8 @@ begin${
 end;
 $$;
 revoke execute on function ${q.fn("inbox_conversation_broadcast")}() from public, anon, authenticated;
-drop trigger if exists conversations_broadcast on ${q.t("conversations")};
-create trigger conversations_broadcast after insert or update on ${q.t("conversations")}
+drop trigger if exists ${q.ctx.naming.rename("bsb_conversations_broadcast")} on ${q.t("conversations")};
+create trigger ${q.ctx.naming.rename("bsb_conversations_broadcast")} after insert or update on ${q.t("conversations")}
   for each row execute function ${q.fn("inbox_conversation_broadcast")}();
 
 -- A timeline event (assignment, status, hand-off, note) pings the staff topic
@@ -480,8 +480,8 @@ begin
 end;
 $$;
 revoke execute on function ${q.fn("inbox_event_broadcast")}() from public, anon, authenticated;
-drop trigger if exists ${sqlIdent(`${q.ctx.tableName("events").name}_broadcast`)} on ${q.t("events")};
-create trigger ${sqlIdent(`${q.ctx.tableName("events").name}_broadcast`)} after insert on ${q.t("events")}
+drop trigger if exists ${sqlIdent(`bsb_${q.ctx.tableName("events").name}_broadcast`)} on ${q.t("events")};
+create trigger ${sqlIdent(`bsb_${q.ctx.tableName("events").name}_broadcast`)} after insert on ${q.t("events")}
   for each row execute function ${q.fn("inbox_event_broadcast")}();
 
 create or replace function ${q.fn("inbox_delivery_broadcast")}()
@@ -504,8 +504,8 @@ begin
 end;
 $$;
 revoke execute on function ${q.fn("inbox_delivery_broadcast")}() from public, anon, authenticated;
-drop trigger if exists ${sqlIdent(`${q.ctx.tableName("deliveries").name}_broadcast`)} on ${q.t("deliveries")};
-create trigger ${sqlIdent(`${q.ctx.tableName("deliveries").name}_broadcast`)} after insert or update of ${dl("status")} on ${q.t("deliveries")}
+drop trigger if exists ${sqlIdent(`bsb_${q.ctx.tableName("deliveries").name}_broadcast`)} on ${q.t("deliveries")};
+create trigger ${sqlIdent(`bsb_${q.ctx.tableName("deliveries").name}_broadcast`)} after insert or update of ${dl("status")} on ${q.t("deliveries")}
   for each row execute function ${q.fn("inbox_delivery_broadcast")}();
 
 -- Staff join ${q.topic}:org:<tenant>. A conversation's own topic, with typing
@@ -523,7 +523,7 @@ begin
         and (select realtime.topic()) like ${sqlString(`${q.topic}:org:%`)}
         and substr((select realtime.topic()), ${String(q.topic.length + 6)}) in (select x::text from ${q.ctx.scope.ids(q.key("read"))} x)`,
           }),
-          { drop: true, target: "realtime.messages" },
+          { target: "realtime.messages" },
         )}
     drop policy if exists ${broadcast} on realtime.messages;
   end if;
@@ -570,7 +570,7 @@ grant execute on function ${q.fn("inbox_file_allowed")}(text, text) to authentic
 do $$
 begin
   if to_regclass('storage.objects') is not null then
-        ${renderPolicy(makePolicy({ table: "storage.objects", name: read, command: "select", roles: ["authenticated"], using: `${q.fn("inbox_file_allowed")}(bucket_id, name)` }), { drop: true, target: "storage.objects" })}
+        ${renderPolicy(makePolicy({ table: "storage.objects", name: read, command: "select", roles: ["authenticated"], using: `${q.fn("inbox_file_allowed")}(bucket_id, name)` }), { target: "storage.objects" })}
     drop policy if exists ${write} on storage.objects;
   end if;
 end;

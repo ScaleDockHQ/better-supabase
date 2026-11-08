@@ -4,7 +4,7 @@ import type { BetterServer } from "../../src/server/server-types.ts";
 import type { TestSigner } from "../../src/testing/jwt.ts";
 import type { Database, Functions, Models } from "./generated-camel.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "./generated-camel.ts";
@@ -21,7 +21,7 @@ export const env: { url: string; publishableKey: string; jwksUrl: URL } = {
 export const signer: TestSigner = await createTestSigner();
 
 export const betterSupabase: BetterSupabase<Models, Database, Functions> =
-  defineSupabase(schema);
+  createSupabase(schema);
 
 export const server: BetterServer<Models, Functions, unknown> = createServer(
   betterSupabase,

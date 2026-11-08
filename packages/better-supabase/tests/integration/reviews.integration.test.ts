@@ -276,7 +276,7 @@ describe.skipIf(!live)("reviews module", () => {
       expect(replied.reply).toBe("Thanks");
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type like 'review.%' order by position",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and type like 'review.%' order by position",
         [tenant],
       );
 

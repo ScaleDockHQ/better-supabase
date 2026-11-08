@@ -8,16 +8,16 @@ const sqlOf = (
   layout: Parameters<typeof renderBlocks>[1] = {},
 ): string =>
   renderBlocks(names, layout)
-    .filter((file) => file.module === "identities")
+    .filter(
+      (file) => file.module === "identities" || file.module === "unscoped",
+    )
     .map((file) => file.contents)
     .join("\n");
 
 describe("identities module", () => {
-  it("is registered after time-tracking", () => {
+  it("is registered after time-entries", () => {
     const names = Object.keys(SQL_MODULES);
-    expect(names.indexOf("identities")).toBe(
-      names.indexOf("time-tracking") + 1,
-    );
+    expect(names.indexOf("identities")).toBe(names.indexOf("time-entries") + 1);
   });
 
   it("lets users read and delete their own links and write none", () => {
@@ -27,10 +27,10 @@ describe("identities module", () => {
     );
     expect(sql).not.toMatch(/grant (insert|update)[^;]*identity_links/);
     expect(sql).toContain(
-      'create policy identity_links_own_read on "better_supabase"."identity_links"\n  for select to authenticated',
+      'create policy bsb_identity_links_own_read on "better_supabase"."identity_links"\n  for select to authenticated',
     );
     expect(sql).toContain(
-      'create policy identity_links_own_delete on "better_supabase"."identity_links"\n  for delete to authenticated',
+      'create policy bsb_identity_links_own_delete on "better_supabase"."identity_links"\n  for delete to authenticated',
     );
     expect(sql).not.toMatch(/create policy[^;]*for (insert|update)/);
     expect(sql).toContain("check (num_nonnulls(");
@@ -84,9 +84,6 @@ describe("identities module", () => {
       modules: { identities: { options: { verifiedEmails: false } } },
     });
 
-    expect(off).toContain(
-      'drop trigger if exists "bsb_identity_email" on auth.users;',
-    );
     expect(off).not.toContain("create trigger");
   });
 
@@ -111,9 +108,7 @@ describe("identities module", () => {
       modules: { identities: { schema: "app_private" } },
     });
 
-    expect(sql).toContain(
-      'create table if not exists "app_private"."identity_links"',
-    );
+    expect(sql).toContain('create table "app_private"."identity_links"');
     expect(sql).toContain('"app_private"."begin_identity_link"');
   });
 });

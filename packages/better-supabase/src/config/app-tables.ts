@@ -429,22 +429,14 @@ export function appIdentifierError(name: string): string | undefined {
 /**
  * The first constraint or index name the SQL derives for `table` that is longer
  * than 63 bytes, which Postgres would truncate into a collision, as a message;
- * `undefined` when every name fits.
+ * `undefined` when every name fits. Check names are left out: they carry `bsb_`
+ * and a hash when they pass 63 bytes.
  */
 export function appNameLengthError(
   table: string,
   config: Pick<AppTableConfig, "columns" | "unique" | "indexes">,
 ): string | undefined {
   const names = [
-    ...Object.entries(config.columns ?? {}).flatMap(([column, each]) =>
-      each.references !== undefined ||
-      each.format !== undefined ||
-      each.options !== undefined ||
-      each.min !== undefined ||
-      each.max !== undefined
-        ? [`${table}_${column}_check`]
-        : [],
-    ),
     ...(Object.values(config.columns ?? {}).some(
       (column) => column.encrypted === true,
     )

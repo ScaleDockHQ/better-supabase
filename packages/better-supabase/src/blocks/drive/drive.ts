@@ -104,10 +104,10 @@ export interface DriveOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the nodes' extra columns
-   * (`blocks.drive.options.extraColumns`), keyed by column name. It types and
-   * parses `fields` on every node the client returns, and validates them on
-   * `createFolder` and `upload`.
+   * A Standard Schema for the nodes' extra columns (columns the app's schema
+   * files add to the table), keyed by column name. It types and parses `fields`
+   * on every node the client returns, and validates them on `createFolder` and
+   * `upload`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

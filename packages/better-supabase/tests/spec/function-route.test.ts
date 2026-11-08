@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { StandardSchemaV1 } from "../../src/core/standard.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { FUNCTION_DESCRIPTOR } from "../../src/core/function-contract.ts";
 import { createEdge, defineFunction } from "../../src/edge/index.ts";
 import { defineApi } from "../../src/spec/api.ts";
@@ -25,7 +25,7 @@ function described<T>(
   } as StandardSchemaV1<T, T>;
 }
 
-const betterSupabase = defineSupabase(schema);
+const betterSupabase = createSupabase(schema);
 
 const bsb = createEdge(betterSupabase, {
   env: {

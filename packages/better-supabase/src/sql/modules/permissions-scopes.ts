@@ -113,7 +113,7 @@ export const MODULE_PERMISSION_SCOPES: {
   imports: { manage: "tenant" },
   "saved-views": { read: "tenant", share: "tenant" },
   relations: { read: "tenant", manage: "tenant" },
-  bulk: { run: "tenant" },
+  "bulk-actions": { run: "tenant" },
   search: { read: "tenant" },
   metrics: { read: "tenant", manage: "tenant" },
   calendar: { manage: "tenant", write: "tenant", read: "tenant" },
@@ -154,7 +154,7 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   signatures: { read: "tenant", request: "tenant", manage: "tenant" },
   templates: { read: "tenant", apply: "tenant", manage: "tenant" },
-  "time-tracking": {
+  "time-entries": {
     read: "tenant",
     track: "tenant",
     approve: "tenant",

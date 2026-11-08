@@ -42,6 +42,6 @@ install, so it never broadcasts to everyone by mistake.
 | `broadcast_changes()`                                | The statement trigger that sends the change signal             |
 | `broadcast_topic()`                                  | A row trigger that announces a change on a `defineTopic` topic |
 
-The config writes the `track_realtime` calls for you. The
+The config writes the triggers for you, as `create trigger` statements in the schema file (`bsb_realtime_insert`, `bsb_realtime_update` and `bsb_realtime_delete`, or one `bsb_realtime` trigger on a table with no tenant column), so `supabase db schema declarative sync` sees them and drops the ones of a table you remove from the list. The same holds for the tables of a block entity that sets `subject.realtime`. Where a module is installed before `realtime-tables` in a rerunnable layout, its data file calls `track_realtime` instead. The
 [Realtime page](/docs/platform/realtime) covers typed topics and
 `broadcast_topic`.

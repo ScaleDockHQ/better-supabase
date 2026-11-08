@@ -558,7 +558,7 @@ describe.skipIf(!live)("rules module", () => {
       expect(dispatched.map((outcome) => outcome.ok)).toEqual([true, false]);
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 order by created_at",
+        "select type from better_supabase.outbox_events where tenant_id = $1 order by created_at",
         [tenant],
       );
 

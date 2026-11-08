@@ -28,14 +28,12 @@ describe("ai-files module", () => {
       "ai_documents",
       "ai_suggestions",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}" (`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}" (`);
     }
 
     expect(sql).not.toContain(`"better_supabase"."ai_document_versions"`);
     expect(sql).toContain(
-      `"path" text generated always as ("organization_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored`,
+      `"path" text generated always as ("tenant_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored`,
     );
   });
 
@@ -43,7 +41,7 @@ describe("ai-files module", () => {
     const sql = body();
 
     expect(sql).toContain(
-      `"better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', update_ai_document.content, 'messageId', update_ai_document.message_id), update_ai_document.storage_path, null, 'manual', false, auth.uid())`,
+      `"better_supabase"."version_insert"(v_row."tenant_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', update_ai_document.content, 'messageId', update_ai_document.message_id), update_ai_document.storage_path, null, 'manual', false, auth.uid())`,
     );
     expect(sql).toContain(
       `delete from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = old."id"::text;`,
@@ -58,7 +56,7 @@ describe("ai-files module", () => {
       .join("\n");
 
     expect(sql).toContain(
-      `create policy versions_ai_documents on "better_supabase"."versions" as restrictive`,
+      `create policy bsb_versions_ai_documents on "better_supabase"."versions" as restrictive`,
     );
     expect(sql).toContain(`and v_subject_type <> 'ai_document'`);
   });
@@ -71,7 +69,7 @@ describe("ai-files module", () => {
       `create table if not exists "better_supabase"."versions" (`,
     );
     expect(sql).toContain(
-      `select doc."organization_id", 'ai_document', x.document_id::text, x.version`,
+      `select doc."tenant_id", 'ai_document', x.document_id::text, x.version`,
     );
     expect(sql).toContain(
       `drop table "better_supabase"."ai_document_versions" cascade;`,
@@ -93,7 +91,7 @@ describe("ai-files module", () => {
     const sql = body();
 
     const policy = sql.slice(
-      sql.indexOf("create policy ai_files_read"),
+      sql.indexOf("create policy bsb_ai_files_read"),
       sql.indexOf("-- What a provider's file API"),
     );
 
@@ -127,7 +125,7 @@ describe("ai-files module", () => {
       "values ('chat-files', 'chat-files', false, 1024, array['image/*', 'application/pdf']::text[])",
     );
     expect(sql).toContain("like any (array['image/%', 'application/pdf'])");
-    expect(sql).toContain("between 0 and 1024");
+    expect(sql).toContain(`"byte_size" >= 0 and "byte_size" <= 1024`);
   });
 
   it("rejects a bad bucket, size or media type", () => {

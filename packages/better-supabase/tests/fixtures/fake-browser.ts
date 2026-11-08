@@ -16,7 +16,7 @@ import type {
   SchemaMeta,
 } from "../../src/schema/types.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { defineSchema } from "../../src/schema/define.ts";
@@ -51,14 +51,14 @@ const meta: SchemaMeta = {
   realtime: { customers: { tenant: "organizationId" }, notes: {} },
 };
 
-const betterSupabase: ReturnType<typeof defineSupabase> = defineSupabase(
+const betterSupabase: ReturnType<typeof createSupabase> = createSupabase(
   defineSchema(meta),
 );
 
 export const typed: BetterSupabase<
   ModelsOf<typeof schema>,
   DatabaseOf<typeof schema>
-> = defineSupabase(schema);
+> = createSupabase(schema);
 
 type Listener = (message: { event: string; payload: unknown }) => void;
 

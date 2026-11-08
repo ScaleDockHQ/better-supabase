@@ -11,7 +11,6 @@ import {
 } from "../shared.ts";
 import {
   administrationJson,
-  ADMINISTRATION_EXTRA,
   administrationRecord,
   doubleCheck,
   medicationJson,
@@ -71,11 +70,7 @@ export function medicationAdministrationFunctions(
   const a = (column: string): string => ctx.col("administrations", column);
   const fn = (name: string): string => ctx.fn(name);
 
-  const extras = ctx.extraColumns(
-    "administrations",
-    ROW_RESERVED,
-    ADMINISTRATION_EXTRA,
-  );
+  const extras = ctx.extraColumns("administrations", ROW_RESERVED);
 
   const fields = extraFieldsArg(extras);
   const hasSignature = ctx.has("administrations", "signature");

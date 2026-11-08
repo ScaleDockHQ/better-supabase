@@ -1,19 +1,16 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:118dcb87b820faa7a8e1bd6695d5b14434c38a560d8a857a4a117767be3c9827
+-- @bsb-hash sha256:22f8953b4b87933610637b476330513e3572ee6b222b16bb6c07b0efaa279485
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
 -- One row per job the dispatcher ran: when, with what result, and how often.
-create table if not exists "better_supabase"."maintenance_state" (
+create table "better_supabase"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
-  "last_status" text check ("last_status" in ('ok', 'error')),
+  "last_status" text constraint bsb_maintenance_state_last_status_check check ("last_status" in ('ok', 'error')),
   "last_result" jsonb,
   "last_error" text,
   "runs" bigint not null default 0
@@ -122,19 +119,6 @@ grant execute on function better_supabase.maintenance_schedule(text) to service_
 revoke execute on function better_supabase.maintenance_scheduler() from public, anon, authenticated;
 grant execute on function better_supabase.maintenance_scheduler() to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block-data housekeeping
@@ -152,19 +136,16 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:b14fcd4a57389b7dd96ad2ccec8f83ca09e3ef28601ecc62ccc876716ea85069
+-- @bsb-hash sha256:6883a95fef5c50f2adda8fef5f3bf197216774f20f3e194e02807b2d4ec1645e
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
 -- One row per job the dispatcher ran: when, with what result, and how often.
-create table if not exists "better_supabase"."maintenance_state" (
+create table "better_supabase"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
-  "last_status" text check ("last_status" in ('ok', 'error')),
+  "last_status" text constraint bsb_maintenance_state_last_status_check check ("last_status" in ('ok', 'error')),
   "last_result" jsonb,
   "last_error" text,
   "runs" bigint not null default 0
@@ -284,19 +265,6 @@ grant execute on function better_supabase.maintenance_schedule(text) to service_
 revoke execute on function better_supabase.maintenance_scheduler() from public, anon, authenticated;
 grant execute on function better_supabase.maintenance_scheduler() to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block-data housekeeping
@@ -314,13 +282,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:0e6089bb458f0c2cd2e8600d7444a719b58fe785271d90bece06769393997c37
+-- @bsb-hash sha256:e6fa858e0df13f22ec52805592628b777227bc88f2f4364539565b4770d6adb2
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -328,10 +294,10 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 
 -- One row per job the dispatcher ran: when, with what result, and how often.
-create table if not exists "app_private"."maintenance_state" (
+create table "app_private"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
-  "last_status" text check ("last_status" in ('ok', 'error')),
+  "last_status" text constraint bsb_maintenance_state_last_status_check check ("last_status" in ('ok', 'error')),
   "last_result" jsonb,
   "last_error" text,
   "runs" bigint not null default 0
@@ -440,19 +406,6 @@ grant execute on function better_supabase.maintenance_schedule(text) to service_
 revoke execute on function better_supabase.maintenance_scheduler() from public, anon, authenticated;
 grant execute on function better_supabase.maintenance_scheduler() to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block-data housekeeping
@@ -470,19 +423,16 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:4349cd2fda524a8468f3236e207058cf3267062a4143072147668cb891349085
+-- @bsb-hash sha256:ccdbb54731bd279b11a93e9aebd020a79711457bf7bf498776f1aade02bb3998
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
 -- One row per job the dispatcher ran: when, with what result, and how often.
-create table if not exists "better_supabase"."maintenance_state" (
+create table "better_supabase"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
-  "last_status" text check ("last_status" in ('ok', 'error')),
+  "last_status" text constraint bsb_maintenance_state_last_status_check check ("last_status" in ('ok', 'error')),
   "last_result" jsonb,
   "last_error" text,
   "runs" bigint not null default 0
@@ -622,19 +572,6 @@ as $$ select "better_supabase"."maintenance_scheduler"() $$;
 revoke execute on function "api"."maintenance_scheduler"() from public, anon, authenticated;
 grant execute on function "api"."maintenance_scheduler"() to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block-data housekeeping
@@ -652,19 +589,16 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:409a5816d372c779f1b1c2626a7881ee5673b823dd16513c02a74ec8b8b5e5c2
+-- @bsb-hash sha256:f54641626dc2bc32cee522d842582e42e090ef138b6d06bd2900f1f7531e03f0
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- One row per job the dispatcher ran: when, with what result, and how often.
 -- better_supabase.maintenance_state is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."maintenance_state" add column if not exists "job" text;
 alter table "better_supabase"."maintenance_state" add column if not exists "last_run_at" timestamptz;
-alter table "better_supabase"."maintenance_state" add column if not exists "last_status" text check ("last_status" in ('ok', 'error'));
+alter table "better_supabase"."maintenance_state" add column if not exists "last_status" text constraint bsb_maintenance_state_last_status_check check ("last_status" in ('ok', 'error'));
 alter table "better_supabase"."maintenance_state" add column if not exists "last_result" jsonb;
 alter table "better_supabase"."maintenance_state" add column if not exists "last_error" text;
 alter table "better_supabase"."maintenance_state" add column if not exists "runs" bigint not null default 0;
@@ -770,19 +704,6 @@ revoke execute on function better_supabase.maintenance_schedule(text) from publi
 grant execute on function better_supabase.maintenance_schedule(text) to service_role;
 revoke execute on function better_supabase.maintenance_scheduler() from public, anon, authenticated;
 grant execute on function better_supabase.maintenance_scheduler() to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping

@@ -1,0 +1,58 @@
+---
+title: cache
+description: What the CLI keeps between runs, when it is reused, and how to delete it.
+---
+
+The CLI keeps results between runs in `node_modules/.cache/better-supabase`,
+so a run that changes nothing renders and parses nothing again. Every entry is
+keyed by its whole input (the config, the schema files that matter, the CLI
+version and a hash of the generator's files), so a change to any of them makes
+a fresh result, never a stale one.
+
+| Entry                  | Holds                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `render-blocks.json`   | The files `upgrade`, `doctor` and `gen` render for the blocks, one entry overwritten in place |
+| `memo/<name>.json`     | Results the renderer derives from the config, such as the columns each block writes as text   |
+| `modules/renders.json` | The files each block module rendered, with the layout inputs it read; see below               |
+| `parse/files.json`     | What each SQL file declares, by content hash, so a run parses only the files that changed     |
+| The catalog snapshot   | The schema `gen` read from the database, reused while the catalog fingerprint is unchanged    |
+| The downloaded lints   | The pinned `splinter.sql` that `doctor` checks against its hash                               |
+
+Each file holds one result, or the last few, and is overwritten in place, so
+the folder stays small (`parse/files.json` keeps the 4096 entries a run used most
+recently). A cached file whose `@bsb-hash` line no longer matches
+its body is dropped.
+
+## Per-module renders
+
+A change to the config or to your schema files used to render every block
+again. Each module's render is now stored with the inputs it read (the options
+of its own block, the registrations of its own tables, and so on), and a later
+run serves it as long as those inputs are unchanged. Adding an audited table
+renders the few modules that read the audited tables and reuses the rest.
+A change to something every module reads, such as the schema directory or the
+file prefix, still renders them all.
+
+## purge
+
+```bash
+pnpm better-supabase cache purge [--dry-run]
+```
+
+`cache purge` deletes the folder. The next run rebuilds what it needs, so the
+only cost is that run. `--dry-run` names the entries and their size and keeps
+them. Under `--json`, `data.cache` holds the `folder`, the `removed` entries and
+the `bytes`, and `data.outcome` is `removed`, `unchanged` (nothing was cached) or
+`planned`.
+
+```txt
+Removed 5 entries (2.4 MB) from node_modules/.cache/better-supabase: memo, render-blocks.json
+```
+
+Side effects: Writes files.
+
+## Skipping the cache
+
+`--no-cache` (on `upgrade` and the other commands that render modules) reads no
+entry, writes none and renders everything again. Use it to check that the cache
+did not change a result: the output is the same byte for byte.

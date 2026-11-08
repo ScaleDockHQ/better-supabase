@@ -15,7 +15,7 @@ function responseOf(result: object): Response | undefined {
 }
 
 /** The arguments TanStack Start passes to a `.server()` callback. */
-export interface TanStackStartServerArgs<Context, Result> {
+export interface TanStackStartServerOptions<Context, Result> {
   readonly request: Request;
   readonly next: (options: {
     readonly context: Context;
@@ -49,7 +49,7 @@ export function toTanStackStart<const Entries extends readonly AnyEntry[]>(
   entries: Entries & Validated<Entries>,
   options: ToTanStackStartOptions = {},
 ): <Result extends object>(
-  args: TanStackStartServerArgs<Contributions<Entries>, Result>,
+  args: TanStackStartServerOptions<Contributions<Entries>, Result>,
 ) => Promise<Result> {
   return tanStackStartServer(
     around(entries),
@@ -72,12 +72,12 @@ export function tanStackStartServer<Context>(
     request: Request,
   ) => Context,
 ): <Result extends object>(
-  args: TanStackStartServerArgs<Context, Result>,
+  args: TanStackStartServerOptions<Context, Result>,
 ) => Promise<Result> {
   return async <Result extends object>({
     request,
     next,
-  }: TanStackStartServerArgs<Context, Result>): Promise<Result> => {
+  }: TanStackStartServerOptions<Context, Result>): Promise<Result> => {
     bufferInPlace(request);
     const downstream: { result?: Result } = {};
 

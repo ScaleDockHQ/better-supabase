@@ -1,195 +1,117 @@
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:c7c49044e4251557382b705f47ae60f174cbe2c19a6a7890d6c530092e80f871
+-- @bsb-hash sha256:c5fd38123c44cdd8e9fa66a31cf55e2fceb6c945238cbdb6d9140694194b6849
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_purposes";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_purposes";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_purposes";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_purposes";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_purposes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."consents";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consents";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consents";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consents";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Consent per record and purpose: what an organization asks consent for, each
 -- decision with who made it and its evidence, withdrawals and expiry.
-create table if not exists "better_supabase"."consent_purposes" (
+create table "better_supabase"."consent_purposes" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system purpose every organization uses.
   "tenant_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "title" text not null check (length("title") between 1 and 200),
-  "description" text check ("description" is null or length("description") <= 4000),
-  "legal_basis" text not null default 'consent' check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
-  "version" text not null default '1' check (length("version") between 1 and 40),
+  "key" text not null constraint bsb_consent_purposes_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
+  "title" text not null constraint bsb_consent_purposes_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_consent_purposes_description_check check ("description" is null or length("description") <= 4000),
+  "legal_basis" text not null default 'consent' constraint bsb_consent_purposes_legal_basis_check check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
+  "version" text not null default '1' constraint bsb_consent_purposes_version_check check (length("version") >= 1 and length("version") <= 40),
   "requires_signature" boolean not null default false,
-  "valid_months" integer check ("valid_months" is null or "valid_months" between 1 and 1200),
+  "valid_months" integer constraint bsb_consent_purposes_valid_months_check check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "consent_purposes_key_idx" on "better_supabase"."consent_purposes" ("tenant_id", "key", "version") nulls not distinct;
+create unique index "consent_purposes_key_idx" on "better_supabase"."consent_purposes" ("tenant_id", "key", "version") nulls not distinct;
 alter table "better_supabase"."consent_purposes" enable row level security;
 revoke all on "better_supabase"."consent_purposes" from public, anon, authenticated;
 grant select on "better_supabase"."consent_purposes" to authenticated;
 grant all on "better_supabase"."consent_purposes" to service_role;
-drop policy if exists consent_purposes_read on "better_supabase"."consent_purposes";
-create policy consent_purposes_read on "better_supabase"."consent_purposes"
+create policy bsb_consent_purposes_read on "better_supabase"."consent_purposes"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.member_organization_ids()));
-create table if not exists "better_supabase"."consents" (
+create table "better_supabase"."consents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "purpose_id" uuid not null references "better_supabase"."consent_purposes" ("id") on delete restrict,
   "subject_type" text not null,
   "subject_id" text not null,
-  "given_by" text not null default 'self' check ("given_by" in ('self', 'representative')),
+  "given_by" text not null default 'self' constraint bsb_consents_given_by_check check ("given_by" in ('self', 'representative')),
   -- The contact person who decided for the record, when a representative did.
   "given_by_contact_id" uuid,
-  "given_by_user_id" uuid,
-  "status" text not null check ("status" in ('granted', 'refused', 'withdrawn', 'expired')),
-  "scope" jsonb not null default '{}'::jsonb check (jsonb_typeof("scope") = 'object'),
+  "grantor_id" uuid,
+  "status" text not null constraint bsb_consents_status_check check ("status" in ('granted', 'refused', 'withdrawn', 'expired')),
+  "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object'),
   -- When the decision was made, for a refusal too.
   "granted_at" timestamptz not null default now(),
-  "valid_until" timestamptz,
+  "expires_at" timestamptz,
   "withdrawn_at" timestamptz,
-  "withdrawn_reason" text check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
+  "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
   "signature_id" uuid,
   "submission_id" uuid,
   "attachment_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("given_by" <> 'representative' or "given_by_contact_id" is not null),
-  check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
+  constraint bsb_consents_check check ("given_by" <> 'representative' or "given_by_contact_id" is not null),
+  constraint bsb_consents_check1 check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
 );
 -- One grant in force per record and purpose version.
-create unique index if not exists "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
-create index if not exists "consents_subject_idx" on "better_supabase"."consents" ("tenant_id", "subject_type", "subject_id", "created_at" desc);
-create index if not exists "consents_purpose_idx" on "better_supabase"."consents" ("purpose_id");
-create index if not exists "consents_expiry_idx" on "better_supabase"."consents" ("valid_until") where "status" = 'granted' and "valid_until" is not null;
+create unique index "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
+create index "consents_subject_idx" on "better_supabase"."consents" ("tenant_id", "subject_type", "subject_id", "created_at" desc);
+create index "consents_purpose_idx" on "better_supabase"."consents" ("purpose_id");
+create index "consents_expiry_idx" on "better_supabase"."consents" ("expires_at") where "status" = 'granted' and "expires_at" is not null;
 alter table "better_supabase"."consents" enable row level security;
 revoke all on "better_supabase"."consents" from public, anon, authenticated;
 grant select on "better_supabase"."consents" to authenticated;
 grant all on "better_supabase"."consents" to service_role;
-drop policy if exists consents_read on "better_supabase"."consents";
-create policy consents_read on "better_supabase"."consents"
+create policy bsb_consents_read on "better_supabase"."consents"
   for select to authenticated
-  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()));
 
 
 -- A signal a browser or consent platform sent for a record: the Sec-GPC header,
 -- an IAB TCF v2.2 TC string or a GPP string, with what was parsed from it.
-create table if not exists "better_supabase"."consent_signals" (
+create table "better_supabase"."consent_signals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
-  "raw" text not null check (length("raw") between 1 and 8192),
-  "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
+  "kind" text not null constraint bsb_consent_signals_kind_check check ("kind" in ('gpc', 'tcf', 'gpp')),
+  "raw" text not null constraint bsb_consent_signals_raw_check check (length("raw") >= 1 and length("raw") <= 8192),
+  "parsed" jsonb not null default '{}'::jsonb constraint bsb_consent_signals_parsed_check check (jsonb_typeof("parsed") = 'object'),
   "consent_ids" uuid[] not null default '{}',
   "created_by" uuid,
   "received_at" timestamptz not null default now()
 );
-create index if not exists "consent_signals_subject_idx" on "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "received_at" desc);
+create index "consent_signals_subject_idx" on "better_supabase"."consent_signals" ("tenant_id", "subject_type", "subject_id", "received_at" desc);
 alter table "better_supabase"."consent_signals" enable row level security;
 revoke all on "better_supabase"."consent_signals" from public, anon, authenticated;
 grant select on "better_supabase"."consent_signals" to authenticated;
 grant all on "better_supabase"."consent_signals" to service_role;
-drop policy if exists consent_signals_read on "better_supabase"."consent_signals";
-create policy consent_signals_read on "better_supabase"."consent_signals"
+create policy bsb_consent_signals_read on "better_supabase"."consent_signals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
 
 -- A receipt for one consent decision: the document handed to the person, with
 -- the SHA-256 of its text. One receipt per consent and status, never changed.
-create table if not exists "better_supabase"."consent_receipts" (
+create table "better_supabase"."consent_receipts" (
   "id" uuid primary key,
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
   "consent_id" uuid not null references "better_supabase"."consents" ("id") on delete cascade,
   "status" text not null,
-  "receipt" jsonb not null check (jsonb_typeof("receipt") = 'object'),
-  "digest" text not null check ("digest" ~ '^[0-9a-f]{64}$'),
+  "receipt" jsonb not null constraint bsb_consent_receipts_receipt_check check (jsonb_typeof("receipt") = 'object'),
+  "digest" text not null constraint bsb_consent_receipts_digest_check check ("digest" ~ '^[0-9a-f]{64}$'),
   "issued_at" timestamptz not null default now(),
   unique ("consent_id", "status")
 );
-create index if not exists "consent_receipts_tenant_idx" on "better_supabase"."consent_receipts" ("tenant_id", "issued_at" desc);
+create index "consent_receipts_tenant_idx" on "better_supabase"."consent_receipts" ("tenant_id", "issued_at" desc);
 alter table "better_supabase"."consent_receipts" enable row level security;
 revoke all on "better_supabase"."consent_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."consent_receipts" to authenticated;
 grant all on "better_supabase"."consent_receipts" to service_role;
-drop policy if exists consent_receipts_read on "better_supabase"."consent_receipts";
-create policy consent_receipts_read on "better_supabase"."consent_receipts"
+create policy bsb_consent_receipts_read on "better_supabase"."consent_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -388,7 +310,7 @@ create or replace function "better_supabase"."record_consent"(
   status text,
   given_by text default 'self',
   given_by_contact_id uuid default null,
-  valid_until timestamptz default null,
+  expires_at timestamptz default null,
   scope jsonb default '{}'::jsonb,
   evidence jsonb default '{}'::jsonb
 )
@@ -406,7 +328,7 @@ declare
   v_contact uuid := record_consent.given_by_contact_id;
   v_scope jsonb := coalesce(record_consent.scope, '{}'::jsonb);
   v_evidence jsonb := coalesce(record_consent.evidence, '{}'::jsonb);
-  v_until timestamptz := record_consent.valid_until;
+  v_until timestamptz := record_consent.expires_at;
   v_signature uuid;
   v_submission uuid;
   v_attachment uuid;
@@ -584,7 +506,7 @@ begin
   v_attachment := (v_evidence ->> 'attachmentId')::uuid;
   if v_attachment is not null and not exists (
     select 1 from "better_supabase"."attachments" x
-    where x."id" = v_attachment and x."organization_id"::text = v_tenant::text
+    where x."id" = v_attachment and x."tenant_id"::text = v_tenant::text
   ) then
     raise exception 'evidence.attachmentId is not an attachment of this organization' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
@@ -597,7 +519,7 @@ begin
     v_until := now() + make_interval(months => v_purpose."valid_months");
   end if;
   if v_until is not null and v_until <= now() then
-    raise exception 'valid_until is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
+    raise exception 'expires_at is in the past' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_consent_record"(uuid, text, text, uuid, text)');
@@ -616,7 +538,7 @@ begin
       select y."id" from "better_supabase"."consent_purposes" y
       where y."key" = v_purpose."key" and (y."tenant_id" = v_tenant or y."tenant_id" is null)
     );
-  insert into "better_supabase"."consents" ("tenant_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "given_by_user_id", "status", "scope", "valid_until", "signature_id", "submission_id", "attachment_id", "created_by")
+  insert into "better_supabase"."consents" ("tenant_id", "purpose_id", "subject_type", "subject_id", "given_by", "given_by_contact_id", "grantor_id", "status", "scope", "expires_at", "signature_id", "submission_id", "attachment_id", "created_by")
   values (v_tenant, v_purpose."id", record_consent.subject_type, record_consent.subject_id, v_given_by, v_contact, auth.uid(), record_consent.status, v_scope, v_until, v_signature, v_submission, v_attachment, auth.uid())
   returning * into v_row;
   if record_consent.status = 'granted' then
@@ -652,7 +574,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."grantor_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "better_supabase"."record_consent"(text, text, text, text, text, uuid, timestamptz, jsonb, jsonb) from public, anon;
@@ -693,7 +615,7 @@ begin
       else false end) and (case when r."data" ->> 'valid_until' is null then true
       when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
       else false end)
-        and ((v_row."tenant_id")::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) or coalesce(v_row."given_by_user_id" = auth.uid(), false)) then
+        and ((v_row."tenant_id")::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) or coalesce(v_row."grantor_id" = auth.uid(), false)) then
     if (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'consents.read'), false) and coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false))
       or ((v_row."tenant_id")::text, (v_row."subject_type")::text, (v_row."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)
@@ -756,14 +678,14 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."given_by_user_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."valid_until" is null or v_row."valid_until" > now())));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'purposeId', v_row."purpose_id", 'purposeKey', v_purpose."key", 'purposeTitle', v_purpose."title", 'purposeVersion', v_purpose."version", 'legalBasis', v_purpose."legal_basis", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'givenBy', v_row."given_by", 'givenByContactId', v_row."given_by_contact_id", 'givenByUserId', v_row."grantor_id", 'status', v_row."status", 'scope', coalesce(v_row."scope", '{}'::jsonb), 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'withdrawnReason', v_row."withdrawn_reason", 'signatureId', v_row."signature_id", 'submissionId', v_row."submission_id", 'attachmentId', v_row."attachment_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'active', (v_row."status" = 'granted' and (v_row."expires_at" is null or v_row."expires_at" > now())));
 end;
 $$;
 revoke execute on function "better_supabase"."withdraw_consent"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."withdraw_consent"(uuid, text) to authenticated, service_role;
 
 -- Whether record subject_type/subject_id has a consent in force for the
--- current version of purpose_key: granted and not past valid_until. False for
+-- current version of purpose_key: granted and not past expires_at. False for
 -- a caller who can't read the record's consents.
 create or replace function "better_supabase"."consent_active"(subject_type text, subject_id text, purpose_key text)
 returns boolean
@@ -864,7 +786,7 @@ begin
     select 1 from "better_supabase"."consents" x
     where x."tenant_id" = v_tenant and x."purpose_id" = v_purpose
       and x."subject_type" = consent_active.subject_type and x."subject_id" = consent_active.subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -964,7 +886,7 @@ begin
   return (
     select coalesce(jsonb_agg(l.item order by l.key, l.created desc, l.id), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."given_by_user_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."valid_until", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'purposeId', x."purpose_id", 'purposeKey', y."key", 'purposeTitle', y."title", 'purposeVersion', y."version", 'legalBasis', y."legal_basis", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'givenBy', x."given_by", 'givenByContactId', x."given_by_contact_id", 'givenByUserId', x."grantor_id", 'status', x."status", 'scope', coalesce(x."scope", '{}'::jsonb), 'grantedAt', x."granted_at", 'validUntil', x."expires_at", 'withdrawnAt', x."withdrawn_at", 'withdrawnReason', x."withdrawn_reason", 'signatureId', x."signature_id", 'submissionId', x."submission_id", 'attachmentId', x."attachment_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'active', (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))) as item, y."key" as key, x."created_at" as created, x."id" as id,
         row_number() over (partition by y."key" order by x."created_at" desc, x."id" desc) as n
       from "better_supabase"."consents" x
       join "better_supabase"."consent_purposes" y on y."id" = x."purpose_id"
@@ -978,7 +900,7 @@ $$;
 revoke execute on function "better_supabase"."list_consents"(text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."list_consents"(text, text, boolean) to authenticated, service_role;
 
--- Marks every granted consent past valid_until expired and records
+-- Marks every granted consent past expires_at expired and records
 -- consent.expired for each. Run it on a schedule; returns how many expired.
 create or replace function "better_supabase"."expire_consents"()
 returns integer
@@ -993,7 +915,7 @@ declare
 begin
   for v_row in
     update "better_supabase"."consents" x set "status" = 'expired'
-    where x."status" = 'granted' and x."valid_until" <= now()
+    where x."status" = 'granted' and x."expires_at" <= now()
     returning x.*
   loop
     select * into v_purpose from "better_supabase"."consent_purposes" y where y."id" = v_row."purpose_id";
@@ -1407,7 +1329,7 @@ begin
     'organizationId', v_row."tenant_id",
     'subject', jsonb_build_object('type', v_row."subject_type", 'id', v_row."subject_id"),
     'purpose', jsonb_build_object('key', v_purpose."key", 'title', v_purpose."title", 'version', v_purpose."version", 'legalBasis', v_purpose."legal_basis"),
-    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."valid_until", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
+    'consent', jsonb_build_object('id', v_row."id", 'status', v_row."status", 'givenBy', v_row."given_by", 'grantedAt', v_row."granted_at", 'validUntil', v_row."expires_at", 'withdrawnAt', v_row."withdrawn_at", 'scope', coalesce(v_row."scope", '{}'::jsonb)),
     'evidence', jsonb_build_object(
       'signatureId', v_row."signature_id",
       'submissionId', v_row."submission_id",
@@ -1559,7 +1481,7 @@ begin
     select 1 from "better_supabase"."consents" x
     where x."tenant_id" = tenant and x."purpose_id" = v_purpose
       and x."subject_type" = subject_type and x."subject_id" = subject_id
-      and (x."status" = 'granted' and (x."valid_until" is null or x."valid_until" > now()))
+      and (x."status" = 'granted' and (x."expires_at" is null or x."expires_at" > now()))
   );
 end;
 $$;
@@ -1666,136 +1588,81 @@ grant execute on function "better_supabase"."requires_consent"(text, text, text)
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."consent_purposes";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_purposes";
 create policy bsb_tenant_scope_select on "better_supabase"."consent_purposes" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" is null or "tenant_id" in (select better_supabase.member_organization_ids()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_purposes";
 create policy bsb_tenant_scope_insert on "better_supabase"."consent_purposes" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_purposes";
 create policy bsb_tenant_scope_update on "better_supabase"."consent_purposes" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_purposes";
 create policy bsb_tenant_scope_delete on "better_supabase"."consent_purposes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."consents";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."consents";
 create policy bsb_tenant_scope_select on "better_supabase"."consents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()))
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consents";
 create policy bsb_tenant_scope_insert on "better_supabase"."consents" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."consents";
 create policy bsb_tenant_scope_update on "better_supabase"."consents" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consents";
 create policy bsb_tenant_scope_delete on "better_supabase"."consents" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."consent_signals";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_signals";
 create policy bsb_tenant_scope_select on "better_supabase"."consent_signals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_signals";
 create policy bsb_tenant_scope_insert on "better_supabase"."consent_signals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_signals";
 create policy bsb_tenant_scope_update on "better_supabase"."consent_signals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_signals";
 create policy bsb_tenant_scope_delete on "better_supabase"."consent_signals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."consent_receipts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."consent_receipts";
 create policy bsb_tenant_scope_select on "better_supabase"."consent_receipts" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."consent_receipts";
 create policy bsb_tenant_scope_insert on "better_supabase"."consent_receipts" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."consent_receipts";
 create policy bsb_tenant_scope_update on "better_supabase"."consent_receipts" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."consent_receipts";
 create policy bsb_tenant_scope_delete on "better_supabase"."consent_receipts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.consents', target_type => 'consent', event_prefix => 'consent', deferred => true);
-  perform better_supabase.audit('better_supabase.consent_purposes', target_type => 'consent_purpose', event_prefix => 'consent_purpose', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.consents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"consent","event_prefix":"consent"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.consent_purposes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"consent_purpose","event_prefix":"consent_purpose"}');
 
 -- blocks.consents.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
-drop function if exists "api"."consent_missing"(uuid, text, text, text);
 
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."save_consent_purpose"(tenant uuid, key text, title text, version text default '1', description text default null, legal_basis text default 'consent', requires_signature boolean default false, valid_months integer default null)
 returns jsonb
@@ -1825,7 +1692,7 @@ as $$ select "better_supabase"."list_consent_purposes"($1, $2) $$;
 revoke execute on function "api"."list_consent_purposes"(uuid, boolean) from public, anon;
 grant execute on function "api"."list_consent_purposes"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "api"."record_consent"(subject_type text, subject_id text, purpose_key text, status text, given_by text default 'self', given_by_contact_id uuid default null, valid_until timestamptz default null, scope jsonb default '{}'::jsonb, evidence jsonb default '{}'::jsonb)
+create or replace function "api"."record_consent"(subject_type text, subject_id text, purpose_key text, status text, given_by text default 'self', given_by_contact_id uuid default null, expires_at timestamptz default null, scope jsonb default '{}'::jsonb, evidence jsonb default '{}'::jsonb)
 returns jsonb
 language sql
 security invoker
@@ -1919,16 +1786,3 @@ set search_path = ''
 as $$ select "better_supabase"."requires_consent"($1, $2, $3) $$;
 revoke execute on function "api"."requires_consent"(text, text, text) from public, anon;
 grant execute on function "api"."requires_consent"(text, text, text) to authenticated, service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;

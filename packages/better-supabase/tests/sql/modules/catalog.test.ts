@@ -5,6 +5,7 @@ import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 import { ISO_4217_MINOR_UNITS } from "../../../src/commerce/index.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const sqlOf = (layout: BlockSqlLayout = {}, names = ["catalog"]): string =>
   renderBlocks(names, layout)
@@ -15,20 +16,24 @@ const sqlOf = (layout: BlockSqlLayout = {}, names = ["catalog"]): string =>
 describe("catalog module", () => {
   it("stores money as bigint minor units next to a currency code", () => {
     const sql = sqlOf();
-    expect(sql).toContain(`"amount" bigint not null check ("amount" >= 0)`);
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
+      `"amount" bigint not null check ("amount" >= 0)`,
+    );
+    expect(unnamedChecks(sql)).toContain(
       `"currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$')`,
     );
-    expect(sql).toContain(`'amount', v_amount::text`);
+    expect(unnamedChecks(sql)).toContain(`'amount', v_amount::text`);
   });
 
   it("checks currencies against the pinned ISO 4217 list", () => {
     const sql = sqlOf();
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."currency_minor_units"(code text)',
     );
-    expect(sql).toContain(`('JPY', ${String(ISO_4217_MINOR_UNITS["JPY"])})`);
-    expect(sql).toContain(`('KWD', 3)`);
+    expect(unnamedChecks(sql)).toContain(
+      `('JPY', ${String(ISO_4217_MINOR_UNITS["JPY"])})`,
+    );
+    expect(unnamedChecks(sql)).toContain(`('KWD', 3)`);
   });
 
   it("enforces its own status transitions without a state machine", () => {
@@ -61,20 +66,24 @@ describe("catalog module", () => {
       ["catalog", "state-machine"],
     );
 
-    expect(sql).not.toContain("CATALOG_TRANSITION_INVALID");
-    expect(sql).toContain("A state-machine machine owns the transitions");
+    expect(unnamedChecks(sql)).not.toContain("CATALOG_TRANSITION_INVALID");
+    expect(unnamedChecks(sql)).toContain(
+      "A state-machine machine owns the transitions",
+    );
   });
 
   it("adds anon storefront policies only when the storefront is public", () => {
     expect(sqlOf()).not.toContain("to anon, authenticated\nusing");
-    expect(sqlOf()).toContain("drop policy if exists products_storefront");
+    expect(sqlOf()).not.toContain(
+      "drop policy if exists bsb_products_storefront",
+    );
 
     const open = sqlOf({
       modules: { catalog: { options: { storefront: "public" } } },
     });
 
     expect(open).toContain(
-      `create policy products_storefront on "better_supabase"."products"\n  for select to anon, authenticated`,
+      `create policy bsb_products_storefront on "better_supabase"."products"\n  for select to anon, authenticated`,
     );
     expect(open).toContain(
       `grant select on "better_supabase"."product_prices" to anon;`,
@@ -120,40 +129,44 @@ describe("catalog module", () => {
 
     const sql = sqlOf({ modules, ownTables: ownTablesOf(modules) });
 
-    expect(sql).toContain(`update "public"."products" x`);
-    expect(sql).not.toContain('create table if not exists "public"');
-    expect(sql).not.toContain("save_product_option");
-    expect(sql).not.toContain("save_category");
-    expect(sql).not.toContain("publish_storefront");
-    expect(sql).toContain("this catalog has no price lists");
-    expect(sql).toContain("a product without options has one variant");
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."catalog_channels"',
+    expect(unnamedChecks(sql)).toContain(`update "public"."products" x`);
+    expect(unnamedChecks(sql)).not.toContain(
+      'create table if not exists "public"',
     );
-    expect(sql).toContain("save_catalog_channel");
+    expect(unnamedChecks(sql)).not.toContain("save_product_option");
+    expect(unnamedChecks(sql)).not.toContain("save_category");
+    expect(unnamedChecks(sql)).not.toContain("publish_storefront");
+    expect(unnamedChecks(sql)).toContain("this catalog has no price lists");
+    expect(unnamedChecks(sql)).toContain(
+      "a product without options has one variant",
+    );
+    expect(unnamedChecks(sql)).toContain(
+      'create table "better_supabase"."catalog_channels"',
+    );
+    expect(unnamedChecks(sql)).toContain("save_catalog_channel");
   });
 
   it("adds channels with listings and a price per channel", () => {
     const sql = sqlOf();
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."catalog_channels"',
+    expect(unnamedChecks(sql)).toContain(
+      'create table "better_supabase"."catalog_channels"',
     );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."catalog_channel_products"',
+    expect(unnamedChecks(sql)).toContain(
+      'create table "better_supabase"."catalog_channel_products"',
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."save_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)',
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."set_channel_listing"(channel uuid, products uuid[], listed boolean)',
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."channel_products"(channel uuid, locale text default null, page_size integer default null, after text default null)',
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."channel_price"(channel uuid, variant uuid, as_of timestamptz default null)',
     );
-    expect(sql).toContain("CATALOG_CHANNEL_TAKEN");
+    expect(unnamedChecks(sql)).toContain("CATALOG_CHANNEL_TAKEN");
   });
 
   it("keeps the variant_price signature quote lines rely on", () => {
@@ -167,16 +180,16 @@ describe("catalog module", () => {
       modules: { catalog: { options: { locales: ["en", "de", "pt-BR"] } } },
     });
 
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."product_translations"',
+    expect(unnamedChecks(sql)).toContain(
+      'create table "better_supabase"."product_translations"',
     );
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."product_variant_translations"',
+    expect(unnamedChecks(sql)).toContain(
+      'create table "better_supabase"."product_variant_translations"',
     );
-    expect(sql).toContain("'{en,de,pt-BR}'::text[]");
-    expect(sql).toContain("CATALOG_LOCALE_DEFAULT");
-    expect(sql).toContain("split_part(");
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain("'{en,de,pt-BR}'::text[]");
+    expect(unnamedChecks(sql)).toContain("CATALOG_LOCALE_DEFAULT");
+    expect(unnamedChecks(sql)).toContain("split_part(");
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."product_text"(product uuid, locale text default null)',
     );
   });
@@ -201,20 +214,22 @@ describe("catalog module", () => {
     expect(sqlOf()).not.toContain("product_media");
 
     const sql = sqlOf({}, ["catalog", "attachments"]);
-    expect(sql).toContain(
-      'create table if not exists "better_supabase"."product_media"',
+    expect(unnamedChecks(sql)).toContain(
+      'create table "better_supabase"."product_media"',
     );
-    expect(sql).toContain('references "better_supabase"."attachments"');
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
+      'references "better_supabase"."attachments"',
+    );
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."add_product_media"',
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."reorder_product_media"(product uuid, media uuid[])',
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."remove_product_media"(media uuid)',
     );
-    expect(sql).toContain("CATALOG_MEDIA_ATTACHMENT_NOT_FOUND");
+    expect(unnamedChecks(sql)).toContain("CATALOG_MEDIA_ATTACHMENT_NOT_FOUND");
   });
 
   it("opens the new tables to the storefront when it is public", () => {
@@ -245,24 +260,24 @@ describe("catalog module", () => {
       "supplier_items",
       "supplier_item_mappings",
     ]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}"`,
+      expect(unnamedChecks(sql)).toContain(
+        `create table "better_supabase"."${table}"`,
       );
     }
 
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."save_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)',
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."promote_supplier_item"(item uuid, sku text default null)',
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."set_variant_trade_code"(variant uuid, trade_code text)',
     );
-    expect(sql).toContain("CATALOG_RELATION_CYCLE");
-    expect(sql).toContain("CATALOG_SKU_TAKEN");
-    expect(sql).toContain(`"trade_code" text`);
-    expect(sql).toContain("using gin");
+    expect(unnamedChecks(sql)).toContain("CATALOG_RELATION_CYCLE");
+    expect(unnamedChecks(sql)).toContain("CATALOG_SKU_TAKEN");
+    expect(unnamedChecks(sql)).toContain(`"trade_code" text`);
+    expect(unnamedChecks(sql)).toContain("using gin");
   });
 
   it("registers the supplier item and identifier import targets", () => {
@@ -270,17 +285,21 @@ describe("catalog module", () => {
       .map((file) => file.contents)
       .join("\n");
 
-    expect(sql).toContain('"better_supabase"."import_supplier_item"');
-    expect(sql).toContain('"better_supabase"."import_product_identifier"');
-    expect(sql).toContain("supplier_item_updated_at");
-    expect(sql).toContain("product_identifier_updated_at");
-    expect(sql).not.toContain('"""');
+    expect(unnamedChecks(sql)).toContain(
+      '"better_supabase"."import_supplier_item"',
+    );
+    expect(unnamedChecks(sql)).toContain(
+      '"better_supabase"."import_product_identifier"',
+    );
+    expect(unnamedChecks(sql)).toContain("supplier_item_updated_at");
+    expect(unnamedChecks(sql)).toContain("product_identifier_updated_at");
+    expect(unnamedChecks(sql)).not.toContain('"""');
   });
 
   it("grants the import writers to the service role only", () => {
     const sql = sqlOf();
 
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       'revoke execute on function "better_supabase"."import_supplier_item"(uuid, jsonb, text) from public, anon, authenticated;',
     );
   });

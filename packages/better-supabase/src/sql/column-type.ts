@@ -1,9 +1,8 @@
 import { sqlIdent } from "../core/template.ts";
-import { SCHEMA, SERVICE_CALLER } from "./shared.ts";
+import { SERVICE_CALLER } from "./shared.ts";
 
 function columnTypeFunction(): string {
-  return `${SCHEMA}
-create or replace function better_supabase.as_column_type(value text, target anyelement)
+  return `create or replace function better_supabase.as_column_type(value text, target anyelement)
 returns anyelement
 language plpgsql
 stable
@@ -19,8 +18,7 @@ grant execute on function better_supabase.as_column_type(text, anyelement) to an
 }
 
 function tryColumnTypeFunction(): string {
-  return `${SCHEMA}
-create or replace function better_supabase.try_column_type(value text, target anyelement)
+  return `create or replace function better_supabase.try_column_type(value text, target anyelement)
 returns anyelement
 language plpgsql
 stable
@@ -41,8 +39,7 @@ grant execute on function better_supabase.try_column_type(text, anyelement) to a
 }
 
 function valueUnsupportedFunction(): string {
-  return `${SCHEMA}
-create or replace function better_supabase.value_unsupported(label text)
+  return `create or replace function better_supabase.value_unsupported(label text)
 returns text
 language plpgsql
 volatile
@@ -76,8 +73,7 @@ export function tryColumnType(
 }
 
 function columnDefaultFunction(): string {
-  return `${SCHEMA}
-create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+  return `create or replace function better_supabase.column_default(relation text, name text, target anyelement)
 returns anyelement
 language plpgsql
 volatile
@@ -108,8 +104,7 @@ revoke execute on function better_supabase.column_default(text, text, anyelement
  * import mode on (ADR 0141).
  */
 function importRunFunction(): string {
-  return `${SCHEMA}
-create or replace function better_supabase.import_run()
+  return `create or replace function better_supabase.import_run()
 returns uuid
 language sql
 stable
@@ -125,28 +120,18 @@ revoke execute on function better_supabase.import_run() from public;
 grant execute on function better_supabase.import_run() to anon, authenticated, service_role;`;
 }
 
-const FUNCTIONS: readonly (readonly [string, () => string])[] = [
-  ["as_column_type", columnTypeFunction],
-  ["try_column_type", tryColumnTypeFunction],
-  ["value_unsupported", valueUnsupportedFunction],
-  ["column_default", columnDefaultFunction],
-  ["import_run", importRunFunction],
-];
-
 /**
- * `sql` with `better_supabase.as_column_type`, `try_column_type` and
- * `import_run` defined ahead of it when it calls them and does not define them.
- * PL/pgSQL returns `value` through the type's input function, so a text value
- * becomes an enum label or any other type `target` has.
+ * The column type helpers the prelude defines once: `as_column_type` and
+ * `try_column_type` (PL/pgSQL returns `value` through the type's input
+ * function, so a text value becomes an enum label or any other type `target`
+ * has), `value_unsupported`, `column_default` and `import_run`.
  */
-export function withColumnTypeFunction(sql: string): string {
-  const missing = FUNCTIONS.filter(
-    ([name]) =>
-      sql.includes(`better_supabase.${name}(`) &&
-      !sql.includes(`function better_supabase.${name}(`),
-  );
-
-  return missing.length === 0
-    ? sql
-    : `${missing.map(([, define]) => define()).join("\n")}\n${sql}`;
+export function columnTypeFunctions(): string {
+  return [
+    columnTypeFunction(),
+    tryColumnTypeFunction(),
+    valueUnsupportedFunction(),
+    columnDefaultFunction(),
+    importRunFunction(),
+  ].join("\n\n");
 }

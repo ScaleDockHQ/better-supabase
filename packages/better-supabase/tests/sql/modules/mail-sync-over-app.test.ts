@@ -127,7 +127,7 @@ const BLOCKS: AnyBlocksConfig = {
         subject: null,
         snippet: null,
         messageCount: null,
-        engagement: null,
+        activity: null,
         createdAt: null,
         updatedAt: null,
       },

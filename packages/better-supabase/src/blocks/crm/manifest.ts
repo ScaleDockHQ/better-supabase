@@ -54,7 +54,7 @@ export type CrmParts = typeof crmParts;
 
 /**
  * The `crm` composite (ADR 0196): parties, pipelines, deals and quotes with
- * sales targets, engagements, synced mailboxes, email sequences, segments,
+ * sales targets, activities, synced mailboxes, email sequences, segments,
  * assignment queues, enrichment, forecasts and lead scoring. Add `sales` for
  * the order and invoice chain.
  */

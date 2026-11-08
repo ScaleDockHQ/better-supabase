@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GuardViolation } from "../../src/lint/index.ts";
 
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { definePlugin, orderPlugins } from "../../src/core/plugin.ts";
 import {
   recommendedGuards,
@@ -32,7 +32,7 @@ describe("rules()", () => {
   it("fails unbounded, oversized and deep reads under strict()", async () => {
     const { plugin, violations } = withReport();
     const { client, requests } = capturingClient();
-    const db = defineSupabase(schema).use(plugin).connect(client, context);
+    const db = createSupabase(schema).use(plugin).connect(client, context);
 
     const unbounded = await db.customers.list();
     expect(unbounded.error).toMatchObject({
@@ -72,7 +72,7 @@ describe("rules()", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { client, requests } = capturingClient();
 
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .use(guards({ rules: recommendedGuards() }))
       .connect(client, context);
 
@@ -89,7 +89,7 @@ describe("rules()", () => {
     const { plugin, violations } = withReport(safeGuards());
     const { client } = capturingClient();
 
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .use(membershipsExtension({ onMissing: "skip" }))
       .use(plugin)
       .connect(client);
@@ -116,7 +116,7 @@ describe("rules()", () => {
     const { plugin } = withReport(safeGuards());
     const { client } = capturingClient();
 
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .use(plugin)
       .connect(client, { actor: { id: "service", kind: "service" } });
 
@@ -145,7 +145,7 @@ describe("rules()", () => {
     const { plugin } = withReport(safeGuards());
     const { client } = capturingClient();
 
-    const db = defineSupabase({ ...schema, meta: marked.meta })
+    const db = createSupabase({ ...schema, meta: marked.meta })
       .use(plugin)
       .connect(client, context);
 
@@ -161,7 +161,7 @@ describe("rules()", () => {
       body: [{ id: "k" }],
     }));
 
-    const written = await defineSupabase({ ...schema, meta: marked.meta })
+    const written = await createSupabase({ ...schema, meta: marked.meta })
       .use(plugin)
       .connect(writes, context)
       .contacts.create({ organizationId: "org-1", email: "a@b.c" });
@@ -179,7 +179,7 @@ describe("rules()", () => {
     });
 
     const { client } = capturingClient();
-    const db = defineSupabase(schema).use(plugin).connect(client, context);
+    const db = createSupabase(schema).use(plugin).connect(client, context);
     expect(
       (await db.customers.aggregate({ groupBy: ["status"], _count: true }))
         .error,
@@ -191,7 +191,7 @@ describe("rules()", () => {
     ).toBeNull();
     expect(violations).toEqual([]);
 
-    const claims = defineSupabase(schema)
+    const claims = createSupabase(schema)
       .use(plugin)
       .connect(client, { claims: { app_metadata: { tenant_id: "org-1" } } });
 
@@ -210,7 +210,7 @@ describe("rules()", () => {
     });
 
     const { client } = capturingClient();
-    await defineSupabase(schema)
+    await createSupabase(schema)
       .use(early)
       .use(plugin)
       .connect(client, context)
@@ -262,7 +262,7 @@ describe("rules()", () => {
     const { plugin, violations } = withReport(recommendedGuards());
     const { client } = capturingClient();
 
-    const db = defineSupabase({ ...schema, meta: marked.meta })
+    const db = createSupabase({ ...schema, meta: marked.meta })
       .use(plugin)
       .connect(client, context);
 
@@ -336,7 +336,7 @@ describe("rules()", () => {
     const { plugin, violations } = withReport(recommendedGuards());
     const { client } = capturingClient();
 
-    const db = defineSupabase({ ...schema, meta: marked.meta })
+    const db = createSupabase({ ...schema, meta: marked.meta })
       .use(plugin)
       .connect(client, context);
 
@@ -352,7 +352,7 @@ describe("rules()", () => {
   it("requires maxAffected on update and delete by filter under strict()", async () => {
     const { plugin, violations } = withReport();
     const { client, requests } = capturingClient(() => ({ status: 204 }));
-    const db = defineSupabase(schema).use(plugin).connect(client, context);
+    const db = createSupabase(schema).use(plugin).connect(client, context);
 
     const unbounded = await db.tags.delete({ where: { color: "red" } });
     expect(unbounded.error).toMatchObject({
@@ -383,7 +383,7 @@ describe("rules()", () => {
     const strictCap = withReport({ requireMaxAffected: ["error", 10] });
     const { client } = capturingClient(() => ({ status: 204 }));
 
-    const capped = defineSupabase(schema)
+    const capped = createSupabase(schema)
       .use(strictCap.plugin)
       .connect(client, context);
 
@@ -397,7 +397,7 @@ describe("rules()", () => {
     ).toBe("invalid_request");
     const loose = withReport(recommendedGuards());
 
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .use(loose.plugin)
       .connect(client, context);
 
@@ -408,7 +408,7 @@ describe("rules()", () => {
   it("keeps the repository guard for delete without where", async () => {
     const { plugin, violations } = withReport(safeGuards());
     const { client } = capturingClient();
-    const db = defineSupabase(schema).use(plugin).connect(client, context);
+    const db = createSupabase(schema).use(plugin).connect(client, context);
     const result = await db.tags.delete({ where: {} });
     expect(result.error?.kind).toBe("invalid_request");
     expect(violations.map((v) => v.rule)).toEqual([]);
@@ -418,7 +418,7 @@ describe("rules()", () => {
 describe("db.$table and db.$withoutPlugins", () => {
   it("looks repositories up by name", async () => {
     const { client } = capturingClient();
-    const db = defineSupabase(schema).connect(client);
+    const db = createSupabase(schema).connect(client);
     expect(db.$table("tags")).toBe(db.tags);
     expect(() => db.$table("nope" as "tags")).toThrow('unknown table "nope"');
   });
@@ -427,7 +427,7 @@ describe("db.$table and db.$withoutPlugins", () => {
     const wrapped = vi.fn();
     const { client, requests } = capturingClient();
 
-    const db = defineSupabase(schema)
+    const db = createSupabase(schema)
       .use(guards({ rules: strictGuards(), report: () => {} }))
       .use(
         definePlugin({

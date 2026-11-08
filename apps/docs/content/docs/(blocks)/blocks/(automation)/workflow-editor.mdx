@@ -22,7 +22,7 @@ better-supabase add workflow-editor   # adds workflows, tenant and access as wel
 | `workflow_triggers`          | What starts a definition: `kind` (`manual`, `webhook`, `schedule`, `event`, `form`, `chat`), `config`, `enabled`                               |
 | `workflow_webhook_tokens`    | The SHA-256 of each webhook trigger's token; only the service role reads it                                                                    |
 | `workflow_credentials`       | A tenant's credentials by `kind` and `name`, as a `credential_ref`; never the secret itself                                                    |
-| `workflow_step_library`      | The steps your deployment provides, which the canvas offers as its palette                                                                     |
+| `workflow_step_templates`    | The steps your deployment provides, which the canvas offers as its palette                                                                     |
 | `workflow_node_runs`         | The status, attempts, output and error of each node of a run                                                                                   |
 | `workflow_alerts`            | Alerts on a definition's failed runs, or runs that stay unfinished past a threshold                                                            |
 | `workflow_alert_fires`       | Which alert fired for which run, so each fires once; only the service role reads it                                                            |
@@ -337,6 +337,8 @@ real steps.
 
 ## System workflows, forks and opt-outs
 
+`workflow_opt_outs` is an optional table: map it to `null` in `blocks.workflow-editor.tables` and the block leaves out the table, `set_workflow_opt_out` and the `WORKFLOW_OPTED_OUT` check, so no organization opts out of a system workflow.
+
 A definition with `scope: "system"` belongs to the app, not to one
 organization. Only the service role creates one, with no tenant, and the
 scope can't change afterwards. Every organization whose members hold
@@ -640,7 +642,7 @@ work starts on mount, and the controller is disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { betterSupabase, useBlockController } from "better-supabase/svelte";
   import {
     createWorkflowEditor,
     createWorkflowEditorController,
@@ -648,7 +650,7 @@ work starts on mount, and the controller is disposed with the component.
   } from "better-supabase/blocks/workflow-editor";
 
   let { organizationId }: { organizationId: string } = $props();
-  const { supabase } = getBetterSupabase();
+  const { supabase } = betterSupabase();
   const builder = useBlockController(createWorkflowEditorController, {
     client: createWorkflowEditor({ transport: rpcTransport(supabase) }),
     tenant: organizationId,
@@ -747,7 +749,7 @@ match a definition on their `bsb.definition` attribute, which
 
 ## Your own columns
 
-Add columns to the workflow definition table with `blocks["workflow-editor"].options.extraColumns`
+Add columns to the workflow definition table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `definitions.upsert` validates and writes them, and `definitions.upsert`, `list`, `get` and `fork` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

@@ -3,7 +3,7 @@ import { dirname, join, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { ResolvedPreset } from "../../preset/index.ts";
-import type { AnyCommand, CliArgs, CliOptions } from "../core/command.ts";
+import type { AnyCommand, CliValues, CliOptions } from "../core/command.ts";
 import type { CommandResult, NextStep } from "../core/io.ts";
 import type { Prompter } from "../prompts.ts";
 import type { WiredBlock } from "../sql/config-edit.ts";
@@ -91,7 +91,7 @@ const ADD_ARGS = {
   },
 } as const;
 
-export type AddArgs = CliArgs<
+export type AddOptions = CliValues<
   typeof ADD_ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
 >;
 
@@ -102,7 +102,7 @@ export type AddArgs = CliArgs<
  */
 async function addBlocks(
   config: ResolvedConfig,
-  args: AddArgs,
+  args: AddOptions,
   names: readonly string[],
   deps: SqlDeps,
 ): Promise<CommandResult> {
@@ -172,7 +172,7 @@ async function addBlocks(
 
   const frameworks = PRESET_FRAMEWORKS.filter(
     (framework) =>
-      config.integrations.some((name) => name === framework) ||
+      config.adapters.some((name) => name === framework) ||
       project.frameworks.some((name) => name === framework),
   );
 
@@ -284,7 +284,7 @@ const SYSTEM_DEPS: SqlDeps = { now: () => new Date() };
 
 async function runAdd(
   config: ResolvedConfig,
-  args: AddArgs,
+  args: AddOptions,
   prompts?: Prompter,
   deps: SqlDeps = SYSTEM_DEPS,
 ): Promise<CommandResult> {
@@ -316,9 +316,9 @@ async function addIntegrations(
     config.blockNames.length > 0,
   );
 
-  const fromConfig = args._.length === 0 && config.integrations.length > 0;
+  const fromConfig = args._.length === 0 && config.adapters.length > 0;
 
-  const missing = config.integrations.filter((name) =>
+  const missing = config.adapters.filter((name) =>
     integrationFiles([name], templateContext).some(
       (file) => !existsSync(resolve(config.root, file.path)),
     ),
@@ -327,7 +327,7 @@ async function addIntegrations(
   if (fromConfig && missing.length === 0) {
     return {
       code: 0,
-      output: `Every integration in the config is set up: ${config.integrations.join(", ")}.`,
+      output: `Every integration in the config is set up: ${config.adapters.join(", ")}.`,
       data: { integrations: [], files: [], packages: [], unlisted: [] },
     };
   }
@@ -408,14 +408,14 @@ async function addIntegrations(
   }
 
   const unlisted = integrations.filter(
-    (name) => !config.integrations.includes(name),
+    (name) => !config.adapters.includes(name),
   );
 
   if (unlisted.length > 0) {
     lines.push(
       "",
       "Add them to your config so `better-supabase add` sets them up in a fresh checkout:",
-      `  adapters: [${[...config.integrations, ...unlisted].map((name) => `'${name}'`).join(", ")}]`,
+      `  adapters: [${[...config.adapters, ...unlisted].map((name) => `'${name}'`).join(", ")}]`,
     );
   }
 

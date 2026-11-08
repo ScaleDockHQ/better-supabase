@@ -14,7 +14,6 @@ import {
 import { sqlString } from "../../core/template.ts";
 import { link } from "../links.ts";
 import { fail, SERVICE_CALLER } from "../shared.ts";
-import { tableMoves } from "../table-renames.ts";
 import { messagingSql } from "./messaging-names.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -233,7 +232,7 @@ export const INBOX_NAMES: BlockSqlNames = {
         team: "team_id",
         botMode: "bot_mode",
         thread: "thread_id",
-        snoozedUntil: "snoozed_until",
+        snoozedUntil: "snooze_expires_at",
         lastMessageAt: "last_message_at",
         lastInboundAt: "last_inbound_at",
         activeStreamId: "active_stream_id",
@@ -318,7 +317,7 @@ export const INBOX_NAMES: BlockSqlNames = {
         error: "error",
         attempts: "attempts",
         availableAt: "available_at",
-        lockedUntil: "locked_until",
+        lockedUntil: "lock_expires_at",
         receivedAt: "received_at",
         processedAt: "processed_at",
       },
@@ -353,7 +352,7 @@ export const INBOX_NAMES: BlockSqlNames = {
         conversation: "conversation_id",
         author: "author_id",
         input: "input",
-        scheduledFor: "scheduled_for",
+        scheduledFor: "scheduled_at",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
@@ -385,7 +384,6 @@ export const INBOX_NAMES: BlockSqlNames = {
       table: "conversations",
       was: "conversations",
     },
-    ...tableMoves("inbox", 6),
   ],
 };
 

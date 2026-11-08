@@ -206,7 +206,7 @@ describe.skipIf(!live)("state machine", () => {
       await s.service();
 
       const types = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 order by position",
+        "select type from better_supabase.outbox_events where tenant_id = $1 order by position",
         [tenant],
       );
 
@@ -286,7 +286,7 @@ describe.skipIf(!live)("state machine", () => {
 
       await s.service();
       await s.client.query(
-        "update better_supabase.subject_lifecycles set paused_until = now() - interval '1 second' where subject_id = $1",
+        "update better_supabase.subject_lifecycles set pause_expires_at = now() - interval '1 second' where subject_id = $1",
         [quote],
       );
       await s.asRole(owner);

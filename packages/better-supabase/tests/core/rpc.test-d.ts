@@ -5,11 +5,11 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { Functions } from "../fixtures/generated-camel.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { schema as camel } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
-const db = defineSupabase(camel).connect(client);
+const db = createSupabase(camel).connect(client);
 
 describe("$rpc arguments", () => {
   it("takes one named argument object and types the result", async () => {

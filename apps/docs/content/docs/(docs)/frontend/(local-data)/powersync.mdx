@@ -199,7 +199,7 @@ the id the client chose and counts a conflict as applied, a `DELETE` removes
 the record first, which queues its files for deletion, and a `PATCH` is
 refused. It sends only the columns an insert accepts, so the synced
 `object_path` and `status` stay out of the upload; list your own columns in
-`extraColumns`.
+`extraColumns` (the option of `attachmentQueueRoute`).
 
 ```ts title="src/lib/powersync/connector.ts"
 import { bindClient } from "better-supabase/client";
@@ -298,7 +298,7 @@ the streams filter instead. A user syncs the rows of the organizations where
 their role holds the block's `read` key (`observations.read`,
 `medications.read`, `activities.read`), including system observation
 definitions. Only progress notes (`type = 'note'`) open to the team sync, with
-their record links, never a restricted engagement. Record-team limits are not
+their record links, never a restricted activity. Record-team limits are not
 applied on the device.
 
 The upload routes replay each write through the block's functions:
@@ -319,7 +319,7 @@ export const connector = createUploadConnector({
   classify: careUploadOutcome,
   tables: {
     activities: progressNoteRoute(bsb.activities, powersync),
-    engagement_subjects: activityLinksRoute(),
+    activity_subjects: activityLinksRoute(),
     observations: observationRoute(bsb.observations, powersync),
     medication_administrations: medicationAdministrationRoute(bsb.medications),
   },

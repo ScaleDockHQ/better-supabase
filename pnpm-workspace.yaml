@@ -342,10 +342,14 @@ catalogs:
     # 17 is the first release with createFetchHttpClient and billing.meterEvents.
     stripe: ">=17 <24"
     temporal-polyfill: ">=1"
+    # 1.0 is the first release with the pipe API the valibot() generator writes.
+    valibot: ">=1 <2"
     # 5.1.0 adds the dynamic workflows the builder compiles to.
     workflow: ">=5.1 <6"
     # 13.6 has the mergeUpdates and diffUpdate the document compaction uses.
     yjs: ">=13.6 <14"
+    # 4.0 added z.guid(), z.int() and the z.iso formats the zod() generator writes, in both flavors.
+    zod: ">=4 <5"
     # 7.30.1 has the response-size fix pinned in overrides; Agent takes connections and pipelining.
     undici: ">=7.30.1 <9"
     # 5 is the ESM release fromUbl and parseCamt053 load; removeNSPrefix reads the cac and cbc elements.

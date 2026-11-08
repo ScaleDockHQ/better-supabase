@@ -6,7 +6,6 @@ import { formatMoney } from "better-supabase/commerce";
 import { useAction } from "better-supabase/react";
 import { useExtracted, useLocale } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/reui/badge";
 import {
@@ -19,6 +18,7 @@ import {
   KanbanOverlay,
 } from "@/components/reui/kanban";
 import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { BoardDeal, BoardStage } from "../crm-queries";

@@ -36,10 +36,9 @@ export type IdempotencySource =
       readonly transport?: never;
     };
 
-export type IdempotencyOptions = IdempotencySource & IdempotencySettings;
+export type IdempotencyOptions = IdempotencySource & IdempotencyBase;
 
-export interface IdempotencySettings
-  extends BlockProblemOptions, BlockTemporalOptions {
+interface IdempotencyBase extends BlockProblemOptions, BlockTemporalOptions {
   /**
    * Separates keys of different callers, endpoints or tenants. Defaults to a
    * hash of the caller's credentials (the `Authorization` header or the

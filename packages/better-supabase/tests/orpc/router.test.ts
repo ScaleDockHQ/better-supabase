@@ -8,7 +8,7 @@ import type { Result } from "../../src/core/result.ts";
 import type { OrpcRequestContext } from "../../src/orpc/index.ts";
 
 import { defineBlock, defineBlocks } from "../../src/blocks/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { createOrpc } from "../../src/orpc/index.ts";
@@ -58,7 +58,7 @@ const blockSet = defineBlocks(
   { invoicing },
 );
 
-const betterSupabase = defineSupabase(schema).blocks(blockSet);
+const betterSupabase = createSupabase(schema).blocks(blockSet);
 
 /** PostgREST: one customer for reads, a total of 3 for counts. */
 const postgrest = async (

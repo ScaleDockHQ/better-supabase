@@ -15,7 +15,7 @@ has a [conformance kit](/docs/extending/conformance).
 | [`EventSink`](#eventsink)                               | `httpSink()`                                                  | `forwardMutations(betterSupabase, sink, { source })`                               |
 | [`AuthResolver`](#authresolver)                         | Bearer and cookie resolution; `localAuth()` in `/testing`     | `createServer(betterSupabase, { auth: { resolvers } })`                            |
 | [`Generator`](#generator)                               | `zod()`, `valibot()`, `jsonSchema()`, `standardSchema()`      | `generators` in the config                                                         |
-| [`Logger`](#logger)                                     | `consoleLogger`, `silentLogger`                               | `defineSupabase(schema, { logger })`                                               |
+| [`Logger`](#logger)                                     | `consoleLogger`, `silentLogger`                               | `createSupabase(schema, { logger })`                                               |
 | [`QueueProvider`](#queuebackend)                        | `sqlQueueProvider(sql)`, `pgmqPublicBackend(client)`          | `createQueue({ backend, queues })`                                                 |
 | [`SupportSessionStore`](#supportsessionstore)           | `sqlSupportStore(postgres)`                                   | `createServer(betterSupabase, { support: supportSessions({ store, authorize }) })` |
 | [`NotificationChannel`](#notificationchannel)           | none (bring your email or push provider)                      | `createNotifications({ channels })`                                                |
@@ -294,7 +294,6 @@ The optional fields each turn on one integration:
 | ----------------------------- | --------------------------------------------------------------------------------------- |
 | `functions.permissionsFor`    | `member_permissions` and `permission_claims` in the `permissions` module                |
 | `functions.isApprover`        | `decide_ai_tool_approval` in `ai-chat` and `approve_support_request` in `impersonation` |
-| `approvals.distinctApprover`  | `decide_ai_tool_approval`: the chat's owner can't decide its own tool calls             |
 | `functions.permitted`         | realtime topics that declare a `permission` on the instance in their name               |
 | `operations`                  | workflow-editor nodes, MCP tools, AI tools and inbox commands                           |
 | `functions.*For`, `memberIds` | the modules doctor (BS411) lists when they are missing                                  |
@@ -565,7 +564,9 @@ ones, so the request fails with 401 instead of running as anonymous.
 ## Generator
 
 Adds files at codegen time. Return paths relative to the project root; output
-must be deterministic so `gen --check` works.
+must be deterministic so `gen --check` works. A generator targets `apiVersion: 2`:
+plain-data input, a `version`, and `provides` for what `gen` consumes. See
+[Generators](/docs/extending/generators) for the kit.
 
 ## Logger
 
@@ -574,5 +575,5 @@ Where better-supabase reports errors it swallows on purpose: event handlers,
 logger (pino, consola) or `silentLogger` in tests.
 
 ```ts
-export const betterSupabase = defineSupabase(schema, { logger: pino() });
+export const betterSupabase = createSupabase(schema, { logger: pino() });
 ```

@@ -97,23 +97,10 @@ export function applyActorWriteGuards(
 ): string {
   const expression = actorMayWriteExpression(layout);
 
-  const guarded = applyProviderCheck(
+  return applyProviderCheck(
     guardPolicies(guardFunctions(sql, expression), expression),
     expression,
   );
-
-  if (
-    !guarded.includes("actor_may_write(") &&
-    !guarded.includes("raise_actor_readonly(")
-  ) {
-    return guarded;
-  }
-
-  if (guarded.includes("function better_supabase.actor_may_write(")) {
-    return guarded;
-  }
-
-  return `${actorWriteFunctions()}\n${guarded}`;
 }
 
 function guardFunctions(sql: string, expression: string): string {

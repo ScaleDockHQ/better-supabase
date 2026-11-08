@@ -44,8 +44,6 @@ export const CALENDAR_NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_calendar_event_save", "after_calendar_event_save"],
   options: [
-    "extraColumns",
-    "calendarExtraColumns",
     "access",
     "accessFunctions",
     "userFeed",
@@ -110,7 +108,7 @@ export const CALENDAR_NAMES: BlockSqlNames = {
         rrule: "rrule",
         exdates: "exdates",
         recurrence: "recurrence_id",
-        originalStart: "original_start",
+        originalStart: "original_starts_at",
         subjectType: "subject_type",
         subjectId: "subject_id",
         color: "color",

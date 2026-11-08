@@ -39,7 +39,7 @@ export const SERIES_TABLES = {
       tz: "tz",
       customerName: "customer_name",
       customerEmail: "customer_email",
-      customerUser: "customer_user_id",
+      customerUser: "customer_id",
       status: "status",
       endsAt: "ends_at",
       createdBy: "created_by",
@@ -83,7 +83,7 @@ create index if not exists ${index("service_idx")} on ${series} (${e("service")}
 create index if not exists ${index("resource_idx")} on ${series} (${e("resource")});
 create index if not exists ${index("customer_idx")} on ${series} (${e("customerUser")});
 ${lockTable(series, { read: true })}
-${renderPolicy(makePolicy({ table: series, name: "booking_series_read", command: "select", roles: ["authenticated"], using: `${ctx.scope.check(e("tenant"), p.read)} or ${e("customerUser")} = (select auth.uid())` }), { drop: true, target: series })}
+${renderPolicy(makePolicy({ table: series, name: "booking_series_read", command: "select", roles: ["authenticated"], using: `${ctx.scope.check(e("tenant"), p.read)} or ${e("customerUser")} = (select auth.uid())` }), { target: series })}
 alter table ${p.bookings} add column if not exists ${b("series")} uuid references ${series} (${e("id")}) on delete set null;
 create index if not exists bookings_series_idx on ${p.bookings} (${b("series")}, ${b("during")});
 `;

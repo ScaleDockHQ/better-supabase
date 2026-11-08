@@ -39,12 +39,15 @@ interface Settled {
 
 type Cardinality = "many" | "single" | "maybe";
 
-const PGRST116 = {
-  message: "JSON object requested, multiple (or no) rows returned",
-  code: "PGRST116",
-  details: "The result contains 0 rows",
-  hint: "",
-} as const;
+/** PostgREST's answer to `.single()` when the result is not exactly one row. */
+function pgrst116(rows: number) {
+  return {
+    message: "JSON object requested, multiple (or no) rows returned",
+    code: "PGRST116",
+    details: `The result contains ${rows} rows`,
+    hint: "",
+  } as const;
+}
 
 function filterValue(operator: string, value: unknown): string {
   if (Array.isArray(value)) {
@@ -300,6 +303,20 @@ class FakeQuery implements PromiseLike<Settled> {
 
     let { data } = reply;
 
+    if (
+      this.cardinality === "single" &&
+      !rows &&
+      (data === null || data === undefined)
+    ) {
+      return {
+        data: null,
+        error: pgrst116(0),
+        count: null,
+        status: 406,
+        statusText: "Not Acceptable",
+      };
+    }
+
     if (this.cardinality !== "many" && rows) {
       if (rows.length === 1) {
         data = rows[0];
@@ -308,7 +325,7 @@ class FakeQuery implements PromiseLike<Settled> {
       } else {
         return {
           data: null,
-          error: PGRST116,
+          error: pgrst116(rows.length),
           count: null,
           status: 406,
           statusText: "Not Acceptable",

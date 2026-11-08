@@ -126,7 +126,7 @@ export function itemsTableSql(
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_tenant_idx`)} on ${items} (${i("tenant")}, ${i("status")});
 ${lockModuleTable(ctx, "items", { read: true })}
-${renderPolicy(makePolicy({ table: items, name: ctx.naming.rename("approval_items_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(i("tenant"), sql.read) }), { drop: true, target: items })}
+${renderPolicy(makePolicy({ table: items, name: ctx.naming.rename("approval_items_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(i("tenant"), sql.read) }), { target: items })}
 `;
 }
 

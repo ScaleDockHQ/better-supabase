@@ -11,6 +11,7 @@ import {
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("webhooks-out", { modules })!;
@@ -40,7 +41,7 @@ describe("webhooks-out module", () => {
   it("owns its tables, keeps secrets in Vault and the secrets table closed to clients", () => {
     const sql = body();
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."webhook_endpoints" (',
+      'create table "better_supabase"."webhook_endpoints" (',
     );
     expect(sql).toContain('"event_types" text[]');
     expect(sql).toContain('"vault_secret_id" uuid');
@@ -70,7 +71,7 @@ describe("webhooks-out module", () => {
 
     expect(sql).not.toContain('create table if not exists "public"');
     expect(sql).not.toContain("vault.");
-    expect(sql).not.toContain('"failing_since"');
+    expect(sql).not.toContain('"first_failed_at"');
     expect(sql).not.toContain('"expires_at"');
     expect(sql).toContain('"public"."webhook_endpoint_secrets"');
     expect(sql).toContain('"workflow_run_id"');
@@ -138,7 +139,7 @@ describe("webhooks-out module", () => {
 
     expect(sql).toContain("better_supabase.can('tenant', ");
     expect(sql).toContain(
-      `using (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()))`,
+      `using (("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()))`,
     );
     expect(sql).toContain("webhook_deliveries_tenant_created_idx");
     expect(sql).toContain("'webhooks.manage'");
@@ -168,7 +169,7 @@ describe("webhooks-out module", () => {
       "webhooks-out": { options: { disableAfter: "3 days" } },
     });
 
-    expect(sql).toContain('"failing_since" timestamptz');
+    expect(sql).toContain('"first_failed_at" timestamptz');
     expect(sql).toContain("v_since <= now() - '3 days'::interval");
     expect(() =>
       body({ "webhooks-out": { options: { disableAfter: "soon" } } }),
@@ -185,9 +186,6 @@ describe("webhooks-out module", () => {
     const sql = body();
     expect(sql).toContain('"attempt" = v."attempt" + 1');
     expect(sql).toContain("max_attempts integer default 8");
-    expect(sql).toContain(
-      'drop function if exists "better_supabase"."claim_webhook_deliveries"(integer, interval);',
-    );
     expect(sql).toContain('and v."attempt" = v_attempt');
     expect(sql).toContain(`and v."status" = 'delivering'`);
     expect(sql).toContain("return 'stale';");
@@ -235,15 +233,12 @@ describe("webhooks-out module", () => {
         "v_permission text := coalesce(nullif(publish_webhook_event.read_permission, ''), 'webhooks.read');",
       );
       expect(fn).toContain(
-        `when d."created_by" is not null then coalesce(better_supabase.can_user(d."created_by", 'tenant', d."organization_id", v_permission), false)`,
+        `when d."created_by" is not null then coalesce(better_supabase.can_user(d."created_by", 'tenant', d."tenant_id", v_permission), false)`,
       );
       expect(fn).toContain(
         `(publish_webhook_event.read_permission is null or coalesce(d."permissions" && v_held, false))`,
       );
       expect(fn).toContain('"subject")\n  select');
-      expect(sql).toContain(
-        'drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text);',
-      );
       expect(sql).toContain(
         `'subject', c."subject", 'owner', d."created_by", 'permissions', d."permissions", 'batch', d."batch"`,
       );
@@ -258,9 +253,28 @@ describe("webhooks-out module", () => {
       );
 
       expect(fn).toContain(
-        `d."organization_id"::text in (select t.id::text from authz.ids_organization_for(d."created_by", v_permission) as t(id))`,
+        `d."tenant_id"::text in (select t.id::text from authz.ids_organization_for(d."created_by", v_permission) as t(id))`,
       );
       expect(fn).not.toContain("can_user");
+    });
+
+    it("builds the held grants by the wildcards the provider honours", () => {
+      const held = (wildcards?: "all" | "prefix" | "none") =>
+        publish(
+          moduleBody("webhooks-out", {
+            accessProvider: {
+              ...moduleProvider,
+              ...(wildcards ? { wildcards } : {}),
+            },
+            modules: { permissions: { model: "provider" } },
+          })!,
+        );
+
+      expect(held()).toContain("v_held := array[v_permission, '*'] ||");
+      expect(held("all")).toBe(held());
+      expect(held("prefix")).toContain("v_held := array[v_permission] ||");
+      expect(held("prefix")).toContain("|| '.*'");
+      expect(held("none")).toContain("v_held := array[v_permission];");
     });
 
     it("fails closed for user endpoints without the access module or a tenant", () => {
@@ -328,7 +342,7 @@ describe("webhooks-out module", () => {
         .join("\n");
 
     it("defaults new endpoints to defaultFormat and keeps old ones on standard", () => {
-      expect(body()).toContain(
+      expect(unnamedChecks(body())).toContain(
         `"format" text not null default 'cloudevents' check ("format" ~ '^[a-z][a-z0-9-]{0,39}$')`,
       );
       expect(body()).toContain(

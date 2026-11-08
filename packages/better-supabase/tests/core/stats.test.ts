@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Executor } from "../../src/core/executor.ts";
 
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
 import { EMPTY_STATS, StatsRecorder } from "../../src/core/stats.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -28,7 +28,7 @@ const executor: Executor = {
 
 describe("db.$stats()", () => {
   it("counts calls, waves and tables", async () => {
-    const db = defineSupabase(schema).connect(executor);
+    const db = createSupabase(schema).connect(executor);
     expect(db.$stats()).toEqual(EMPTY_STATS);
 
     await Promise.all([db.customers.list(), db.notes.list()]);
@@ -46,7 +46,7 @@ describe("db.$stats()", () => {
   });
 
   it("reports into a request-wide recorder", async () => {
-    const betterSupabase = defineSupabase(schema);
+    const betterSupabase = createSupabase(schema);
     const request = new StatsRecorder();
     const one = betterSupabase.connect(executor, {}, { stats: request });
     const two = betterSupabase.connect(executor, {}, { stats: request });

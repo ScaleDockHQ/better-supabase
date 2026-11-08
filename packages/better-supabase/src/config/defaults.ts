@@ -20,24 +20,27 @@ export const CONFIG_DEFAULTS: {
   };
   readonly seed: {
     readonly entry: string;
-    readonly output: string;
+    readonly file: string;
     readonly perTenant: string;
     readonly defaults: { readonly onCreate: boolean; readonly locale: string };
     readonly sample: {
       readonly size: "s" | "m" | "l";
       readonly seed: number;
-      readonly output: string;
+      readonly file: string;
     };
   };
-  readonly openapi: { readonly entry: string; readonly output: string };
-  readonly specs: { readonly failOn: "error" };
+  readonly specs: {
+    readonly entry: string;
+    readonly file: string;
+    readonly failOn: "error";
+  };
   readonly doctor: {
     readonly format: "text";
     readonly sources: readonly string[];
     readonly policyHelperLimit: number;
   };
   readonly gen: { readonly watchInterval: number };
-  readonly env: { readonly output: string };
+  readonly env: { readonly file: string };
 } = {
   output: "src/lib/supabase/generated.ts",
   schemas: ["public"],
@@ -51,18 +54,17 @@ export const CONFIG_DEFAULTS: {
   },
   seed: {
     entry: "supabase/seed.ts",
-    output: "supabase/seeds/000_better_supabase.sql",
+    file: "supabase/seeds/000_better_supabase.sql",
     perTenant: "supabase/seed.tenant.ts",
     defaults: { onCreate: true, locale: "en" },
-    sample: { size: "m", seed: 1, output: "supabase/seeds/900_sample.sql" },
+    sample: { size: "m", seed: 1, file: "supabase/seeds/900_sample.sql" },
   },
-  openapi: { entry: "src/lib/openapi.ts", output: "openapi.json" },
-  specs: { failOn: "error" },
+  specs: { entry: "src/lib/openapi.ts", file: "openapi.json", failOn: "error" },
   doctor: {
     format: "text",
     sources: ["src/**/*.{ts,tsx}"],
     policyHelperLimit: 5,
   },
   gen: { watchInterval: 2000 },
-  env: { output: ".env.local" },
+  env: { file: ".env.local" },
 };

@@ -1,30 +1,23 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:45f57f7cc17c38aa8c0e2c4b9992a233abf38e2cbd1dd4f8c7706f72bb7bd655
+-- @bsb-hash sha256:9715b59339854614e9e033bc9e7d24ccee6b6450188e02763fc097ed707e9005
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
-drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+
 -- enqueue_job before dedupe_running.
-drop function if exists better_supabase.enqueue_job(text, jsonb, integer, integer, text);
-drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
-drop function if exists better_supabase.complete_job(bigint, text);
-drop function if exists better_supabase.fail_job(bigint, text, text, interval);
-drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
+
 -- schedule_job before time zones.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
+
 -- purge_job_archive before dead letters had their own retention.
-drop function if exists better_supabase.purge_job_archive(text, interval, integer);
+
 -- schedule_job before schedules had a tenant.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
+
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
-drop function if exists better_supabase.claim_due_schedules(integer, integer);
+
 
 -- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -491,7 +484,7 @@ $$;
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
 -- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -523,11 +516,11 @@ $$;
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
 -- busy (another holder does; retry_after_ms says when it ends) or completed
 -- (a holder finished it, and it stays finished until its keep time ends).
-create table if not exists "better_supabase"."job_leases" (
+create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
-  "state" text not null default 'held' check ("state" in ('held', 'completed')),
+  "state" text not null default 'held' constraint bsb_job_leases_state_check check ("state" in ('held', 'completed')),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
@@ -543,19 +536,19 @@ as $$
 #variable_conflict use_column
 declare
   token uuid := gen_random_uuid();
-  lease_until timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
+  lease_expires_at timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
   taken "better_supabase"."job_leases"%rowtype;
 begin
   -- A held lease that ran out, or a completed one past its keep time, is taken
   -- over; the new holder token makes the former holder's calls return false.
   insert into "better_supabase"."job_leases" as l ("scope", "key", "holder", "state", "expires_at")
-  values (scope, key, token, 'held', lease_until)
+  values (scope, key, token, 'held', lease_expires_at)
   on conflict ("scope", "key") do update
     set "holder" = excluded."holder", "state" = 'held', "expires_at" = excluded."expires_at"
     where l."expires_at" <= now()
   returning * into taken;
   if found then
-    return query select 'claimed'::text, token, lease_until, 0;
+    return query select 'claimed'::text, token, lease_expires_at, 0;
     return;
   end if;
 
@@ -676,19 +669,6 @@ grant execute on function better_supabase.complete_lease(text, text, uuid, integ
 revoke execute on function better_supabase.release_lease_claim(text, text, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.release_lease_claim(text, text, uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
@@ -711,30 +691,23 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:d8675d72e7e94e5b6dae7eecba12207287250ac5f2e98504fba44ad66f395d35
+-- @bsb-hash sha256:2d2ddbd029160e4504f627fa1182826b10969847313f492107f83cbd1d580700
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
-drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+
 -- enqueue_job before dedupe_running.
-drop function if exists better_supabase.enqueue_job(text, jsonb, integer, integer, text);
-drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
-drop function if exists better_supabase.complete_job(bigint, text);
-drop function if exists better_supabase.fail_job(bigint, text, text, interval);
-drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
+
 -- schedule_job before time zones.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
+
 -- purge_job_archive before dead letters had their own retention.
-drop function if exists better_supabase.purge_job_archive(text, interval, integer);
+
 -- schedule_job before schedules had a tenant.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
+
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
-drop function if exists better_supabase.claim_due_schedules(integer, integer);
+
 
 -- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -1205,7 +1178,7 @@ $$;
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
 -- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -1237,11 +1210,11 @@ $$;
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
 -- busy (another holder does; retry_after_ms says when it ends) or completed
 -- (a holder finished it, and it stays finished until its keep time ends).
-create table if not exists "better_supabase"."job_leases" (
+create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
-  "state" text not null default 'held' check ("state" in ('held', 'completed')),
+  "state" text not null default 'held' constraint bsb_job_leases_state_check check ("state" in ('held', 'completed')),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
@@ -1257,19 +1230,19 @@ as $$
 #variable_conflict use_column
 declare
   token uuid := gen_random_uuid();
-  lease_until timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
+  lease_expires_at timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
   taken "better_supabase"."job_leases"%rowtype;
 begin
   -- A held lease that ran out, or a completed one past its keep time, is taken
   -- over; the new holder token makes the former holder's calls return false.
   insert into "better_supabase"."job_leases" as l ("scope", "key", "holder", "state", "expires_at")
-  values (scope, key, token, 'held', lease_until)
+  values (scope, key, token, 'held', lease_expires_at)
   on conflict ("scope", "key") do update
     set "holder" = excluded."holder", "state" = 'held', "expires_at" = excluded."expires_at"
     where l."expires_at" <= now()
   returning * into taken;
   if found then
-    return query select 'claimed'::text, token, lease_until, 0;
+    return query select 'claimed'::text, token, lease_expires_at, 0;
     return;
   end if;
 
@@ -1390,19 +1363,6 @@ grant execute on function better_supabase.complete_lease(text, text, uuid, integ
 revoke execute on function better_supabase.release_lease_claim(text, text, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.release_lease_claim(text, text, uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
@@ -1428,30 +1388,23 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:cb86c4cff85dcf253ede3129d4a09e3134038d37d955dd81aae1ffb38789300b
+-- @bsb-hash sha256:a4beaf5c765f2fcc76ee9fb60b77923921dcccccfa6f745499865adca89502e1
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
-drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+
 -- enqueue_job before dedupe_running.
-drop function if exists better_supabase.enqueue_job(text, jsonb, integer, integer, text);
-drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
-drop function if exists better_supabase.complete_job(bigint, text);
-drop function if exists better_supabase.fail_job(bigint, text, text, interval);
-drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
+
 -- schedule_job before time zones.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
+
 -- purge_job_archive before dead letters had their own retention.
-drop function if exists better_supabase.purge_job_archive(text, interval, integer);
+
 -- schedule_job before schedules had a tenant.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
+
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
-drop function if exists better_supabase.claim_due_schedules(integer, integer);
+
 
 -- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -1918,7 +1871,7 @@ $$;
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
 -- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -1950,11 +1903,11 @@ $$;
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
 -- busy (another holder does; retry_after_ms says when it ends) or completed
 -- (a holder finished it, and it stays finished until its keep time ends).
-create table if not exists "better_supabase"."job_leases" (
+create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
-  "state" text not null default 'held' check ("state" in ('held', 'completed')),
+  "state" text not null default 'held' constraint bsb_job_leases_state_check check ("state" in ('held', 'completed')),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
@@ -1970,19 +1923,19 @@ as $$
 #variable_conflict use_column
 declare
   token uuid := gen_random_uuid();
-  lease_until timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
+  lease_expires_at timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
   taken "better_supabase"."job_leases"%rowtype;
 begin
   -- A held lease that ran out, or a completed one past its keep time, is taken
   -- over; the new holder token makes the former holder's calls return false.
   insert into "better_supabase"."job_leases" as l ("scope", "key", "holder", "state", "expires_at")
-  values (scope, key, token, 'held', lease_until)
+  values (scope, key, token, 'held', lease_expires_at)
   on conflict ("scope", "key") do update
     set "holder" = excluded."holder", "state" = 'held', "expires_at" = excluded."expires_at"
     where l."expires_at" <= now()
   returning * into taken;
   if found then
-    return query select 'claimed'::text, token, lease_until, 0;
+    return query select 'claimed'::text, token, lease_expires_at, 0;
     return;
   end if;
 
@@ -2107,17 +2060,6 @@ grant execute on function better_supabase.release_lease_claim(text, text, uuid) 
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-drop function if exists "api"."enqueue_job"(text, jsonb, timestamptz, integer, text, integer);
-drop function if exists "api"."enqueue_job"(text, jsonb, integer, integer, text);
-drop function if exists "api"."claim_jobs"(text, text, integer, interval);
-drop function if exists "api"."complete_job"(bigint, text);
-drop function if exists "api"."fail_job"(bigint, text, text, interval);
-drop function if exists "api"."extend_job_lease"(bigint, text, interval);
-drop function if exists "api"."schedule_job"(text, text, text, jsonb);
-drop function if exists "api"."purge_job_archive"(text, interval, integer);
-drop function if exists "api"."schedule_job"(text, text, text, jsonb, text, timestamptz);
-drop function if exists "api"."claim_due_schedules"(integer, integer);
-
 create or replace function "api"."index_job_queue"(queue text)
 returns void
 language sql
@@ -2219,7 +2161,7 @@ revoke execute on function "api"."unschedule_job"(text) from public, anon, authe
 grant execute on function "api"."unschedule_job"(text) to service_role;
 
 create or replace function "api"."list_schedules"(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb)
 language sql
 stable
 security invoker
@@ -2338,19 +2280,6 @@ as $$ select "better_supabase"."release_lease_claim"($1, $2, $3) $$;
 revoke execute on function "api"."release_lease_claim"(text, text, uuid) from public, anon, authenticated;
 grant execute on function "api"."release_lease_claim"(text, text, uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
@@ -2373,30 +2302,23 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:98814007445fa760f05190424501204f2fdf218f9e577d76298d7de14c4d8787
+-- @bsb-hash sha256:66f60cf4586b43894b778bc34eafbf87ab0e43cd58a8f2e11a87a65d0c5f27a8
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
-drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+
 -- enqueue_job before dedupe_running.
-drop function if exists better_supabase.enqueue_job(text, jsonb, integer, integer, text);
-drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
-drop function if exists better_supabase.complete_job(bigint, text);
-drop function if exists better_supabase.fail_job(bigint, text, text, interval);
-drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
+
 -- schedule_job before time zones.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
+
 -- purge_job_archive before dead letters had their own retention.
-drop function if exists better_supabase.purge_job_archive(text, interval, integer);
+
 -- schedule_job before schedules had a tenant.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
+
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
-drop function if exists better_supabase.claim_due_schedules(integer, integer);
+
 
 -- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -2863,7 +2785,7 @@ $$;
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
 -- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -2899,7 +2821,7 @@ $$;
 alter table "better_supabase"."job_leases" add column if not exists "scope" text not null default '';
 alter table "better_supabase"."job_leases" add column if not exists "key" text;
 alter table "better_supabase"."job_leases" add column if not exists "holder" uuid;
-alter table "better_supabase"."job_leases" add column if not exists "state" text not null default 'held' check ("state" in ('held', 'completed'));
+alter table "better_supabase"."job_leases" add column if not exists "state" text not null default 'held' constraint bsb_job_leases_state_check check ("state" in ('held', 'completed'));
 alter table "better_supabase"."job_leases" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."job_leases" enable row level security;
 grant all on "better_supabase"."job_leases" to service_role;
@@ -2913,19 +2835,19 @@ as $$
 #variable_conflict use_column
 declare
   token uuid := gen_random_uuid();
-  lease_until timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
+  lease_expires_at timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
   taken "better_supabase"."job_leases"%rowtype;
 begin
   -- A held lease that ran out, or a completed one past its keep time, is taken
   -- over; the new holder token makes the former holder's calls return false.
   insert into "better_supabase"."job_leases" as l ("scope", "key", "holder", "state", "expires_at")
-  values (scope, key, token, 'held', lease_until)
+  values (scope, key, token, 'held', lease_expires_at)
   on conflict ("scope", "key") do update
     set "holder" = excluded."holder", "state" = 'held', "expires_at" = excluded."expires_at"
     where l."expires_at" <= now()
   returning * into taken;
   if found then
-    return query select 'claimed'::text, token, lease_until, 0;
+    return query select 'claimed'::text, token, lease_expires_at, 0;
     return;
   end if;
 
@@ -3046,19 +2968,6 @@ grant execute on function better_supabase.complete_lease(text, text, uuid, integ
 revoke execute on function better_supabase.release_lease_claim(text, text, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.release_lease_claim(text, text, uuid) to service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
@@ -3081,30 +2990,23 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:45f57f7cc17c38aa8c0e2c4b9992a233abf38e2cbd1dd4f8c7706f72bb7bd655
+-- @bsb-hash sha256:9715b59339854614e9e033bc9e7d24ccee6b6450188e02763fc097ed707e9005
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
-
 -- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
-drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+
 -- enqueue_job before dedupe_running.
-drop function if exists better_supabase.enqueue_job(text, jsonb, integer, integer, text);
-drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
-drop function if exists better_supabase.complete_job(bigint, text);
-drop function if exists better_supabase.fail_job(bigint, text, text, interval);
-drop function if exists better_supabase.extend_job_lease(bigint, text, interval);
+
 -- schedule_job before time zones.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
+
 -- purge_job_archive before dead letters had their own retention.
-drop function if exists better_supabase.purge_job_archive(text, interval, integer);
+
 -- schedule_job before schedules had a tenant.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
+
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
-drop function if exists better_supabase.claim_due_schedules(integer, integer);
+
 
 -- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -3571,7 +3473,7 @@ $$;
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
 -- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, locked_until timestamptz, created_at timestamptz, payload jsonb)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb)
 language plpgsql
 stable
 security definer
@@ -3603,11 +3505,11 @@ $$;
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
 -- busy (another holder does; retry_after_ms says when it ends) or completed
 -- (a holder finished it, and it stays finished until its keep time ends).
-create table if not exists "better_supabase"."job_leases" (
+create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
-  "state" text not null default 'held' check ("state" in ('held', 'completed')),
+  "state" text not null default 'held' constraint bsb_job_leases_state_check check ("state" in ('held', 'completed')),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
@@ -3623,19 +3525,19 @@ as $$
 #variable_conflict use_column
 declare
   token uuid := gen_random_uuid();
-  lease_until timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
+  lease_expires_at timestamptz := now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1));
   taken "better_supabase"."job_leases"%rowtype;
 begin
   -- A held lease that ran out, or a completed one past its keep time, is taken
   -- over; the new holder token makes the former holder's calls return false.
   insert into "better_supabase"."job_leases" as l ("scope", "key", "holder", "state", "expires_at")
-  values (scope, key, token, 'held', lease_until)
+  values (scope, key, token, 'held', lease_expires_at)
   on conflict ("scope", "key") do update
     set "holder" = excluded."holder", "state" = 'held', "expires_at" = excluded."expires_at"
     where l."expires_at" <= now()
   returning * into taken;
   if found then
-    return query select 'claimed'::text, token, lease_until, 0;
+    return query select 'claimed'::text, token, lease_expires_at, 0;
     return;
   end if;
 
@@ -3755,19 +3657,6 @@ revoke execute on function better_supabase.complete_lease(text, text, uuid, inte
 grant execute on function better_supabase.complete_lease(text, text, uuid, integer) to service_role;
 revoke execute on function better_supabase.release_lease_claim(text, text, uuid) from public, anon, authenticated;
 grant execute on function better_supabase.release_lease_claim(text, text, uuid) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue

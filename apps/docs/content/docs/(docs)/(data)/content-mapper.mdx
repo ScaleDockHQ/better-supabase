@@ -32,7 +32,7 @@ make instead. In an existing project, set the option yourself:
 import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
-  gen: { output: "src/lib/supabase/generated.ts", contentMapper: true },
+  gen: { file: "src/lib/supabase/generated.ts", contentMapper: true },
 });
 ```
 
@@ -88,7 +88,7 @@ The mapper tells TypeScript to watch the config, the snapshot,
 `supabase/config.toml` and a stamp file in the cache folder, and TypeScript
 asks for the types again when one changes. TypeScript can't watch a folder
 pattern, so a change to `supabase/schemas` or a migration reaches the editor
-through `gen`, or through [`gen --watch`](/docs/cli/gen#introspection-cache),
+through `gen`, or through [`dev`](/docs/cli/dev#watching),
 which rewrites the stamp only when the types change.
 
 Each `tsc` run starts the mapper, which takes about 0.3 seconds; checking the
@@ -103,7 +103,7 @@ on the first character of `schema.bsb`:
 | ----- | -------------------------------------------------------------------------------------------------------- |
 | BS603 | No types: the config is missing or invalid, or there is no snapshot and nothing in the cache. Run `gen`. |
 | BS604 | The config or the snapshot failed to load, so the mapper serves the last types it rendered.              |
-| BS605 | A `.bsb` file other than the one `gen` writes next to `gen.output`. It gets an empty module.             |
+| BS605 | A `.bsb` file other than the one `gen` writes next to `gen.file`. It gets an empty module.               |
 | BS606 | An option in the `contentMappers` entry that the mapper doesn't read. It reads `config` only.            |
 
 The mapper loads the config from the folder of `tsconfig.json`. Point it at a

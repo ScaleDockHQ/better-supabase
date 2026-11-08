@@ -4,6 +4,7 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { moduleBody } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("ai-keys", { modules })!;
@@ -13,9 +14,7 @@ describe("ai-keys module", () => {
     const sql = body();
 
     for (const table of ["ai_provider_keys", "ai_batches", "ai_batch_items"]) {
-      expect(sql).toContain(
-        `create table if not exists "better_supabase"."${table}" (`,
-      );
+      expect(sql).toContain(`create table "better_supabase"."${table}" (`);
     }
 
     expect(sql).not.toContain("ai_sandboxes");
@@ -23,7 +22,7 @@ describe("ai-keys module", () => {
 
   it("stores keys as credential refs", () => {
     const sql = body();
-    expect(sql).toMatch(/credential_ref" jsonb not null check/);
+    expect(unnamedChecks(sql)).toMatch(/credential_ref" jsonb not null check/);
     expect(sql).not.toMatch(/"(api_?key|token|secret)"/);
   });
 

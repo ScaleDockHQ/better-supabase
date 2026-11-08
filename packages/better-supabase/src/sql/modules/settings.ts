@@ -61,7 +61,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       optional: STAMPS,
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         key: "key",
         value: "value",
         updatedBy: "updated_by",
@@ -447,7 +447,6 @@ grant select, insert, update, delete on ${u} to authenticated;
 grant all on ${u} to service_role;
 ${ownRowPolicies({
   table: u,
-  legacy: "user_settings_own",
   name: (command) => `user_settings_own_${command}`,
   using: `${uc("user")} = (select auth.uid())`,
   check: `${uc("user")} = (select auth.uid())`,
@@ -463,10 +462,10 @@ alter table ${o} enable row level security;
 ${revokeTable(o)}
 grant select, insert, update, delete on ${o} to authenticated;
 grant all on ${o} to service_role;
-${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_read"), table: o, command: "select", roles: ["authenticated"], using: member(oc("tenant"), "read") }), { drop: true, target: o })}
-${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_insert"), table: o, command: "insert", roles: ["authenticated"], check: can(oc("tenant"), "update") }), { drop: true, target: o })}
-${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_update"), table: o, command: "update", roles: ["authenticated"], using: member(oc("tenant"), "update"), check: member(oc("tenant"), "update") }), { drop: true, target: o })}
-${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_delete"), table: o, command: "delete", roles: ["authenticated"], using: member(oc("tenant"), "update") }), { drop: true, target: o })}
+${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_read"), table: o, command: "select", roles: ["authenticated"], using: member(oc("tenant"), "read") }), { target: o })}
+${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_insert"), table: o, command: "insert", roles: ["authenticated"], check: can(oc("tenant"), "update") }), { target: o })}
+${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_update"), table: o, command: "update", roles: ["authenticated"], using: member(oc("tenant"), "update"), check: member(oc("tenant"), "update") }), { target: o })}
+${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_delete"), table: o, command: "delete", roles: ["authenticated"], using: member(oc("tenant"), "update") }), { target: o })}
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
@@ -480,11 +479,11 @@ ${revokeTable(p)}
 grant select on ${p} to anon;
 grant select, insert, update, delete on ${p} to authenticated;
 grant all on ${p} to service_role;
-${renderPolicy(makePolicy({ table: p, name: "platform_settings_read", command: "select", roles: ["authenticated"], using: authenticatedRead }), { drop: true, target: p })}
-${renderPolicy(makePolicy({ table: p, name: "platform_settings_read_public", command: "select", roles: ["anon"], using: anonRead }), { drop: true, target: p })}
-${renderPolicy(makePolicy({ table: p, name: "platform_settings_insert", command: "insert", roles: ["authenticated"], check: writeCheck }), { drop: true, target: p })}
-${renderPolicy(makePolicy({ table: p, name: "platform_settings_update", command: "update", roles: ["authenticated"], using: writeCheck, check: writeCheck }), { drop: true, target: p })}
-${renderPolicy(makePolicy({ table: p, name: "platform_settings_delete", command: "delete", roles: ["authenticated"], using: writeCheck }), { drop: true, target: p })}
+${renderPolicy(makePolicy({ table: p, name: "platform_settings_read", command: "select", roles: ["authenticated"], using: authenticatedRead }), { target: p })}
+${renderPolicy(makePolicy({ table: p, name: "platform_settings_read_public", command: "select", roles: ["anon"], using: anonRead }), { target: p })}
+${renderPolicy(makePolicy({ table: p, name: "platform_settings_insert", command: "insert", roles: ["authenticated"], check: writeCheck }), { target: p })}
+${renderPolicy(makePolicy({ table: p, name: "platform_settings_update", command: "update", roles: ["authenticated"], using: writeCheck, check: writeCheck }), { target: p })}
+${renderPolicy(makePolicy({ table: p, name: "platform_settings_delete", command: "delete", roles: ["authenticated"], using: writeCheck }), { target: p })}
 
 -- The functions run as the caller, so the policies above decide. set_*
 -- takes the value inside an envelope, { "value": ... }, so strings and

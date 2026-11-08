@@ -49,6 +49,7 @@ const PAGES: Readonly<Record<string, string>> = {
   blocks: "cli/presets.mdx",
   automations: "cli/automations.mdx",
   dev: "cli/dev.mdx",
+  cache: "cli/cache.mdx",
   db: "cli/db.mdx",
   table: "cli/table.mdx",
   migrate: "cli/migrate.mdx",
@@ -63,6 +64,7 @@ const PAGES: Readonly<Record<string, string>> = {
   login: "cli/login.mdx",
   logout: "cli/login.mdx",
   whoami: "cli/login.mdx",
+  workflows: "cli/workflows.mdx",
   config: "cli/config.mdx",
 };
 
@@ -241,10 +243,7 @@ const SOURCES = [
 ];
 
 /** Pages that quote the old names on purpose. */
-const HISTORY = new Set([
-  "apps/docs/content/docs/(docs)/concepts/naming.mdx",
-  "apps/docs/content/docs/(docs)/migration/(older)/0.1-to-0.2.mdx",
-]);
+const HISTORY = new Set(["apps/docs/content/docs/(docs)/concepts/naming.mdx"]);
 
 async function sources(): Promise<{ path: string; text: string }[]> {
   const paths: string[] = [];
@@ -282,7 +281,7 @@ const templateContext: TemplateContext = {
 };
 
 const LEGACY_INSTANCE =
-  /\b(?:const|let)\s+(sb|next|browser|server|mcp)\s*=\s*(?:defineSupabase|create[A-Z]\w*)\(/;
+  /\b(?:const|let)\s+(sb|next|browser|server|mcp)\s*=\s*(?:createSupabase|create[A-Z]\w*)\(/;
 
 const LEGACY_PATH = /supabase\.(?:browser|server|client)(?:\.tsx?)?["'`]/;
 

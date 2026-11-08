@@ -14,7 +14,7 @@ import {
   compilePostgrest,
   supportsMaxAffected,
 } from "../../src/compile/postgrest.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { DbException } from "../../src/core/errors.ts";
 import { capturingClient, query } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -941,7 +941,7 @@ describe("compilePostgrest mutations", () => {
 describe("compilePostgrest through supabase-js", () => {
   it("sends the plan as PostgREST query parameters", async () => {
     const { client, last } = capturingClient();
-    const db = defineSupabase(schema).connect(client);
+    const db = createSupabase(schema).connect(client);
     await db.customers
       .list({
         select: ["id"],
@@ -967,7 +967,7 @@ describe("compilePostgrest through supabase-js", () => {
 
   it("sends ieq as an escaped ilike, with * literal", async () => {
     const { client, last } = capturingClient();
-    const db = defineSupabase(schema).connect(client);
+    const db = createSupabase(schema).connect(client);
     await db.customers
       .list({ select: ["id"], where: { name: { ieq: "Acme*_co" } } })
       .orThrow();
@@ -980,7 +980,7 @@ describe("compilePostgrest through supabase-js", () => {
 
   it("sends Dates as ISO text, null in a list as is.null and * literally", async () => {
     const { client, last } = capturingClient();
-    const db = defineSupabase(schema).connect(client);
+    const db = createSupabase(schema).connect(client);
     await db.customers
       .list({
         select: ["id"],

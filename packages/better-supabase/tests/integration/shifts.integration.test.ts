@@ -14,7 +14,7 @@ const MODULES = [
   "outbox",
   "notifications",
   "leave",
-  "time-tracking",
+  "time-entries",
   "shifts",
 ];
 

@@ -16,7 +16,6 @@ import {
   medicationKeys,
   medicationTimeZone,
   orderJson,
-  MEDICATION_EXTRA,
   ORDER_RESERVED,
   ROW_RESERVED,
   signatureCheck,
@@ -266,11 +265,7 @@ export function medicationFunctions(ctx: BlockSqlContext): string {
   v_strength text;
   v_high_risk boolean;`;
 
-  const medicationExtras = ctx.extraColumns(
-    "medications",
-    ROW_RESERVED,
-    MEDICATION_EXTRA,
-  );
+  const medicationExtras = ctx.extraColumns("medications", ROW_RESERVED);
 
   const medicationFields = extraFieldsArg(medicationExtras);
 

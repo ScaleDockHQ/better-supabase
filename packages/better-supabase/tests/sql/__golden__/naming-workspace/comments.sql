@@ -1,61 +1,11 @@
 -- ==== schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:230530ce0063685e2812f384d201398f40ac58a05963c35e0b18a058ea4927f0
+-- @bsb-hash sha256:0a8de07c00fc7a3206bd60fd3390b993daf72142b6a6ca61d6d90c0203412737
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."comment_tasks";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."comment_tasks";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."comment_tasks";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."comment_tasks";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."comment_tasks";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Comments are a record's conversation (kind subject) on the messaging core:
 -- whoever reads the record reads its comments. These functions open it,
 -- expand mention groups, list a record's thread flat with its record, and
@@ -65,23 +15,23 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- messaging tables come later in the schema.
 
 -- The work item a comment was turned into (assign_comment).
-create table if not exists "better_supabase"."comment_tasks" (
+create table "better_supabase"."comment_tasks" (
   "message_id" uuid primary key,
-  "workspace_id" uuid not null,
+  "tenant_id" uuid not null,
   "task_id" uuid not null,
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now()
 );
-create index if not exists comment_tasks_task_idx on "better_supabase"."comment_tasks" ("task_id");
+create index comment_tasks_task_idx on "better_supabase"."comment_tasks" ("task_id");
 alter table "better_supabase"."comment_tasks" enable row level security;
 revoke all on "better_supabase"."comment_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."comment_tasks" to authenticated;
-grant insert ("message_id", "workspace_id", "task_id") on "better_supabase"."comment_tasks" to authenticated;
+grant insert ("message_id", "tenant_id", "task_id") on "better_supabase"."comment_tasks" to authenticated;
 grant all on "better_supabase"."comment_tasks" to service_role;
 
 -- Whether the caller reads a message in this tenant: the messages policy
 -- decides.
-drop function if exists "better_supabase"."comment_message_readable"(uuid);
+
 create or replace function "better_supabase"."comment_message_readable"(message uuid, tenant uuid)
 returns boolean
 language plpgsql
@@ -99,14 +49,12 @@ $$;
 revoke execute on function "better_supabase"."comment_message_readable"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."comment_message_readable"(uuid, uuid) to authenticated, service_role;
 
-drop policy if exists comment_tasks_read on "better_supabase"."comment_tasks";
-create policy comment_tasks_read on "better_supabase"."comment_tasks"
+create policy bsb_comment_tasks_read on "better_supabase"."comment_tasks"
   for select to authenticated
-  using ("better_supabase"."comment_message_readable"("message_id", "workspace_id"));
-drop policy if exists comment_tasks_insert on "better_supabase"."comment_tasks";
-create policy comment_tasks_insert on "better_supabase"."comment_tasks"
+  using ("better_supabase"."comment_message_readable"("message_id", "tenant_id"));
+create policy bsb_comment_tasks_insert on "better_supabase"."comment_tasks"
   for insert to authenticated
-  with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "workspace_id")) and (select better_supabase.actor_may_write()));
+  with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "tenant_id")) and (select better_supabase.actor_may_write()));
 
 -- A record's conversation, or null before its first comment.
 create or replace function "better_supabase"."comment_conversation"(tenant uuid, subject_type text, subject_id text)
@@ -171,7 +119,7 @@ grant execute on function "better_supabase"."get_comment"(uuid) to authenticated
 -- a reply joins the root), document, anchor (where on the record it points),
 -- mentions (user ids) and fields (the messaging extra
 -- columns). attachments: files the caller uploaded to the conversation.
-drop function if exists "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb);
+
 create or replace function "better_supabase"."create_comment"(
   tenant uuid,
   subject_type text,
@@ -236,7 +184,7 @@ grant execute on function "better_supabase"."create_comment"(uuid, text, text, t
 -- stay as placeholders so replies keep their parent, unless include_deleted
 -- is false. Page with after and after_id (the last comment's sent_at and id)
 -- or skip (an offset).
-drop function if exists "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid);
+
 create or replace function "better_supabase"."list_comments"(
   tenant uuid,
   subject_type text,
@@ -262,7 +210,7 @@ begin
   return "better_supabase"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null
-      and (coalesce(list_comments.include_deleted, true) or x."deleted_at" is null)
+      and (coalesce(list_comments.include_deleted, true) or x."archived_at" is null)
       and (list_comments.after is null
         or (x."sent_at", x."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
     order by x."sent_at", x."id"
@@ -289,7 +237,7 @@ begin
     join "better_supabase"."conversations" c on c."id" = x."conversation_id" and c."kind" = 'subject'
     where x."anchor" ->> 'kind' = 'file'
       and x."anchor" ->> 'attachmentId' = list_file_comments.attachment::text
-      and x."sent_at" is not null and x."deleted_at" is null
+      and x."sent_at" is not null and x."archived_at" is null
     order by x."sent_at", x."id"
     limit least(greatest(coalesce(list_file_comments.max_rows, 100), 1), 500)
   ));
@@ -317,7 +265,7 @@ begin
       where c."tenant_id" = comment_counts.tenant and c."kind" = 'subject'
         and c."subject_type" = comment_counts.subject_type
         and c."subject_id" = any (comment_counts.subject_ids)
-        and x."sent_at" is not null and x."deleted_at" is null
+        and x."sent_at" is not null and x."archived_at" is null
       group by 1
     ) s
   );
@@ -367,9 +315,9 @@ begin
     from "better_supabase"."messages" y
     where y."conversation_id" = v_from and y."sent_at" is not null
   ), inserted as (
-    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "deleted_at", "created_at")
+    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "archived_at", "created_at")
     select n.new_id, y."tenant_id", v_to, p.new_id, r.new_id, y."author_id",
-      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."deleted_at", y."created_at"
+      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."archived_at", y."created_at"
     from "better_supabase"."messages" y
     join copies n on n.old_id = y."id"
     left join copies p on p.old_id = y."parent_id"
@@ -387,55 +335,25 @@ grant execute on function "better_supabase"."copy_comments"(uuid, text, text, te
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
-    create function better_supabase.member_workspace_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."comment_tasks";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."comment_tasks";
 create policy bsb_tenant_scope_select on "better_supabase"."comment_tasks" as restrictive
   for select to public
   using (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("better_supabase"."comment_message_readable"("message_id", "workspace_id"))
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("better_supabase"."comment_message_readable"("message_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."comment_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."comment_tasks" as restrictive
   for insert to public
   with check (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "workspace_id"))
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "tenant_id"))
   );
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."comment_tasks";
 create policy bsb_tenant_scope_update on "better_supabase"."comment_tasks" as restrictive
   for update to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."comment_tasks";
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."comment_tasks" as restrictive
   for delete to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_033_comments.sql
 -- better-supabase module: comments

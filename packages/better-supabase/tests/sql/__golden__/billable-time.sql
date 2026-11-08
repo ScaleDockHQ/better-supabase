@@ -1,101 +1,42 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:c20f4769c1dd0b24e12b2f12bf577deadcd0a25fef48d926d53e4791854f4dbf
+-- @bsb-hash sha256:c192b473d59ef0f5fc4ebc356fd9f032a81fdbc9da7ceff0853406eb85c862c5
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Billable time: a rate card for time entries and invoices drafted from
 -- unbilled time, in bigint minor units.
 
-create table if not exists "better_supabase"."time_rates" (
+create table "better_supabase"."time_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid,
   "subject_type" text,
   "subject_id" text,
   -- Minor units of currency per hour (ADR 0037).
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_time_rates_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "effective_from" date not null default current_date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_time_rates_check check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
-create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
+alter table "better_supabase"."time_rates" add column "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
+create index "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
 grant select on "better_supabase"."time_rates" to authenticated;
 grant all on "better_supabase"."time_rates" to service_role;
-drop policy if exists "time_rates_read" on "better_supabase"."time_rates";
-create policy time_rates_read on "better_supabase"."time_rates"
+create policy bsb_time_rates_read on "better_supabase"."time_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
-create table if not exists "better_supabase"."time_invoice_entries" (
+create table "better_supabase"."time_invoice_entries" (
   "entry_id" uuid primary key references "better_supabase"."time_entries" ("id") on delete restrict,
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -104,14 +45,13 @@ create table if not exists "better_supabase"."time_invoice_entries" (
   "seconds" bigint not null,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "time_invoice_entries_invoice_idx" on "better_supabase"."time_invoice_entries" ("invoice_id");
-create index if not exists "time_invoice_entries_tenant_idx" on "better_supabase"."time_invoice_entries" ("tenant_id");
+create index "time_invoice_entries_invoice_idx" on "better_supabase"."time_invoice_entries" ("invoice_id");
+create index "time_invoice_entries_tenant_idx" on "better_supabase"."time_invoice_entries" ("tenant_id");
 alter table "better_supabase"."time_invoice_entries" enable row level security;
 revoke all on "better_supabase"."time_invoice_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_invoice_entries" to authenticated;
 grant all on "better_supabase"."time_invoice_entries" to service_role;
-drop policy if exists "time_invoice_entries_read" on "better_supabase"."time_invoice_entries";
-create policy time_invoice_entries_read on "better_supabase"."time_invoice_entries"
+create policy bsb_time_invoice_entries_read on "better_supabase"."time_invoice_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
@@ -142,7 +82,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_guard"() from public, anon, authenticated;
-drop trigger if exists bsb_billable_time_guard on "better_supabase"."time_entries";
 create trigger bsb_billable_time_guard
   before update or delete on "better_supabase"."time_entries"
   for each row execute function "better_supabase"."billable_time_guard"();
@@ -160,7 +99,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_release"() from public, anon, authenticated;
-drop trigger if exists bsb_billable_time_release on "better_supabase"."invoices";
 create trigger bsb_billable_time_release
   after update of "status" on "better_supabase"."invoices"
   for each row when (new."status" = 'void' and old."status" <> 'void')
@@ -170,7 +108,7 @@ create trigger bsb_billable_time_release
 -- (neither), from effective_from (today by default), with what the hour costs
 -- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-drop function if exists "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+
 create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
@@ -794,73 +732,38 @@ grant execute on function "better_supabase"."wip_valuation"(uuid, date) to authe
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."time_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."time_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."time_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."time_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."time_invoice_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."time_invoice_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
@@ -879,101 +782,42 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:e499a294b02888f628ca626ec90589567d212d67227ddd0268e011488d596cef
+-- @bsb-hash sha256:310f5fff308847f592d2be5a173b6a41938a7e90777ed5dec075d62265a1b0f3
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Billable time: a rate card for time entries and invoices drafted from
 -- unbilled time, in bigint minor units.
 
-create table if not exists "better_supabase"."time_rates" (
+create table "better_supabase"."time_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid,
   "subject_type" text,
   "subject_id" text,
   -- Minor units of currency per hour (ADR 0037).
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_time_rates_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "effective_from" date not null default current_date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_time_rates_check check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
-create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
+alter table "better_supabase"."time_rates" add column "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
+create index "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
 grant select on "better_supabase"."time_rates" to authenticated;
 grant all on "better_supabase"."time_rates" to service_role;
-drop policy if exists "time_rates_read" on "better_supabase"."time_rates";
-create policy time_rates_read on "better_supabase"."time_rates"
+create policy bsb_time_rates_read on "better_supabase"."time_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
-create table if not exists "better_supabase"."time_invoice_entries" (
+create table "better_supabase"."time_invoice_entries" (
   "entry_id" uuid primary key references "better_supabase"."time_entries" ("id") on delete restrict,
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -982,14 +826,13 @@ create table if not exists "better_supabase"."time_invoice_entries" (
   "seconds" bigint not null,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "time_invoice_entries_invoice_idx" on "better_supabase"."time_invoice_entries" ("invoice_id");
-create index if not exists "time_invoice_entries_tenant_idx" on "better_supabase"."time_invoice_entries" ("tenant_id");
+create index "time_invoice_entries_invoice_idx" on "better_supabase"."time_invoice_entries" ("invoice_id");
+create index "time_invoice_entries_tenant_idx" on "better_supabase"."time_invoice_entries" ("tenant_id");
 alter table "better_supabase"."time_invoice_entries" enable row level security;
 revoke all on "better_supabase"."time_invoice_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_invoice_entries" to authenticated;
 grant all on "better_supabase"."time_invoice_entries" to service_role;
-drop policy if exists "time_invoice_entries_read" on "better_supabase"."time_invoice_entries";
-create policy time_invoice_entries_read on "better_supabase"."time_invoice_entries"
+create policy bsb_time_invoice_entries_read on "better_supabase"."time_invoice_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
@@ -1020,7 +863,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_guard"() from public, anon, authenticated;
-drop trigger if exists bsb_billable_time_guard on "better_supabase"."time_entries";
 create trigger bsb_billable_time_guard
   before update or delete on "better_supabase"."time_entries"
   for each row execute function "better_supabase"."billable_time_guard"();
@@ -1038,7 +880,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_release"() from public, anon, authenticated;
-drop trigger if exists bsb_billable_time_release on "better_supabase"."invoices";
 create trigger bsb_billable_time_release
   after update of "status" on "better_supabase"."invoices"
   for each row when (new."status" = 'void' and old."status" <> 'void')
@@ -1048,7 +889,7 @@ create trigger bsb_billable_time_release
 -- (neither), from effective_from (today by default), with what the hour costs
 -- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-drop function if exists "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+
 create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
@@ -1783,80 +1624,41 @@ grant execute on function "better_supabase"."wip_valuation"(uuid, date) to authe
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."time_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."time_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."time_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."time_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."time_invoice_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."time_invoice_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.time_rates', target_type => 'time_rate', event_prefix => 'time_rate', deferred => true);
-end;
-$$;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.time_rates deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"time_rate","event_prefix":"time_rate"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
@@ -1875,69 +1677,11 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:78553e590af9e4887032861f3f213a07a385418a6b3b2d29a58fa45720c79a11
+-- @bsb-hash sha256:6164be648e0e25812f363cba9f13a39f419d1c6fac11890d63fca24cf8567b01
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."time_rates";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."time_rates";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."time_rates";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."time_rates";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."time_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "app_private"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."time_invoice_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 create schema if not exists "app_private";
 grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
@@ -1946,35 +1690,34 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Billable time: a rate card for time entries and invoices drafted from
 -- unbilled time, in bigint minor units.
 
-create table if not exists "app_private"."time_rates" (
+create table "app_private"."time_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid,
   "subject_type" text,
   "subject_id" text,
   -- Minor units of currency per hour (ADR 0037).
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_time_rates_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "effective_from" date not null default current_date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_time_rates_check check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "app_private"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
-create index if not exists "time_rates_lookup_idx" on "app_private"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
+alter table "app_private"."time_rates" add column "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
+create index "time_rates_lookup_idx" on "app_private"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "app_private"."time_rates" enable row level security;
 revoke all on "app_private"."time_rates" from public, anon, authenticated;
 grant select on "app_private"."time_rates" to authenticated;
 grant all on "app_private"."time_rates" to service_role;
-drop policy if exists "time_rates_read" on "app_private"."time_rates";
-create policy time_rates_read on "app_private"."time_rates"
+create policy bsb_time_rates_read on "app_private"."time_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
-create table if not exists "app_private"."time_invoice_entries" (
+create table "app_private"."time_invoice_entries" (
   "entry_id" uuid primary key references "better_supabase"."time_entries" ("id") on delete restrict,
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -1983,14 +1726,13 @@ create table if not exists "app_private"."time_invoice_entries" (
   "seconds" bigint not null,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "time_invoice_entries_invoice_idx" on "app_private"."time_invoice_entries" ("invoice_id");
-create index if not exists "time_invoice_entries_tenant_idx" on "app_private"."time_invoice_entries" ("tenant_id");
+create index "time_invoice_entries_invoice_idx" on "app_private"."time_invoice_entries" ("invoice_id");
+create index "time_invoice_entries_tenant_idx" on "app_private"."time_invoice_entries" ("tenant_id");
 alter table "app_private"."time_invoice_entries" enable row level security;
 revoke all on "app_private"."time_invoice_entries" from public, anon, authenticated;
 grant select on "app_private"."time_invoice_entries" to authenticated;
 grant all on "app_private"."time_invoice_entries" to service_role;
-drop policy if exists "time_invoice_entries_read" on "app_private"."time_invoice_entries";
-create policy time_invoice_entries_read on "app_private"."time_invoice_entries"
+create policy bsb_time_invoice_entries_read on "app_private"."time_invoice_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
@@ -2021,7 +1763,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."billable_time_guard"() from public, anon, authenticated;
-drop trigger if exists bsb_billable_time_guard on "better_supabase"."time_entries";
 create trigger bsb_billable_time_guard
   before update or delete on "better_supabase"."time_entries"
   for each row execute function "app_private"."billable_time_guard"();
@@ -2039,7 +1780,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."billable_time_release"() from public, anon, authenticated;
-drop trigger if exists bsb_billable_time_release on "better_supabase"."invoices";
 create trigger bsb_billable_time_release
   after update of "status" on "better_supabase"."invoices"
   for each row when (new."status" = 'void' and old."status" <> 'void')
@@ -2049,7 +1789,7 @@ create trigger bsb_billable_time_release
 -- (neither), from effective_from (today by default), with what the hour costs
 -- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-drop function if exists "app_private"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+
 create or replace function "app_private"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
@@ -2673,73 +2413,38 @@ grant execute on function "app_private"."wip_valuation"(uuid, date) to authentic
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."time_rates";
-drop policy if exists bsb_tenant_scope_select on "app_private"."time_rates";
 create policy bsb_tenant_scope_select on "app_private"."time_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."time_rates";
 create policy bsb_tenant_scope_insert on "app_private"."time_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."time_rates";
 create policy bsb_tenant_scope_update on "app_private"."time_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."time_rates";
 create policy bsb_tenant_scope_delete on "app_private"."time_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."time_invoice_entries";
-drop policy if exists bsb_tenant_scope_select on "app_private"."time_invoice_entries";
 create policy bsb_tenant_scope_select on "app_private"."time_invoice_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."time_invoice_entries";
 create policy bsb_tenant_scope_insert on "app_private"."time_invoice_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."time_invoice_entries";
 create policy bsb_tenant_scope_update on "app_private"."time_invoice_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."time_invoice_entries";
 create policy bsb_tenant_scope_delete on "app_private"."time_invoice_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
@@ -2758,101 +2463,42 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:d0e2b27b69236372ed3e72fd57f4f4554f3512c196bd6e98f5ca0ac03b3d8355
+-- @bsb-hash sha256:292b91466edc61d529d6fae2a2ffc4cdfa88bdce29c4051301e6f50b804bfea7
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Billable time: a rate card for time entries and invoices drafted from
 -- unbilled time, in bigint minor units.
 
-create table if not exists "better_supabase"."time_rates" (
+create table "better_supabase"."time_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid,
   "subject_type" text,
   "subject_id" text,
   -- Minor units of currency per hour (ADR 0037).
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_time_rates_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "effective_from" date not null default current_date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_time_rates_check check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
-create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
+alter table "better_supabase"."time_rates" add column "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
+create index "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
 grant select on "better_supabase"."time_rates" to authenticated;
 grant all on "better_supabase"."time_rates" to service_role;
-drop policy if exists "time_rates_read" on "better_supabase"."time_rates";
-create policy time_rates_read on "better_supabase"."time_rates"
+create policy bsb_time_rates_read on "better_supabase"."time_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
-create table if not exists "better_supabase"."time_invoice_entries" (
+create table "better_supabase"."time_invoice_entries" (
   "entry_id" uuid primary key references "better_supabase"."time_entries" ("id") on delete restrict,
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -2861,14 +2507,13 @@ create table if not exists "better_supabase"."time_invoice_entries" (
   "seconds" bigint not null,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "time_invoice_entries_invoice_idx" on "better_supabase"."time_invoice_entries" ("invoice_id");
-create index if not exists "time_invoice_entries_tenant_idx" on "better_supabase"."time_invoice_entries" ("tenant_id");
+create index "time_invoice_entries_invoice_idx" on "better_supabase"."time_invoice_entries" ("invoice_id");
+create index "time_invoice_entries_tenant_idx" on "better_supabase"."time_invoice_entries" ("tenant_id");
 alter table "better_supabase"."time_invoice_entries" enable row level security;
 revoke all on "better_supabase"."time_invoice_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_invoice_entries" to authenticated;
 grant all on "better_supabase"."time_invoice_entries" to service_role;
-drop policy if exists "time_invoice_entries_read" on "better_supabase"."time_invoice_entries";
-create policy time_invoice_entries_read on "better_supabase"."time_invoice_entries"
+create policy bsb_time_invoice_entries_read on "better_supabase"."time_invoice_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
@@ -2899,7 +2544,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_guard"() from public, anon, authenticated;
-drop trigger if exists bsb_billable_time_guard on "better_supabase"."time_entries";
 create trigger bsb_billable_time_guard
   before update or delete on "better_supabase"."time_entries"
   for each row execute function "better_supabase"."billable_time_guard"();
@@ -2917,7 +2561,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_release"() from public, anon, authenticated;
-drop trigger if exists bsb_billable_time_release on "better_supabase"."invoices";
 create trigger bsb_billable_time_release
   after update of "status" on "better_supabase"."invoices"
   for each row when (new."status" = 'void' and old."status" <> 'void')
@@ -2927,7 +2570,7 @@ create trigger bsb_billable_time_release
 -- (neither), from effective_from (today by default), with what the hour costs
 -- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-drop function if exists "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+
 create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
@@ -3551,57 +3194,35 @@ grant execute on function "better_supabase"."wip_valuation"(uuid, date) to authe
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."time_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."time_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."time_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."time_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."time_invoice_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."time_invoice_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
@@ -3609,27 +3230,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries
 -- blocks.billable-time.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-drop function if exists "api"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
@@ -3727,19 +3327,6 @@ as $$ select "better_supabase"."wip_valuation"($1, $2) $$;
 revoke execute on function "api"."wip_valuation"(uuid, date) from public, anon;
 grant execute on function "api"."wip_valuation"(uuid, date) to authenticated, service_role;
 
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
-
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block-data billable-time
@@ -3757,69 +3344,11 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:5f67cfef5d9f01e4e02b2d5d4e29eaa23d59baa838d3c0bcbea3dc9a2cc79860
+-- @bsb-hash sha256:7d82f7d1c231370dfa68b96eabb3113407d6d1dbb276195ab47d6e0f261ee1dc
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Billable time: a rate card for time entries and invoices drafted from
 -- unbilled time, in bigint minor units.
 
@@ -3829,19 +3358,18 @@ alter table "better_supabase"."time_rates" add column if not exists "tenant_id" 
 alter table "better_supabase"."time_rates" add column if not exists "user_id" uuid;
 alter table "better_supabase"."time_rates" add column if not exists "subject_type" text;
 alter table "better_supabase"."time_rates" add column if not exists "subject_id" text;
-alter table "better_supabase"."time_rates" add column if not exists "rate" bigint check ("rate" >= 0);
-alter table "better_supabase"."time_rates" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."time_rates" add column if not exists "rate" bigint constraint bsb_time_rates_rate_check check ("rate" >= 0);
+alter table "better_supabase"."time_rates" add column if not exists "currency" char(3) constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."time_rates" add column if not exists "effective_from" date not null default current_date;
 alter table "better_supabase"."time_rates" add column if not exists "created_by" uuid;
 alter table "better_supabase"."time_rates" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_time_rates_rate_key" on "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from") nulls not distinct;
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
+alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
 create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 grant select on "better_supabase"."time_rates" to authenticated;
 grant all on "better_supabase"."time_rates" to service_role;
-drop policy if exists bsb_time_rates_select on "better_supabase"."time_rates";
 create policy bsb_time_rates_select on "better_supabase"."time_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
@@ -3860,7 +3388,6 @@ create index if not exists "time_invoice_entries_tenant_idx" on "better_supabase
 alter table "better_supabase"."time_invoice_entries" enable row level security;
 grant select on "better_supabase"."time_invoice_entries" to authenticated;
 grant all on "better_supabase"."time_invoice_entries" to service_role;
-drop policy if exists bsb_time_invoice_entries_select on "better_supabase"."time_invoice_entries";
 create policy bsb_time_invoice_entries_select on "better_supabase"."time_invoice_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
@@ -3892,7 +3419,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_guard"() from public, anon, authenticated;
-drop trigger if exists bsb_billable_time_guard on "better_supabase"."time_entries";
 create trigger bsb_billable_time_guard
   before update or delete on "better_supabase"."time_entries"
   for each row execute function "better_supabase"."billable_time_guard"();
@@ -3910,7 +3436,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_release"() from public, anon, authenticated;
-drop trigger if exists bsb_billable_time_release on "better_supabase"."invoices";
 create trigger bsb_billable_time_release
   after update of "status" on "better_supabase"."invoices"
   for each row when (new."status" = 'void' and old."status" <> 'void')
@@ -3920,7 +3445,7 @@ create trigger bsb_billable_time_release
 -- (neither), from effective_from (today by default), with what the hour costs
 -- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-drop function if exists "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+
 create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
@@ -4544,73 +4069,38 @@ grant execute on function "better_supabase"."wip_valuation"(uuid, date) to authe
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."time_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."time_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."time_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."time_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."time_invoice_entries" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."time_invoice_entries" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
@@ -4629,101 +4119,42 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:94c0efde9ee43e2bc6823dba7c18c328ea713909d5baae9f9228524c28dc5bba
+-- @bsb-hash sha256:72e3baaa7bdf3f86717aaa7d4053a0985a01323a4ed3cb41400ee6ca5a06306e
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Billable time: a rate card for time entries and invoices drafted from
 -- unbilled time, in bigint minor units.
 
-create table if not exists "better_supabase"."time_rates" (
+create table "better_supabase"."time_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid,
   "subject_type" text,
   "subject_id" text,
   -- Minor units of currency per hour (ADR 0037).
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_time_rates_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "effective_from" date not null default current_date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_time_rates_check check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("org_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
-create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("org_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
+alter table "better_supabase"."time_rates" add column "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
+create index "time_rates_lookup_idx" on "better_supabase"."time_rates" ("org_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
 grant select on "better_supabase"."time_rates" to authenticated;
 grant all on "better_supabase"."time_rates" to service_role;
-drop policy if exists "time_rates_read" on "better_supabase"."time_rates";
-create policy time_rates_read on "better_supabase"."time_rates"
+create policy bsb_time_rates_read on "better_supabase"."time_rates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
 -- One row per billed time entry: the invoice and the rate it was billed at.
-create table if not exists "better_supabase"."time_invoice_entries" (
+create table "better_supabase"."time_invoice_entries" (
   "entry_id" uuid primary key references "better_supabase"."time_entries" ("id") on delete restrict,
   "org_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -4732,14 +4163,13 @@ create table if not exists "better_supabase"."time_invoice_entries" (
   "seconds" bigint not null,
   "created_at" timestamptz not null default now()
 );
-create index if not exists "time_invoice_entries_invoice_idx" on "better_supabase"."time_invoice_entries" ("invoice_id");
-create index if not exists "time_invoice_entries_tenant_idx" on "better_supabase"."time_invoice_entries" ("org_id");
+create index "time_invoice_entries_invoice_idx" on "better_supabase"."time_invoice_entries" ("invoice_id");
+create index "time_invoice_entries_tenant_idx" on "better_supabase"."time_invoice_entries" ("org_id");
 alter table "better_supabase"."time_invoice_entries" enable row level security;
 revoke all on "better_supabase"."time_invoice_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_invoice_entries" to authenticated;
 grant all on "better_supabase"."time_invoice_entries" to service_role;
-drop policy if exists "time_invoice_entries_read" on "better_supabase"."time_invoice_entries";
-create policy time_invoice_entries_read on "better_supabase"."time_invoice_entries"
+create policy bsb_time_invoice_entries_read on "better_supabase"."time_invoice_entries"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
@@ -4770,7 +4200,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_guard"() from public, anon, authenticated;
-drop trigger if exists bsb_billable_time_guard on "better_supabase"."time_entries";
 create trigger bsb_billable_time_guard
   before update or delete on "better_supabase"."time_entries"
   for each row execute function "better_supabase"."billable_time_guard"();
@@ -4788,7 +4217,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_release"() from public, anon, authenticated;
-drop trigger if exists bsb_billable_time_release on "better_supabase"."invoices";
 create trigger bsb_billable_time_release
   after update of "status" on "better_supabase"."invoices"
   for each row when (new."status" = 'void' and old."status" <> 'void')
@@ -4798,7 +4226,7 @@ create trigger bsb_billable_time_release
 -- (neither), from effective_from (today by default), with what the hour costs
 -- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-drop function if exists "better_supabase"."set_time_rate"(uuid, bigint, text, uuid, text, text, date);
+
 create or replace function "better_supabase"."set_time_rate"(tenant uuid, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
@@ -5422,73 +4850,38 @@ grant execute on function "better_supabase"."wip_valuation"(uuid, date) to authe
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
--- Until memberships installs, the caller is a member of no organization.
-do $$
-begin
-  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
-    create function better_supabase.member_organization_ids(roles text[] default null)
-    returns setof uuid
-    language sql
-    stable
-    set search_path = ''
-    as $members$ select null::uuid where false $members$;
-  end if;
-end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."time_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_select on "better_supabase"."time_rates" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_insert on "better_supabase"."time_rates" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_update on "better_supabase"."time_rates" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_rates";
 create policy bsb_tenant_scope_delete on "better_supabase"."time_rates" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."time_invoice_entries";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_select on "better_supabase"."time_invoice_entries" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('billable_time.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."time_invoice_entries" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_update on "better_supabase"."time_invoice_entries" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries";
 create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time

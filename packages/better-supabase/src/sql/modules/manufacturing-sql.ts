@@ -44,7 +44,7 @@ export interface ManufacturingSql {
   readonly orderOperations: string;
   readonly consumptions: string;
   readonly lotLinks: string;
-  /** `options.extraColumns` on the production orders table. */
+  /** The columns your schema files add on the production orders table. */
   readonly extras: readonly ExtraColumn[];
   readonly inventory: BlockSqlContext;
   readonly catalog: BlockSqlContext;

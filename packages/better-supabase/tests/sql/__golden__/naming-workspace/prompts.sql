@@ -1,63 +1,39 @@
 -- ==== schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:641caf320729eae1a25f6eb6ca47a50c988ee659b27f3d9a78e4c4905e7d513c
+-- @bsb-hash sha256:6d88c1f3390baff6f5e93de05aa6d25e0de892bcac99b958bc43f0815fbb9da4
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The tenant scope policies call the module's functions, so they go before
--- the module drops or replaces one and come back at the end.
-do $$
-begin
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."prompt_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."prompt_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."prompt_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."prompt_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."prompt_versions";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."prompt_labels";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."prompt_labels";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."prompt_labels";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."prompt_labels";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."prompt_labels";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-end $$;
-
-create schema if not exists better_supabase;
-grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Prompt templates the application versions by name, per tenant or for the
 -- whole system (tenant is null). A version never changes once saved; a label
 -- such as production points at one version. Templates can hold instructions
 -- and secrets, so only the service role reads and writes them.
-create table if not exists "better_supabase"."prompt_versions" (
+create table "better_supabase"."prompt_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "version" integer not null check ("version" >= 1),
-  "template" text not null check (length("template") between 1 and 102400),
-  "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
+  "name" text not null constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "version" integer not null constraint bsb_prompt_versions_version_check check ("version" >= 1),
+  "template" text not null constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400),
+  "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );
-create unique index if not exists "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("workspace_id"::text, '')), "name", "version");
-create index if not exists "prompt_versions_tenant_idx" on "better_supabase"."prompt_versions" ("workspace_id");
+create unique index "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("workspace_id"::text, '')), "name", "version");
+create index "prompt_versions_tenant_idx" on "better_supabase"."prompt_versions" ("workspace_id");
 alter table "better_supabase"."prompt_versions" enable row level security;
 revoke all on "better_supabase"."prompt_versions" from public, anon, authenticated;
 grant all on "better_supabase"."prompt_versions" to service_role;
 
-create table if not exists "better_supabase"."prompt_labels" (
+create table "better_supabase"."prompt_labels" (
   "workspace_id" uuid,
   "name" text not null,
-  "label" text not null check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
-  "version" integer not null check ("version" >= 1),
+  "label" text not null constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
+  "version" integer not null constraint bsb_prompt_labels_version_check check ("version" >= 1),
   "updated_at" timestamptz not null default now()
 );
-create unique index if not exists "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("workspace_id"::text, '')), "name", "label");
-create index if not exists "prompt_labels_tenant_idx" on "better_supabase"."prompt_labels" ("workspace_id");
+create unique index "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("workspace_id"::text, '')), "name", "label");
+create index "prompt_labels_tenant_idx" on "better_supabase"."prompt_labels" ("workspace_id");
 alter table "better_supabase"."prompt_labels" enable row level security;
 revoke all on "better_supabase"."prompt_labels" from public, anon, authenticated;
 grant all on "better_supabase"."prompt_labels" to service_role;
@@ -186,19 +162,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
-
-create schema if not exists better_supabase;
-create table if not exists better_supabase.blocks (
-  name text primary key,
-  block text,
-  version integer not null,
-  mode text not null,
-  installed_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table better_supabase.blocks enable row level security;
-revoke all on better_supabase.blocks from public, anon, authenticated;
-grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts

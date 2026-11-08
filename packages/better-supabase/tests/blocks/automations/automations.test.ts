@@ -13,7 +13,7 @@ import {
   createRuleDispatcher,
   createAutomations,
   createAutomationsAdmin,
-  createRuleSink,
+  automationSink,
   defineAction,
   defineRuleFields,
   evaluateRule,
@@ -702,12 +702,12 @@ describe("createRuleDispatcher", () => {
     ]);
   });
 
-  it("runs the rules for an outbox event through createRuleSink", async () => {
+  it("runs the rules for an outbox event through automationSink", async () => {
     const runs: unknown[] = [];
     const seen: unknown[] = [];
     const match = { rule: rule([{ kind: "ok" }]), results: {} };
 
-    const sink = createRuleSink({
+    const sink = automationSink({
       rules: {
         run: ({ organizationId, input }) => {
           runs.push([organizationId, input]);
@@ -761,37 +761,6 @@ describe("createRuleDispatcher", () => {
     ]);
   });
 
-  it("runs the rules that still name a type from before 0.46", async () => {
-    const triggers: string[] = [];
-    const seen: unknown[] = [];
-    const legacy = { rule: rule([{ kind: "ok" }]), results: {} };
-
-    const sink = createRuleSink({
-      rules: {
-        run: ({ input }) => {
-          triggers.push(input.trigger);
-
-          return AsyncResult.ok(
-            input.trigger === "agent.saved" ? [legacy] : [],
-          );
-        },
-      },
-      dispatcher: registry(test("ok", ({ context }) => ok(context.eventId))),
-      load: () => ({ organizationId: "org-1", subjectId: "a1", subject: {} }),
-      onOutcomes: (event, outcomes) => seen.push([event.id, outcomes]),
-    });
-
-    await sink([
-      { id: "e1", type: "agent.updated", payload: {} },
-      { id: "e2", type: "member.joined", payload: {} },
-    ]);
-
-    expect(triggers).toEqual(["agent.updated", "agent.saved", "member.joined"]);
-    expect(seen).toEqual([
-      ["e1", [{ ruleId: "r1", kind: "ok", ok: true, value: "e1" }]],
-    ]);
-  });
-
   it("falls back to the event for the automations blocks ship", async () => {
     const runs: unknown[] = [];
     const seen: unknown[] = [];
@@ -803,7 +772,7 @@ describe("createRuleDispatcher", () => {
       defaultKey: "inbox.conversation_to_task",
     };
 
-    const sink = createRuleSink({
+    const sink = automationSink({
       rules: {
         run: ({ organizationId, input }) => {
           runs.push([organizationId, input]);
@@ -855,8 +824,8 @@ describe("createRuleDispatcher", () => {
     ]);
   });
 
-  it("throws from createRuleSink when the evaluation fails, so the outbox retries", async () => {
-    const sink = createRuleSink({
+  it("throws from automationSink when the evaluation fails, so the outbox retries", async () => {
+    const sink = automationSink({
       rules: { run: () => AsyncResult.err(dbError("unexpected", "down")) },
       dispatcher: registry(),
       load: () => ({

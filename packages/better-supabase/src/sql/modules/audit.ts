@@ -8,17 +8,13 @@ import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
 import type { AuditInsert } from "./audit-metadata.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { ACTING_MEMBER } from "../actor-guard.ts";
-import { MEMO_FUNCTIONS } from "../memo.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   batchFunction,
   defaultPartition,
   ensureCheck,
-  EQUIVALENT_TRIGGERS,
   MONTHLY_PARTITIONS,
   registerPartitions,
-  SCHEMA,
   SERVICE_CALLER,
   revokeTable,
   triggerGrant,
@@ -128,7 +124,7 @@ const NAMES: BlockSqlNames = {
         changed: "changed",
         actor: "actor_id",
         actorRole: "actor_role",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         occurredAt: "occurred_at",
         impersonatedBy: "impersonated_by",
         impersonationReason: "impersonation_reason",
@@ -401,8 +397,6 @@ function registry(ctx: BlockSqlContext): string {
 -- Per-table event naming and redaction.${add("redact", "text[] not null default '{}'")}${add("category", "text")}${add("eventPrefix", "text")}${add("targetType", "text")}${add("tenantColumn", "text")}${add("labelColumn", "text")}
 alter table ${table} enable row level security;
 ${revokeTable(table)}
-
-${ACTING_MEMBER}
 
 -- The request headers, or null outside a Data API request.
 create or replace function better_supabase.request_headers()
@@ -939,7 +933,7 @@ ${renderPolicy(
     using: `${c("tenant")} in (select ${ctx.fn("audit_read_tenants")}())
     or (select ${ctx.fn("audit_reads_all")}())`,
   }),
-  { drop: true, target: log },
+  { target: log },
 )}
 ${
   hidden.size > 0
@@ -959,14 +953,11 @@ function auditSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   );
 
   return [
-    SCHEMA,
-    MEMO_FUNCTIONS.trim(),
     registry(ctx),
     requestIpSql(ctx),
     ctx.manages ? managedTables(ctx, restricted) : "",
     triggerFunction(ctx, tenantColumn, restricted),
     statementTrigger(ctx, tenantColumn, restricted),
-    EQUIVALENT_TRIGGERS.trim(),
     register(ctx),
     auditEvent(ctx, restricted),
     appendOnly(ctx),

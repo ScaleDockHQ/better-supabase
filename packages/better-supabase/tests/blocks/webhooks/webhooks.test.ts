@@ -10,7 +10,7 @@ import {
   verifySharedSecret,
   verifyWebhook,
 } from "../../../src/blocks/webhooks/index.ts";
-import { defineSupabase } from "../../../src/core/define.ts";
+import { createSupabase } from "../../../src/core/define.ts";
 import { provideTemporal } from "../../../src/core/temporal.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
 
@@ -265,7 +265,7 @@ describe("authHook", () => {
 });
 
 describe("databaseChange", () => {
-  const betterSupabase = defineSupabase(schema);
+  const betterSupabase = createSupabase(schema);
 
   it("maps database webhook payloads to app casing", () => {
     const payload = {

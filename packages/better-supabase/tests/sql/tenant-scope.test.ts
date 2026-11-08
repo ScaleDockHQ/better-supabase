@@ -42,10 +42,6 @@ describe("tenantScopePolicy", () => {
       members: MEMBERS,
     });
 
-    expect(sql).toContain(
-      `drop policy if exists bsb_tenant_scope on ${TABLE};`,
-    );
-
     for (const command of ["select", "insert", "update", "delete"]) {
       expect(sql).toContain(
         `create policy bsb_tenant_scope_${command} on ${TABLE} as restrictive
@@ -114,36 +110,12 @@ describe("applyTenantScope", () => {
     );
   });
 
-  it("drops the scope policy before the module can drop a function it calls", () => {
-    const body = `drop function if exists better_supabase.invoice_readers();
-create policy invoices_read on ${TABLE}
-  for select to authenticated
-  using (true);`;
-
-    const sql = scoped(body);
-
-    const drop = sql.indexOf(
-      `drop policy if exists ${TENANT_SCOPE_POLICY}_delete on ${TABLE};
-  exception when undefined_table or invalid_schema_name then null;`,
-    );
-
-    expect(drop).toBeGreaterThan(-1);
-    expect(drop).toBeLessThan(sql.indexOf(body));
-  });
-
-  it("creates an empty member_organization_ids before memberships installs", () => {
+  it("leaves member_organization_ids to the prelude and the memberships module", () => {
     const sql = scoped(`grant select on ${TABLE} to authenticated;`);
 
-    const stub = sql.indexOf(
-      "if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then",
-    );
-
-    expect(stub).toBeGreaterThan(-1);
-    expect(stub).toBeLessThan(
-      sql.indexOf(`create policy ${TENANT_SCOPE_POLICY}_select`),
-    );
-    expect(sql).toContain(
-      "create function better_supabase.member_organization_ids(roles text[] default null)",
+    expect(sql).not.toContain("to_regprocedure");
+    expect(sql).not.toContain(
+      "create function better_supabase.member_organization_ids",
     );
   });
 
