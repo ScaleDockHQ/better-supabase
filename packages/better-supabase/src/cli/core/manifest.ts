@@ -731,6 +731,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "server-imports",
+        description:
+          "Import the account, csv and rate-limit helpers from their server subpaths",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "generators",
         description:
           "Import the generators from better-supabase/generators/<name> and list generators that still use the apiVersion 1 shape",

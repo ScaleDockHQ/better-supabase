@@ -129,6 +129,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       ),
   ],
   [
+    "codemod server-imports",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("server-imports"),
+      ),
+  ],
+  [
     "codemod generators",
     () =>
       import("./commands/codemod.ts").then((m) =>
