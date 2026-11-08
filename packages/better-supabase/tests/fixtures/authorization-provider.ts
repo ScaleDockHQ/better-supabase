@@ -18,6 +18,7 @@ type StubProvider = AuthorizationProvider & {
       | "rowsWithFor"
       | "subjectForTenant"
       | "approverFor"
+      | "bootstrapPermissions"
       | "managedUsers"
     >
   >;

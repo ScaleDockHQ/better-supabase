@@ -298,6 +298,19 @@ export {
 
 export { purgeKeys } from "../auth/resolve.ts";
 
+export {
+  BOOTSTRAP_PERMISSIONS_API_VERSION,
+  compactBootstrapPermissions,
+  expandBootstrapPermissions,
+} from "../core/bootstrap-permissions.ts";
+
+export type {
+  BootstrapPermissions,
+  BootstrapPermissionsCompact,
+  BootstrapPermissionsFull,
+  BootstrapPermissionsWire,
+} from "../core/bootstrap-permissions.ts";
+
 export { passwordGrant, safeRedirectPath } from "../auth/sign-in.ts";
 
 export {

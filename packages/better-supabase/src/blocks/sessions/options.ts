@@ -22,7 +22,10 @@ export type SessionsSqlOptions = {
    * is the string form with options. Every object form takes `tables`, the
    * tables the payload reads (model keys): `bsb.bootstrap({ rpc })` tags its
    * cache entry with them, and without `tables` `gen` derives them from the
-   * function body. Renders `better_supabase.bootstrap_<name>`.
+   * function body. Renders `better_supabase.bootstrap_<name>`. With the
+   * provider's `functions.bootstrapPermissions` the wrapper also returns the
+   * caller's permissions (`Bootstrap.permissions`); `permissions: false` on an
+   * entry leaves them out.
    */
   readonly bootstrap?: Readonly<
     Record<
@@ -32,17 +35,20 @@ export type SessionsSqlOptions = {
           readonly function: string;
           readonly tables?: readonly string[];
           readonly subject?: string | false;
+          readonly permissions?: false;
         }
       | {
           readonly readSet: string;
           readonly tables?: readonly string[];
           readonly subject?: string | false;
+          readonly permissions?: false;
         }
       | {
           readonly readSets: readonly string[];
           readonly shell?: string;
           readonly tables?: readonly string[];
           readonly subject?: string | false;
+          readonly permissions?: false;
         }
     >
   >;

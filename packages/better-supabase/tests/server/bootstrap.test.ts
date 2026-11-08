@@ -107,6 +107,56 @@ describe("server.bootstrapFor()", () => {
     expect(calls).toHaveLength(2);
   });
 
+  it("expands the provider's permissions from the full and the compact form", async () => {
+    row = {
+      ...row,
+      permissions: { apiVersion: 1, tenants: { t1: ["a.read"] }, platform: [] },
+    };
+
+    expect(
+      (await server.bootstrapFor(await signedIn(), { rpc: "home" }))
+        .permissions,
+    ).toEqual({ apiVersion: 1, tenants: { t1: ["a.read"] }, platform: [] });
+
+    server.sessions.clear();
+
+    row = {
+      ...row,
+      permissions: {
+        apiVersion: 1,
+        form: "compact",
+        keys: ["a.read", "b.read"],
+        tenants: { t1: "Ag" },
+        platform: "AQ",
+      },
+    };
+
+    expect(
+      (await server.bootstrapFor(await signedIn(), { rpc: "home" }))
+        .permissions,
+    ).toEqual({
+      apiVersion: 1,
+      tenants: { t1: ["b.read"] },
+      platform: ["a.read"],
+    });
+  });
+
+  it("returns no permissions for another apiVersion or a wrapper without them", async () => {
+    row = { ...row, permissions: { apiVersion: 2, tenants: {} } };
+
+    expect(
+      (await server.bootstrapFor(await signedIn(), { rpc: "home" }))
+        .permissions,
+    ).toBeNull();
+
+    row = { ...row, permissions: undefined };
+
+    expect(
+      (await server.bootstrapFor(await signedIn(), { rpc: "other" }))
+        .permissions,
+    ).toBeNull();
+  });
+
   it("runs a read set in the wrapper call and decodes its reads", async () => {
     row = { ...row, reads: { customers: { rows: null, count: 4 } } };
 

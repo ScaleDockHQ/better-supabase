@@ -259,6 +259,7 @@ const authorization = v.strictObject({
     portalParties: v.optional(v.string()),
     subject: v.optional(v.string()),
     subjectForTenant: v.optional(v.string()),
+    bootstrapPermissions: v.optional(v.string()),
     approverFor: v.optional(v.string()),
     managedUsers: v.optional(v.string()),
   }),

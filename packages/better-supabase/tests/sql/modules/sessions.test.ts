@@ -324,3 +324,41 @@ describe("sessions hook plan", () => {
     ).toThrow(/truncatedClaim/);
   });
 });
+
+describe("sessions bootstrap permissions", () => {
+  const render = (entry: unknown) =>
+    moduleBody("sessions", {
+      modules: { sessions: { options: { bootstrap: { home: entry } } } },
+      accessProvider: {
+        name: "acme-authz",
+        scope: "organization",
+        idType: "uuid",
+        functions: {
+          idsWith: "acme.ids({permission})",
+          isPlatform: "acme.is({permission})",
+          bootstrapPermissions: "acme.permissions_for({tenant})",
+        },
+      },
+    })!;
+
+  it("returns the provider's permissions for the call's tenant", () => {
+    const sql = render("app.home_data");
+
+    expect(sql).toContain(
+      "'permissions', to_jsonb(acme.permissions_for(nullif(args ->> 'tenant', '')))",
+    );
+    expect(sql).not.toContain("my_permissions");
+  });
+
+  it("leaves them out of an entry that sets permissions: false", () => {
+    expect(
+      render({ function: "app.home_data", permissions: false }),
+    ).not.toContain("'permissions'");
+  });
+
+  it("returns none without the provider's template", () => {
+    expect(
+      sessions({ options: { bootstrap: { home: "app.home_data" } } }),
+    ).not.toContain("'permissions'");
+  });
+});

@@ -778,6 +778,49 @@ carries the user's other tenants. The template must fail closed: `null` for an
 unknown tenant, a tenant the user has no membership in and a null tenant. A
 call without a tenant still gets `subject`.
 
+### Permissions in the bootstrap
+
+A provider that sets `functions.bootstrapPermissions` gets the caller's
+permissions returned by every sessions bootstrap wrapper, in the query that
+checks the session, as `Bootstrap.permissions`. The wrapper calls only your
+template (`{tenant}` is the page's tenant, or `null` for every tenant the
+caller belongs to); it never names a provider function. Set `permissions:
+false` on a bootstrap entry to leave them out.
+
+The value is versioned (`apiVersion: 1`) and has two forms:
+
+```json
+{
+  "apiVersion": 1,
+  "tenants": { "<tenant id>": ["file.read", "file.write"] },
+  "platform": []
+}
+```
+
+```json
+{
+  "apiVersion": 1,
+  "form": "compact",
+  "keys": ["file.read", "file.write", "invoice.read"],
+  "tenants": { "<tenant id>": "Bw" },
+  "platform": "AQ"
+}
+```
+
+In the compact form `keys` lists every key once and each tenant (and
+`platform`) is a bitset over that list in base64 or base64url: bit `i` is bit
+`i % 8` of byte `i / 8`, least significant first, and means `keys[i]` is held.
+Postgres writes it with `encode(bytes, 'base64')`. `compactBootstrapPermissions`
+and `expandBootstrapPermissions` from `better-supabase/server` convert between
+the forms. With 150 tenants and 300 keys, the full form is 737,192 bytes and
+the compact form 21,314 (97 percent less).
+
+Reading fails closed: another `apiVersion`, a malformed list, a bitset with a
+bit past the key list or a damaged encoding gives `permissions: null`, and the
+page falls back to its authorizer. A provider returns an empty list for a
+tenant it does not know. The page still asks the authorizer for the decision;
+the permissions are data it can render from, never an allow.
+
 ### Memberships without `memberIds`
 
 A provider that lists `memberships` for the tenant scope and leaves
@@ -888,6 +931,7 @@ over the provider's.
 | `wildcards`                                       | the wildcard grants `permission_matches` honours (`all`, `prefix`, `none`)                   | next minor |
 | `memberships[].userKey`, `suspension.userKey`     | the user key of the membership table and of `blocks.permissions.disabled`                    | next minor |
 | `functions.subjectForTenant`                      | the bootstrap subject restricted to the page's tenant                                        | next minor |
+| `functions.bootstrapPermissions`                  | the caller's permissions in the bootstrap, full or compact (`apiVersion: 1`)                 | next minor |
 | `functions.approverFor`, `functions.managedUsers` | the user sets for approver covers and manager chains                                         | next minor |
 | `personas: 'roles'`, `fixtureRoles`               | one access matrix file per fixture role                                                      | next minor |
 | `permissions[].levels`                            | the levels of a permission (`<permission>@<level>` keys)                                     | next minor |

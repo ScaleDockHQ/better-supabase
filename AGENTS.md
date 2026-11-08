@@ -452,6 +452,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0521: Plan the access token hook: reuse a current refresh, slim OAuth tokens.
 - 0522: Cap the Supabase JWKS cache at 600 seconds and expose purgeKeys.
 - 0523: Measure the JWT matrix: hook time is small, memberships claim bytes are not.
+- 0524: Return the caller's permissions from the bootstrap in a versioned, compact form.
 
 ## Pre-release pins
 

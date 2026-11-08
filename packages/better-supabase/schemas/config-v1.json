@@ -948,6 +948,9 @@
                 "subjectForTenant": {
                   "type": "string"
                 },
+                "bootstrapPermissions": {
+                  "type": "string"
+                },
                 "approverFor": {
                   "type": "string"
                 },

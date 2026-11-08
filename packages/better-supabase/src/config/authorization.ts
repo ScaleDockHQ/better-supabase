@@ -133,6 +133,17 @@ export interface AuthorizationFunctions {
    */
   readonly subjectForTenant?: string;
   /**
+   * The caller's permissions as one jsonb value in the shape of
+   * `BootstrapPermissionsWire` (`apiVersion: 1`): lists of keys per tenant, or
+   * the compact form (a key index and one bitset per tenant). `{tenant}` is the
+   * page's tenant as a text expression, or `null` for every tenant the caller
+   * belongs to. The sessions bootstrap wrapper calls it, so a page reads its
+   * permissions in the query that checks the session; it never names a provider
+   * function itself. The value must fail closed: an empty tenant list for an
+   * unknown tenant. Without it the wrapper returns no permissions.
+   */
+  readonly bootstrapPermissions?: string;
+  /**
    * The user ids the caller approves for (out-of-office covers and delegations
    * included), as a set of uuid: it is used as `select u from <template> as
    * t(u)`. No placeholders. Without it `isApprover` alone decides.

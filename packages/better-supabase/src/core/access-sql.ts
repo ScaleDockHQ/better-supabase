@@ -34,6 +34,7 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   portalParties: [],
   subject: [],
   subjectForTenant: ["tenant", "scope"],
+  bootstrapPermissions: ["tenant", "scope"],
   approverFor: [],
   managedUsers: [],
 };

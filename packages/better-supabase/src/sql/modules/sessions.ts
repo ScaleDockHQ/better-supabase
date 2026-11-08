@@ -66,7 +66,11 @@ const FUNCTION_NAME = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
 
 function isFunctionRef(
   value: unknown,
-): value is { readonly function: string; readonly subject?: string | false } {
+): value is {
+  readonly function: string;
+  readonly subject?: string | false;
+  readonly permissions?: false;
+} {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -97,7 +101,11 @@ function checkTables(name: string, entry: object): void {
 
 function isReadSetRef(
   value: unknown,
-): value is { readonly readSet: string; readonly subject?: string | false } {
+): value is {
+  readonly readSet: string;
+  readonly subject?: string | false;
+  readonly permissions?: false;
+} {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -112,6 +120,7 @@ function isReadSetsRef(
   readonly readSets: readonly string[];
   readonly shell?: string;
   readonly subject?: string | false;
+  readonly permissions?: false;
 } {
   return (
     typeof value === "object" &&
@@ -129,12 +138,19 @@ interface BootstrapTarget {
   readonly readSets: readonly string[];
   /** A no-argument function whose jsonb result is the authorizer subject. */
   readonly subject?: string | undefined;
+  /** The entry sets `permissions: false`. */
+  readonly noPermissions?: boolean;
   /**
    * `authorization.functions.subjectForTenant` with the call's tenant filled
    * in, for a target that uses the provider's `subject`. `null` for an unknown
    * tenant, so the payload never names the user's other tenants.
    */
   readonly subjectForTenant?: string | undefined;
+  /**
+   * `authorization.functions.bootstrapPermissions` with the call's tenant
+   * filled in; absent when the entry sets `permissions: false`.
+   */
+  readonly permissions?: string | undefined;
 }
 
 /**
@@ -171,21 +187,34 @@ function bootstrapFunctions(
   const template = layout.accessProvider?.functions.subjectForTenant;
   const provider = layout.accessProvider;
 
-  return bootstrapTargets(ctx, layout).map((target) =>
-    template !== undefined &&
+  const permissions = provider?.functions.bootstrapPermissions;
+
+  return bootstrapTargets(ctx, layout).map((target) => ({
+    ...target,
+    ...(template !== undefined &&
     provider !== undefined &&
     target.subject !== undefined &&
     target.subject === provider.functions.subject
       ? {
-          ...target,
           subjectForTenant: fillTemplate(
             "authorization.functions.subjectForTenant",
             template,
             { tenant: "(args ->> 'tenant')", scope: provider.scope },
           ),
         }
-      : target,
-  );
+      : {}),
+    ...(permissions !== undefined &&
+    provider !== undefined &&
+    !target.noPermissions
+      ? {
+          permissions: fillTemplate(
+            "authorization.functions.bootstrapPermissions",
+            permissions,
+            { tenant: "nullif(args ->> 'tenant', '')", scope: provider.scope },
+          ),
+        }
+      : {}),
+  }));
 }
 
 function bootstrapTargets(
@@ -231,6 +260,7 @@ function bootstrapTargets(
         fn: fn.function,
         readSets: [],
         subject: subjectOf(name, fn.subject, fallback),
+        ...(fn.permissions === false ? { noPermissions: true } : {}),
       };
     }
 
@@ -257,6 +287,7 @@ function bootstrapTargets(
         fn: fn.shell,
         readSets: fn.readSets,
         subject: subjectOf(name, fn.subject, fallback),
+        ...(fn.permissions === false ? { noPermissions: true } : {}),
       };
     }
 
@@ -272,6 +303,7 @@ function bootstrapTargets(
         fn: `public.rs_${fn.readSet}`,
         readSets: [],
         subject: subjectOf(name, fn.subject, fallback),
+        ...(fn.permissions === false ? { noPermissions: true } : {}),
       };
     }
 
@@ -340,7 +372,7 @@ function bootstrapWrappers(
     : "auth.jwt() -> 'authz_ver'";
 
   const wrappers = functions.map(
-    ({ name, fn, readSets, subject, subjectForTenant }) => {
+    ({ name, fn, readSets, subject, subjectForTenant, permissions }) => {
       const wrapper = `better_supabase.bootstrap_${name}`;
       const picks = readSets.length > 0;
       const dataSql = fn === undefined ? "null" : `to_jsonb(${fn}(args))`;
@@ -400,7 +432,7 @@ begin${guard}
     'authz_version', ${live},
     'token_authz_version', auth.jwt() -> 'authz_ver',
     'tenant', args ->> 'tenant',
-    'data', ${dataSql}${readsSql}${subjectSql(subject, subjectForTenant)}
+    'data', ${dataSql}${readsSql}${subjectSql(subject, subjectForTenant)}${permissions === undefined ? "" : `,\n    'permissions', to_jsonb(${permissions})`}
   );
 end;
 $$;

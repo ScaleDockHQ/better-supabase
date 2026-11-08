@@ -31,6 +31,7 @@ const provider: AuthorizationProvider = {
     isPlatform: "authz.is_platform({permission})",
     subject: "authz.subject_for_caller",
     subjectForTenant: "authz.subject_for(auth.uid(), {tenant})",
+    bootstrapPermissions: "authz.bootstrap_permissions({tenant})",
     approverFor: "authz.approver_for_ids()",
     managedUsers: "authz.managed_user_ids()",
   },
