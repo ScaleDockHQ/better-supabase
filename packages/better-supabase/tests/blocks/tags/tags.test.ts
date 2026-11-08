@@ -110,4 +110,40 @@ describe("createTags", () => {
       },
     ]);
   });
+
+  it("replaces a record's tags in one read plus one call per change, each through the hooks", async () => {
+    const fake = fakeTransport({
+      subject_tags: [{ id: "keep" }, { id: "drop-1" }, { id: "drop-2" }],
+      tag: true,
+      untag: true,
+    });
+
+    const seen: string[] = [];
+
+    const tags = createTags({
+      transport: fake.transport,
+      tenant: "org-1",
+      hooks: {
+        attach: { after: () => void seen.push("attach") },
+        detach: { after: () => void seen.push("detach") },
+      },
+    });
+
+    const result = await tags
+      .replace({ record: DEAL, tagIds: ["keep", "add-1", "add-2", "add-3"] })
+      .orThrow();
+
+    // The round trips a single SQL function would replace (ADR 0541): one
+    // read, three attaches and two detaches, each seen by an app hook.
+    expect(result).toEqual({ attached: 3, detached: 2 });
+    expect(fake.calls.map(([fn]) => fn)).toEqual([
+      "subject_tags",
+      "tag",
+      "tag",
+      "tag",
+      "untag",
+      "untag",
+    ]);
+    expect(seen).toEqual(["attach", "attach", "attach", "detach", "detach"]);
+  });
 });
