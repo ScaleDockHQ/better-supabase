@@ -19,7 +19,7 @@ export function SpecViewLazy({ spec }: { spec: JsonRenderSpec }) {
   );
 }
 
-export function SpecViewSkeleton() {
+function SpecViewSkeleton() {
   return (
     <div className="flex flex-col gap-2">
       <Skeleton className="h-5 w-40" />
