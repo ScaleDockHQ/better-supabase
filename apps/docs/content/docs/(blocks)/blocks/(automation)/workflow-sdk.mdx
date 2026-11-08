@@ -653,7 +653,7 @@ blocks: {
 ```
 
 `retention` takes a number of `days` or `hours`. Without pg_cron, run
-[`db prune-workflows`](/docs/cli/db#prune-workflows) on a schedule, or call
+[`workflows prune`](/docs/cli/workflows#prune) on a schedule, or call
 `world.purgeRuns({ olderThan: "30 days" })`. Each deletes completed, failed
 and cancelled runs (`statuses` narrows it) that ended longer ago than the
 cutoff, 500 runs per statement until none are left. A hook whose token

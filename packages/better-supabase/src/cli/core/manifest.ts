@@ -268,6 +268,34 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
   },
   {
+    name: "workflows",
+    description: "Maintains the Workflow SDK runs the database keeps",
+    group: "local",
+    docs: "/docs/cli/workflows",
+    effects: [],
+    subcommands: [
+      {
+        name: "prune",
+        description:
+          "Deletes ended Workflow SDK runs, with their events, steps, streams and hooks, in batches",
+        docs: "/docs/cli/workflows#prune",
+        examples: [
+          {
+            command: "better-supabase workflows prune --older-than 30d",
+            description:
+              "Deletes completed, failed and cancelled runs older than 30 days",
+          },
+          {
+            command:
+              "better-supabase workflows prune --older-than 7d --status failed --dry-run",
+            description: "Counts the failed runs it would delete",
+          },
+        ],
+        effects: [{ kind: "database", access: "write" }],
+      },
+    ],
+  },
+  {
     name: "automations",
     description: "Lists the automations the installed blocks ship",
     group: "inspect",
@@ -527,7 +555,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "db",
     description:
-      "Runs SQL files and seeds against the database, backfills columns, prunes ended workflow runs, and diffs the declarative schema: the local stack by default, or the one in the connection string",
+      "Runs SQL files and seeds against the database, backfills columns, and diffs the declarative schema: the local stack by default, or the one in the connection string",
     group: "local",
     docs: "/docs/cli/db",
     effects: [{ kind: "database", access: "write" }],
@@ -602,25 +630,6 @@ export const COMMANDS: readonly CommandSpec[] = [
               'better-supabase db backfill projects.settings --array tags --match \'{"name":"old"}\' --delete --dry-run',
             description:
               "Counts the rows and array elements it would remove from the tags array",
-          },
-        ],
-        effects: [{ kind: "database", access: "write" }],
-      },
-      {
-        name: "prune-workflows",
-        description:
-          "Deletes ended Workflow SDK runs, with their events, steps, streams and hooks, in batches",
-        docs: "/docs/cli/db#prune-workflows",
-        examples: [
-          {
-            command: "better-supabase db prune-workflows --older-than 30d",
-            description:
-              "Deletes completed, failed and cancelled runs older than 30 days",
-          },
-          {
-            command:
-              "better-supabase db prune-workflows --older-than 7d --status failed --dry-run",
-            description: "Counts the failed runs it would delete",
           },
         ],
         effects: [{ kind: "database", access: "write" }],

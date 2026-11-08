@@ -64,6 +64,7 @@ const PAGES: Readonly<Record<string, string>> = {
   login: "cli/login.mdx",
   logout: "cli/login.mdx",
   whoami: "cli/login.mdx",
+  workflows: "cli/workflows.mdx",
   config: "cli/config.mdx",
 };
 

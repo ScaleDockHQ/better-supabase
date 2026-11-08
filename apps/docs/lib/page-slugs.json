@@ -273,6 +273,7 @@
   "cli/presets",
   "cli/spec",
   "cli/table",
+  "cli/workflows",
   "concepts",
   "concepts/audit-files",
   "concepts/better-result",

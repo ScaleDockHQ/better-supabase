@@ -9,6 +9,7 @@
     "cache",
     "db",
     "table",
+    "workflows",
     "automations",
     "migrate",
     "spec",

@@ -482,7 +482,7 @@ ${cronJob(
   "better-supabase-workflow-purge",
   "17 * * * *",
   `select ${purge}(interval ${sqlString(retention)})`,
-  `pg_cron is not installed: run better-supabase db prune-workflows on a schedule to delete old workflow runs`,
+  `pg_cron is not installed: run better-supabase workflows prune on a schedule to delete old workflow runs`,
 )}`,
     );
   }
