@@ -67,7 +67,10 @@ export function ownedColumnsCodemod(): Codemod {
       let columns: readonly OwnedColumn[] = [];
 
       try {
-        const layout = await layoutFor(config, {}, config.blockNames);
+        const layout = {
+          ...(await layoutFor(config, {}, config.blockNames)),
+          keepUndeclaredColumns: true,
+        };
 
         columns = ownedColumns(
           renderBlocks(config.blockNames, layout).map((file) => ({

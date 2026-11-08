@@ -385,7 +385,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "A block adds a column to a table your files create",
     description:
-      "A block runs over a table the app creates and adds an optional column to it with `add column if not exists`, and the app's own schema files don't declare that column. A later release stops adding columns to tables you own, and the feature that needs the column turns off instead. Run `better-supabase codemod owned-columns` to declare the columns in your schema files, or map the column to `null` in `blocks.<name>.columns` to keep the feature off.",
+      "A block runs over a table the app creates and adds an optional column to it with `add column if not exists`, and the app's own schema files don't declare that column. Blocks no longer add columns to tables you own, and the feature that needs the column turns off instead. Run `better-supabase codemod owned-columns` to declare the columns in your schema files, or map the column to `null` in `blocks.<name>.columns` to keep the feature off.",
     check: blockColumnsOnOwnedTables,
   },
   {

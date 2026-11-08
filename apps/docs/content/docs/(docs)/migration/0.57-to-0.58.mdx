@@ -228,8 +228,13 @@ the file that alters the table, or into `<table>.ext.sql`. For a table you
 create, list the columns in its comment as `@bsb fields plan, seats`.
 
 `codemod owned-columns` declares the columns blocks add to tables you own as
-`<table>.block-columns.sql`. A later release stops adding such columns, so run it
-now (ADR 0373).
+`<table>.block-columns.sql`. Blocks no longer add columns to a table you create:
+a feature whose column your table lacks is off (ADR 0580). Before you run
+`upgrade`, run `better-supabase codemod owned-columns`, commit the
+`*.block-columns.sql` files, and check `better-supabase doctor` for BS622. The
+statements are the blocks' own, so a database that has the columns changes
+nothing, and a database that lacks one keeps the feature off until you declare
+it.
 
 `blocks.memberships.options.sameTenant` defaults to the foreign keys your schema
 declares. `upgrade` writes a `bsb_same_tenant_<column>` trigger for each

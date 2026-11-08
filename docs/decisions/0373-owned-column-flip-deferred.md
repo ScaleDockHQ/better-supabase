@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by 0580
 
 ## Context
 
