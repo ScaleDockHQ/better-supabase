@@ -11,7 +11,7 @@ export interface BlockContributions {
   readonly accounting: AccountingContribution;
   readonly acknowledgements: AcknowledgementContribution;
   readonly approvals: ApprovalContribution;
-  readonly bulk: BulkActionContribution;
+  readonly "bulk-actions": BulkActionContribution;
   readonly consents: ConsentPurposeContribution;
   readonly housekeeping: HousekeepingContribution;
   readonly imports: ImportTargetContribution;

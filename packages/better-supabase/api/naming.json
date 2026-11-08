@@ -1827,6 +1827,48 @@
       "to": "blocks.time-entries",
       "kind": "configKey",
       "since": "0.54"
+    },
+    {
+      "from": "blocks/bulk",
+      "to": "blocks/bulk-actions",
+      "kind": "subpath",
+      "since": "0.54"
+    },
+    {
+      "from": "createBulk",
+      "to": "createBulkActions",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "bulkBlock",
+      "to": "bulkActionsBlock",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "bulkEvents",
+      "to": "bulkActionsEvents",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "BulkEvents",
+      "to": "BulkActionsEvents",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "BulkOptions",
+      "to": "BulkActionsOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "blocks.bulk",
+      "to": "blocks.bulk-actions",
+      "kind": "configKey",
+      "since": "0.54"
     }
   ],
   "allowlist": {

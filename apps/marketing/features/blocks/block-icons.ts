@@ -241,7 +241,7 @@ export const BLOCK_ICONS = {
   "custom-fields": TextCursorInputIcon,
   "saved-views": BookmarkIcon,
   relations: NetworkIcon,
-  bulk: ListChecksIcon,
+  "bulk-actions": ListChecksIcon,
   search: SearchIcon,
   approvals: StampIcon,
   "option-sets": ListPlusIcon,

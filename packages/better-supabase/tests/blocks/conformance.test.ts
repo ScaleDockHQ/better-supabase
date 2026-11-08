@@ -70,7 +70,7 @@ const NO_FIELDS: readonly string[] = [
   // Customer rows mirror Stripe and are written by the webhook sync.
   "billing",
   // Run records of the block's own bulk jobs.
-  "bulk",
+  "bulk-actions",
   // A channel names a conversation; app data goes on its linked record or on messages.
   "channels",
   // Rules and alerts are fixed records; app data goes on the medication orders.

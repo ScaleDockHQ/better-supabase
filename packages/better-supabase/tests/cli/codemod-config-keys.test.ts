@@ -20,6 +20,7 @@ const rows = [
   row("api.specs.outputs.*.output", "api.specs.outputs.*.file"),
   row("organization", "auth.tenant"),
   row("blocks.time-tracking", "blocks.time-entries"),
+  row("blocks.bulk", "blocks.bulk-actions"),
 ];
 
 describe("renameConfigKeys", () => {
@@ -69,6 +70,17 @@ export default defineConfig({
 
     expect(text).toBe(
       `const recipes = [{ name: "a", config: defineConfig({ recordTypes: {} }) }, { subjects: 1, config: defineConfig({ gen: { file: "x" } }) }];`,
+    );
+  });
+
+  it("quotes a new key that is not an identifier", () => {
+    const { text } = renameConfigKeys(
+      "export default defineConfig({ blocks: { bulk: {}, tasks: { bulk: 1 } } });",
+      rows,
+    );
+
+    expect(text).toBe(
+      'export default defineConfig({ blocks: { "bulk-actions": {}, tasks: { bulk: 1 } } });',
     );
   });
 

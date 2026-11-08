@@ -110,7 +110,7 @@ export async function WorkGrid({
                 views={views.kind === "ok" ? views.data : []}
                 query={query}
                 canWrite={can(permissions, "tasks.write")}
-                canBulk={can(permissions, "bulk.run")}
+                canBulk={can(permissions, "bulk_actions.run")}
               />
               {grid.data.rows.length === 0 ? (
                 <Empty className="border">

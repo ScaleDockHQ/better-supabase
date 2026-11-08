@@ -381,7 +381,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "bulk-action-bar",
     title: "Bulk action bar",
-    blocks: ["bulk"],
+    blocks: ["bulk-actions"],
     kind: "component",
     description:
       "A bar over a selection of rows that runs an action on all of them and reports failures.",

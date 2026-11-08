@@ -9,7 +9,7 @@ import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
-import { bulkBlock } from "better-supabase/blocks/bulk";
+import { bulkActionsBlock } from "better-supabase/blocks/bulk-actions";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { flagsBlock } from "better-supabase/blocks/flags";
@@ -34,7 +34,7 @@ export const blockSet = defineBlocks(blockConfig, {
   approvals: approvalsBlock,
   audit: auditBlock,
   billing: billingBlock,
-  bulk: bulkBlock,
+  bulkActions: bulkActionsBlock,
   enrollments: enrollmentsBlock,
   entitlements: entitlementsBlock,
   flags: flagsBlock,

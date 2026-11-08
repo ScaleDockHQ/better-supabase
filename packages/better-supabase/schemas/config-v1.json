@@ -1803,7 +1803,7 @@
               "billable-time",
               "billing",
               "bookings",
-              "bulk",
+              "bulk-actions",
               "calendar",
               "care-plans",
               "cases",
@@ -1999,7 +1999,7 @@
                   "billable-time",
                   "billing",
                   "bookings",
-                  "bulk",
+                  "bulk-actions",
                   "calendar",
                   "care-plans",
                   "cases",
@@ -2242,8 +2242,8 @@
             "bookings": {
               "$ref": "#/$defs/blocks/bookings"
             },
-            "bulk": {
-              "$ref": "#/$defs/blocks/bulk"
+            "bulk-actions": {
+              "$ref": "#/$defs/blocks/bulk-actions"
             },
             "calendar": {
               "$ref": "#/$defs/blocks/calendar"
@@ -4641,7 +4641,7 @@
           }
         }
       },
-      "bulk": {
+      "bulk-actions": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {

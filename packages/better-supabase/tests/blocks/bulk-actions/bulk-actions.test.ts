@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createBulk } from "../../../src/blocks/bulk/index.ts";
+import { createBulkActions } from "../../../src/blocks/bulk-actions/index.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 
 function transport(results: Record<string, unknown>) {
@@ -41,10 +41,17 @@ describe("bulk client", () => {
     ];
 
     const sql = renderBlocks(
-      ["bulk", "tags", "state-machine", "relations", "trash", "collections"],
+      [
+        "bulk-actions",
+        "tags",
+        "state-machine",
+        "relations",
+        "trash",
+        "collections",
+      ],
       { appTables: { tasks: { subject: { type: "task" } } } },
     )
-      .filter((file) => file.module === "bulk")
+      .filter((file) => file.module === "bulk-actions")
       .map((file) => file.contents)
       .join("\n");
 
@@ -74,7 +81,7 @@ describe("bulk client", () => {
       },
     });
 
-    const bulk = createBulk({ transport: fake });
+    const bulk = createBulkActions({ transport: fake });
 
     const result = await bulk
       .run({
@@ -115,7 +122,7 @@ describe("bulk client", () => {
       start_bulk: { id: "run-1", total: 3, topic: "bulk:run-1" },
     });
 
-    const bulk = createBulk({ transport: fake, limit: 2 });
+    const bulk = createBulkActions({ transport: fake, limit: 2 });
 
     const input = {
       organizationId: ORG,
@@ -152,7 +159,7 @@ describe("bulk client", () => {
       bulk_step: [step(2, false), step(3, true), step(2, false), step(3, true)],
     });
 
-    const bulk = createBulk({ transport: fake });
+    const bulk = createBulkActions({ transport: fake });
     expect(await bulk.drain({ id: "run-1", size: 2 }).orThrow()).toMatchObject({
       status: "completed",
       done: true,
@@ -191,7 +198,7 @@ describe("bulk client", () => {
       ],
     });
 
-    const bulk = createBulk({ transport: fake, schema: "app" });
+    const bulk = createBulkActions({ transport: fake, schema: "app" });
     expect(await bulk.get("run-1").orThrow()).toMatchObject({
       status: "pending",
       finishedAt: undefined,

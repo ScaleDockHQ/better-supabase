@@ -783,7 +783,7 @@ grant select, insert, update, delete on "public"."invoices" to authenticated;`,
   });
 
   it("renders app_table_set for the bulk action over subject tables", () => {
-    const schema = render([...BLOCKS, "permissions", "bulk"], {
+    const schema = render([...BLOCKS, "permissions", "bulk-actions"], {
       appTables: {
         tasks: {
           columns: {

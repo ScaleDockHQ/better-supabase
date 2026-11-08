@@ -14428,7 +14428,7 @@ export async function CustomFieldsEditor({
 
 ## Bulk action bar
 
-A bar over a selection of rows that runs an action on all of them and reports failures. It loads its data on the server through the block's client; the [bulk block](https://bettersupabase.com/blocks/bulk) must be installed (`npx better-supabase add bulk`). Page: https://bettersupabase.com/recipes/bulk-action-bar.
+A bar over a selection of rows that runs an action on all of them and reports failures. It loads its data on the server through the block's client; the [bulk-actions block](https://bettersupabase.com/blocks/bulk-actions) must be installed (`npx better-supabase add bulk-actions`). Page: https://bettersupabase.com/recipes/bulk-action-bar.
 
 Web, with shadcn components:
 

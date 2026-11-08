@@ -54,7 +54,7 @@
   "blocks/billable-time",
   "blocks/billing",
   "blocks/bookings",
-  "blocks/bulk",
+  "blocks/bulk-actions",
   "blocks/calendar",
   "blocks/care",
   "blocks/care-plans",

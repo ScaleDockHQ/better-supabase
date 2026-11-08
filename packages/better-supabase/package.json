@@ -901,10 +901,10 @@
       "types": "./dist/blocks/relations/index.d.ts",
       "default": "./dist/blocks/relations/index.js"
     },
-    "./blocks/bulk": {
-      "@better-supabase/source": "./src/blocks/bulk/index.ts",
-      "types": "./dist/blocks/bulk/index.d.ts",
-      "default": "./dist/blocks/bulk/index.js"
+    "./blocks/bulk-actions": {
+      "@better-supabase/source": "./src/blocks/bulk-actions/index.ts",
+      "types": "./dist/blocks/bulk-actions/index.d.ts",
+      "default": "./dist/blocks/bulk-actions/index.js"
     },
     "./blocks/search": {
       "@better-supabase/source": "./src/blocks/search/index.ts",
@@ -2164,9 +2164,9 @@
         "types": "./dist/blocks/relations/index.d.ts",
         "default": "./dist/blocks/relations/index.js"
       },
-      "./blocks/bulk": {
-        "types": "./dist/blocks/bulk/index.d.ts",
-        "default": "./dist/blocks/bulk/index.js"
+      "./blocks/bulk-actions": {
+        "types": "./dist/blocks/bulk-actions/index.d.ts",
+        "default": "./dist/blocks/bulk-actions/index.js"
       },
       "./blocks/search": {
         "types": "./dist/blocks/search/index.d.ts",

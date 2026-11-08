@@ -436,7 +436,7 @@ export interface BlockNameRegistry {
     };
     readonly primary: "booking";
   };
-  readonly "bulk": {
+  readonly "bulk-actions": {
     readonly tables: {
       readonly "runs": "id" | "tenant" | "subjectType" | "action" | "args" | "ids" | "position" | "succeeded" | "failed" | "results" | "status" | "createdBy" | "createdAt" | "finishedAt";
     };

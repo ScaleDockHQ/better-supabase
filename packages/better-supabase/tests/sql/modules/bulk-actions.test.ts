@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
-  modules: readonly string[] = ["bulk"],
+  modules: readonly string[] = ["bulk-actions"],
   options: Record<string, unknown> = {},
 ): string =>
-  renderBlocks(modules, { modules: { bulk: { options } } })
-    .filter((file) => file.module === "bulk")
+  renderBlocks(modules, { modules: { "bulk-actions": { options } } })
+    .filter((file) => file.module === "bulk-actions")
     .map((file) => file.contents)
     .join("\n");
 
@@ -17,7 +17,13 @@ describe("bulk module", () => {
     expect(bare).toContain("array[]::text[]");
     expect(bare).not.toContain("'tags.set'");
 
-    const full = sqlOf(["bulk", "tags", "state-machine", "relations", "trash"]);
+    const full = sqlOf([
+      "bulk-actions",
+      "tags",
+      "state-machine",
+      "relations",
+      "trash",
+    ]);
 
     expect(full).toContain(
       "array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash']",
@@ -30,10 +36,10 @@ describe("bulk module", () => {
   });
 
   it("knows appTables.set when the app has tables", () => {
-    const sql = renderBlocks(["bulk"], {
+    const sql = renderBlocks(["bulk-actions"], {
       appTables: { tasks: { subject: { type: "task" } } },
     })
-      .filter((file) => file.module === "bulk")
+      .filter((file) => file.module === "bulk-actions")
       .map((file) => file.contents)
       .join("\n");
 
@@ -44,7 +50,7 @@ describe("bulk module", () => {
   });
 
   it("calls an app's own actions", () => {
-    const sql = sqlOf(["bulk"], {
+    const sql = sqlOf(["bulk-actions"], {
       actions: { "tasks.archive": "app.archive_task" },
     });
 
@@ -56,24 +62,28 @@ describe("bulk module", () => {
 
   it("rejects bad action options and limits", () => {
     expect(() =>
-      sqlOf(["bulk", "tags"], { actions: { "tags.set": "app.x" } }),
+      sqlOf(["bulk-actions", "tags"], { actions: { "tags.set": "app.x" } }),
     ).toThrow(/built-in/);
-    expect(() => sqlOf(["bulk"], { actions: { archive: "app.x" } })).toThrow(
-      /block\.method/,
-    );
     expect(() =>
-      sqlOf(["bulk"], { actions: { "tasks.archive": "app.x; drop" } }),
+      sqlOf(["bulk-actions"], { actions: { archive: "app.x" } }),
+    ).toThrow(/block\.method/);
+    expect(() =>
+      sqlOf(["bulk-actions"], { actions: { "tasks.archive": "app.x; drop" } }),
     ).toThrow(/schema\.function/);
-    expect(() => sqlOf(["bulk"], { actions: [] })).toThrow(/map action names/);
-    expect(() => sqlOf(["bulk"], { limit: 0 })).toThrow(/limit/);
-    expect(sqlOf(["bulk"], { limit: 50 })).toContain("more than 50 rows");
+    expect(() => sqlOf(["bulk-actions"], { actions: [] })).toThrow(
+      /map action names/,
+    );
+    expect(() => sqlOf(["bulk-actions"], { limit: 0 })).toThrow(/limit/);
+    expect(sqlOf(["bulk-actions"], { limit: 50 })).toContain(
+      "more than 50 rows",
+    );
   });
 
   it("enqueues background runs only with the queue block", () => {
     expect(sqlOf()).toContain("BULK_NO_JOBS");
-    const jobs = sqlOf(["bulk", "queue"]);
+    const jobs = sqlOf(["bulk-actions", "queue"]);
     expect(jobs).not.toContain("BULK_NO_JOBS");
-    expect(jobs).toContain("queue => 'bulk'");
+    expect(jobs).toContain("queue => 'bulk-actions'");
   });
 
   it("runs background steps as the starting user and keeps them for the service role", () => {

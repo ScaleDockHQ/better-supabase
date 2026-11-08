@@ -786,7 +786,7 @@ function setRefusals(table: AppTable): readonly string[] {
   const subject = table.config.subject;
 
   if (
-    !table.ctx.installed("bulk") ||
+    !table.ctx.installed("bulk-actions") ||
     subject === undefined ||
     settableColumns(table.config).length === 0
   ) {
@@ -1261,7 +1261,7 @@ export function appTablesFiles(
     installed.includes("search")
       ? appTableSearchTriggers(moduleContext("search", layout, installed))
       : "",
-    installed.includes("bulk") && tables[0]
+    installed.includes("bulk-actions") && tables[0]
       ? appTableSetSql(
           tables.map((table) => ({
             name: table.name,

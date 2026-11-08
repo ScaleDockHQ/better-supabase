@@ -132,7 +132,9 @@ function scanSegment(
           const target = parts(row.to);
 
           if (target.parent === parts(row.from).parent) {
-            out += target.key;
+            out += /^[A-Za-z_$][\w$]*$/.test(target.key)
+              ? target.key
+              : JSON.stringify(target.key);
             last = "a";
             index = stop;
             continue;

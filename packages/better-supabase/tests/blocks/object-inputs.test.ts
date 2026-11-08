@@ -60,7 +60,7 @@ const POSITIONAL = new Set<string>([
   "banking/feed.ts:transactions",
   "billable-time/record-binding.ts:load",
   "billable-time/record-binding.ts:run",
-  "bulk/bulk.ts:async",
+  "bulk-actions/bulk-actions.ts:async",
   "clinical-decision-support/clinical-decision-support.ts:evaluate",
   "comments/client.ts:onMessage",
   "comments/record-binding.ts:count",

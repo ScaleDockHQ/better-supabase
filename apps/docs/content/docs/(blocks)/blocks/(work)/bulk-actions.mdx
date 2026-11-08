@@ -1,5 +1,5 @@
 ---
-title: Bulk actions
+title: BulkActions actions
 description: Run one action over many rows with a result per row, in one call up to a limit and as a background run on the jobs queue beyond it, as the user who started it.
 ---
 
@@ -14,7 +14,7 @@ better-supabase add bulk
 ```
 
 ```ts
-import { createBulk } from "better-supabase/blocks/bulk";
+import { createBulkActions } from "better-supabase/blocks/bulk-actions";
 ```
 
 ## Actions
@@ -59,7 +59,7 @@ hint when a row fails:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  "bulk": {
+  "bulk-actions": {
     options: {
       limit: 500,
       actions: { "tasks.archive": "app.archive_task" },
@@ -71,7 +71,7 @@ blocks: {
 Every row runs through the action's own checks, as the caller: `tags.set`
 calls `tag` and `untag`, so a row the user can't tag fails with
 `TAG_SUBJECT_FORBIDDEN` while the others go through. Running a bulk action
-also needs `bulk.run`, which the default member role has.
+also needs `bulk_actions.run`, which the default member role has.
 
 ## Run rows now
 
@@ -79,13 +79,13 @@ Server code calls the `bulk` instance on `db`, in the caller's organization. Wit
 
 ```ts title="src/lib/supabase/hooks.ts"
 export const { useList: useBulk } = defineDataHooks(
-  "bulk",
-  (db: AppDb) => db.bulk,
+  "bulk-actions",
+  (db: AppDb) => db.bulkActions,
 );
 ```
 
 ```ts
-const result = await db.bulk
+const result = await db.bulkActions
   .run({
     organizationId,
     subjectType: "task",
@@ -129,7 +129,7 @@ await bulk.apply({
 `apply` runs the rows now when they fit the limit and starts a background
 run otherwise; it resolves to `{ mode: "now", ...result }` or
 `{ mode: "background", id, total, topic }`. Pass the module's `limit` to
-`createBulk` when you changed it.
+`createBulkActions` when you changed it.
 
 ## Background runs
 
@@ -145,7 +145,7 @@ Each step takes the next rows (200 by default), switches to the user who
 started the run (their claims and the `authenticated` role), runs the rows,
 switches back, and saves the results. The rows run with the same
 permissions and policies as a call from that user, and a run whose user
-lost `bulk.run` stops as `failed`. A step that dies is retried by the queue
+lost `bulk_actions.run` stops as `failed`. A step that dies is retried by the queue
 and resumes where the last saved step ended.
 
 After each step the run broadcasts `progress` on its topic,
@@ -157,7 +157,7 @@ the user who started it can read it. A finished run records
 
 | Hint                  | When                                               |
 | --------------------- | -------------------------------------------------- |
-| `BULK_FORBIDDEN`      | The caller lacks `bulk.run`                        |
+| `BULK_FORBIDDEN`      | The caller lacks `bulk_actions.run`                |
 | `BULK_ACTION_UNKNOWN` | The action is not installed or configured          |
 | `BULK_TOO_MANY`       | More rows than the limit, or than 100,000 in a run |
 | `BULK_NO_JOBS`        | A background run without the jobs module           |
@@ -185,10 +185,10 @@ them from [reui.io](https://reui.io).
 
 ## Without the client
 
-`db.bulk` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+`db.bulkActions` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
 
 ```ts
-const bulk = createBulk({ transport });
+const bulk = createBulkActions({ transport });
 
 const result = await bulk
   .run({

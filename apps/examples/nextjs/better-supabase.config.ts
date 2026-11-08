@@ -422,7 +422,7 @@ export default defineConfig({
     sla: {},
     // Encrypted definitions and sensitive values are audited when read.
     "custom-fields": { options: { auditReads: true } },
-    bulk: {},
+    "bulk-actions": {},
     trash: {},
     relations: {},
     employees: { names: { employee: { url: "/people" } } },

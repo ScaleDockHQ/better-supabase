@@ -114,7 +114,7 @@ const PURE_BARRELS = [
   "blocks/saved-views",
   "blocks/service-accounts",
   "blocks/relations",
-  "blocks/bulk",
+  "blocks/bulk-actions",
   "blocks/undo",
   "blocks/search",
   "blocks/metrics",

@@ -1425,7 +1425,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "outbox",
         "drive",
         "subjects",
-        "bulk"
+        "bulk-actions"
       ],
       "modes": [
         "managed",
@@ -1459,7 +1459,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "audit",
         "approvals",
         "workflow-editor",
-        "bulk"
+        "bulk-actions"
       ],
       "modes": [
         "managed",
@@ -1674,7 +1674,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "integrates": [
         "outbox",
-        "bulk"
+        "bulk-actions"
       ],
       "modes": [
         "managed",
@@ -1689,8 +1689,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "docs": "/docs/blocks/relations"
     },
     {
-      "name": "bulk",
-      "title": "Bulk actions",
+      "name": "bulk-actions",
+      "title": "BulkActions actions",
       "category": "Work management",
       "description": "One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.",
       "requires": [
@@ -1708,9 +1708,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "events": [
         "bulk_run.completed"
       ],
-      "subpath": "better-supabase/blocks/bulk",
+      "subpath": "better-supabase/blocks/bulk-actions",
       "react": null,
-      "docs": "/docs/blocks/bulk"
+      "docs": "/docs/blocks/bulk-actions"
     },
     {
       "name": "search",
@@ -1871,7 +1871,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "audit",
         "data-lifecycle",
         "housekeeping",
-        "bulk"
+        "bulk-actions"
       ],
       "modes": [
         "managed",
@@ -2847,7 +2847,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "integrates": [
         "outbox",
         "teams",
-        "bulk"
+        "bulk-actions"
       ],
       "modes": [
         "managed",
@@ -5789,7 +5789,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "imports",
         "subjects",
         "saved-views",
-        "bulk",
+        "bulk-actions",
         "search",
         "catalog",
         "enrollments",
@@ -7385,7 +7385,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "onboarding",
         "teams",
         "saved-views",
-        "bulk",
+        "bulk-actions",
         "metrics",
         "approvals",
         "enrollments",
@@ -7468,7 +7468,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "rank",
         "saved-views",
         "relations",
-        "bulk",
+        "bulk-actions",
         "search",
         "metrics",
         "calendar",

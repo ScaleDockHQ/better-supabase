@@ -261,7 +261,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "attachments",
       "custom-fields",
       "imports",
-      "bulk",
+      "bulk-actions",
       "tags",
       "saved-views",
       "search",
@@ -899,7 +899,14 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus feature flags, metrics, approvals, saved views and bulk actions.",
     group: "platforms",
-    blocks: [...SAAS, "flags", "metrics", "approvals", "saved-views", "bulk"],
+    blocks: [
+      ...SAAS,
+      "flags",
+      "metrics",
+      "approvals",
+      "saved-views",
+      "bulk-actions",
+    ],
   },
   everything: {
     name: "everything",

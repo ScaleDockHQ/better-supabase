@@ -18,7 +18,7 @@ import type { AuditSqlOptions } from "./audit/options.ts";
 import type { AutomationsSqlOptions } from "./automations/options.ts";
 import type { BillingSqlOptions } from "./billing/options.ts";
 import type { BookingsSqlOptions } from "./bookings/options.ts";
-import type { BulkSqlOptions } from "./bulk/options.ts";
+import type { BulkActionsSqlOptions } from "./bulk-actions/options.ts";
 import type { CalendarSqlOptions } from "./calendar/options.ts";
 import type { CarePlansSqlOptions } from "./care-plans/options.ts";
 import type { CasesSqlOptions } from "./cases/options.ts";
@@ -155,7 +155,7 @@ import { auditSqlOptions } from "./audit/options.ts";
 import { automationsSqlOptions } from "./automations/options.ts";
 import { billingSqlOptions } from "./billing/options.ts";
 import { bookingsSqlOptions } from "./bookings/options.ts";
-import { bulkSqlOptions } from "./bulk/options.ts";
+import { bulkActionsSqlOptions } from "./bulk-actions/options.ts";
 import { calendarSqlOptions } from "./calendar/options.ts";
 import { carePlansSqlOptions } from "./care-plans/options.ts";
 import { casesSqlOptions } from "./cases/options.ts";
@@ -308,7 +308,7 @@ export interface BlockOptionsRegistry {
   readonly "billable-time": None;
   readonly billing: BillingSqlOptions;
   readonly bookings: BookingsSqlOptions;
-  readonly bulk: BulkSqlOptions;
+  readonly "bulk-actions": BulkActionsSqlOptions;
   readonly calendar: CalendarSqlOptions;
   readonly "care-plans": CarePlansSqlOptions;
   readonly catalog: CatalogSqlOptions;
@@ -503,7 +503,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "billable-time": NO_OPTIONS,
   billing: billingSqlOptions,
   bookings: bookingsSqlOptions,
-  bulk: bulkSqlOptions,
+  "bulk-actions": bulkActionsSqlOptions,
   calendar: calendarSqlOptions,
   "care-plans": carePlansSqlOptions,
   catalog: catalogSqlOptions,

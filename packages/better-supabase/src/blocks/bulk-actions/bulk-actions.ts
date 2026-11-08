@@ -104,7 +104,7 @@ export type BulkStatus = "pending" | "running" | "completed" | "failed";
 
 export interface BulkProgress {
   readonly id: string;
-  /** `failed` when the user lost `bulk.run` while the run was going. */
+  /** `failed` when the user lost `bulk_actions.run` while the run was going. */
   readonly status: BulkStatus;
   readonly position: number;
   readonly total: number;
@@ -129,16 +129,16 @@ export type BulkOutcome =
   | ({ readonly mode: "now" } & BulkResult)
   | ({ readonly mode: "background" } & BulkStarted);
 
-export interface BulkOptions {
+export interface BulkActionsOptions {
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<Bulk>>;
+  readonly hooks?: NoInfer<BlockHooks<BulkActions>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * `blocks['bulk'].options.limit`, which `defineBlocks` passes from
+   * `blocks['bulk-actions'].options.limit`, which `defineBlocks` passes from
    * `blocks.generated.ts`: more rows than this start a background run. Defaults
    * to 500.
    */
@@ -151,7 +151,7 @@ export interface BulkDrainOptions {
   readonly signal?: AbortSignal;
 }
 
-export interface Bulk {
+export interface BulkActions {
   /**
    * Runs one action on every row in one call (up to the limit), with a result
    * per row.
@@ -269,7 +269,7 @@ async function rowsOf(rows: BulkRows): Promise<readonly string[]> {
   return typeof rows === "function" ? rows() : rows;
 }
 
-export function createBulk(options: BulkOptions): Bulk {
+export function createBulkActions(options: BulkActionsOptions): BulkActions {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const limit = options.limit ?? 500;
 
@@ -305,7 +305,7 @@ export function createBulk(options: BulkOptions): Bulk {
       }
     });
 
-  const client: Bulk = {
+  const client: BulkActions = {
     run: (input) =>
       AsyncResult.from(async () =>
         runIds(input, await rowsOf(input.rows), input.atomic ?? false),
@@ -347,7 +347,7 @@ export function createBulk(options: BulkOptions): Bulk {
   };
 
   return withBlockHooks(client, options.hooks, {
-    block: "bulk",
+    block: "bulk-actions",
     ...(options.logger ? { logger: options.logger } : {}),
   });
 }

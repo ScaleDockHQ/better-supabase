@@ -7367,20 +7367,20 @@
       "UnlinkResult"
     ]
   },
-  "./blocks/bulk": {
+  "./blocks/bulk-actions": {
     "values": [
-      "bulkBlock",
-      "bulkEvents",
-      "createBulk"
+      "bulkActionsBlock",
+      "bulkActionsEvents",
+      "createBulkActions"
     ],
     "types": [
       "BuiltInBulkAction",
-      "Bulk",
       "BulkActionOptions",
+      "BulkActions",
+      "BulkActionsEvents",
+      "BulkActionsOptions",
       "BulkDrainOptions",
-      "BulkEvents",
       "BulkInput",
-      "BulkOptions",
       "BulkOutcome",
       "BulkProgress",
       "BulkResult",

@@ -17,7 +17,7 @@ const RENAMED_BLOCK_PAGES = {
   "number-sequences": "numbering",
   "shared-signals": "security-events",
   "service-principals": "service-accounts",
-  "bulk-actions": "bulk",
+  "bulk-actions": "bulk-actions",
   controls: "compliance",
   "admission-passes": "passes",
   "ai-tasks": "ai-schedules",

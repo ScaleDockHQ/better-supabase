@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import type { TestUser } from "./block-session.ts";
 
-import { createBulk } from "../../src/blocks/bulk/index.ts";
+import { createBulkActions } from "../../src/blocks/bulk-actions/index.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -20,7 +20,7 @@ const layout: BlockSqlLayout = {
       schema: "bulk_it",
       on: { task: { table: "bulk_it.tasks", idType: "uuid" } },
     },
-    bulk: {
+    "bulk-actions": {
       schema: "bulk_it",
       options: {
         limit: 4,
@@ -85,7 +85,14 @@ end;
 $$;
 grant execute on function bulk_it.archive_task(uuid, text, text, jsonb) to authenticated;`);
     await db.install(
-      ["organizations", "outbox", "queue", "relations", "trash", "bulk"],
+      [
+        "organizations",
+        "outbox",
+        "queue",
+        "relations",
+        "trash",
+        "bulk-actions",
+      ],
       layout,
     );
     owner = await db.user("owner");
@@ -221,7 +228,7 @@ from generate_series(1, 9) n;`);
     expect(await db.value<string>("current_user::text")).toBe("postgres");
 
     const transport = sqlTransport(db.sql);
-    const bulk = createBulk({ transport, schema: "bulk_it" });
+    const bulk = createBulkActions({ transport, schema: "bulk_it" });
     const finished = await bulk.drain({ id: started.id, size: 2 }).orThrow();
     expect(finished).toMatchObject({
       status: "completed",

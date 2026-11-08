@@ -174,7 +174,7 @@ const entries = [
   "blocks/rank/index",
   "blocks/saved-views/index",
   "blocks/relations/index",
-  "blocks/bulk/index",
+  "blocks/bulk-actions/index",
   "blocks/search/index",
   "blocks/metrics/index",
   "commerce/index",

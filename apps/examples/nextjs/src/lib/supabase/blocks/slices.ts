@@ -220,8 +220,8 @@ export const bookingsConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
-/** The `bulk` instance's config slice. */
-export const bulkConfig = {
+/** The `bulk-actions` instance's config slice. */
+export const bulkActionsConfig = {
   schema: "better_supabase",
   api: "api",
   options: {

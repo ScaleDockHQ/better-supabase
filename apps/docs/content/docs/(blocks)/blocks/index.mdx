@@ -128,13 +128,13 @@ bulk action unless you point it at one:
 
 ```ts
 blocks: {
-  "bulk": {},
-  rowActions: { block: "bulk" },
+  "bulk-actions": {},
+  rowActions: { block: "bulk-actions" },
   tags: {},
   labels: {
     block: "tags",
     entities: { tag: "label" },
-    uses: { "bulk": "rowActions" },
+    uses: { "bulk-actions": "rowActions" },
   },
 }
 ```
@@ -265,7 +265,7 @@ expose the module schema itself.
 | [Rank](/docs/blocks/rank)                                           | `better-supabase/blocks/rank`                                                    | `rank`                                                |
 | [Saved views](/docs/blocks/saved-views)                             | `better-supabase/blocks/saved-views`                                             | `saved-views`                                         |
 | [Relations](/docs/blocks/relations)                                 | `better-supabase/blocks/relations`                                               | `relations`                                           |
-| [Bulk actions](/docs/blocks/bulk)                                   | `better-supabase/blocks/bulk`                                                    | `bulk`                                                |
+| [Bulk actions](/docs/blocks/bulk-actions)                           | `better-supabase/blocks/bulk-actions`                                            | `bulk`                                                |
 | [Undo](/docs/blocks/undo)                                           | `better-supabase/blocks/undo`                                                    |                                                       |
 | [Search](/docs/blocks/search)                                       | `better-supabase/blocks/search`                                                  | `search`                                              |
 | [Metrics](/docs/blocks/metrics)                                     | `better-supabase/blocks/metrics`                                                 | `metrics`                                             |
@@ -461,8 +461,8 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `ai-keys` | `memberships`, `permissions` | `ai-chat` |
 | `numbering` | `memberships`, `permissions` | `outbox`, `audit`, `invoices`, `legal-entities`, `imports` |
 | `teams` | `memberships`, `permissions` | `inbox`, `outbox`, `audit` |
-| `tags` | `memberships`, `permissions` | `outbox`, `drive`, `subjects`, `bulk` |
-| `state-machine` | `memberships`, `permissions` | `outbox`, `audit`, `approvals`, `workflow-editor`, `bulk` |
+| `tags` | `memberships`, `permissions` | `outbox`, `drive`, `subjects`, `bulk-actions` |
+| `state-machine` | `memberships`, `permissions` | `outbox`, `audit`, `approvals`, `workflow-editor`, `bulk-actions` |
 | `custom-fields` | `memberships`, `permissions` | `outbox`, `field-encryption`, `audit`, `subjects`, `legal-entities`, `imports` |
 | `share-links` | `memberships`, `permissions` | `outbox`, `versions`, `subjects`, `rate-limit` |
 | `reminders` | `memberships`, `permissions`, `queue` | `notifications`, `outbox`, `subjects` |
@@ -470,14 +470,14 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `subjects` | `permissions` | `teams`, `memberships`, `audit`, `relations` |
 | `rank` | `permissions`, `subjects` | `queue` |
 | `saved-views` | `memberships`, `permissions` | `outbox`, `teams`, `collections` |
-| `relations` | `memberships`, `permissions` | `outbox`, `bulk` |
-| `bulk` | `memberships`, `permissions` | `queue`, `outbox` |
+| `relations` | `memberships`, `permissions` | `outbox`, `bulk-actions` |
+| `bulk-actions` | `memberships`, `permissions` | `queue`, `outbox` |
 | `search` | `memberships`, `permissions`, `subjects` | `share-links`, `vector-search` |
 | `metrics` | `memberships`, `permissions` | `usage`, `queue` |
 | `calendar` | `memberships`, `permissions`, `recurrence` | `share-links`, `reminders`, `outbox`, `leave`, `organizations` |
 | `bookings` | `memberships`, `permissions` | `queue`, `share-links`, `rate-limit`, `calendar`, `reminders`, `outbox` |
 | `versions` | `memberships`, `permissions` | `outbox`, `audit`, `share-links`, `ai-files` |
-| `trash` | `memberships`, `permissions`, `housekeeping` | `outbox`, `audit`, `data-lifecycle`, `bulk` |
+| `trash` | `memberships`, `permissions`, `housekeeping` | `outbox`, `audit`, `data-lifecycle`, `bulk-actions` |
 | `reactions` | `memberships`, `permissions` | `outbox`, `messaging` |
 | `approvals` | `memberships`, `permissions`, `housekeeping` | `outbox`, `audit`, `notifications`, `queue`, `drive`, `teams`, `state-machine`, `employees`, `automations`, `subjects` |
 | `access-requests` | `memberships`, `permissions`, `approvals` | `outbox`, `audit`, `subjects`, `notifications` |
@@ -505,7 +505,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `goals` | `memberships`, `permissions` | `deals`, `tasks`, `invoices` |
 | `hiring` | `memberships`, `permissions`, `subjects`, `pipelines` | `outbox`, `automations`, `employees` |
 | `employees` | `memberships`, `permissions` | `outbox`, `relations`, `hiring`, `time-entries`, `approvals` |
-| `collections` | `memberships`, `permissions`, `subjects` | `outbox`, `teams`, `bulk` |
+| `collections` | `memberships`, `permissions`, `subjects` | `outbox`, `teams`, `bulk-actions` |
 | `signing-keys` | none | `outbox`, `audit` |
 | `security-events` | none | `webhooks-out`, `outbox`, `audit` |
 | `oauth-server` | none | `outbox`, `audit` |

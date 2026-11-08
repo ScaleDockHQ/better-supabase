@@ -40,7 +40,7 @@ imports
 subjects
 saved-views
 relations
-bulk
+bulk-actions
 search
 calendar
 bookings

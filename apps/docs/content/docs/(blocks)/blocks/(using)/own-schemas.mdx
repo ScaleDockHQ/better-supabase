@@ -202,7 +202,7 @@ may be your own enum or domain.
   - `better_supabase.booking_services`: `id`, `tenant_id`, `name`, `duration`, `buffer_before`, `buffer_after`, `resource_kinds`, `step`, `min_notice`, `hold_for`, `active`, `created_at`
   - `better_supabase.bookings`: `id`, `tenant_id`, `resource_id`, `service_id`, `seat`, `during`, `blocked`, `status`, `hold_expires_at`, `customer_name`, `customer_email`, `customer_id`, `access_hash`, `created_at`, `updated_at`, `cancelled_at`, `cancel_reason`; typed: `status`
   - `better_supabase.booking_series`: `id`, `tenant_id`, `service_id`, `resource_id`, `rule`, `starts_at`, `tz`, `customer_name`, `customer_email`, `customer_id`, `status`, `ends_at`, `created_by`, `created_at`, `updated_at`
-- `bulk`
+- `bulk-actions`
   - `better_supabase.bulk_runs`: `id`, `tenant_id`, `subject_type`, `action`, `args`, `ids`, `position`, `succeeded`, `failed`, `results`, `status`, `created_by`, `created_at`, `finished_at`; typed: `status`
 - `calendar`
   - `better_supabase.calendars`: `id`, `tenant_id`, `name`, `tz`, `created_at`; typed: `visibility`, `rank`; typed with values: `owner_id`

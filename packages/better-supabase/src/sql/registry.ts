@@ -37,7 +37,7 @@ import { BANKING } from "./modules/banking.ts";
 import { BILLABLE_TIME } from "./modules/billable-time.ts";
 import { BILLING } from "./modules/billing.ts";
 import { BOOKINGS } from "./modules/bookings.ts";
-import { BULK } from "./modules/bulk.ts";
+import { BULK } from "./modules/bulk-actions.ts";
 import { CALENDAR } from "./modules/calendar.ts";
 import { CARE_PLANS } from "./modules/care-plans.ts";
 import { CASES } from "./modules/cases.ts";

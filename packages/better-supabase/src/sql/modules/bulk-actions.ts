@@ -1,4 +1,4 @@
-import type { BulkEvents } from "../../blocks/bulk/events.ts";
+import type { BulkActionsEvents } from "../../blocks/bulk-actions/events.ts";
 import type {
   BlockSqlContext,
   BlockSqlContractFunction,
@@ -36,7 +36,7 @@ const DEFAULT_LIMIT = 500;
 const MAX_RUN = 100_000;
 const DEFAULT_CHUNK = 200;
 
-const EVENTS: BlockSqlEvents<BulkEvents> = {
+const EVENTS: BlockSqlEvents<BulkActionsEvents> = {
   "bulk_run.completed": {
     subject: "bulk-runs",
     payload: ["organizationId", "id", "kind", "status", "count", "failed"],
@@ -80,7 +80,7 @@ function bulk(
   ctx: BlockSqlContext,
   builtIn: ReadonlySet<string>,
 ): ReadonlyMap<string, string> {
-  const where = "blocks['bulk'].options.actions";
+  const where = "blocks['bulk-actions'].options.actions";
   const raw: unknown = ctx.option("actions") ?? {};
 
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -186,18 +186,18 @@ function build(ctx: BlockSqlContext): string {
 
   const runs = ctx.table("runs");
   const c = (name: string): string => ctx.col("runs", name);
-  const run = ctx.permission("run", OPERATIONS["bulk.run"]);
+  const run = ctx.permission("run", OPERATIONS["bulk-actions.run"]);
   const limit = ctx.number("limit", DEFAULT_LIMIT);
 
   if (!Number.isInteger(limit) || limit < 1 || limit > 10_000) {
     throw new TypeError(
-      "blocks['bulk'].options.limit must be an integer from 1 to 10000",
+      "blocks['bulk-actions'].options.limit must be an integer from 1 to 10000",
     );
   }
 
   const contributed = uniqueContributions(
-    "bulk",
-    ctx.contributions("bulk"),
+    "bulk-actions",
+    ctx.contributions("bulk-actions"),
     (action) => action.name,
   );
 
@@ -330,7 +330,7 @@ begin
   insert into ${runs} (${c("tenant")}, ${c("subjectType")}, ${c("action")}, ${c("args")}, ${c("ids")}, ${c("createdBy")})
   values (start_bulk.tenant, start_bulk.subject_type, start_bulk.action, coalesce(start_bulk.args, '{}'::jsonb), coalesce(start_bulk.ids, array[]::text[]), auth.uid())
   returning ${c("id")} into v_id;
-  ${ctx.enqueue("bulk", "jsonb_build_object('run', v_id)", "'bulk:' || v_id::text")}
+  ${ctx.enqueue("bulk-actions", "jsonb_build_object('run', v_id)", "'bulk:' || v_id::text")}
   return jsonb_build_object('id', v_id, 'total', v_total, 'topic', 'bulk:' || v_id::text);
 end;
 $$;
@@ -443,9 +443,9 @@ function contract(): readonly BlockSqlContractFunction[] {
 }
 
 export const BULK: BlockSqlDefinition = {
-  name: "bulk",
+  name: "bulk-actions",
   scopes: ["tenant"],
-  title: "Bulk actions",
+  title: "BulkActions actions",
   description:
     "One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.",
   requires: ["memberships", "permissions"],

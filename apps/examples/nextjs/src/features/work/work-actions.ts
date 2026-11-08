@@ -296,10 +296,10 @@ export const runWorkBulkAction = bsb.action(
       }),
     ]),
     requireTenant: true,
-    permission: "bulk.run",
+    permission: "bulk_actions.run",
   },
   async (input, { tenant, db, auth }) => {
-    const { bulk } = db;
+    const { bulkActions: bulk } = db;
 
     const result =
       input.action === "state"

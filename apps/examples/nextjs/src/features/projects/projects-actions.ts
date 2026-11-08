@@ -191,7 +191,7 @@ export const setTaskField = bsb.action(
       ]),
     }),
     requireTenant: true,
-    permission: "bulk.run",
+    permission: "bulk_actions.run",
   },
   async ({ ids, values }, { db, auth }) => {
     const patch =

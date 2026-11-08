@@ -1,7 +1,7 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_069_bulk.sql
--- better-supabase module: bulk
--- @bsb-block bulk@1 managed
--- @bsb-hash sha256:ad06b6825c0a7eb7058d7a204f78e79e95790266a9b92394f30dbc3e0f56ec5d
+-- ==== alone: schema supabase/schemas/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block bulk-actions@1 managed
+-- @bsb-hash sha256:0057b105d99b5ac7e6d0de61151c505e495ff4d9f9c44f12a236aee6ffb49c59
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -61,7 +61,7 @@ declare
   v_hint text;
   v_state text;
 begin
-  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk.run'), false) then
+  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
   if not (bulk_apply.action = any (array[]::text[])) then
@@ -103,7 +103,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk.run'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
   if not (start_bulk.action = any (array[]::text[])) then
@@ -175,7 +175,7 @@ begin
   v_chunk := v_run."ids"[v_run."position" + 1 : v_run."position" + v_size];
   perform set_config('request.jwt.claims', jsonb_build_object('sub', v_run."created_by", 'role', 'authenticated', 'aud', 'authenticated')::text, true);
   set local role authenticated;
-  v_allowed := coalesce(better_supabase.can('tenant', v_run."tenant_id", 'bulk.run'), false);
+  v_allowed := coalesce(better_supabase.can('tenant', v_run."tenant_id", 'bulk_actions.run'), false);
   if v_allowed then
     foreach v_id in array v_chunk loop
     begin
@@ -237,24 +237,24 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
--- better-supabase module: bulk
--- @bsb-block-data bulk
--- @bsb-hash sha256:4573a67d75005a6c7627cf2425e408dc4794252b6f0c4f6071c63da3cb56894e
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block-data bulk-actions
+-- @bsb-hash sha256:f6f12b0c55c4dcc82ff19c67a5ffd411e97dfdea8218965c0ef89b4d8af3dc52
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('bulk', 1, 'managed')
+values ('bulk-actions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_069_bulk.sql
--- better-supabase module: bulk
--- @bsb-block bulk@1 managed
--- @bsb-hash sha256:41969a59bb035c3a8ec60843f251542ef6e916ea954682212d0d466f10348511
+-- ==== with every module: schema supabase/schemas/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block bulk-actions@1 managed
+-- @bsb-hash sha256:dcc5531f085ec168c1940dfcf5a1f18ef5d4e12151443bfbd5e6679834fdb0f5
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -334,7 +334,7 @@ declare
   v_hint text;
   v_state text;
 begin
-  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk.run'), false) then
+  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
   if not (bulk_apply.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add'])) then
@@ -376,7 +376,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk.run'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
   if not (start_bulk.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add'])) then
@@ -389,7 +389,7 @@ begin
   insert into "better_supabase"."bulk_runs" ("tenant_id", "subject_type", "action", "args", "ids", "created_by")
   values (start_bulk.tenant, start_bulk.subject_type, start_bulk.action, coalesce(start_bulk.args, '{}'::jsonb), coalesce(start_bulk.ids, array[]::text[]), auth.uid())
   returning "id" into v_id;
-  perform "better_supabase"."enqueue_job"(queue => 'bulk', payload => jsonb_build_object('run', v_id), dedupe_key => 'bulk:' || v_id::text, dedupe_running => false);
+  perform "better_supabase"."enqueue_job"(queue => 'bulk-actions', payload => jsonb_build_object('run', v_id), dedupe_key => 'bulk:' || v_id::text, dedupe_running => false);
   return jsonb_build_object('id', v_id, 'total', v_total, 'topic', 'bulk:' || v_id::text);
 end;
 $$;
@@ -448,7 +448,7 @@ begin
   v_chunk := v_run."ids"[v_run."position" + 1 : v_run."position" + v_size];
   perform set_config('request.jwt.claims', jsonb_build_object('sub', v_run."created_by", 'role', 'authenticated', 'aud', 'authenticated')::text, true);
   set local role authenticated;
-  v_allowed := coalesce(better_supabase.can('tenant', v_run."tenant_id", 'bulk.run'), false);
+  v_allowed := coalesce(better_supabase.can('tenant', v_run."tenant_id", 'bulk_actions.run'), false);
   if v_allowed then
     foreach v_id in array v_chunk loop
     begin
@@ -482,7 +482,7 @@ begin
     perform realtime.send(jsonb_build_object('id', v_run."id", 'status', v_status, 'position', v_run."position", 'total', cardinality(v_run."ids"), 'succeeded', v_run."succeeded", 'failed', v_run."failed"), 'progress', 'bulk:' || v_run."id"::text, true);
   end if;
   if v_done then
-    perform "better_supabase".emit_event('bulk_run.completed', jsonb_build_object('organizationId', v_run."tenant_id", 'id', v_run."id", 'kind', v_run."action", 'status', v_status, 'count', cardinality(v_run."ids"), 'failed', v_run."failed"), 'bulk-runs/' || v_run."id"::text, (v_run."tenant_id")::text, null, 'better-supabase/bulk');
+    perform "better_supabase".emit_event('bulk_run.completed', jsonb_build_object('organizationId', v_run."tenant_id", 'id', v_run."id", 'kind', v_run."action", 'status', v_status, 'count', cardinality(v_run."ids"), 'failed', v_run."failed"), 'bulk-runs/' || v_run."id"::text, (v_run."tenant_id")::text, null, 'better-supabase/bulk-actions');
   end if;
   return jsonb_build_object('id', v_run."id", 'status', v_status, 'position', v_run."position", 'total', cardinality(v_run."ids"), 'succeeded', v_run."succeeded", 'failed', v_run."failed", 'done', v_done);
 end;
@@ -510,24 +510,24 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
--- better-supabase module: bulk
--- @bsb-block-data bulk
--- @bsb-hash sha256:4573a67d75005a6c7627cf2425e408dc4794252b6f0c4f6071c63da3cb56894e
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block-data bulk-actions
+-- @bsb-hash sha256:f6f12b0c55c4dcc82ff19c67a5ffd411e97dfdea8218965c0ef89b4d8af3dc52
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('bulk', 1, 'managed')
+values ('bulk-actions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_bulk.sql
--- better-supabase module: bulk
--- @bsb-block bulk@1 managed
--- @bsb-hash sha256:cc64a58793b31b1389f51cae89eb5afab58f5b076f605fbee7ba8706e1f9b9e1
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block bulk-actions@1 managed
+-- @bsb-hash sha256:0bdbe2bff4c57ffadcdd637b6bdf2c9100acbdfaa98c9014f03c5080d0062290
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -592,7 +592,7 @@ declare
   v_hint text;
   v_state text;
 begin
-  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk.run'), false) then
+  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
   if not (bulk_apply.action = any (array[]::text[])) then
@@ -634,7 +634,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk.run'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
   if not (start_bulk.action = any (array[]::text[])) then
@@ -706,7 +706,7 @@ begin
   v_chunk := v_run."ids"[v_run."position" + 1 : v_run."position" + v_size];
   perform set_config('request.jwt.claims', jsonb_build_object('sub', v_run."created_by", 'role', 'authenticated', 'aud', 'authenticated')::text, true);
   set local role authenticated;
-  v_allowed := coalesce(better_supabase.can('tenant', v_run."tenant_id", 'bulk.run'), false);
+  v_allowed := coalesce(better_supabase.can('tenant', v_run."tenant_id", 'bulk_actions.run'), false);
   if v_allowed then
     foreach v_id in array v_chunk loop
     begin
@@ -768,24 +768,24 @@ create policy bsb_tenant_scope_delete on "app_private"."bulk_runs" as restrictiv
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
--- better-supabase module: bulk
--- @bsb-block-data bulk
--- @bsb-hash sha256:4573a67d75005a6c7627cf2425e408dc4794252b6f0c4f6071c63da3cb56894e
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block-data bulk-actions
+-- @bsb-hash sha256:f6f12b0c55c4dcc82ff19c67a5ffd411e97dfdea8218965c0ef89b4d8af3dc52
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('bulk', 1, 'managed')
+values ('bulk-actions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_069_bulk.sql
--- better-supabase module: bulk
--- @bsb-block bulk@1 managed
--- @bsb-hash sha256:87a0032933f62e016ea3cc7cdbe061f00281db25058ca4369e59f6f83ecb1a6f
+-- ==== api schema: schema supabase/schemas/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block bulk-actions@1 managed
+-- @bsb-hash sha256:59c98d78da0f525413616cea08c727c950fe014a336accb1d4e6cba6879b12a8
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -845,7 +845,7 @@ declare
   v_hint text;
   v_state text;
 begin
-  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk.run'), false) then
+  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
   if not (bulk_apply.action = any (array[]::text[])) then
@@ -887,7 +887,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk.run'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
   if not (start_bulk.action = any (array[]::text[])) then
@@ -959,7 +959,7 @@ begin
   v_chunk := v_run."ids"[v_run."position" + 1 : v_run."position" + v_size];
   perform set_config('request.jwt.claims', jsonb_build_object('sub', v_run."created_by", 'role', 'authenticated', 'aud', 'authenticated')::text, true);
   set local role authenticated;
-  v_allowed := coalesce(better_supabase.can('tenant', v_run."tenant_id", 'bulk.run'), false);
+  v_allowed := coalesce(better_supabase.can('tenant', v_run."tenant_id", 'bulk_actions.run'), false);
   if v_allowed then
     foreach v_id in array v_chunk loop
     begin
@@ -1021,7 +1021,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- blocks.bulk.api: entry points for the Data API.
+-- blocks.bulk-actions.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -1071,24 +1071,24 @@ as $$ select "better_supabase"."bulk_step"($1, $2) $$;
 revoke execute on function "api"."bulk_step"(uuid, integer) from public, anon, authenticated;
 grant execute on function "api"."bulk_step"(uuid, integer) to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
--- better-supabase module: bulk
--- @bsb-block-data bulk
--- @bsb-hash sha256:4573a67d75005a6c7627cf2425e408dc4794252b6f0c4f6071c63da3cb56894e
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block-data bulk-actions
+-- @bsb-hash sha256:f6f12b0c55c4dcc82ff19c67a5ffd411e97dfdea8218965c0ef89b4d8af3dc52
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('bulk', 1, 'managed')
+values ('bulk-actions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_bulk.sql
--- better-supabase module: bulk
--- @bsb-block bulk@1 managed
--- @bsb-hash sha256:51a4598d43ff6db4c4c72e3df93023da010ff81fa8e3d1ca398320d2f582e1db
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block bulk-actions@1 managed
+-- @bsb-hash sha256:5b0826ed47048b6b3ab926501dfeac7c97f023fd432795bdb6ecd6bb32c558cc
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1146,7 +1146,7 @@ declare
   v_hint text;
   v_state text;
 begin
-  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk.run'), false) then
+  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
   if not (bulk_apply.action = any (array[]::text[])) then
@@ -1188,7 +1188,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk.run'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
   if not (start_bulk.action = any (array[]::text[])) then
@@ -1260,7 +1260,7 @@ begin
   v_chunk := v_run."ids"[v_run."position" + 1 : v_run."position" + v_size];
   perform set_config('request.jwt.claims', jsonb_build_object('sub', v_run."created_by", 'role', 'authenticated', 'aud', 'authenticated')::text, true);
   set local role authenticated;
-  v_allowed := coalesce(better_supabase.can('tenant', v_run."tenant_id", 'bulk.run'), false);
+  v_allowed := coalesce(better_supabase.can('tenant', v_run."tenant_id", 'bulk_actions.run'), false);
   if v_allowed then
     foreach v_id in array v_chunk loop
     begin
@@ -1322,24 +1322,24 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
--- better-supabase module: bulk
--- @bsb-block-data bulk
--- @bsb-hash sha256:4573a67d75005a6c7627cf2425e408dc4794252b6f0c4f6071c63da3cb56894e
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block-data bulk-actions
+-- @bsb-hash sha256:f6f12b0c55c4dcc82ff19c67a5ffd411e97dfdea8218965c0ef89b4d8af3dc52
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('bulk', 1, 'managed')
+values ('bulk-actions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_bulk.sql
--- better-supabase module: bulk
--- @bsb-block bulk@1 managed
--- @bsb-hash sha256:9b6b2d802d5e28b1369938905d5738e144df1962c75c26f8a214c0c70b61a36b
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block bulk-actions@1 managed
+-- @bsb-hash sha256:b4715dab747774ec22d4a530022e1399b87b963d5a6d52abad21bc0ffef5988d
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1399,7 +1399,7 @@ declare
   v_hint text;
   v_state text;
 begin
-  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk.run'), false) then
+  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
   if not (bulk_apply.action = any (array[]::text[])) then
@@ -1441,7 +1441,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk.run'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
   if not (start_bulk.action = any (array[]::text[])) then
@@ -1513,7 +1513,7 @@ begin
   v_chunk := v_run."ids"[v_run."position" + 1 : v_run."position" + v_size];
   perform set_config('request.jwt.claims', jsonb_build_object('sub', v_run."created_by", 'role', 'authenticated', 'aud', 'authenticated')::text, true);
   set local role authenticated;
-  v_allowed := coalesce(better_supabase.can('tenant', v_run."org_id", 'bulk.run'), false);
+  v_allowed := coalesce(better_supabase.can('tenant', v_run."org_id", 'bulk_actions.run'), false);
   if v_allowed then
     foreach v_id in array v_chunk loop
     begin
@@ -1575,16 +1575,16 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restri
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_069_bulk.sql
--- better-supabase module: bulk
--- @bsb-block-data bulk
--- @bsb-hash sha256:4573a67d75005a6c7627cf2425e408dc4794252b6f0c4f6071c63da3cb56894e
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
+-- better-supabase module: bulk-actions
+-- @bsb-block-data bulk-actions
+-- @bsb-hash sha256:f6f12b0c55c4dcc82ff19c67a5ffd411e97dfdea8218965c0ef89b4d8af3dc52
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('bulk', 1, 'managed')
+values ('bulk-actions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

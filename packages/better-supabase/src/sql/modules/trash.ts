@@ -714,7 +714,7 @@ const CONTRIBUTES: BlockContributes = {
       every: "1 day",
     },
   ],
-  bulk: (own) => [
+  "bulk-actions": (own) => [
     {
       name: "trash.trash",
       run: `perform ${own.fn("trash")}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);`,

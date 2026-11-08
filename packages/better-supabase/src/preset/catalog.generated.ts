@@ -1792,7 +1792,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "drive",
         "subjects",
-        "bulk"
+        "bulk-actions"
       ],
       "manifest": "tags",
       "scopes": [
@@ -1801,7 +1801,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "none"
       ],
       "contributes": [
-        "bulk"
+        "bulk-actions"
       ],
       "reads": [
         {
@@ -1903,14 +1903,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "approvals",
         "workflow-editor",
-        "bulk"
+        "bulk-actions"
       ],
       "manifest": "state-machine",
       "scopes": [
         "tenant"
       ],
       "contributes": [
-        "bulk"
+        "bulk-actions"
       ]
     },
     {
@@ -2233,14 +2233,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "bulk"
+        "bulk-actions"
       ],
       "manifest": "relations",
       "scopes": [
         "tenant"
       ],
       "contributes": [
-        "bulk"
+        "bulk-actions"
       ],
       "entities": {
         "specs": {
@@ -2274,8 +2274,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "bulk",
-      "title": "Bulk actions",
+      "name": "bulk-actions",
+      "title": "BulkActions actions",
       "category": "work",
       "requires": [
         "memberships",
@@ -2285,7 +2285,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "queue",
         "outbox"
       ],
-      "manifest": "bulk",
+      "manifest": "bulk-actions",
       "scopes": [
         "tenant"
       ]
@@ -2579,7 +2579,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "data-lifecycle",
         "housekeeping",
-        "bulk"
+        "bulk-actions"
       ],
       "manifest": "trash",
       "scopes": [
@@ -2587,7 +2587,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "contributes": [
         "housekeeping",
-        "bulk"
+        "bulk-actions"
       ]
     },
     {
@@ -5046,14 +5046,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "teams",
-        "bulk"
+        "bulk-actions"
       ],
       "manifest": "collections",
       "scopes": [
         "tenant"
       ],
       "contributes": [
-        "bulk"
+        "bulk-actions"
       ],
       "tenantNameClashes": [
         "team"
@@ -14182,19 +14182,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "bulk",
+      "name": "bulk-actions",
       "sql": [
-        "bulk"
+        "bulk-actions"
       ],
       "category": "work",
       "client": {
-        "export": "bulkBlock",
-        "subpath": "better-supabase/blocks/bulk"
+        "export": "bulkActionsBlock",
+        "subpath": "better-supabase/blocks/bulk-actions"
       },
       "consumes": {},
       "provides": [],
       "events": {
-        "type": "BulkEvents",
+        "type": "BulkActionsEvents",
         "types": [
           "bulk_run.completed"
         ]

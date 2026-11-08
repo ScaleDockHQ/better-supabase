@@ -38,7 +38,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  bulk: {
+  "bulk-actions": {
     schema: "better_supabase",
     options: {
       limit: 500,
@@ -151,8 +151,8 @@ export const permissions = {
     manage: "billing.manage",
     readAll: "billing.read",
   },
-  bulk: {
-    run: "bulk.run",
+  "bulk-actions": {
+    run: "bulk_actions.run",
   },
   catalog: {
     manage: "catalog.manage",
@@ -232,4 +232,4 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bulk.run" | "catalog.manage" | "catalog.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.read_sensitive" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "imports.manage" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "saved_views.read" | "saved_views.share" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bulk_actions.run" | "catalog.manage" | "catalog.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.read_sensitive" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "imports.manage" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "saved_views.read" | "saved_views.share" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read";

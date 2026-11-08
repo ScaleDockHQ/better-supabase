@@ -87,7 +87,7 @@
   "bookings": {
     "security-definer-functions": 88
   },
-  "bulk": {
+  "bulk-actions": {
     "security-definer-functions": 6
   },
   "calendar": {
