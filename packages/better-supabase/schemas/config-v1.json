@@ -1724,6 +1724,12 @@
                         "required": ["table", "from", "to"],
                         "additionalProperties": false
                       }
+                    },
+                    "columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   },
                   "required": ["table", "key"],
