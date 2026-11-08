@@ -106,6 +106,33 @@ call that names a projected table instead of its view. The command syncs only th
 instances in `gen.powersync.instances` or `--instance`, so installing a block
 adds no stream.
 
+### Files of a subject, and child tables
+
+When a projection keeps one `subject_type` (`where subject_type = 'job'`) and
+a table tagged `@bsb subject type=job` has a tenant column, the attachments
+stream also keeps only the files whose `subject_id` is a row of that table in
+the user's organizations (and, with `deleted-at`, one that is not deleted). A
+file whose job is gone does not sync. A view that names several subject types,
+or a type no table registers, keeps the view's `where` alone.
+
+An app table that belongs to a parent subject syncs with `gen.powersync.children`:
+
+```ts title="better-supabase.config.ts"
+gen: {
+  powersync: {
+    instances: ["memberships", "attachments"],
+    children: [{ table: "public.job_parties", parent: "job", column: "job_id" }],
+  },
+},
+```
+
+The stream selects the rows of `job_parties` whose `job_id` is a `jobs` row in
+the user's organizations, takes the child's columns from the snapshot
+(`better-supabase gen --save-snapshot`), and adds the table to the publication
+and the client `Schema`. The child needs an `id` column, and `parent` needs a
+tenant column. Without the memberships instance the command has no
+organizations to bound the stream by and refuses it.
+
 The streams use Sync Streams edition 3, with a `with:` CTE for the user's
 organizations. The first migration runs `create publication powersync for
 table ...`. A later run reads the tables every earlier
