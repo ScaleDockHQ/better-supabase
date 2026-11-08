@@ -43,22 +43,29 @@ describe("named presets", () => {
     },
   );
 
-  it.each(PRESET_NAMES)("%s renders every block it lists", (name) => {
-    const rendered = new Set(
-      presetFiles(name, { tests: true })
-        .map((file) => file.module)
-        .filter(
-          (module) => module !== PRELUDE_MODULE && module !== UNSCOPED_MODULE,
-        ),
-    );
+  it.each(PRESET_NAMES)(
+    "%s renders every block it lists",
+    (name) => {
+      const rendered = new Set(
+        presetFiles(name, { tests: true })
+          .map((file) => file.module)
+          .filter(
+            (module) => module !== PRELUDE_MODULE && module !== UNSCOPED_MODULE,
+          ),
+      );
 
-    const { instances } = resolveConfig({ preset: name }, "/");
-    expect([...rendered].toSorted()).toEqual(
-      [
-        ...new Set(Object.values(instances).map((instance) => instance.block)),
-      ].toSorted(),
-    );
-  });
+      const { instances } = resolveConfig({ preset: name }, "/");
+      expect([...rendered].toSorted()).toEqual(
+        [
+          ...new Set(
+            Object.values(instances).map((instance) => instance.block),
+          ),
+        ].toSorted(),
+      );
+      // The "everything" preset renders every block; a CI runner passes the 5 second default.
+    },
+    60_000,
+  );
 
   // The generated `lib/blocks.ts` of each preset and the
   // `blocks.generated.ts` that `gen` writes for it are committed and
