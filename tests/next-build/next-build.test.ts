@@ -173,6 +173,19 @@ async function routeSource(chunks: ReadonlySet<string>): Promise<string> {
 }
 
 const SIZES = ["raw", "gzip", "brotli"] as const;
+
+/**
+ * Chunk file names carry a content hash that lands inside the compressed bytes,
+ * so an unchanged root chunk compresses to a few bytes more or less between two
+ * builds (raw stays identical). Compressed sizes may move by this much; raw
+ * bytes never.
+ */
+const COMPRESSION_SLACK = 64;
+
+function slack(key: keyof Size): number {
+  return key === "raw" ? 0 : COMPRESSION_SLACK;
+}
+
 const UPDATE = Boolean(process.env["NEXT_BUILD_UPDATE"]);
 
 async function readBaseline(): Promise<Baseline> {
@@ -216,7 +229,7 @@ describe("the Next.js example's first-load JavaScript", () => {
 
       const grown = Object.entries(current).flatMap(([route, size]) =>
         SIZES.flatMap((key) => {
-          const allowed = sizeOf(baseline, route)[key];
+          const allowed = sizeOf(baseline, route)[key] + slack(key);
 
           return size[key] > allowed
             ? [`${route} ${key}: ${allowed} -> ${size[key]}`]
