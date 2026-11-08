@@ -1,16 +1,16 @@
 ---
-title: From 0.56 to 0.57
-description: What to change when upgrading from better-supabase 0.56 to 0.57. One naming convention for config keys, exports, SQL objects and blocks, declarative module files, CLI contract 3, and the codemods that apply most of it. The organization key moves to auth.tenant by hand.
+title: From 0.57 to 0.58
+description: What to change when upgrading from better-supabase 0.57 to 0.58. One naming convention for config keys, exports, SQL objects and blocks, declarative module files, CLI contract 3, and the codemods that apply most of it. The organization key moves to auth.tenant by hand.
 ---
 
-0.57 gives every name one spelling and makes the files better-supabase writes
+0.58 gives every name one spelling and makes the files better-supabase writes
 declarative. It is a minor release, and below 1.0 a minor version may carry
 breaking changes. The renames ship without aliases, so a project that keeps an old
 name fails with a message that names the new one. Most changes have a codemod;
 three need you: the `organization` config key, scripts that pass renamed CLI
 flags, and a cloud design URL that you saved before this release.
 
-An app on an older version than 0.56 upgrades to 0.56 first, then follows this
+An app on an older version than 0.57 upgrades to 0.57 first, then follows this
 guide. Each change is also in the
 [changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
 
@@ -30,8 +30,8 @@ guide. Each change is also in the
 
 ## Order of work
 
-1. Move to 0.56, run `better-supabase doctor`, and commit a clean tree.
-2. Bump `better-supabase` to 0.57 and the peers it lists.
+1. Move to 0.57, run `better-supabase doctor`, and commit a clean tree.
+2. Bump `better-supabase` to 0.58 and the peers it lists.
 3. Run the codemods, in this order, and commit after each one:
 
    ```bash
@@ -293,7 +293,7 @@ forms. `better-supabase cache purge [--dry-run]` deletes the CLI cache.
 - Rows keep the configured casing, and `$client` and `queryRaw` use database
   names.
 - The generated file layout (`schema.ts`, `tables/`, `blocks/<instance>.ts`)
-  does not change in 0.57. ADR 0393 lists what is deferred: reads through a view
+  does not change in 0.58. ADR 0393 lists what is deferred: reads through a view
   named after a block instance, child PowerSync streams, the owned-column default flip and the drive `grants`
   mode.
 - Cloud design URLs that you saved before this release carry the old
