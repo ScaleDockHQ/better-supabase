@@ -1,6 +1,6 @@
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:6b57c0f9a3aed3e0ccffa63483d97e82f849fd4f0d9c829ae12d1b57a01bf7bb
+-- @bsb-hash sha256:5c916b640b6538ac9c1b05b9b312eb1dbf90bc5084021d8b91985f463919223f
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -421,8 +421,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restri
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.referral_codes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"referral_code","event_prefix":"referral_code"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.referrals deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"referral","event_prefix":"referral"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.referral_codes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"referral_code","event_prefix":"referral_code"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.referrals deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"referral","event_prefix":"referral"}');
 
 -- blocks.referrals.api: entry points for the Data API.
 create schema if not exists "api";

@@ -617,7 +617,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:9709cb4915d91e341bb18d431b45bd63fdca6e4d64b4e037c9c44aa71f1643f8
+-- @bsb-hash sha256:c49f008f6f0422a682947dd8e618775d11a3cda12cd6959126718c4ebfcb7867
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1312,8 +1312,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgements" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.acknowledgements deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"acknowledgement","event_prefix":"acknowledgement"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.acknowledgement_assignments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"acknowledgement_assignment","event_prefix":"acknowledgement_assignment"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.acknowledgements deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"acknowledgement","event_prefix":"acknowledgement"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.acknowledgement_assignments deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"acknowledgement_assignment","event_prefix":"acknowledgement_assignment"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements

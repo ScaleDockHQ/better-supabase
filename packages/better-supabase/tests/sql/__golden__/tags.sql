@@ -360,7 +360,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:58f4949839bb1f92861bd38597c45cf7457e4ee26fde5c54db116dbf273ab058
+-- @bsb-hash sha256:0d0f9e847b2810e30ccad409a5e8537f9d4f05000cbe9fdc4c95aa94066e502f
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -703,7 +703,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."taggings" as restric
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.tags deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"tag","event_prefix":"tag"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.tags deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"tag","event_prefix":"tag"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_059_tags.sql
 -- better-supabase module: tags

@@ -1,6 +1,6 @@
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:a4e253bb371bdd48372d2059c24f49672ff5d435541f6277c068db014bf08be9
+-- @bsb-hash sha256:66b64f0a278e7fff0ba649f2e2bf98f35533bda75fe85890c19dd50d2ab8dc8f
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -416,7 +416,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."saved_view_preferenc
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.shared_views deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"saved_view","event_prefix":"saved_view"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.shared_views deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"saved_view","event_prefix":"saved_view"}');
 
 -- blocks.saved-views.api: entry points for the Data API.
 create schema if not exists "api";

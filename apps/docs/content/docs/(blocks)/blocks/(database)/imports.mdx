@@ -179,7 +179,9 @@ payload, and `emit` leaves it as it is. `audit` is `rows` (the default) or
 with the actor kind `integration` and the correlation id `import:<run>`. In
 `summary` mode a row writes no entry, and `finish_import_run` writes one
 `import.entity_completed` entry per entity that inserted or updated rows, so a
-second identical run adds none.
+second identical run adds none. The row audit triggers carry the check in their
+`when` clause, so `audit_row_change` does not start for a row of a `summary`
+import.
 
 A state machine accepts any declared status on insert in import mode. It
 writes one history row from no status to the inserted status with the reason

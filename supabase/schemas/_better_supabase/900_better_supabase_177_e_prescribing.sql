@@ -1,6 +1,6 @@
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:e7d7b27f4e4df081bcd75287740e0be1305c58b18aed7b9a14c04bb5ed875d4c
+-- @bsb-hash sha256:bfbb96386004bdf46114976167af556b248eb30dc6dcf3fe81dbd7f701cfc323
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -462,7 +462,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."prescriptions" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.prescriptions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"prescription","event_prefix":"prescription"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.prescriptions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"prescription","event_prefix":"prescription"}');
 
 -- blocks.e-prescribing.api: entry points for the Data API.
 create schema if not exists "api";

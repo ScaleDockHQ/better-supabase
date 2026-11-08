@@ -619,7 +619,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:738ed692536ca1a9e8f3d26c5c3ade40936062458245e07483841710f3fcbef5
+-- @bsb-hash sha256:9eec042a210cdc7ad2c03b3993d7144746aa6d0338fc6b42f2ca200a5cba4d18
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1290,8 +1290,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as rest
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_alerts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_alert","event_prefix":"care_alert"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_rules deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_rule","event_prefix":"care_rule"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_alerts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_alert","event_prefix":"care_alert"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_rules deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_rule","event_prefix":"care_rule"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support

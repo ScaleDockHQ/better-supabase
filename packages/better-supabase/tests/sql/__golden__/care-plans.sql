@@ -1494,7 +1494,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:f8d6e5d9bc1d019b0504a2fddd38dbcd97ed7ef8e241be95ac8d759876508e3c
+-- @bsb-hash sha256:5a96cba7519e6901dd8e06b9730c05956a29afc682935de9d2b59c82538a7dc4
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3262,11 +3262,11 @@ create policy bsb_tenant_scope_delete on "better_supabase"."care_plan_evaluation
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_plans deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_plan","event_prefix":"care_plan"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_plan_problems deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_plan_problem","event_prefix":"care_plan_problem"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_plan_goals deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_plan_goal","event_prefix":"care_plan_goal"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_plan_actions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_plan_action","event_prefix":"care_plan_action"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_plan_evaluations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_plan_evaluation","event_prefix":"care_plan_evaluation"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_plans deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_plan","event_prefix":"care_plan"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_plan_problems deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_plan_problem","event_prefix":"care_plan_problem"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_plan_goals deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_plan_goal","event_prefix":"care_plan_goal"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_plan_actions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_plan_action","event_prefix":"care_plan_action"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_plan_evaluations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_plan_evaluation","event_prefix":"care_plan_evaluation"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans

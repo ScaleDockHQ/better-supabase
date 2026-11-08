@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:496ce13f06ddb33df9f489059402f55e0df568eb02d4c303ef374e1fa43017ff
+-- @bsb-hash sha256:de77dd0e2a425cebd8259ef35a929d1462cb25979171b067ded4db627514e0e1
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -875,7 +875,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."knowledge_collection
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.knowledge_documents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"knowledge_document","event_prefix":"knowledge_document"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.knowledge_documents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"knowledge_document","event_prefix":"knowledge_document"}');
 
 -- blocks.knowledge.api: entry points for the Data API.
 create schema if not exists "api";

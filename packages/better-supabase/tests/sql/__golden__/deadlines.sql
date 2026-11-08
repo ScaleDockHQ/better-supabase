@@ -1768,7 +1768,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:adb0f6c07d1ea3d7f53337d11576d0ad95e7fe7d98cfd73d9490657f62124a60
+-- @bsb-hash sha256:938aaab3d6d64c1569318bf4ed31e0ea7934ad8cc7d290f48ebed2cf693f99e3
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3509,7 +3509,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."deadlines" as restri
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.deadlines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"deadline","event_prefix":"deadline"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.deadlines deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"deadline","event_prefix":"deadline"}');
 
 -- Deprecated since 0.56.0: use better_supabase.evaluate_deadlines(content, facts, as_of, group_key); removed in 0.58.
 create or replace function "better_supabase"."evaluate_deadline_rule"(rule jsonb, facts jsonb)

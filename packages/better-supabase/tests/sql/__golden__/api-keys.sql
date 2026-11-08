@@ -433,7 +433,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:170dd7cef9ddbdd8d34ec1230f7ea04bffc1496631e77b921c6146d53bda9840
+-- @bsb-hash sha256:6e025f6dce3b2abb049dddf02e1401f4008dc19dfa6b9c9ccafa5990d62d997e
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -876,7 +876,7 @@ grant execute on function "better_supabase"."has_scope"(text) to anon, authentic
 grant execute on function "better_supabase"."api_key_tenant"() to anon, authenticated, service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.api_keys deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"api_key","event_prefix":"api_key"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.api_keys deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"api_key","event_prefix":"api_key"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys

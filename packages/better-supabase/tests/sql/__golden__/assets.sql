@@ -1057,7 +1057,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:9c4efc9b09723e9154c2a7cf5fc6ed265f2a767c2024f617fcbb8ee7795ac2a4
+-- @bsb-hash sha256:9d6008d019bbcd8280e10b19c745a51beadb4c80ed1c73f527c6bf65b93d4a06
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2273,8 +2273,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations"
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.assets deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset","event_prefix":"asset"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.asset_locations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset_location","event_prefix":"asset_location"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.assets deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset","event_prefix":"asset"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.asset_locations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset_location","event_prefix":"asset_location"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_114_assets.sql
 -- better-supabase module: assets

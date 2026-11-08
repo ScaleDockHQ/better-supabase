@@ -1,6 +1,6 @@
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:1a08a520722cc673cf2484989df4a0e42fd6f320edb37b5e08b18d177660b1e8
+-- @bsb-hash sha256:ea2c2dafc58c9c917d147d17802271814bfe76f1386513483dbec00bcf7ba99d
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -378,8 +378,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."payroll_lines" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.payroll_runs deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"payroll_run","event_prefix":"payroll_run"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.payroll_lines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"payroll_line","event_prefix":"payroll_line"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.payroll_runs deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"payroll_run","event_prefix":"payroll_run"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.payroll_lines deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"payroll_line","event_prefix":"payroll_line"}');
 
 -- blocks.payroll-export.api: entry points for the Data API.
 create schema if not exists "api";

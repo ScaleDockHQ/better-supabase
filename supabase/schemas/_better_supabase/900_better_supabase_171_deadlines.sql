@@ -1,6 +1,6 @@
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:d73aba2ee864bbf225e2f03b644b00a6da38a4afcc97c99aee2745ab06b38b6f
+-- @bsb-hash sha256:a75550b706812a88b5b2367356e9725e78400c4a130967aca882862df138d965
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1801,7 +1801,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."deadlines" as restri
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.deadlines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"deadline","event_prefix":"deadline"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.deadlines deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"deadline","event_prefix":"deadline"}');
 
 -- Deprecated since 0.56.0: use better_supabase.evaluate_deadlines(content, facts, as_of, group_key); removed in 0.58.
 create or replace function "better_supabase"."evaluate_deadline_rule"(rule jsonb, facts jsonb)

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:0fb48114b9ff698ced03e2b5572254d7953c917204f6b9d8f0d459d311f9c6bc
+-- @bsb-hash sha256:65de98b429273cb437c6ba7e314c3309c303a27a6d5c3d3ac185f152d1ca6207
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -151,14 +151,15 @@ $$;
 revoke execute on function "better_supabase"."search_reindex"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."search_reindex"(text) to service_role;
 
--- Indexes a record now, or, while an import batch runs with
+-- Runs as its caller (the definer trigger functions and import_upsert_batch
+-- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
 -- key once in better_supabase.search_dirty (a transaction-local setting, one
 -- line per key) so search_refresh_dirty indexes it once at the end of the batch.
 create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -183,7 +184,7 @@ revoke execute on function "better_supabase"."search_enqueue"(text, text) from p
 create or replace function "better_supabase"."search_refresh_dirty"()
 returns integer
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
@@ -451,7 +452,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:b6e9d9d28f9e70c138c8950e9da105c90a10d30fed18c180c62bb22635689ed8
+-- @bsb-hash sha256:f27c041a096769294c9819d062dbd0b37b7dfbdc7df6c195f488cbbd09d5cdf0
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -601,14 +602,15 @@ $$;
 revoke execute on function "better_supabase"."search_reindex"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."search_reindex"(text) to service_role;
 
--- Indexes a record now, or, while an import batch runs with
+-- Runs as its caller (the definer trigger functions and import_upsert_batch
+-- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
 -- key once in better_supabase.search_dirty (a transaction-local setting, one
 -- line per key) so search_refresh_dirty indexes it once at the end of the batch.
 create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -633,7 +635,7 @@ revoke execute on function "better_supabase"."search_enqueue"(text, text) from p
 create or replace function "better_supabase"."search_refresh_dirty"()
 returns integer
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
@@ -913,7 +915,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:e568d24c4e6e4e56710d70c2d3d580276beab22fc06e6d396c23acf7990b5ea4
+-- @bsb-hash sha256:47fd397e8cf11625f44ff75e3182e4691949823ba2ec4b840456dd971a8f285a
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1068,14 +1070,15 @@ $$;
 revoke execute on function "app_private"."search_reindex"(text) from public, anon, authenticated;
 grant execute on function "app_private"."search_reindex"(text) to service_role;
 
--- Indexes a record now, or, while an import batch runs with
+-- Runs as its caller (the definer trigger functions and import_upsert_batch
+-- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
 -- key once in better_supabase.search_dirty (a transaction-local setting, one
 -- line per key) so search_refresh_dirty indexes it once at the end of the batch.
 create or replace function "app_private"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -1100,7 +1103,7 @@ revoke execute on function "app_private"."search_enqueue"(text, text) from publi
 create or replace function "app_private"."search_refresh_dirty"()
 returns integer
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
@@ -1368,7 +1371,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:913b8750d6065984db49607fe1323711fbfedc6f495f85e8526e3f05d2ac5b9b
+-- @bsb-hash sha256:b5e233ccc53e22d821c6cd4616e947f8c7e881a4afeb9b2b0377aec339315353
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1518,14 +1521,15 @@ $$;
 revoke execute on function "better_supabase"."search_reindex"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."search_reindex"(text) to service_role;
 
--- Indexes a record now, or, while an import batch runs with
+-- Runs as its caller (the definer trigger functions and import_upsert_batch
+-- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
 -- key once in better_supabase.search_dirty (a transaction-local setting, one
 -- line per key) so search_refresh_dirty indexes it once at the end of the batch.
 create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -1550,7 +1554,7 @@ revoke execute on function "better_supabase"."search_enqueue"(text, text) from p
 create or replace function "better_supabase"."search_refresh_dirty"()
 returns integer
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
@@ -1900,7 +1904,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:11b4ae25ecd9dd7d3c494360d572ce7cbfed559db141b73b21ef93bd5c1a09c1
+-- @bsb-hash sha256:a106caf83d4f986ba001c0031e06ff2f45b0f1d308687ff3a8273e5d9dc380e7
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2047,14 +2051,15 @@ $$;
 revoke execute on function "better_supabase"."search_reindex"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."search_reindex"(text) to service_role;
 
--- Indexes a record now, or, while an import batch runs with
+-- Runs as its caller (the definer trigger functions and import_upsert_batch
+-- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
 -- key once in better_supabase.search_dirty (a transaction-local setting, one
 -- line per key) so search_refresh_dirty indexes it once at the end of the batch.
 create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -2079,7 +2084,7 @@ revoke execute on function "better_supabase"."search_enqueue"(text, text) from p
 create or replace function "better_supabase"."search_refresh_dirty"()
 returns integer
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
@@ -2347,7 +2352,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:42e21a891254616dc015d3c6a1aa0ecb305e7107cac48747e56f84a18ea968f3
+-- @bsb-hash sha256:5200a6728746fcc299397e2f558e121dd78fcf99b14ebac5589fd5dbce76cd11
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2497,14 +2502,15 @@ $$;
 revoke execute on function "better_supabase"."search_reindex"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."search_reindex"(text) to service_role;
 
--- Indexes a record now, or, while an import batch runs with
+-- Runs as its caller (the definer trigger functions and import_upsert_batch
+-- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
 -- key once in better_supabase.search_dirty (a transaction-local setting, one
 -- line per key) so search_refresh_dirty indexes it once at the end of the batch.
 create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -2529,7 +2535,7 @@ revoke execute on function "better_supabase"."search_enqueue"(text, text) from p
 create or replace function "better_supabase"."search_refresh_dirty"()
 returns integer
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare

@@ -1595,7 +1595,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:90b296631736ab3a79551464ae2ccbdde5830c144e34333f3e091ed3eac024bc
+-- @bsb-hash sha256:38a89c898c475535040be6b602f90c5aceb3c9783fbfddf0a42341ae06bfba3a
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3446,8 +3446,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."thread_summaries" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.messages deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"message","event_prefix":"message"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.conversations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"conversation","event_prefix":"conversation"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.messages deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"message","event_prefix":"message"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.conversations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"conversation","event_prefix":"conversation"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging

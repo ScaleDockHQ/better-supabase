@@ -206,7 +206,7 @@ const CALL = /\bbetter_supabase\s*\.\s*(un)?audit\s*\(/gi;
 const IDENT = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
 
 const TRIGGER = /* @__PURE__ */ new RegExp(
-  String.raw`\bcreate\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+"?bsb?_audit"?\s+after\s+[\s\S]*?\bon\s+(${IDENT}(?:\s*\.\s*${IDENT})?)\s+(?:(?:not\s+)?deferrable(?:\s+initially\s+(?:deferred|immediate))?\s+)?for\s+each\s+row\s+execute\s+(?:function|procedure)\s+better_supabase\s*\.\s*audit_row_change\s*\(`,
+  String.raw`\bcreate\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+"?bsb?_audit"?\s+after\s+[\s\S]*?\bon\s+(${IDENT}(?:\s*\.\s*${IDENT})?)\s+(?:(?:not\s+)?deferrable(?:\s+initially\s+(?:deferred|immediate))?\s+)?for\s+each\s+row\s+(?:when\s*\([\s\S]*?\)\s+)?execute\s+(?:function|procedure)\s+better_supabase\s*\.\s*audit_row_change\s*\(`,
   "gi",
 );
 

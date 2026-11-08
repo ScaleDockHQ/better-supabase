@@ -18,7 +18,7 @@ const schemaOf = (
 describe("row audit of block tables", () => {
   it("registers the entity tables of a block when audit is installed", () => {
     expect(schemaOf(["audit", "tasks"])).toContain(
-      'create constraint trigger bsb_audit after insert or update or delete on better_supabase.tasks deferrable initially deferred for each row execute function better_supabase.audit_row_change(\'{"ignore":[],"redact":[],"target_type":"task","event_prefix":"task"}\');',
+      'create constraint trigger bsb_audit after insert or update or delete on better_supabase.tasks deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting(\'better_supabase.import_audit\', true) is distinct from \'summary\') execute function better_supabase.audit_row_change(\'{"ignore":[],"redact":[],"target_type":"task","event_prefix":"task"}\');',
     );
   });
 

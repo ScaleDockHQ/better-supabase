@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:96ab08ee83e4e8768ff0aa7a9064cb50b303a5a431dd9b56fd965ac48aa46d81
+-- @bsb-hash sha256:2fb76ec7c7ac41c0aebde95b66f04dc8bdd53b360afe80ef5bffa4f81aa49f10
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1224,8 +1224,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations"
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.assets deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset","event_prefix":"asset"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.asset_locations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset_location","event_prefix":"asset_location"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.assets deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset","event_prefix":"asset"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.asset_locations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset_location","event_prefix":"asset_location"}');
 
 -- blocks.assets.api: entry points for the Data API.
 create schema if not exists "api";

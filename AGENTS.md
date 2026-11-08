@@ -449,6 +449,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0483: Load header dialogs on intent, render the side navigation on the server and load the chat panel after paint.
 - 0484: Ship bucket definitions to the browser from `better-supabase/storage/client`.
 - 0421: Index search records once per import batch.
+- 0422: Check the import summary mode in the audit trigger's when clause.
 
 ## Pre-release pins
 

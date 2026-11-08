@@ -1,6 +1,6 @@
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:abc49cef2062ea922793c9ef2b1fc77255daa3263df134ce645beeae86ae7242
+-- @bsb-hash sha256:39f3ed60a8d0880782d0b3b7d1739929663788b254982d3b81f49a375f7c0615
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1305,10 +1305,10 @@ create trigger "bsb_search_course_index"
   for each row execute function "better_supabase"."search_index_row"('course', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.courses deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"course","event_prefix":"course"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.course_modules deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"course_module","event_prefix":"course_module"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.course_lessons deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"course_lesson","event_prefix":"course_lesson"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.course_certificates deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"course_certificate","event_prefix":"course_certificate"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.courses deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"course","event_prefix":"course"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.course_modules deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"course_module","event_prefix":"course_module"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.course_lessons deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"course_lesson","event_prefix":"course_lesson"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.course_certificates deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"course_certificate","event_prefix":"course_certificate"}');
 
 -- blocks.courses.api: entry points for the Data API.
 create schema if not exists "api";

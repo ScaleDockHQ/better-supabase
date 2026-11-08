@@ -1,6 +1,6 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:3f5f06cf4c65efdf36e269da2dc15fb6851d73f06328aff37e759ba51dda9fa9
+-- @bsb-hash sha256:3e96511d63f1678b134cf1975c1f8e2eba01cd47bc6d66ffe8e97954570b290d
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -965,7 +965,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."sequences" as restri
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.sequences deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"sequence","event_prefix":"sequence"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.sequences deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"sequence","event_prefix":"sequence"}');
 
 -- blocks.sequences.api: entry points for the Data API.
 create schema if not exists "api";

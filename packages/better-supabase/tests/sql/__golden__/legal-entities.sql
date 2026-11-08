@@ -541,7 +541,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:db377a7d2c01dceb6d723c79c2d91ed30eb1b231043b799cc7c400ccb5955742
+-- @bsb-hash sha256:9689469d7d704b8e8f0418fdba34ca55c3a42fb03b9712707338e561d8eaa975
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1105,8 +1105,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."legal_entity_setting
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.legal_entities deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"legal_entity","event_prefix":"legal_entity"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.legal_entity_settings deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"legal_entity_setting","event_prefix":"legal_entity_setting"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.legal_entities deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"legal_entity","event_prefix":"legal_entity"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.legal_entity_settings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"legal_entity_setting","event_prefix":"legal_entity_setting"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities

@@ -419,7 +419,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:7b89f0d15d2d6736fa1daa5511aeafcffe2db3ae97a99b1737df7a9f9eb6b324
+-- @bsb-hash sha256:9006b23cb11c8bcfebb46a60085667ee000ae30385bab156f45c31dd0d58eb27
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -881,7 +881,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."prescriptions" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.prescriptions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"prescription","event_prefix":"prescription"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.prescriptions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"prescription","event_prefix":"prescription"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing

@@ -433,7 +433,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:82a736892fd738a4ae59f5d94d49a9943f9b2606865699f258267ead6020a278
+-- @bsb-hash sha256:3290b6003ca3f9773a453f90f7e2b7488d48bedfe21c837c91f30bce52caaf8b
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -860,7 +860,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."saved_view_preferenc
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.saved_views deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"saved_view","event_prefix":"saved_view"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.saved_views deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"saved_view","event_prefix":"saved_view"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views

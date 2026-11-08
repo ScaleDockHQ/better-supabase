@@ -754,7 +754,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_168_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:b501955350f8648153fbbd17b711396b68cfeb636f8f784ca2b8e52221cbcdfe
+-- @bsb-hash sha256:2ca8072cc0eb42db7359f8b23731a8818244896b31b1973745f2cdebb3b045c4
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1634,11 +1634,11 @@ create policy bsb_tenant_scope_delete on "better_supabase"."till_deposits" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.tills deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till","event_prefix":"till"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_sessions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_session","event_prefix":"till_session"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_movements deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_movement","event_prefix":"till_movement"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_counts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_count","event_prefix":"till_count"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_deposits deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_deposit","event_prefix":"till_deposit"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.tills deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till","event_prefix":"till"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_sessions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_session","event_prefix":"till_session"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_movements deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_movement","event_prefix":"till_movement"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_counts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_count","event_prefix":"till_count"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_deposits deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_deposit","event_prefix":"till_deposit"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_168_tills.sql
 -- better-supabase module: tills

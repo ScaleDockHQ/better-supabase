@@ -975,14 +975,15 @@ end;
 $$;
 ${serviceGrant(`${fn("search_reindex")}(text)`)}
 
--- Indexes a record now, or, while an import batch runs with
+-- Runs as its caller (the definer trigger functions and import_upsert_batch
+-- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
 -- key once in better_supabase.search_dirty (a transaction-local setting, one
 -- line per key) so search_refresh_dirty indexes it once at the end of the batch.
 create or replace function ${fn("search_enqueue")}(subject_type text, subject_id text)
 returns void
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -1007,7 +1008,7 @@ revoke execute on function ${fn("search_enqueue")}(text, text) from public, anon
 create or replace function ${fn("search_refresh_dirty")}()
 returns integer
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare

@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:2efb018ece802ee4b12b080955b296637861ab8e9b7449566fbf7b9d1f1c60b5
+-- @bsb-hash sha256:dac58e27311a9bbede43ba55346571d220483d0e9fa9a6de5a1ef62268b3faed
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -629,7 +629,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."custom_emoji" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.reactions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"reaction","event_prefix":"reaction"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.reactions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"reaction","event_prefix":"reaction"}');
 
 -- blocks.reactions.api: entry points for the Data API.
 create schema if not exists "api";
