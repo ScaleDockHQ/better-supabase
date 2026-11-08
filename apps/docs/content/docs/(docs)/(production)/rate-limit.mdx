@@ -128,6 +128,20 @@ const limited = os.$context<OrpcRequestContext>().use(
 Elsewhere, `rateLimitHeader()` and `rateLimitPolicyHeader()` from
 `better-supabase/server/rate-limit` build the two fields.
 
+```ts
+import {
+  rateLimitHeader,
+  rateLimitPolicyHeader,
+} from "better-supabase/server/rate-limit";
+
+const headers = new Headers({
+  "RateLimit-Policy": rateLimitPolicyHeader([
+    { name: "default", quota: 100, window: 60 },
+  ]),
+  RateLimit: rateLimitHeader([{ policy: "default", remaining: 42, reset: 30 }]),
+});
+```
+
 ## Data API writes
 
 The module also installs `check_request()`, a `pgrst.db_pre_request` hook
