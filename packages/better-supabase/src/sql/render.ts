@@ -31,6 +31,7 @@ import {
   checkFunctionRenames,
   checkTenantName,
 } from "./pipeline/checks.ts";
+import { renderModuleCached } from "./pipeline/module-cache.ts";
 import { preludeFile } from "./pipeline/prelude.ts";
 import {
   guardBelowHeader,
@@ -106,12 +107,19 @@ export function renderBlocks(
   const installed = modules.map((module) => module.name);
   checkEntityTables(modules, layout, installed);
 
+  const cachedFiles = (module: BlockSql, instance?: string): BlockSqlFile[] =>
+    renderModuleCached(
+      `${module.name}\u0000${instance ?? ""}`,
+      layout,
+      installed,
+      (tracked, trackedInstalled) =>
+        moduleFiles(module, tracked, trackedInstalled, instance),
+    );
+
   const files = modules.flatMap((module): BlockSqlFile[] => [
-    ...(rendersOwnInstance(module.name, layout)
-      ? moduleFiles(module, layout, installed)
-      : []),
+    ...(rendersOwnInstance(module.name, layout) ? cachedFiles(module) : []),
     ...renamedInstances(module.name, layout).flatMap((instance) =>
-      moduleFiles(module, layout, installed, instance.name),
+      cachedFiles(module, instance.name),
     ),
   ]);
 

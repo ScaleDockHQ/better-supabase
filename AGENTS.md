@@ -412,6 +412,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0346: Soft-deleted block rows carry archived_at.
 - 0360: Framework bindings supply init templates and name the server adapter.
 - 0361: Keep the parse cache of the schema model on disk.
+- 0362: Cache each module render on the inputs it read.
 
 ## Pre-release pins
 

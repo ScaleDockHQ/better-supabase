@@ -30,6 +30,13 @@ export {
   type SchemaModel,
 } from "./pipeline/model.ts";
 
+export {
+  moduleRenderStats,
+  setModuleRenderStore,
+  type ModuleRenderEntry,
+  type ModuleRenderStore,
+} from "./pipeline/module-cache.ts";
+
 export { renderKey } from "./pipeline/render-key.ts";
 
 export { splitStatements, type SqlStatement } from "./pipeline/split.ts";

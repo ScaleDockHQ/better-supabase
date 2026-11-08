@@ -4,7 +4,12 @@ import { dirname, resolve } from "node:path";
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { BlockSqlFile, BlockSqlLayout } from "../../sql/index.ts";
 
-import { blockFileState, renderBlocks, renderKey } from "../../sql/index.ts";
+import {
+  blockFileState,
+  moduleRenderStats,
+  renderBlocks,
+  renderKey,
+} from "../../sql/index.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
 import { VERSION } from "../version.ts";
 import { generatorHash } from "./generator-hash.ts";
@@ -22,8 +27,8 @@ const memory = new Map<string, readonly BlockSqlFile[]>();
 
 /**
  * Renders and cache lookups this process made, for tests and the bench:
- * `modules` counts the module files a fresh render produced, so a run served
- * from the cache reports zero.
+ * `modules` counts the module files a fresh render produced (not the ones the
+ * per-module cache served), so a run served from either cache reports zero.
  */
 export const renderStats = { fresh: 0, memory: 0, disk: 0, modules: 0 };
 
@@ -50,6 +55,18 @@ function isEntry(value: unknown): value is Entry {
     Array.isArray(value.files) &&
     value.files.every(isFile)
   );
+}
+
+/** A fresh render, and how many of its files came from the module cache. */
+function renderCounted(
+  names: readonly string[],
+  layout: BlockSqlLayout,
+): BlockSqlFile[] {
+  const served = moduleRenderStats.served;
+  const files = renderBlocks(names, layout);
+  renderStats.modules += files.length - (moduleRenderStats.served - served);
+
+  return files;
 }
 
 /** A cached file is used only when its `@bsb-hash` line still matches its body. */
@@ -86,10 +103,8 @@ export async function renderBlocksCached(
 
   if (key === undefined) {
     renderStats.fresh += 1;
-    const files = renderBlocks(names, layout);
-    renderStats.modules += files.length;
 
-    return files;
+    return renderCounted(names, layout);
   }
 
   const held = memory.get(key);
@@ -114,8 +129,7 @@ export async function renderBlocksCached(
   }
 
   renderStats.fresh += 1;
-  const files = renderBlocks(names, layout);
-  renderStats.modules += files.length;
+  const files = renderCounted(names, layout);
   memory.set(key, files);
   const entry: Entry = { key, files };
   const temporary = `${file}.${String(process.pid)}.tmp`;

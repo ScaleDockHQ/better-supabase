@@ -88,6 +88,8 @@ interface UpgradeTimes {
   readonly warm: UpgradeRun;
   /** After one check is added to an app file. */
   readonly edit: UpgradeRun;
+  /** After the app file registers one more audited table (ADR 0362). */
+  readonly audit: UpgradeRun;
 }
 
 const PROFILES = {
@@ -905,11 +907,20 @@ function benchUpgrade(): UpgradeTimes {
   );
   const edit = upgradeRun(directory);
 
+  // One more audited table in an app file changes the layout's
+  // `auditedTables`, which only a few modules read: the per-module render cache
+  // answers the rest without rendering them again.
+  writeFileSync(
+    app,
+    `${readFileSync(app, "utf-8")}\ncreate table centrakit.bench_note (id uuid primary key);\nselect better_supabase.audit('centrakit.bench_note');\n`,
+  );
+  const audit = upgradeRun(directory);
+
   if (process.env["BENCH_KEEP"] !== "1") {
     rmSync(directory, { recursive: true, force: true });
   }
 
-  return { cold, warm, edit };
+  return { cold, warm, edit, audit };
 }
 
 function checkUpgrade(
@@ -927,7 +938,7 @@ function checkUpgrade(
 
   const speed = Math.max(1, calibration.ts6 / baseline.calibration.ts6);
 
-  for (const phase of ["cold", "warm", "edit"] as const) {
+  for (const phase of ["cold", "warm", "edit", "audit"] as const) {
     const expected = before[phase].seconds * speed;
     const limit = Math.max(expected * TIME_FACTOR, expected + TIME_SLACK);
 
@@ -1062,7 +1073,7 @@ function checkConfig(
 const upgradeNow = benchUpgrade();
 
 console.log(
-  `upgrade (centrakit): cold ${upgradeNow.cold.seconds.toFixed(2)}s (${String(upgradeNow.cold.rendered)} rendered, ${String(upgradeNow.cold.written)} written), warm ${upgradeNow.warm.seconds.toFixed(2)}s (${String(upgradeNow.warm.rendered)} rendered, ${String(upgradeNow.warm.written)} written), edit ${upgradeNow.edit.seconds.toFixed(2)}s (${String(upgradeNow.edit.rendered)} rendered, ${String(upgradeNow.edit.written)} written)`,
+  `upgrade (centrakit): cold ${upgradeNow.cold.seconds.toFixed(2)}s (${String(upgradeNow.cold.rendered)} rendered, ${String(upgradeNow.cold.written)} written), warm ${upgradeNow.warm.seconds.toFixed(2)}s (${String(upgradeNow.warm.rendered)} rendered, ${String(upgradeNow.warm.written)} written), edit ${upgradeNow.edit.seconds.toFixed(2)}s (${String(upgradeNow.edit.rendered)} rendered, ${String(upgradeNow.edit.written)} written), audit ${upgradeNow.audit.seconds.toFixed(2)}s (${String(upgradeNow.audit.rendered)} rendered, ${String(upgradeNow.audit.written)} written)`,
 );
 
 const configNow = benchConfig();
