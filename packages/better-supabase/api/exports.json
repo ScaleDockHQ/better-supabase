@@ -362,6 +362,7 @@
       "GeneratorInputSchema",
       "GeneratorJsonSchema",
       "GeneratorModel",
+      "GeneratorModule",
       "GeneratorNoun",
       "GeneratorTable",
       "GenGroupConfig",

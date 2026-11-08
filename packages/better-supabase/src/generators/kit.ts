@@ -3,6 +3,7 @@ import type {
   GeneratorCapability,
   GeneratedFile,
   GeneratorInput,
+  GeneratorModule,
 } from "../config/index.ts";
 
 export type {
@@ -67,6 +68,7 @@ export type {
   GeneratorImports,
   GeneratorInput,
   GeneratorModel,
+  GeneratorModule,
   GeneratorTable,
 } from "../config/index.ts";
 
@@ -80,6 +82,7 @@ export interface GeneratorDefinition {
   readonly options?: unknown;
   readonly pure?: boolean;
   readonly workerSafe?: boolean;
+  readonly module?: GeneratorModule;
   readonly provides?: readonly GeneratorCapability[];
   generate(
     input: GeneratorInput,

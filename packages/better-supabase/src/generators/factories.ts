@@ -366,6 +366,10 @@ export function factories(options: FactoriesGeneratorOptions = {}): Generator {
     options,
     pure: true,
     workerSafe: true,
+    module: {
+      specifier: "better-supabase/generators/factories",
+      export: "factories",
+    },
     name: "factories",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =

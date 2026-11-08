@@ -46,6 +46,7 @@ export type {
   GeneratorInputSchema,
   GeneratorJsonSchema,
   GeneratorModel,
+  GeneratorModule,
   GeneratorNoun,
   GeneratorTable,
   JsonSchemaSource,

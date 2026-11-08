@@ -146,4 +146,51 @@ describe("createReadTracker", () => {
       tracker.reads().filter((read) => read.kind === "value"),
     ).toHaveLength(1);
   });
+
+  it("passes symbol keys and inherited members through without recording them", () => {
+    const tracker = createReadTracker();
+    const list = tracker.wrap("layout", [1, 2]);
+
+    expect([...list]).toEqual([1, 2]);
+    expect(String(tracker.wrap("layout", { a: 1 }))).toBe("[object Object]");
+    expect(tracker.uncacheable()).toBe(false);
+  });
+
+  it("refuses a render that defines or deletes a property of its input", () => {
+    const defined = createReadTracker();
+    Object.defineProperty(defined.wrap("layout", { a: 1 }), "b", { value: 2 });
+    expect(defined.uncacheable()).toBe(true);
+
+    const deleted = createReadTracker();
+    delete (deleted.wrap("layout", { a: 1 }) as Input)["a"];
+    expect(deleted.uncacheable()).toBe(true);
+  });
+
+  it("sees the kind of a null, a function and a primitive at a path", () => {
+    const tracker = track({ a: null, b: "x" }, (view) => [
+      view["a"],
+      view["b"],
+    ]);
+
+    expect(holds(tracker, { a: null, b: "x" })).toBe(true);
+    expect(holds(tracker, { a: {}, b: "x" })).toBe(false);
+    expect(holds(tracker, { a: null, b: ["x"] })).toBe(false);
+  });
+
+  it("keeps long values as a digest and still tells them apart", () => {
+    const long = "x".repeat(200);
+    const tracker = track({ a: long }, (view) => view["a"]);
+
+    expect(holds(tracker, { a: long })).toBe(true);
+    expect(holds(tracker, { a: `${long}y` })).toBe(false);
+    expect(tracker.reads().every((read) => read.seen.length < 80)).toBe(true);
+  });
+
+  it("does not wrap a value that is not a plain object or array", () => {
+    const tracker = createReadTracker();
+    const date = new Date(0);
+
+    expect(tracker.wrap("layout", date)).toBe(date);
+    expect(tracker.wrap("layout", 5)).toBe(5);
+  });
 });

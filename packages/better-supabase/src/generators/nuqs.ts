@@ -125,6 +125,7 @@ export function nuqs(options: NuqsGeneratorOptions = {}): Generator {
     options,
     pure: true,
     workerSafe: true,
+    module: { specifier: "better-supabase/generators/nuqs", export: "nuqs" },
     name: "nuqs",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =

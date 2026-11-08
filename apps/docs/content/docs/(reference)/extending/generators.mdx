@@ -53,20 +53,53 @@ export function tableNames(options: { output?: string } = {}) {
 }
 ```
 
-| Field        | Meaning                                                                                                               |
-| ------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `apiVersion` | `2`. `defineGenerator` sets it. A generator at another version fails in `gen` with the change that broke it.          |
-| `name`       | Unique in the config; it names the files in errors.                                                                   |
-| `version`    | Your generator's version, part of the cache key.                                                                      |
-| `options`    | The options you built it with, as JSON data. Part of the cache key.                                                   |
-| `pure`       | `generate` depends only on its input and `options`. `gen` caches the files. Without it the generator runs every pass. |
-| `workerSafe` | `generate` uses no closure from the config file, so it can run on a worker thread when given as a module.             |
-| `provides`   | What `gen` consumes from the output. `["validators"]` means the first file exports `validators`.                      |
+| Field        | Meaning                                                                                                                |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `apiVersion` | `2`. `defineGenerator` sets it. A generator at another version fails in `gen` with the change that broke it.           |
+| `name`       | Unique in the config; it names the files in errors.                                                                    |
+| `version`    | Your generator's version, part of the cache key.                                                                       |
+| `options`    | The options you built it with, as JSON data. Part of the cache key.                                                    |
+| `pure`       | `generate` depends only on its input and `options`. `gen` caches the files. Without it the generator runs every pass.  |
+| `workerSafe` | `generate` uses no closure from the config file, so it can run on a worker thread when `module` says where to load it. |
+| `module`     | `{ specifier, export }`: the module a worker imports and the export that takes `options` and returns the generator.    |
+| `provides`   | What `gen` consumes from the output. `["validators"]` means the first file exports `validators`.                       |
 
 The input is plain, frozen data: `meta`, `introspection`, `extras`, `model`,
 `config` (`output`, `databaseTypesOutput`, `casing`, `json`) and `imports.runtime`.
 No function and no provider object crosses the boundary, so
 `structuredClone(input)` gives a generator the same files.
+
+## Worker threads
+
+`gen` runs the generators that are not cached and declare both `workerSafe` and
+`module` on worker threads, up to four, when two or more qualify and the schema
+has 1500 tables or more. Each worker gets the input once, imports your module
+(`specifier` is a package name or a `file:` URL), calls its `export` with
+`options` and runs `generate`. The files are merged in the order of the
+`generators` list, so the output is the same bytes a single thread writes, and
+the first failing generator in that order is the one `gen` reports. If a worker
+cannot start, `gen` runs the generators on the main thread.
+
+Below that size the six built-in generators take 33 to 49 ms together on 380
+tables, less than starting workers costs, so they stay on the main thread.
+
+```ts
+export function tableNames(options: { output?: string } = {}) {
+  return defineGenerator({
+    name: "table-names",
+    version: "1.0.0",
+    options,
+    pure: true,
+    workerSafe: true,
+    module: { specifier: "@acme/table-names", export: "tableNames" },
+    generate: (input) => [],
+  });
+}
+```
+
+`testGeneratorPlugin` imports `module`, builds the generator again from
+`options` and checks that it has the same name and version and writes the same
+files.
 
 Two generators that provide the same capability are an error. When you configure
 several validator generators, set `validators: false` on all but one (the built-in
