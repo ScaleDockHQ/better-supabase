@@ -43,3 +43,20 @@ tool for attributing a number, the manifest test is the gate.
 A new route cannot add a request read to its shell without the build failing.
 The three new loading sequences and the first-load spec need the local Supabase
 stack and `EXPOSE_TESTING_API`; they were type-checked here, not run.
+
+## Known limitations
+
+`next build` logs `Date.now()` prerender errors for `/[locale]` and
+`/[locale]/projects`, from the expiry check in `server/sessions.ts`. Next falls
+back to rendering those routes at request time. The same errors appear on
+`feat/bsb-declarative-base-layer`, so this change did not add them. The check
+stays as it is: reading the clock through `performance.timeOrigin` would hide
+the error and let a prerendered shell treat an expired session as live, and a
+runtime entry cannot call `connection()`. A fix belongs with the cache scopes
+that verify a session, so the expiry check runs only inside a request.
+
+`tests/bench-scopes.spec.ts` matched `scope-11` twice while React streamed the
+boundary, so the test now looks inside the list. After that, both tests still
+see zero memo lookups on the base branch and on this one: `/api/bs-sessions`
+reads its own module instance of the memo, not the one the page renders with.
+The counter needs a shared store before the bench can assert.
