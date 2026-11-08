@@ -7,7 +7,7 @@ import type {
 } from "../../src/powersync/connector.ts";
 
 import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
+import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import {
@@ -460,7 +460,7 @@ describe("replaying managed columns", () => {
       body: [{ id: "c" }],
     }));
 
-    const db = defineSupabase(schema, { now: () => NOW })
+    const db = createSupabase(schema, { now: () => NOW })
       .use(updatedAtExtension())
       .connect(client);
 
