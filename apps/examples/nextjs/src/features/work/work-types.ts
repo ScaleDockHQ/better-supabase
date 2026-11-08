@@ -17,6 +17,9 @@ export const WORK_ITEM_STATES = [
   "canceled",
 ] as const satisfies readonly WorkItemState[];
 
+/** The state names, for client files that must not import the block barrel. */
+export type WorkItemStateName = (typeof WORK_ITEM_STATES)[number];
+
 export const WorkItemStateSchema = v.picklist(WORK_ITEM_STATES);
 
 export const WORK_ITEM_SORTS = [

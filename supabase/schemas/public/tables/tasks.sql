@@ -1,5 +1,5 @@
 -- Owned by you since `better-supabase migrate schema-first`.
-create table if not exists "public"."tasks" (
+create table "public"."tasks" (
   id uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null references "public"."organizations" ("id") on delete cascade,
   created_at timestamptz not null default now(),
@@ -83,13 +83,13 @@ alter table "public"."tasks" drop constraint if exists "tasks_project_id_title_k
 
 alter table "public"."tasks" add constraint "tasks_project_id_title_key" unique ("project_id", "title");
 
-create index if not exists "tasks_organization_id_idx" on "public"."tasks" ("organization_id");
+create index "tasks_organization_id_idx" on "public"."tasks" ("organization_id");
 
-create index if not exists "tasks_assignee_id_idx" on "public"."tasks" ("assignee_id");
+create index "tasks_assignee_id_idx" on "public"."tasks" ("assignee_id");
 
-create index if not exists "tasks_project_id_idx" on "public"."tasks" ("project_id");
+create index "tasks_project_id_idx" on "public"."tasks" ("project_id");
 
-create index if not exists "tasks_status_rank_idx" on "public"."tasks" ("status", "rank");
+create index "tasks_status_rank_idx" on "public"."tasks" ("status", "rank");
 
 drop trigger if exists "bsb_updated_at" on "public"."tasks";
 

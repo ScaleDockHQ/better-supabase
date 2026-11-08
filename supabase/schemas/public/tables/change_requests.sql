@@ -1,6 +1,6 @@
 -- Change requests move through the stages of the tenant's published
 -- `change-requests` workflow (the state-machine block's `workflow` option).
-create table if not exists "public"."change_requests" (
+create table "public"."change_requests" (
   id uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null references "public"."organizations" ("id") on delete cascade,
   "title" text not null check (char_length("title") between 1 and 200),
@@ -58,7 +58,7 @@ create policy bsb_tenant_scope_delete on "public"."change_requests" as restricti
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
-create index if not exists "change_requests_organization_id_idx" on "public"."change_requests" ("organization_id");
+create index "change_requests_organization_id_idx" on "public"."change_requests" ("organization_id");
 
 drop trigger if exists "bsb_updated_at" on "public"."change_requests";
 
