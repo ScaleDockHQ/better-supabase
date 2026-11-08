@@ -85,6 +85,10 @@ export function moduleContext(
       ...(layout.permissionCatalog
         ? { permissionCatalog: layout.permissionCatalog }
         : {}),
+      ...(layout.rerunnable === true ? { rerunnable: true } : {}),
+      ...(layout.accessProvider?.wildcards
+        ? { permissionWildcards: layout.accessProvider.wildcards }
+        : {}),
       ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),
       ...(layout.appColumns ? { appColumns: layout.appColumns } : {}),
       ...(installed ? { installed } : {}),

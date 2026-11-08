@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:fba3c4402f59cf920eb058473bd9cf76c19d2382e0be25451b9c41bd303cd517
+-- @bsb-hash sha256:ce4c5d4497f88ac233629c10d19e96cac2b060dea9c930d79df4651a6605984e
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,17 +28,6 @@ create index notification_events_subject_idx on "better_supabase"."notification_
 create index notification_events_actor_idx on "better_supabase"."notification_events" ("actor_id");
 create index notification_events_created_by_idx on "better_supabase"."notification_events" ("created_by");
 create index notification_events_created_at_idx on "better_supabase"."notification_events" ("created_at");
-do $$
-begin
-  if exists (
-    select 1 from pg_constraint k, unnest(array['low', 'normal', 'high', 'urgent']::text[]) p
-    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'bsb_notification_events_priority_check'
-      and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
-  ) then
-    alter table "better_supabase"."notification_events" drop constraint bsb_notification_events_priority_check;
-  end if;
-end;
-$$;
 alter table "better_supabase"."notification_events" add constraint bsb_notification_events_priority_check
   check ("priority" in ('low', 'normal', 'high', 'urgent'));
 alter table "better_supabase"."notification_events" enable row level security;

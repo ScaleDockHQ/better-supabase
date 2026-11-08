@@ -32,6 +32,7 @@ import {
   statusAssignments,
   statusFrom,
 } from "./attachments-app.ts";
+import { attachmentBackfills } from "./attachments-backfill.ts";
 import {
   BUCKET,
   bucketInsert,
@@ -513,7 +514,9 @@ alter table ${t} add column if not exists ${c("metadata")} jsonb not null defaul
 -- ${c("path")} is a plain column a trigger fills: logical replication (PowerSync)
 -- skips generated columns. An install from before keeps its values when the
 -- expression is dropped.
-do $$
+${
+  ctx.rerunnable
+    ? `do $$
 begin
   if exists (
     select 1 from pg_attribute
@@ -524,7 +527,9 @@ begin
   end if;
 end;
 $$;
-create or replace function ${fn("attachment_object_path")}()
+`
+    : ""
+}create or replace function ${fn("attachment_object_path")}()
 returns trigger
 language plpgsql
 security invoker
@@ -540,20 +545,8 @@ drop trigger if exists bsb_attachments_object_path on ${t};
 create trigger bsb_attachments_object_path
   before insert or update on ${t}
   for each row execute function ${fn("attachment_object_path")}();
--- options.path: the column comment records the template the path was built
--- from, so a changed template rewrites every row's path.
-do $$
-declare
-  v_current text := coalesce(
-    col_description(${sqlString(qualifiedTable)}::regclass,
-      (select attnum from pg_attribute where attrelid = ${sqlString(qualifiedTable)}::regclass and attname = ${sqlString(pathColumn)})::integer),
-    'better-supabase path: {organization_id}/attachments/{id}');
-begin
-  if v_current is distinct from ${sqlString(pathComment)} then
-    update ${t} set ${c("path")} = null;
-  end if;
-end;
-$$;`
+-- options.path: the data file recomputes the path of a row that no longer
+-- matches the template, so a changed template rewrites it.`
       : ""
   }
 ${
@@ -1017,7 +1010,7 @@ function data(ctx: BlockSqlContext): string {
     }
   }
 
-  return bucketInsert(ctx, rows, maxSize);
+  return `${bucketInsert(ctx, rows, maxSize)}${attachmentBackfills(ctx)}`;
 }
 
 export const ATTACHMENTS: BlockSqlDefinition = {

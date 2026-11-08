@@ -258,6 +258,25 @@ describe("webhooks-out module", () => {
       expect(fn).not.toContain("can_user");
     });
 
+    it("builds the held grants by the wildcards the provider honours", () => {
+      const held = (wildcards?: "all" | "prefix" | "none") =>
+        publish(
+          moduleBody("webhooks-out", {
+            accessProvider: {
+              ...moduleProvider,
+              ...(wildcards ? { wildcards } : {}),
+            },
+            modules: { permissions: { model: "provider" } },
+          })!,
+        );
+
+      expect(held()).toContain("v_held := array[v_permission, '*'] ||");
+      expect(held("all")).toBe(held());
+      expect(held("prefix")).toContain("v_held := array[v_permission] ||");
+      expect(held("prefix")).toContain("|| '.*'");
+      expect(held("none")).toContain("v_held := array[v_permission];");
+    });
+
     it("fails closed for user endpoints without the access module or a tenant", () => {
       expect(publish(body())).toContain(
         `when d."created_by" is not null then false else`,

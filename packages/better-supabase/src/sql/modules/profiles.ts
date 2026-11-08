@@ -498,10 +498,12 @@ function usernameRules(ctx: BlockSqlContext): {
 
 /**
  * The username's length, characters and reserved names, as a check on the
- * managed table. Existing rows that break it leave the check unvalidated. No
- * `between`: Postgres expands it after flattening the `and` chain, so the
- * stored expression nests differently from the one pg-delta writes back, and a
- * declarative sync would drop and re-add the check every time.
+ * managed table. It is `not valid`: Postgres checks every new and changed row,
+ * and validating the rows that exist is a change to stored data that a schema
+ * diff can't plan and would undo on its next run. No `between`: Postgres
+ * expands it after flattening the `and` chain, so the stored expression nests
+ * differently from the one pg-delta writes back, and a declarative sync would
+ * drop and re-add the check every time.
  */
 function usernameCheck(ctx: BlockSqlContext): string {
   const t = ctx.table("profiles");
@@ -516,14 +518,7 @@ alter table ${t} add constraint profiles_username_check check (
     and ${u} ~* '^[a-z][a-z0-9_${usernameExtras(ctx)}]*$'
     and lower(${u}) <> all (${reserved})
   )
-) not valid;
-do $$
-begin
-  alter table ${t} validate constraint profiles_username_check;
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', ${sqlString(t)};
-end;
-$$;`;
+) not valid;`;
 }
 
 function table(ctx: BlockSqlContext): string {

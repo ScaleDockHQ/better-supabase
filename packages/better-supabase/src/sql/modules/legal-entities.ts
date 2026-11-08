@@ -16,6 +16,7 @@ import { legalEntityFunctions } from "./legal-entities-functions.ts";
 import {
   defaultSwitchGuardSql,
   disableCheckSql,
+  numberDuplicateWarningSql,
   numberGuardSql,
   restoreNumberKeysSql,
 } from "./legal-entities-numbers.ts";
@@ -272,6 +273,40 @@ function restoredKeys(ctx: BlockSqlContext): string {
     .flatMap((key) => numberedOf(ctx, key))
     .map((numbered) => restoreNumberKeysSql(ctx, numbered))
     .join("\n");
+}
+
+/**
+ * The warning for each table `options.on` names whose numbers the default
+ * entity and the documents without one already share.
+ */
+function duplicateWarnings(ctx: BlockSqlContext): string {
+  const lines: string[] = [];
+
+  for (const key of onKeys(ctx)) {
+    const target = ON_TABLES[key];
+
+    if (target === undefined) {
+      continue;
+    }
+
+    const own = ctx.of(target.module);
+
+    for (const table of target.tables) {
+      if (!own.owns(table) && !own.appOwned.includes(table)) {
+        continue;
+      }
+
+      const numbered = numberedOf(ctx, key).find(
+        (each) => each.table === table,
+      );
+
+      if (numbered !== undefined) {
+        lines.push(numberDuplicateWarningSql(ctx, numbered));
+      }
+    }
+  }
+
+  return lines.join("\n");
 }
 
 /**
@@ -536,7 +571,7 @@ function data(ctx: BlockSqlContext): string {
     ? ctx.of("custom-fields")
     : undefined;
 
-  const parts = [restoredKeys(ctx)];
+  const parts = [restoredKeys(ctx), duplicateWarnings(ctx)];
 
   if (fields !== undefined && perEntityValues(fields)) {
     const values = fields.table("values");

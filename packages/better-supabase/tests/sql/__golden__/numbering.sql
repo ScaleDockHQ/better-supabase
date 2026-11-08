@@ -1701,7 +1701,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:3d969c2c621a6265070c588dcc592e77b642ba9a8c9654522336e25d7df73f43
+-- @bsb-hash sha256:675c6369037c1f78f9b19b86f2106f4c1c86881180e0244d4c885a523d7db78d
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1719,27 +1719,6 @@ alter table "better_supabase"."number_sequences" add column if not exists "creat
 alter table "better_supabase"."number_sequences" add column if not exists "updated_at" timestamptz not null default now();
 alter table "better_supabase"."number_sequences" enable row level security;
 grant all on "better_supabase"."number_sequences" to service_role;
-do $$
-declare
-  v_constraint record;
-begin
-  for v_constraint in
-    select c.conname
-    from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."number_sequences"'::pg_catalog.regclass
-      and c.contype in ('p', 'u')
-      and not exists (
-        select 1
-        from pg_catalog.pg_attribute a
-        where a.attrelid = c.conrelid
-          and a.attnum = any (c.conkey)
-          and a.attname = 'scope'
-      )
-  loop
-    execute pg_catalog.format('alter table "better_supabase"."number_sequences" drop constraint %I', v_constraint.conname);
-  end loop;
-end
-$$;
 create unique index if not exists number_sequences_series_key on "better_supabase"."number_sequences" ("tenant_id", "entity", "scope", "period");
 
 create or replace function better_supabase.format_assigned_number(template text, n bigint, at timestamptz)

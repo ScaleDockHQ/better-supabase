@@ -402,6 +402,14 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   permission(action: string, fallback: string): string;
   /** The permission key for a module action. */
   permissionKey(action: string, fallback: string): string;
+  /**
+   * The layout is the migrations workflow, which applies each statement over an
+   * installed database. A schema diff handles the same changes, so a module
+   * writes a repair for an older install only when this is true.
+   */
+  readonly rerunnable: boolean;
+  /** The wildcard grants the authorization provider honours (ADR 0372). */
+  readonly wildcards: "all" | "prefix" | "none";
   /** A trigger name with the module's prefix, quoted. */
   trigger(name: string): string;
   /** Whether `module` is installed alongside this one. */
@@ -612,6 +620,10 @@ export interface BlockSqlContextSource {
   readonly ownTables?: Readonly<Record<string, string>>;
   /** `layout.permissionCatalog`: the permission keys the provider lists. */
   readonly permissionCatalog?: readonly string[];
+  /** The layout applies statements in file order (`layout.rerunnable`). */
+  readonly rerunnable?: boolean;
+  /** The wildcard grants the provider honours (ADR 0372); unset is `all`. */
+  readonly permissionWildcards?: "all" | "prefix" | "none";
   /** `layout.ownViews`: the entries of `ownTables` that are views. */
   readonly ownViews?: Readonly<Record<string, OwnView>>;
   /** `layout.appColumns`: the columns the app's files add to tables. */
@@ -1288,6 +1300,8 @@ export function createModuleContext(
       return config.tables[table] !== null;
     },
     permissionKey,
+    wildcards: source.permissionWildcards ?? "all",
+    rerunnable: source.rerunnable === true,
     permission: (action, fallback) =>
       sqlString(permissionKey(action, fallback)),
     trigger: (name) => sqlIdent(`bsb_${scoped(naming.rename(name), name)}`),

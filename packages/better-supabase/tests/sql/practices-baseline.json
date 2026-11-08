@@ -65,8 +65,7 @@
   },
   "attachments": {
     "security-definer-functions": 71,
-    "row-triggers": 17,
-    "do-blocks": 6
+    "row-triggers": 17
   },
   "audit": {
     "security-definer-functions": 80,
@@ -338,8 +337,7 @@
   },
   "notifications": {
     "security-definer-functions": 169,
-    "row-triggers": 24,
-    "do-blocks": 2
+    "row-triggers": 24
   },
   "numbering": {
     "security-definer-functions": 48
@@ -393,8 +391,7 @@
   },
   "profiles": {
     "security-definer-functions": 30,
-    "row-triggers": 5,
-    "do-blocks": 2
+    "row-triggers": 5
   },
   "promotions": {
     "security-definer-functions": 66
@@ -559,9 +556,6 @@
   },
   "warehouse": {
     "security-definer-functions": 180
-  },
-  "webhook-inbox": {
-    "do-blocks": 2
   },
   "webhooks-in": {
     "security-definer-functions": 50,

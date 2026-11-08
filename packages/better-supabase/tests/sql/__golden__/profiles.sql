@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:d6a0376a138f53412fb2c700e7519f0fb0ed404b8434c2a8504314994002e4b4
+-- @bsb-hash sha256:104f5add5b481ae4ee60bd6739abef3df18f02aea917c043e3eed06b782a552c
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -33,13 +33,6 @@ alter table "better_supabase"."profiles" add constraint bsb_profiles_username_ch
     and lower("username") <> all (array['admin', 'administrator', 'api', 'app', 'auth', 'billing', 'help', 'login', 'logout', 'me', 'null', 'root', 'settings', 'signup', 'support', 'system', 'www'])
   )
 ) not valid;
-do $$
-begin
-  alter table "better_supabase"."profiles" validate constraint bsb_profiles_username_check;
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"better_supabase"."profiles"';
-end;
-$$;
 alter table "better_supabase"."profiles" enable row level security;
 create policy bsb_profiles_read on "better_supabase"."profiles"
   for select to authenticated
@@ -295,7 +288,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:d6a0376a138f53412fb2c700e7519f0fb0ed404b8434c2a8504314994002e4b4
+-- @bsb-hash sha256:104f5add5b481ae4ee60bd6739abef3df18f02aea917c043e3eed06b782a552c
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -327,13 +320,6 @@ alter table "better_supabase"."profiles" add constraint bsb_profiles_username_ch
     and lower("username") <> all (array['admin', 'administrator', 'api', 'app', 'auth', 'billing', 'help', 'login', 'logout', 'me', 'null', 'root', 'settings', 'signup', 'support', 'system', 'www'])
   )
 ) not valid;
-do $$
-begin
-  alter table "better_supabase"."profiles" validate constraint bsb_profiles_username_check;
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"better_supabase"."profiles"';
-end;
-$$;
 alter table "better_supabase"."profiles" enable row level security;
 create policy bsb_profiles_read on "better_supabase"."profiles"
   for select to authenticated
@@ -589,7 +575,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:f32be0edaadf65c873ba339e7eaded91c9e861961eb02f23d129d381886633e9
+-- @bsb-hash sha256:3a756e43a1fce4dba3ad07841580c35251c4b952891a83aad561ba2cba3366c7
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -626,13 +612,6 @@ alter table "app_private"."profiles" add constraint bsb_profiles_username_check 
     and lower("username") <> all (array['admin', 'administrator', 'api', 'app', 'auth', 'billing', 'help', 'login', 'logout', 'me', 'null', 'root', 'settings', 'signup', 'support', 'system', 'www'])
   )
 ) not valid;
-do $$
-begin
-  alter table "app_private"."profiles" validate constraint bsb_profiles_username_check;
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"app_private"."profiles"';
-end;
-$$;
 alter table "app_private"."profiles" enable row level security;
 create policy bsb_profiles_read on "app_private"."profiles"
   for select to authenticated
@@ -888,7 +867,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:00a9da4cb9a040225b2c65f934e103b79e990939e78302e6365a34ad65dfeb7d
+-- @bsb-hash sha256:796464f1bc4e3a4321663edf74eb66b3c85df525bcdca5f0108dcca94300b880
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -920,13 +899,6 @@ alter table "better_supabase"."profiles" add constraint bsb_profiles_username_ch
     and lower("username") <> all (array['admin', 'administrator', 'api', 'app', 'auth', 'billing', 'help', 'login', 'logout', 'me', 'null', 'root', 'settings', 'signup', 'support', 'system', 'www'])
   )
 ) not valid;
-do $$
-begin
-  alter table "better_supabase"."profiles" validate constraint bsb_profiles_username_check;
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"better_supabase"."profiles"';
-end;
-$$;
 alter table "better_supabase"."profiles" enable row level security;
 create policy bsb_profiles_read on "better_supabase"."profiles"
   for select to authenticated
@@ -1232,7 +1204,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:33810eea77acc410bbd0e3129327c98bdb87f249fad8fad2507fb6f522c1bf0a
+-- @bsb-hash sha256:c5118beee06147aa9d6972f7d914013c365d937d8cf9bca0cc57b038242a945a
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1253,12 +1225,6 @@ alter table "better_supabase"."profiles" add column if not exists "created_at" t
 alter table "better_supabase"."profiles" add column if not exists "updated_at" timestamptz not null default now();
 
 create unique index if not exists profiles_username_idx on "better_supabase"."profiles" (lower("username"));
-do $$
-begin
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"better_supabase"."profiles"';
-end;
-$$;
 alter table "better_supabase"."profiles" enable row level security;
 create policy bsb_profiles_read on "better_supabase"."profiles"
   for select to authenticated

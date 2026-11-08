@@ -82,19 +82,9 @@ alter table better_supabase.webhook_inbox add column if not exists tenant text;
 alter table better_supabase.webhook_inbox add column if not exists checkpoint jsonb not null default '{}';
 -- Message ids are unique per source and tenant: two tenants of one provider
 -- can send the same id. A null tenant counts as one tenant.
-do $$
-begin
-  if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conrelid = 'better_supabase.webhook_inbox'::regclass
-      and conname = 'webhook_inbox_source_tenant_message_id_key'
-  ) then
-    alter table better_supabase.webhook_inbox
-      add constraint webhook_inbox_source_tenant_message_id_key
-      unique nulls not distinct (source, tenant, message_id);
-  end if;
-end;
-$$;
+alter table better_supabase.webhook_inbox
+  add constraint webhook_inbox_source_tenant_message_id_key
+  unique nulls not distinct (source, tenant, message_id);
 alter table better_supabase.webhook_inbox drop constraint if exists webhook_inbox_source_message_id_key;
 create index if not exists webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
