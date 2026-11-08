@@ -136,6 +136,27 @@ describe("BS386 per-row policy functions", () => {
     ).toEqual([]);
   });
 
+  it("leaves the blocks' own policies to upgrade", async () => {
+    const renamed = snapshot(
+      (tables) => {
+        notes(tables).policies = [
+          {
+            name: "bsb_notes_read",
+            command: "select",
+            roles: ["authenticated"],
+            permissive: true,
+            using: "public.can_read(id)",
+            check: null,
+            functions: ["public.can_read"],
+          },
+        ];
+      },
+      [fn()],
+    );
+
+    expect(await run(context(renamed), "BS386")).toEqual([]);
+  });
+
   it("accepts a stable SQL function", async () => {
     expect(
       await run(

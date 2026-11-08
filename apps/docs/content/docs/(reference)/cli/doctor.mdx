@@ -1749,7 +1749,8 @@ that calls a volatile function, or one written in PL/pgSQL, outside
 can't hoist a volatile call. Wrap the call in `(select fn(...))` so it runs once
 per statement, or replace a per-row check with a set helper such as
 `tenant_id in (select tenant_ids_with('key'))`. A helper called inside
-`(select ...)` is accepted even when it is volatile. Doctor reads the policy
+`(select ...)` is accepted even when it is volatile. Policies named `bsb_*`
+belong to a block module and are left to `upgrade`. Doctor reads the policy
 expressions and the functions they call from the catalog.
 
 ### BS387

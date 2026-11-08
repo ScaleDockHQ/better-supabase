@@ -213,7 +213,7 @@ const SCALE_CHECKS: readonly Rule[] = [
     severity: "warning",
     title: "A policy calls a volatile or PL/pgSQL function per row",
     description:
-      "A policy that calls a volatile function, or one written in PL/pgSQL, outside `(select ...)` runs it once for every row the statement reads, and a volatile function can't be hoisted or folded. A 100,000 row list then costs 100,000 calls. Wrap the call in `(select fn(...))` so Postgres evaluates it once per statement, or replace a per-row check with a set helper such as `tenant_id in (select tenant_ids_with('key'))`. A helper that is called inside `(select ...)` is accepted even when it is volatile.",
+      "A policy that calls a volatile function, or one written in PL/pgSQL, outside `(select ...)` runs it once for every row the statement reads, and a volatile function can't be hoisted or folded. A 100,000 row list then costs 100,000 calls. Wrap the call in `(select fn(...))` so Postgres evaluates it once per statement, or replace a per-row check with a set helper such as `tenant_id in (select tenant_ids_with('key'))`. A helper that is called inside `(select ...)` is accepted even when it is volatile. Policies named `bsb_*` belong to a block module and are left to `upgrade`.",
     check(context) {
       const catalog = catalogOf(context);
 
@@ -221,6 +221,12 @@ const SCALE_CHECKS: readonly Rule[] = [
 
       return catalog.tables.flatMap((table) =>
         table.policies.flatMap((policy): FindingInput[] => {
+          // The blocks' own policies (`bsb_*`) change with the module, not by
+          // hand: the set-based forms ship in `upgrade`.
+          if (policy.name.startsWith("bsb_")) {
+            return [];
+          }
+
           const expressions = [policy.using, policy.check].filter(
             (text): text is string => text !== null,
           );
