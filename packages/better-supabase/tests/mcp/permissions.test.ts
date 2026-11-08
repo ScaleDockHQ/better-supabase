@@ -35,7 +35,7 @@ const decide = (request: AuthorizationRequest<Ref>) =>
       : ({ outcome: "denied" } as const);
 
 describe("permittedTools", () => {
-  it("batches one request per permission and keeps the tool order", async () => {
+  it("decides every permission in one evaluations call and keeps the tool order", async () => {
     const evaluations = vi.fn(
       async (requests: readonly AuthorizationRequest<Ref>[]) =>
         requests.map(decide),
@@ -60,13 +60,42 @@ describe("permittedTools", () => {
     );
 
     expect(shown).toEqual([true, true, false, true]);
-    expect(evaluations).toHaveBeenCalledTimes(2);
+    expect(evaluations).toHaveBeenCalledOnce();
     expect(
-      evaluations.mock.calls[0]![0].map((request) => request.resource),
+      evaluations.mock.calls[0]![0].map((request) => [
+        request.resource,
+        request.action,
+      ]),
     ).toEqual([
-      { type: "mcp_tool", id: "a" },
-      { type: "mcp_tool", id: "d" },
+      [{ type: "mcp_tool", id: "a" }, "export"],
+      [{ type: "mcp_tool", id: "c" }, "purge"],
+      [{ type: "mcp_tool", id: "d" }, "export"],
     ]);
+  });
+
+  it("lists 300 tools with distinct permissions in one evaluations call", async () => {
+    const evaluations = vi.fn(
+      async (requests: readonly AuthorizationRequest<Ref>[]) =>
+        requests.map(decide),
+    );
+
+    const authorizer = defineAuthorizer<Ref>({
+      name: "test",
+      key: (ref) => ref,
+      evaluate: decide,
+      evaluations,
+    });
+
+    const tools = Array.from({ length: 300 }, (_, index) => ({
+      name: `tool_${String(index)}`,
+      permission: `export_${String(index)}`,
+    }));
+
+    const shown = await permittedTools(authorizer, tools, undefined);
+
+    expect(shown).toHaveLength(300);
+    expect(evaluations).toHaveBeenCalledOnce();
+    expect(evaluations.mock.calls[0]![0]).toHaveLength(300);
   });
 
   it("hides gated tools without an authorizer or with an unknown permission", async () => {

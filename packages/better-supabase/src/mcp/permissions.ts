@@ -12,7 +12,7 @@ import type { Result } from "../core/result.ts";
 import {
   checkPermission,
   isRequestMemo,
-  outcomesOf,
+  outcomesOfMany,
 } from "../core/authorizer.ts";
 import { dbError } from "../core/errors.ts";
 import { OPERATION_PREFIXES, operationPermission } from "../core/operations.ts";
@@ -160,55 +160,40 @@ export async function permittedTools(
   context: RequestContext | undefined,
 ): Promise<readonly boolean[]> {
   const shown = tools.map((tool) => tool.permission === undefined);
-
-  const groups = new Map<
-    string,
-    { permission: unknown; purpose: AuthorizationPurpose; indexes: number[] }
-  >();
+  const indexes: number[] = [];
 
   for (const [index, tool] of tools.entries()) {
     if (tool.permission === undefined || !authorizer) {
       continue;
     }
 
-    let key: string;
-
     try {
-      key = authorizer.key(tool.permission);
+      authorizer.key(tool.permission);
+      indexes.push(index);
     } catch {
-      continue;
+      // An unknown permission leaves the tool hidden.
     }
-
-    const purpose = toolPurpose(tool.info);
-    const groupKey = `${purpose.intent ?? ""} ${key}`;
-
-    const group = groups.get(groupKey) ?? {
-      permission: tool.permission,
-      purpose,
-      indexes: [],
-    };
-
-    group.indexes.push(index);
-    groups.set(groupKey, group);
   }
 
-  await Promise.all(
-    [...groups.values()].map(async ({ permission, purpose, indexes }) => {
-      const outcomes = await outcomesOf(
-        authorizer,
-        permission,
-        indexes.map((index) => ({ type: "mcp_tool", id: tools[index]!.name })),
-        context,
-        runtimeOf(context),
-        purpose,
-      );
+  const outcomes = await outcomesOfMany(
+    authorizer,
+    indexes.map((index) => {
+      const tool = tools[index]!;
 
-      for (const [position, index] of indexes.entries()) {
-        const outcome = outcomes[position];
-        shown[index] = outcome === "granted" || outcome === "approval-required";
-      }
+      return {
+        permission: tool.permission,
+        resource: { type: "mcp_tool", id: tool.name },
+        purpose: toolPurpose(tool.info),
+      };
     }),
+    context,
+    runtimeOf(context),
   );
+
+  for (const [position, index] of indexes.entries()) {
+    const outcome = outcomes[position];
+    shown[index] = outcome === "granted" || outcome === "approval-required";
+  }
 
   return shown;
 }
