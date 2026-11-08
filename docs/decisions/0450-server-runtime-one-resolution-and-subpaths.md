@@ -34,6 +34,9 @@ keeps the result, so each later builder reads it. Plugin `afterMutation` events
 copy the returned rows on the first read of `rows`, as the `mutation` event
 already did.
 
+`server.context()` skips the entry fold when `tenant` and `support` are unset:
+it resolves, then builds the context. The fold stays for composite servers.
+
 ## Alternatives considered
 
 Keeping re-exports from `server` kept the bundle cost, which was the problem.
