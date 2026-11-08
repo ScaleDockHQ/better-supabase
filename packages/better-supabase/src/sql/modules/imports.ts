@@ -323,7 +323,7 @@ ${updatedArms}
         end case;`;
 
   const queue = ctx.enqueue(
-    "'imports'",
+    "imports",
     `jsonb_build_object('run', v_run.${r("id")}, 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk)`,
     `v_run.${r("id")}::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text`,
   );
