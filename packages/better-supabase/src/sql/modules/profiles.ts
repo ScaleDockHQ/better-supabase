@@ -149,13 +149,33 @@ function added(ctx: BlockSqlContext, logical: string): boolean {
   );
 }
 
+/**
+ * The active organization and team columns belong to the tenant modules:
+ * without `memberships` (or `teams`), an app with no tenants gets neither,
+ * unless it maps the column itself.
+ */
+const tenantColumn =
+  (logical: string, module: string) =>
+  (ctx: BlockSqlContext): boolean =>
+    ctx.has("profiles", logical) &&
+    (ctx.installed(module) ||
+      typeof ctx.config.columns["profiles"]?.[logical] === "string");
+
 const ADDED: Readonly<Record<string, (ctx: BlockSqlContext) => boolean>> = {
   avatarPath: hasAvatarPath,
   locale: hasLocale,
 };
 
+const TENANT_COLUMNS: Readonly<
+  Record<string, (ctx: BlockSqlContext) => boolean>
+> = {
+  activeTeam: tenantColumn("activeTeam", "teams"),
+  activeTenant: tenantColumn("activeTenant", "memberships"),
+};
+
 const present = (ctx: BlockSqlContext, logical: string): boolean =>
-  ADDED[logical]?.(ctx) ?? ctx.has("profiles", logical);
+  (ADDED[logical] ?? TENANT_COLUMNS[logical])?.(ctx) ??
+  ctx.has("profiles", logical);
 
 const USERNAME_SOURCES = ["user_name", "preferred_username", "username"];
 
@@ -755,7 +775,7 @@ function guard(ctx: BlockSqlContext): string {
     "activeTeam",
     "createdAt",
   ]
-    .filter((logical) => ctx.has("profiles", logical))
+    .filter((logical) => present(ctx, logical))
     .map((logical) => ctx.col("profiles", logical));
 
   const updatedAt = ctx.has("profiles", "updatedAt")
@@ -790,8 +810,8 @@ function guard(ctx: BlockSqlContext): string {
 
   return `
 -- The API roles can't change the key or ${columns.join(", ")}. Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function ${ctx.fn("guard_profile")}()
 returns trigger
 language plpgsql
@@ -1118,7 +1138,7 @@ export const PROFILES: BlockSqlDefinition = {
   description:
     "A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.",
   requires: [],
-  integrates: ["memberships"],
+  integrates: ["memberships", "teams"],
   dependencies: (layout) => {
     const policy = layout.modules?.["profiles"]?.options?.["readPolicy"];
 

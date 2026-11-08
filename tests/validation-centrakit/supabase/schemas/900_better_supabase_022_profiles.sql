@@ -1,6 +1,6 @@
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:e396e98d35a5b43d76befee7576f7abf4b7cf729d11c68b7c0df80b691355b5e
+-- @bsb-hash sha256:4fc52d057417a82e24f37d376029d7968cf715165e26cebc5a04a687203ffa4a
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,8 +22,8 @@ grant all on "centrakit"."profiles" to service_role;
 
 
 -- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "better_supabase"."guard_profile"()
 returns trigger
 language plpgsql

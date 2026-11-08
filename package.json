@@ -22,7 +22,7 @@
     "check:prose": "node scripts/check-prose.ts",
     "check:publish": "turbo run check:publish",
     "check:skills": "node scripts/check-skills.ts",
-    "db:gen": "dotenv -e .env.development.local -- sh -c 'for p in apps/examples/* apps/examples/monorepo/* tests/validation-*; do if [ \"$p\" != tests/validation-centrakit ] && [ \"$p\" != tests/validation-declarative ] && [ \"$p\" != tests/validation-lienlink ] && ls \"$p\"/better-supabase.config.* >/dev/null 2>&1; then node packages/better-supabase/bin/better-supabase.js gen --cwd \"$p\" || exit 1; fi; done'",
+    "db:gen": "dotenv -e .env.development.local -- sh -c 'for p in apps/examples/* apps/examples/monorepo/* tests/validation-*; do if [ \"$p\" != tests/validation-centrakit ] && [ \"$p\" != tests/validation-declarative ] && [ \"$p\" != tests/validation-lienlink ] && [ \"$p\" != tests/validation-single-tenant ] && ls \"$p\"/better-supabase.config.* >/dev/null 2>&1; then node packages/better-supabase/bin/better-supabase.js gen --cwd \"$p\" || exit 1; fi; done'",
     "dev": "turbo run dev",
     "dev:cleanup": "portless prune",
     "dev:docs": "dotenv -e .env.development.local -e .env.local -- turbo run dev:portless --filter=docs",

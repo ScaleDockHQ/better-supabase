@@ -328,7 +328,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "tenancy",
       "requires": [],
       "integrates": [
-        "memberships"
+        "memberships",
+        "teams"
       ],
       "manifest": "profiles",
       "tenantNameClashes": [

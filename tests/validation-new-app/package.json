@@ -1,0 +1,20 @@
+{
+  "name": "@better-supabase/validation-new-app",
+  "private": true,
+  "description": "A new app for each supported adapter: init --yes writes the project and the app then runs gen and typechecks with no edit.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
+    "temporal-polyfill": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

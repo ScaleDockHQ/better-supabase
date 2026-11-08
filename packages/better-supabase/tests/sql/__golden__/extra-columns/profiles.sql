@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:b4c98f58189511bae3348a73ebf291daf29c07094d96e8838c4f7003604fb28d
+-- @bsb-hash sha256:33b44c68f7459ff461d405087d71f0a1596abeb10ddb3b2162e7849f3255671f
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,8 +16,6 @@ create table "better_supabase"."profiles" (
   "avatar_url" text,
   "avatar_path" text,
   "locale" text,
-  "active_organization_id" uuid,
-  "active_team_id" uuid,
   "onboarding" jsonb not null default '{}',
   "disabled_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -49,9 +47,9 @@ grant all on "better_supabase"."profiles" to service_role;
 revoke update on "better_supabase"."profiles" from authenticated;
 grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "app_note", "updated_at") on "better_supabase"."profiles" to authenticated;
 
--- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- The API roles can't change the key or "email", "disabled_at", "created_at". Security
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "better_supabase"."guard_profile"()
 returns trigger
 language plpgsql
@@ -62,8 +60,6 @@ begin
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
-    or new."active_organization_id" is distinct from old."active_organization_id"
-    or new."active_team_id" is distinct from old."active_team_id"
     or new."created_at" is distinct from old."created_at"
   ) then
     raise exception 'These profile columns are managed by the service' using errcode = '42501', hint = 'PROFILE_COLUMN_READONLY';

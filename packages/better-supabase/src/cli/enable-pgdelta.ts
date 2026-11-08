@@ -13,8 +13,9 @@ import {
 /**
  * Adds `[experimental.pgdelta] enabled = true` to `supabase/config.toml` when
  * it has no such table, so `supabase db schema declarative sync` runs on
- * pg-delta. A table set to `enabled = false` is left alone, and a project
- * without `config.toml` gets nothing.
+ * pg-delta. A table set to `enabled = false` is left alone, as is a project
+ * that lists `[db.migrations] schema_paths`, and a project without
+ * `config.toml` gets nothing.
  */
 export async function enablePgDelta(
   root: string,
@@ -41,6 +42,16 @@ export async function enablePgDelta(
   ) {
     return [
       `Skipped ${shown} (pg-delta is off; set [experimental.pgdelta] enabled = true, remove [db.migrations] schema_paths and use \`supabase db schema declarative sync\` instead of \`supabase db diff\`)`,
+    ];
+  }
+
+  // A project that lists `[db.migrations] schema_paths` already runs migra;
+  // turning pg-delta on would change how its migrations are made.
+  const paths = tomlGet(toml.document, ["db", "migrations", "schema_paths"]);
+
+  if (Array.isArray(paths) && paths.length > 0) {
+    return [
+      `Skipped ${shown} (the project follows migra through [db.migrations] schema_paths; set [experimental.pgdelta] enabled = true, remove schema_paths and use \`supabase db schema declarative sync\` to move to pg-delta)`,
     ];
   }
 

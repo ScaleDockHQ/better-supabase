@@ -46,7 +46,9 @@ behaves like `--preset`, and passing both flags is an error. `--from` is the
 one flag to remember when you start from something that already exists.
 
 `--workflow` picks how the SQL modules reach the database (see
-[Workflows](/docs/blocks/sql#workflows)):
+[Workflows](/docs/blocks/sql#workflows)). A project whose `supabase/config.toml`
+lists `[db.migrations] schema_paths` keeps that file as it is: `init` skips
+enabling pg-delta and prints how to move to it.
 
 ```bash
 pnpm better-supabase init --workflow migrations

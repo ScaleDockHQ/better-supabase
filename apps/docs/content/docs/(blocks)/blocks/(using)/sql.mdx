@@ -120,6 +120,10 @@ it to an existing `config.toml` under this workflow.
 
 ### migra (Declarative Schemas 1.0)
 
+The tables your earlier migrations create count as yours, as they do under
+`migrations`, so the module files that `upgrade` writes into `supabase/schemas`
+never create them again.
+
 The legacy engine reads `supabase/schemas` while the stack is stopped. The
 CLI and doctor name its command, `supabase db diff -f better_supabase_block`.
 When `supabase/config.toml` lists `[db.migrations] schema_paths`, migra reads
