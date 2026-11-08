@@ -420,6 +420,137 @@ ${wrappers.join("\n\n")}`;
 }
 
 /**
+ * `blocks['sessions'].options.hook`: `better_supabase.hook_plan(event)`, which
+ * tells the app's access token hook how much to read.
+ *
+ * - `slim`: the token has a `client_id` claim (the OAuth server issues those) and
+ *   `oauth` is `'slim'`. The hook leaves out memberships, permissions,
+ *   `team_ids` and `authz_ver`, and reads nothing.
+ * - `reuse`: a `token_refresh` whose incoming `authz_ver` equals the user's
+ *   current version, with a `memberships` array and no truncation flag. The
+ *   hook returns the event unchanged.
+ * - `full`: everything else.
+ *
+ * Supabase Auth builds refresh claims itself, so `reuse` applies only where the
+ * event carries the previous token's `authz_ver`; any doubt reads again.
+ */
+function hookPlan(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
+  const raw = ctx.option("hook");
+
+  if (raw === undefined || raw === false) {
+    return "";
+  }
+
+  const options: Readonly<Record<string, unknown>> | undefined =
+    typeof raw === "object" && raw !== null && !Array.isArray(raw)
+      ? Object.fromEntries(Object.entries(raw))
+      : raw === true
+        ? {}
+        : undefined;
+
+  if (options === undefined) {
+    throw new TypeError(
+      "blocks['sessions'].options.hook must be true or { refresh, oauth, truncatedClaim }",
+    );
+  }
+
+  const choose = (key: string, allowed: readonly string[]): string => {
+    const value = options[key];
+
+    if (value === undefined) {
+      return allowed[0]!;
+    }
+
+    if (typeof value !== "string" || !allowed.includes(value)) {
+      throw new TypeError(
+        `blocks['sessions'].options.hook.${key} must be ${allowed.map((entry) => `'${entry}'`).join(" or ")}`,
+      );
+    }
+
+    return value;
+  };
+
+  const refresh = choose("refresh", ["reuse", "full"]);
+  const oauth = choose("oauth", ["full", "slim"]);
+  const flag = options["truncatedClaim"];
+
+  const truncated =
+    flag === undefined
+      ? "permissions_truncated"
+      : typeof flag === "string" && /^[a-z_][a-z0-9_]*$/.test(flag)
+        ? flag
+        : undefined;
+
+  if (truncated === undefined) {
+    throw new TypeError(
+      "blocks['sessions'].options.hook.truncatedClaim must be a claim name (letters, digits, _)",
+    );
+  }
+
+  if (refresh === "reuse" && !hasVersionSource(ctx, layout)) {
+    throw new TypeError(
+      "blocks['sessions'].options.hook.refresh 'reuse' needs authorization versions: set options.authzVersions or give the authorization provider `versions`, or set refresh to 'full'",
+    );
+  }
+
+  const provider = layout.authzVersionsProvider;
+
+  const current = provider
+    ? `${provider.function}(v_user)`
+    : "better_supabase.authz_version(v_user)";
+
+  const slim =
+    oauth === "slim"
+      ? `
+  if coalesce(v_claims ->> 'client_id', '') <> '' then
+    return 'slim';
+  end if;
+`
+      : "";
+
+  const reuse =
+    refresh === "reuse"
+      ? `
+  if event ->> 'authentication_method' = 'token_refresh'
+    and jsonb_typeof(v_claims -> 'authz_ver') = 'number'
+    and jsonb_typeof(v_claims -> 'memberships') = 'array'
+    and coalesce(v_claims ->> '${truncated}', 'false') <> 'true'
+    and coalesce(v_claims ->> 'team_ids_truncated', 'false') <> 'true'
+    and (v_claims ->> 'authz_ver')::bigint = ${current}
+  then
+    return 'reuse';
+  end if;
+`
+      : "";
+
+  return `
+
+-- blocks['sessions'].options.hook: how much the access token hook reads for
+-- this event, as 'slim' (an OAuth client token: leave out memberships,
+-- permissions, team_ids and authz_ver), 'reuse' (a refresh whose authz_ver is
+-- still current: return the event unchanged, no membership reads) or 'full'.
+-- Call it first in the hook:
+--   plan := better_supabase.hook_plan(event);
+create or replace function better_supabase.hook_plan(event jsonb)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_claims jsonb := coalesce(event -> 'claims', '{}'::jsonb);
+  v_user uuid := nullif(event ->> 'user_id', '')::uuid;
+begin${slim}${reuse}
+  return 'full';
+end;
+$$;
+
+revoke execute on function better_supabase.hook_plan(jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.hook_plan(jsonb) to supabase_auth_admin, service_role;`;
+}
+
+/**
  * `better_supabase.caller_authz_version()`: the caller's own live version, for
  * the bootstrap wrappers and for clients that catch up after a missed
  * broadcast. Reads the provider's function when it keeps the versions.
@@ -610,7 +741,7 @@ export const SESSIONS: BlockSqlDefinition = {
   names: {
     reads: SESSIONS_READS,
     tables: {},
-    options: ["authzVersions", "bootstrap", "exclude", "policies"],
+    options: ["authzVersions", "bootstrap", "exclude", "hook", "policies"],
   },
   title: "Session revocation",
   description:
@@ -772,5 +903,5 @@ ${SESSIONS_OVERVIEW_SQL}
 -- create policy session_required on public.invoices as restrictive
 --   for all to authenticated
 --   using ((select better_supabase.session_active()))
---   with check ((select better_supabase.session_active()));${sessionPolicies(ctx, layout)}${authzVersions(ctx, layout)}${callerAuthzVersion(ctx, layout)}${bootstrapWrappers(ctx, layout)}`,
+--   with check ((select better_supabase.session_active()));${sessionPolicies(ctx, layout)}${authzVersions(ctx, layout)}${hookPlan(ctx, layout)}${callerAuthzVersion(ctx, layout)}${bootstrapWrappers(ctx, layout)}`,
 };

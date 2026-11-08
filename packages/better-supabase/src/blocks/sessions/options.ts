@@ -47,6 +47,21 @@ export type SessionsSqlOptions = {
     >
   >;
   readonly exclude?: readonly string[];
+  /**
+   * Renders `better_supabase.hook_plan(event)`, which the app's access token
+   * hook calls first: `'slim'` for an OAuth client token (`oauth: 'slim'`),
+   * `'reuse'` for a refresh whose `authz_ver` is still current (`refresh:
+   * 'reuse'`, the default, which needs `authzVersions` or a provider with
+   * `versions`), `'full'` otherwise. `true` takes the defaults;
+   * `truncatedClaim` names the claim that marks a partial `permissions`.
+   */
+  readonly hook?:
+    | boolean
+    | {
+        readonly refresh?: "reuse" | "full";
+        readonly oauth?: "full" | "slim";
+        readonly truncatedClaim?: string;
+      };
   readonly policies?: boolean;
 };
 
@@ -55,5 +70,6 @@ export const sessionsSqlOptions: BlockOptionsSchema<SessionsSqlOptions> =
     authzVersions: option.boolean({ default: false }),
     bootstrap: option.unknown<NonNullable<SessionsSqlOptions["bootstrap"]>>(),
     exclude: option.strings({ default: [] }),
+    hook: option.unknown<NonNullable<SessionsSqlOptions["hook"]>>(),
     policies: option.boolean({ default: false }),
   });

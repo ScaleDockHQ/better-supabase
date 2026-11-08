@@ -449,6 +449,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0483: Load header dialogs on intent, render the side navigation on the server and load the chat panel after paint.
 - 0484: Ship bucket definitions to the browser from `better-supabase/storage/client`.
 - 0520: Accept the 0.26 provider fields as optional additions.
+- 0521: Plan the access token hook: reuse a current refresh, slim OAuth tokens.
 
 ## Pre-release pins
 

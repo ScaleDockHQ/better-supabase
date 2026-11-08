@@ -256,3 +256,71 @@ describe("sessions authorization versions", () => {
     expect(sql).not.toContain("user_authz_versions");
   });
 });
+
+describe("sessions hook plan", () => {
+  const withVersions = { authzVersions: true } as const;
+
+  it("renders nothing without the option", () => {
+    expect(sessions({ options: withVersions })).not.toContain("hook_plan");
+  });
+
+  it("reuses a current refresh and slims OAuth client tokens by default for reuse only", () => {
+    const sql = sessions({ options: { ...withVersions, hook: true } });
+
+    expect(sql).toContain(
+      "create or replace function better_supabase.hook_plan",
+    );
+    expect(sql).toContain(
+      "event ->> 'authentication_method' = 'token_refresh'",
+    );
+    expect(sql).toContain(
+      "(v_claims ->> 'authz_ver')::bigint = better_supabase.authz_version(v_user)",
+    );
+    expect(sql).toContain("v_claims ->> 'permissions_truncated'");
+    expect(sql).not.toContain("return 'slim'");
+  });
+
+  it("slims a token with a client_id when oauth is slim", () => {
+    const sql = sessions({
+      options: { ...withVersions, hook: { oauth: "slim" } },
+    });
+
+    expect(sql).toContain("coalesce(v_claims ->> 'client_id', '') <> ''");
+    expect(sql).toContain("return 'slim'");
+  });
+
+  it("drops the reuse branch for refresh 'full' and needs no versions then", () => {
+    const sql = sessions({
+      options: { hook: { refresh: "full", oauth: "slim" } },
+    });
+
+    expect(sql).not.toContain("return 'reuse'");
+    expect(sql).toContain("return 'slim'");
+  });
+
+  it("refuses reuse without a version source", () => {
+    expect(() => sessions({ options: { hook: true } })).toThrow(
+      /needs authorization versions/,
+    );
+  });
+
+  it("reads the provider's version function", () => {
+    const sql = moduleBody("sessions", {
+      modules: { sessions: { options: { hook: true } } },
+      authzVersionsProvider: { name: "acme", function: "acme.user_version" },
+    })!;
+
+    expect(sql).toContain("= acme.user_version(v_user)");
+  });
+
+  it("checks the option values", () => {
+    expect(() =>
+      sessions({ options: { ...withVersions, hook: { oauth: "nope" } } }),
+    ).toThrow(/hook.oauth must be/);
+    expect(() =>
+      sessions({
+        options: { ...withVersions, hook: { truncatedClaim: "a;b" } },
+      }),
+    ).toThrow(/truncatedClaim/);
+  });
+});

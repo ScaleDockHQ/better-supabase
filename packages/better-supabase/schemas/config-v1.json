@@ -7367,6 +7367,7 @@
                 },
                 "default": []
               },
+              "hook": {},
               "policies": {
                 "type": "boolean",
                 "default": false
