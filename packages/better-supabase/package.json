@@ -134,6 +134,21 @@
       "types": "./dist/server/index.d.ts",
       "default": "./dist/server/index.js"
     },
+    "./server/accounts": {
+      "@better-supabase/source": "./src/server/accounts/index.ts",
+      "types": "./dist/server/accounts/index.d.ts",
+      "default": "./dist/server/accounts/index.js"
+    },
+    "./server/csv": {
+      "@better-supabase/source": "./src/server/csv/index.ts",
+      "types": "./dist/server/csv/index.d.ts",
+      "default": "./dist/server/csv/index.js"
+    },
+    "./server/rate-limit": {
+      "@better-supabase/source": "./src/server/rate-limit/index.ts",
+      "types": "./dist/server/rate-limit/index.d.ts",
+      "default": "./dist/server/rate-limit/index.js"
+    },
     "./powersync": {
       "@better-supabase/source": "./src/powersync/index.ts",
       "types": "./dist/powersync/index.d.ts",
@@ -1549,6 +1564,18 @@
       "./server": {
         "types": "./dist/server/index.d.ts",
         "default": "./dist/server/index.js"
+      },
+      "./server/accounts": {
+        "types": "./dist/server/accounts/index.d.ts",
+        "default": "./dist/server/accounts/index.js"
+      },
+      "./server/csv": {
+        "types": "./dist/server/csv/index.d.ts",
+        "default": "./dist/server/csv/index.js"
+      },
+      "./server/rate-limit": {
+        "types": "./dist/server/rate-limit/index.d.ts",
+        "default": "./dist/server/rate-limit/index.js"
       },
       "./powersync": {
         "types": "./dist/powersync/index.d.ts",

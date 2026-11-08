@@ -1360,7 +1360,7 @@ The [Hono](/docs/frameworks/hono#rate-limits) and
 draft-ietf-httpapi-ratelimit-headers (`SPEC_PINS.ratelimitHeaders`), and
 `RateLimit-Policy` when the route gives a `rule`. A refused request gets a
 429 with `Retry-After`. Elsewhere, `rateLimitHeader()` and
-`rateLimitPolicyHeader()` from `better-supabase/server` build the two fields.
+`rateLimitPolicyHeader()` from `better-supabase/server/rate-limit` build the two fields.
 
 ## Enforcing jsonb shapes
 
