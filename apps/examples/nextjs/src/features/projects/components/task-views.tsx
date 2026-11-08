@@ -33,7 +33,7 @@ import {
 import { firstOfMonth, windowStart } from "../task-dates";
 import { ProjectFormDialog } from "./project-form-dialog";
 import { ProjectLoadError } from "./project-load-error";
-import { TaskBoard } from "./task-board";
+import { TaskBoardLazy } from "./task-board-lazy";
 import { TaskCalendar } from "./task-calendar";
 import { TaskFormDialog } from "./task-form-dialog";
 import { TaskGantt } from "./task-gantt";
@@ -120,7 +120,7 @@ export async function TaskViews({
 
       case "board": {
         return (
-          <TaskBoard
+          <TaskBoardLazy
             key={tasks.data
               .map((task) => `${task.id}:${task.status}`)
               .join(",")}
