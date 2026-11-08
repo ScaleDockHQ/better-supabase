@@ -22,7 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { sessionChanged } from "@/features/user/user-actions";
 import { useRouter } from "@/i18n/navigation";
-import { useSupabase } from "@/lib/hooks";
+import { loadBrowserClient } from "@/lib/supabase/load-client";
 
 /**
  * The reset link signs the user in (the browser client exchanges its code), so
@@ -31,7 +31,6 @@ import { useSupabase } from "@/lib/hooks";
 export function ResetPasswordForm() {
   const t = useExtracted("auth");
   const fieldId = useId();
-  const supabase = useSupabase();
   const changeSession = useSessionChange(sessionChanged, useRouter());
 
   const [error, submit, pending] = useActionState(
@@ -41,6 +40,8 @@ export function ResetPasswordForm() {
       if (password !== String(form.get("confirm"))) {
         return t("The passwords don't match.");
       }
+
+      const { supabase } = await loadBrowserClient();
 
       const { error: updateError } = await supabase.auth.updateUser({
         password,

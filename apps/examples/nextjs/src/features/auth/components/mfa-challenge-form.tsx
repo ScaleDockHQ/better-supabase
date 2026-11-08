@@ -20,7 +20,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { sessionChanged } from "@/features/user/user-actions";
-import { useSupabase } from "@/lib/hooks";
+import { loadBrowserClient } from "@/lib/supabase/load-client";
 
 import { safeNext } from "../safe-next";
 
@@ -29,7 +29,6 @@ export function MfaChallengeForm() {
   const t = useExtracted("auth");
   const fieldId = useId();
   const locale = useLocale();
-  const supabase = useSupabase();
   const router = useRouter();
   const changeSession = useSessionChange(sessionChanged, router);
   const [code, setCode] = useState("");
@@ -38,6 +37,8 @@ export function MfaChallengeForm() {
 
   const verify = () => {
     startTransition(async () => {
+      const { supabase } = await loadBrowserClient();
+
       const { data: factors } = await supabase.auth.mfa.listFactors();
       const factor = factors?.totp[0];
 

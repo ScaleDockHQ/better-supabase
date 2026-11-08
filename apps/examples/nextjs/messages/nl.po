@@ -11496,25 +11496,28 @@ msgctxt "organization._aWPNo"
 msgid "Owners transfer ownership before they can leave."
 msgstr "Eigenaren dragen het eigendom over voordat ze kunnen vertrekken."
 
-#: src/features/organization/components/organization-switcher-menu.tsx
-msgctxt "organization.qQ6ahH"
-msgid "Switched to {name}"
-msgstr "Overgestapt naar {name}"
-
+#: src/features/organization/components/organization-switcher-lazy.tsx
 #: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.0lmKIf"
 msgid "Switch organization"
 msgstr "Van organisatie wisselen"
 
+#: src/features/organization/components/organization-switcher-lazy.tsx
 #: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.5VHXqC"
 msgid "No organization"
 msgstr "Geen organisatie"
 
+#: src/features/organization/components/organization-switcher-lazy.tsx
 #: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.9ocI0I"
 msgid "Create one to start"
 msgstr "Maak er een om te beginnen"
+
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.qQ6ahH"
+msgid "Switched to {name}"
+msgstr "Overgestapt naar {name}"
 
 #: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.JD2pwH"
@@ -16556,6 +16559,7 @@ msgstr "Rol"
 
 #: src/features/user/components/profile-details.tsx
 #: src/features/user/components/user-menu-dropdown.tsx
+#: src/features/user/components/user-menu-lazy.tsx
 msgctxt "user.VQB58n"
 msgid "No role"
 msgstr "Geen rol"
@@ -16671,6 +16675,7 @@ msgid "Set up"
 msgstr "Instellen"
 
 #: src/features/user/components/user-menu-dropdown.tsx
+#: src/features/user/components/user-menu-lazy.tsx
 msgctxt "user.yuQ593"
 msgid "Account menu"
 msgstr "Accountmenu"
