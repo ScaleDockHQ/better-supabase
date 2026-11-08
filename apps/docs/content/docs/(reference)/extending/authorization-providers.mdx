@@ -309,6 +309,12 @@ BS419 warns when app code uses it while some keys aren't marked: those keys
 deny there unless its `load` option reads `my_permissions`. Check them with
 your library's own authorizer instead.
 
+`wildcards` says which wildcard grants the generated
+`better_supabase.permission_matches` honours: `all` (the default) lets `*`
+grant every key and `prefix.*` every key under the prefix, `prefix` drops the
+bare `*`, and `none` matches the exact key only. Set `none` when your grants
+never hold a wildcard, so a stray `*` row cannot widen access (ADR 0372).
+
 ### Token hook
 
 `tokenHook` describes the custom access token hook the provider generates:
@@ -841,6 +847,7 @@ over the provider's.
 | `memberships[].disabledAt`                        | the memberships `disabledAt` column                                                          | next minor |
 | `platformRoles`                                   | `blocks.invitations.options.platformRoles`                                                   | next minor |
 | `personas`                                        | one access matrix file per persona (`providerPersonaTests`)                                  | next minor |
+| `wildcards`                                       | the wildcard grants `permission_matches` honours (`all`, `prefix`, `none`)                   | next minor |
 | `AuthorizationProvider<Key>`                      | typed permission keys in `blocks.*.permissions`, `subjects.*.permissions` and the role lists | next minor |
 
 Doctor reports a config value equal to the provider's (BS426).

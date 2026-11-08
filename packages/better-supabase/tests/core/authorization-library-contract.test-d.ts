@@ -137,6 +137,9 @@ describe("authorization library contract", () => {
     expectTypeOf<AuthorizationTokenHook["truncatedClaim"]>().toEqualTypeOf<
       string | undefined
     >();
+    expectTypeOf<AuthorizationProvider["wildcards"]>().toEqualTypeOf<
+      "all" | "prefix" | "none" | undefined
+    >();
   });
 
   it("sends intent, operation, request id, approval and the resource source", () => {

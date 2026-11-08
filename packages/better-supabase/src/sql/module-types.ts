@@ -517,6 +517,8 @@ export interface BlockSqlAccessProvider {
   readonly ownsPermissions?: boolean;
   /** The claim the provider's hook sets when it truncated `permissions`. */
   readonly truncatedClaim?: string;
+  /** The wildcard grants `permission_matches` honours; unset is `all`. */
+  readonly wildcards?: "all" | "prefix" | "none";
 }
 
 /** Whether any of the module's tables can be a table the app already has. */

@@ -92,6 +92,8 @@ export interface JsonImport {
   readonly name: string;
   /** Path relative to the project root, without the `#Name` part. */
   readonly from: string;
+  /** A Standard Schema value imported for its `typeof`, not a type. */
+  readonly value?: true;
 }
 
 export type TableOptions = ResolvedConfig["tables"][string];

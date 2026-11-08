@@ -471,8 +471,9 @@ from a job.
 ## Deleted subjects
 
 `subject_type` and `subject_id` are text with no foreign key, so deleting a
-subject row leaves its notifications in every recipient's inbox. List the
-subject types in `blocks.notifications.on` with
+subject row leaves its notifications in every recipient's inbox. Without
+`blocks.notifications.on`, every subject type in `config.subjects` whose table is yours (outside the block schema) cascades
+(ADR 0370). To choose the types, list them in `blocks.notifications.on` with
 `cascade: true`, and the module writes an `after delete` trigger on each
 table that deletes the subject's notifications (their recipients and
 deliveries go with them) and the subscriptions to it:

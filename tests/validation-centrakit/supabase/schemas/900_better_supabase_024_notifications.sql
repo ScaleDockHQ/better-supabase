@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:890d79717c0acecf614cded5e85e31c744b0df1921b6b3f3fd6727342856ed0c
+-- @bsb-hash sha256:9f5147af83921bb1c923aaf7e6ec11b2a88f21224bbeb0e651b40617bca0b91d
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1402,6 +1402,42 @@ create trigger "bsb_notification_broadcast_update" after update of "read_at", "d
 create policy bsb_notifications_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'organization:' || '[^:]+' || ':notifications:' || (select auth.uid())::text || '$'));
+
+-- on with cascade: deleting a subject row deletes its notifications rows.
+create or replace function "better_supabase"."notifications_subject_deleted"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := tg_argv[0];
+  v_id text := to_jsonb(old) ->> tg_argv[1];
+  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;
+begin
+  if v_tenant is null then
+    delete from "centrakit"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "centrakit"."notification_subscriptions" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  else
+    delete from "centrakit"."notification_events" x where x."organization_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "centrakit"."notification_subscriptions" x where x."organization_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."notifications_subject_deleted"() from public, anon, authenticated;
+create trigger "bsb_notifications_file_node_cascade"
+  after delete on "centrakit"."file_node"
+  for each row execute function "better_supabase"."notifications_subject_deleted"('file_node', 'id', 'organization_id');
+create trigger "bsb_notifications_task_cascade"
+  after delete on "centrakit"."tasks"
+  for each row execute function "better_supabase"."notifications_subject_deleted"('task', 'id', 'organization_id');
+create trigger "bsb_notifications_project_cascade"
+  after delete on "centrakit"."projects"
+  for each row execute function "better_supabase"."notifications_subject_deleted"('project', 'id', 'organization_id');
+create trigger "bsb_notifications_customer_cascade"
+  after delete on "centrakit"."customers"
+  for each row execute function "better_supabase"."notifications_subject_deleted"('customer', 'id', 'organization_id');
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

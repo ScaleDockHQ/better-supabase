@@ -7,6 +7,7 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -726,17 +727,31 @@ $$;`;
 /**
  * `on` with `cascade: true`: deleting a subject row deletes its notifications
  * (recipients and deliveries follow by foreign key) and the subscriptions to
- * it. The deletes match the subject's tenant too, so they use indexes that lead
- * with the tenant column.
+ * it. Without `on`, every registered subject outside the module schema cascades
+ * (ADR 0370). The deletes match the subject's tenant too, so they use indexes
+ * that lead with the tenant column.
  */
 function subjectCleanup(ctx: BlockSqlContext, n: NotifyNames): string {
-  const subjects = subjectsOption(ctx, [], { tenantless: true });
+  const inferred = ctx.on === undefined;
+
+  const subjects = subjectsOption(ctx, [], { tenantless: true }).map(
+    ([type, subject]): [string, Subject] => [
+      type,
+      inferred && !subject.table.startsWith(`${ctx.schemaName}.`)
+        ? { ...subject, cascade: true }
+        : subject,
+    ],
+  );
 
   if (!subjects.some(([, subject]) => subject.cascade)) {
     return "";
   }
 
   if (!n.has("events", "subjectType") || !n.has("events", "subjectId")) {
+    if (inferred) {
+      return "";
+    }
+
     throw new TypeError(
       "blocks.notifications.on with cascade needs the subjectType and subjectId columns of the events table",
     );

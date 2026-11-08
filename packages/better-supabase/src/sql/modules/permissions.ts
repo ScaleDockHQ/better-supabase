@@ -27,6 +27,7 @@ import {
   permissionClaimHook,
   sqlCompleteOnly,
 } from "./permissions-keys.ts";
+import { permissionMatches } from "./permissions-matches.ts";
 import {
   accessModel,
   roleScopeIs,
@@ -952,16 +953,7 @@ function accessSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 grant usage on schema better_supabase to supabase_auth_admin;
 ${defer ? "set check_function_bodies = off;" : ""}${disabledHelpers(ctx)}${defer ? "\nreset check_function_bodies;" : ""}
 
--- \`*\` grants every key and \`prefix.*\` every key under prefix.
-create or replace function better_supabase.permission_matches(granted text, wanted text)
-returns boolean
-language sql
-immutable
-set search_path = ''
-as $$
-  select granted = '*' or granted = wanted
-    or (right(granted, 2) = '.*' and starts_with(wanted, left(granted, -1)))
-$$;
+${permissionMatches(model === "provider" ? layout.accessProvider?.wildcards : undefined)}
 ${delegationSql(ctx, layout)}
 ${operationsSql(ctx, layout)}
 ${body}
