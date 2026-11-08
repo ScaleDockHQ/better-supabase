@@ -1,6 +1,7 @@
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
+import { DataProviders } from "@/app/data-providers";
 import {
   Sidebar,
   SidebarContent,
@@ -45,50 +46,52 @@ export default function AppLayout({ children }: LayoutProps<"/[locale]">) {
   const toggle = t("Toggle sidebar");
 
   return (
-    <SidebarProvider>
-      <Sidebar collapsible="icon">
-        <SidebarHeader>
-          <Suspense fallback={<OrganizationSwitcherSkeleton />}>
-            <OrganizationSwitcher />
-          </Suspense>
-        </SidebarHeader>
-        <SidebarContent>
-          <Suspense fallback={<SideNavSkeleton />}>
-            <AppNav />
-          </Suspense>
-        </SidebarContent>
-        <SidebarFooter>
-          <Suspense fallback={<UserMenuSkeleton />}>
-            <UserMenu />
-          </Suspense>
-        </SidebarFooter>
-        <SidebarRail aria-label={toggle} title={toggle} />
-      </Sidebar>
-      <SidebarInset>
-        <AppHeader
-          breadcrumbs={
-            <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
-              <AppBreadcrumbs
-                organization={
-                  <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
-                    <ActiveOrganizationName />
-                  </Suspense>
-                }
-              />
+    <DataProviders>
+      <SidebarProvider>
+        <Sidebar collapsible="icon">
+          <SidebarHeader>
+            <Suspense fallback={<OrganizationSwitcherSkeleton />}>
+              <OrganizationSwitcher />
             </Suspense>
-          }
-        />
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-          <OfflineBanner />
-          <Suspense fallback={null}>
-            <ImpersonationBanner />
-          </Suspense>
-          <Suspense fallback={null}>
-            <Announcements />
-          </Suspense>
-          {children}
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+          </SidebarHeader>
+          <SidebarContent>
+            <Suspense fallback={<SideNavSkeleton />}>
+              <AppNav />
+            </Suspense>
+          </SidebarContent>
+          <SidebarFooter>
+            <Suspense fallback={<UserMenuSkeleton />}>
+              <UserMenu />
+            </Suspense>
+          </SidebarFooter>
+          <SidebarRail aria-label={toggle} title={toggle} />
+        </Sidebar>
+        <SidebarInset>
+          <AppHeader
+            breadcrumbs={
+              <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
+                <AppBreadcrumbs
+                  organization={
+                    <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
+                      <ActiveOrganizationName />
+                    </Suspense>
+                  }
+                />
+              </Suspense>
+            }
+          />
+          <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+            <OfflineBanner />
+            <Suspense fallback={null}>
+              <ImpersonationBanner />
+            </Suspense>
+            <Suspense fallback={null}>
+              <Announcements />
+            </Suspense>
+            {children}
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </DataProviders>
   );
 }

@@ -4,7 +4,7 @@ import { ThemeProvider } from "@wrksz/themes/next";
 import { NextIntlClientProvider, useLocale } from "next-intl";
 import { getExtracted } from "next-intl/server";
 
-import { Toaster } from "@/components/ui/sonner";
+import { LazyToaster } from "@/components/ui/lazy-toaster";
 import { ServiceWorkerRegistrar } from "@/features/offline/components/service-worker-registrar";
 import { routing } from "@/i18n/routing";
 import { geistMono, geistSans } from "@/lib/fonts";
@@ -54,7 +54,7 @@ export default function LocaleLayout({ children }: LayoutProps<"/[locale]">) {
         <ThemeProvider storage="cookie" themes={["light", "dark"]}>
           <NextIntlClientProvider>
             <Providers>{children}</Providers>
-            <Toaster />
+            <LazyToaster />
             <ServiceWorkerRegistrar />
           </NextIntlClientProvider>
         </ThemeProvider>

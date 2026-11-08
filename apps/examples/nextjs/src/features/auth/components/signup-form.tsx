@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { sessionChanged } from "@/features/user/user-actions";
 import { Link } from "@/i18n/navigation";
-import { useSupabase } from "@/lib/hooks";
+import { loadBrowserClient } from "@/lib/supabase/load-client";
 
 import { safeNext } from "../safe-next";
 
@@ -46,7 +46,6 @@ export function SignupForm() {
   const t = useExtracted("auth");
   const fieldId = useId();
   const locale = useLocale();
-  const supabase = useSupabase();
   const router = useRouter();
   const changeSession = useSessionChange(sessionChanged, router);
 
@@ -55,7 +54,9 @@ export function SignupForm() {
       const email = String(form.get("email"));
       const fullName = String(form.get("fullName"));
 
-      const { data, error } = await supabase.auth.signUp({
+      const bsb = await loadBrowserClient();
+
+      const { data, error } = await bsb.supabase.auth.signUp({
         email,
         password: String(form.get("password")),
         options: {

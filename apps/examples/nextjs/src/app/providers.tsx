@@ -2,25 +2,18 @@
 
 import type { ReactNode } from "react";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BetterSupabaseProvider } from "better-supabase/react";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { useState } from "react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-import { bsb } from "../lib/supabase/client";
-
+/**
+ * The providers every route needs. The data client and its query cache live in
+ * `data-providers.tsx`, which only the routes that run hooks register.
+ */
 export function Providers({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
-
   return (
-    <QueryClientProvider client={queryClient}>
-      <BetterSupabaseProvider client={bsb} queryClient={queryClient}>
-        <NuqsAdapter>
-          <TooltipProvider>{children}</TooltipProvider>
-        </NuqsAdapter>
-      </BetterSupabaseProvider>
-    </QueryClientProvider>
+    <NuqsAdapter>
+      <TooltipProvider>{children}</TooltipProvider>
+    </NuqsAdapter>
   );
 }
