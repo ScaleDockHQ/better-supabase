@@ -10734,7 +10734,8 @@ msgid "Open the work board"
 msgstr "Open the work board"
 
 #: src/features/navigation/components/app-breadcrumbs.tsx
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.D3idYv"
 msgid "Settings"
 msgstr "Settings"
@@ -10744,392 +10745,470 @@ msgctxt "navigation.Lv0zJu"
 msgid "Details"
 msgstr "Details"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.hzSNj4"
 msgid "Dashboard"
 msgstr "Dashboard"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.h-qaH6"
 msgid "My work"
 msgstr "My work"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.TkYZBT"
 msgid "Customers"
 msgstr "Customers"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.GcPFLS"
 msgid "Work"
 msgstr "Work"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.5fijhK"
 msgid "Work grid"
 msgstr "Work grid"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.UxTJRa"
 msgid "Projects"
 msgstr "Projects"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.nFa1Ms"
 msgid "Approvals"
 msgstr "Approvals"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.kAAlGL"
 msgid "Rules"
 msgstr "Rules"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Tpy00S"
 msgid "People"
 msgstr "People"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.XuEwXv"
 msgid "Hiring"
 msgstr "Hiring"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.ug01Mk"
 msgid "Time"
 msgstr "Time"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Coy6SH"
 msgid "Calendar"
 msgstr "Calendar"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.hOxIeP"
 msgid "Availability"
 msgstr "Availability"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.4S241U"
 msgid "Contacts"
 msgstr "Contacts"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.CQa3R9"
 msgid "Deals"
 msgstr "Deals"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.fqIG9Q"
 msgid "Sequences"
 msgstr "Sequences"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.epJ5ty"
 msgid "Quotes"
 msgstr "Quotes"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Dxd1uB"
 msgid "Shop"
 msgstr "Shop"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.MlzEfB"
 msgid "Inventory"
 msgstr "Inventory"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.z3FEm2"
 msgid "Manufacturing"
 msgstr "Manufacturing"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Eh10oP"
 msgid "Production planning"
 msgstr "Production planning"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.wWUTla"
 msgid "Banking"
 msgstr "Banking"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.8K_n1E"
 msgid "Legal entities"
 msgstr "Legal entities"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.igugQ-"
 msgid "Payroll export"
 msgstr "Payroll export"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.X7jl6w"
 msgid "Orders"
 msgstr "Orders"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.g_6veL"
 msgid "Dispatch"
 msgstr "Dispatch"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.XdSd3o"
 msgid "My day"
 msgstr "My day"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation._VTdwj"
 msgid "Shipments"
 msgstr "Shipments"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.1YAWJ3"
 msgid "Drive"
 msgstr "Drive"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.vBlT6y"
 msgid "Documents"
 msgstr "Documents"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.yGsZm0"
 msgid "Forms"
 msgstr "Forms"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.R85gsW"
 msgid "Courses"
 msgstr "Courses"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.4CrCbD"
 msgid "Community"
 msgstr "Community"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.A3ptul"
 msgid "Templates"
 msgstr "Templates"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.ofHC1Q"
 msgid "Imports"
 msgstr "Imports"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.j_I5tV"
 msgid "Trash"
 msgstr "Trash"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.HNBpJ4"
 msgid "Metrics"
 msgstr "Metrics"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.NIi2K2"
 msgid "Compliance"
 msgstr "Compliance"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.9q2Nej"
 msgid "Qualifications"
 msgstr "Qualifications"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation._s79W_"
 msgid "Risks"
 msgstr "Risks"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.TTLDST"
 msgid "Cases"
 msgstr "Cases"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.PcgHMz"
 msgid "Audits and inspections"
 msgstr "Audits and inspections"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.dMaTpi"
 msgid "Meetings"
 msgstr "Meetings"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.d1uESJ"
 msgid "Assets"
 msgstr "Assets"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.U2griC"
 msgid "Laboratory"
 msgstr "Laboratory"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.nkj_Ln"
 msgid "Requests for quotation"
 msgstr "Requests for quotation"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.CKpmLI"
 msgid "Tills"
 msgstr "Tills"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.dudqv_"
 msgid "Maintenance"
 msgstr "Maintenance"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.uiZ53z"
 msgid "Appraisals"
 msgstr "Appraisals"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.jpL4NC"
 msgid "Warehouse"
 msgstr "Warehouse"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.poLbhw"
 msgid "Shifts"
 msgstr "Shifts"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Fm3M-y"
 msgid "Finance"
 msgstr "Finance"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Yhu2Vp"
 msgid "Payables"
 msgstr "Payables"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.iCpuph"
 msgid "Clients"
 msgstr "Clients"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.M_xDHn"
 msgid "Observations"
 msgstr "Observations"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.gOuYI7"
 msgid "Medications"
 msgstr "Medications"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.FuvPAW"
 msgid "Care alerts"
 msgstr "Care alerts"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.a5UKX3"
 msgid "Prescriptions"
 msgstr "Prescriptions"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.y10hgk"
 msgid "Care plans"
 msgstr "Care plans"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.fZb224"
 msgid "Funding"
 msgstr "Funding"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.NAidKb"
 msgid "Notifications"
 msgstr "Notifications"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.6La3aS"
 msgid "Workflows"
 msgstr "Workflows"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Rm3xgH"
 msgid "Workflow builder"
 msgstr "Workflow builder"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.VCMKbt"
 msgid "Inbox"
 msgstr "Inbox"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.WTrOy3"
 msgid "Chat"
 msgstr "Chat"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.wSAvhu"
 msgid "Assistant"
 msgstr "Assistant"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.5OteMI"
 msgid "Knowledge"
 msgstr "Knowledge"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.HF49ER"
 msgid "Agent activity"
 msgstr "Agent activity"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.9iOYC0"
 msgid "AI tasks"
 msgstr "AI tasks"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.riw_yc"
 msgid "Beta"
 msgstr "Beta"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.a8EoBn"
 msgid "Islands"
 msgstr "Islands"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.-a-2ug"
 msgid "Members"
 msgstr "Members"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.DNeuzb"
 msgid "Teams"
 msgstr "Teams"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.c35gM5"
 msgid "Roles"
 msgstr "Roles"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Tbo377"
 msgid "Billing"
 msgstr "Billing"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.yOFPA6"
 msgid "API keys"
 msgstr "API keys"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.ED9RG5"
 msgid "Audit log"
 msgstr "Audit log"
 
-#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation._3yfCs"
 msgid "AI providers"
 msgstr "AI providers"
