@@ -1,7 +1,7 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
+import { appTriggerBodies } from "../../sql/foreign-keys.ts";
 import {
-  appTriggerBodies,
   moduleLayout,
   sameTenantColumn,
   sameTenantLayout,

@@ -139,11 +139,7 @@ export { auditRegistrations } from "./audit-registrations.ts";
 
 export { excludedColumns, resolveExposeColumns } from "./expose-columns.ts";
 
-export {
-  appTriggerBodies,
-  type DeclaredForeignKey,
-  sameTenantLayout,
-} from "./foreign-keys.ts";
+export { type DeclaredForeignKey, sameTenantLayout } from "./foreign-keys.ts";
 
 export { type OwnedColumn, ownedColumns } from "./owned-columns.ts";
 
