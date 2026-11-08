@@ -59,6 +59,12 @@ comments. Put these in a hand-written migration instead:
   configurations). Their SQL also goes in `supabase/schemas/_custom/` so
   dependent objects still resolve; `--strict-coverage` fails until it does.
 
+A generated schema file never holds a `do` block a diff could replace. A repair
+for an older install is written only when `ctx.rerunnable` is set, and a
+statement that changes rows goes to the module's `data`.
+`tests/sql/static-ddl.test.ts` counts what is left (ADR 0400); the count only
+falls, and `UPDATE_PRACTICES=1` rewrites the baseline after a drop.
+
 pg-delta also loads `supabase/schemas/_custom/` into its shadow database and
 then rejects any managed table that has rows, so `_custom/` can't hold data
 either. The SQL modules write their rows and role settings to

@@ -63,7 +63,10 @@ profile has it (`ada`, then `ada1`). `allocate_username(base)` returns a
 free one for a "pick a username" form. On a managed table, a check
 constraint applies the same rules to names users pick themselves: the
 length limits, the characters and `reservedUsernames` (`admin`, `api`,
-`support`, `www` and similar by default).
+`support`, `www` and similar by default). The check is declared `not valid`, so
+Postgres enforces it on every new and changed row and leaves existing rows
+alone; run `alter table ... validate constraint bsb_profiles_username_check`
+yourself once no profile breaks it.
 
 After the module creates a profile, it calls your `after_profile_sync(user_id)`
 [SQL hook](/docs/extending/events#sql-hooks) when it exists, to create rows

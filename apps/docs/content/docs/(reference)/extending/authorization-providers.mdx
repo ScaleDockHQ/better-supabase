@@ -313,7 +313,10 @@ your library's own authorizer instead.
 `better_supabase.permission_matches` honours: `all` (the default) lets `*`
 grant every key and `prefix.*` every key under the prefix, `prefix` drops the
 bare `*`, and `none` matches the exact key only. Set `none` when your grants
-never hold a wildcard, so a stray `*` row cannot widen access (ADR 0372).
+never hold a wildcard, so a stray `*` row cannot widen access (ADR 0372). The
+`webhooks-out` fan-out reads the same setting, so an endpoint's declared
+permissions match an event's read permission only by the wildcards you allow
+(ADR 0400).
 
 ### Token hook
 
