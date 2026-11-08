@@ -233,7 +233,7 @@ export function Component(props: {
 
 ## Events and hooks
 
-The module records `reaction.added` and `reaction.removed` with `organizationId`, `subjectType`, `subjectId`, `emoji`, `actor`, `kind` (`emoji` or `vote`) and, for a vote, `value`. A consumer that only wants emoji reactions filters on `kind`. `react` calls the `before_react` and `after_react` SQL hooks with the tenant, subject type, subject id, emoji and whether the reaction is added.
+The module records `reaction.added` and `reaction.deleted` with `organizationId`, `subjectType`, `subjectId`, `emoji`, `actor`, `kind` (`emoji` or `vote`) and, for a vote, `value`. A consumer that only wants emoji reactions filters on `kind`. `react` calls the `before_react` and `after_react` SQL hooks with the tenant, subject type, subject id, emoji and whether the reaction is added.
 
 | Error                | When                                                                                                |
 | -------------------- | --------------------------------------------------------------------------------------------------- |

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:36747792502fefa0893e400b1c8cf0c1dd32d500d6acc98ceee432babb94ec1e
+-- @bsb-hash sha256:e48d07310d5c7c0e47b002b106df16cdb00c19698360536eb4e05f65e2c8534c
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -121,7 +121,7 @@ create trigger "bsb_reactions_check"
   before insert on "better_supabase"."reactions"
   for each row execute function "better_supabase"."reactions_check"();
 
--- Records reaction.added and reaction.removed, then tells the tenant's topic
+-- Records reaction.added and reaction.deleted, then tells the tenant's topic
 -- which subject changed. The payload carries ids only.
 create or replace function "better_supabase"."reactions_changed"()
 returns trigger
@@ -541,7 +541,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:0453c9fbf7ae9d75a626542351ffb0f26bf1cddee0f2e993592553950946e927
+-- @bsb-hash sha256:4f1fed5a6c6eb6f59edf41b6f84be51615da6dc5e8da9ad153e447e0cee2c4ae
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -661,7 +661,7 @@ create trigger "bsb_reactions_check"
   before insert on "better_supabase"."reactions"
   for each row execute function "better_supabase"."reactions_check"();
 
--- Records reaction.added and reaction.removed, then tells the tenant's topic
+-- Records reaction.added and reaction.deleted, then tells the tenant's topic
 -- which subject changed. The payload carries ids only.
 create or replace function "better_supabase"."reactions_changed"()
 returns trigger
@@ -680,7 +680,7 @@ begin
     perform "better_supabase".emit_event('reaction.added', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'emoji', v_row."emoji", 'actor', v_row."actor", 'kind', v_row."kind", 'value', v_row."value"), 'reactions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reactions');
   else
     v_row := old;
-    perform "better_supabase".emit_event('reaction.removed', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'emoji', v_row."emoji", 'actor', v_row."actor", 'kind', v_row."kind", 'value', v_row."value"), 'reactions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reactions');
+    perform "better_supabase".emit_event('reaction.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'emoji', v_row."emoji", 'actor', v_row."actor", 'kind', v_row."kind", 'value', v_row."value"), 'reactions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reactions');
   end if;
   if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
     perform realtime.send(jsonb_build_object('subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'changed', 'reactions:' || v_row."tenant_id"::text, true);
@@ -1084,7 +1084,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:ba9d3c1fc022831490e116d43e205393e83fd7bee690bed58b44618841d38914
+-- @bsb-hash sha256:e87914e89701979cd2f75a24eef433c48efe26312c80b87222d264425f16728a
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1209,7 +1209,7 @@ create trigger "bsb_reactions_check"
   before insert on "app_private"."reactions"
   for each row execute function "app_private"."reactions_check"();
 
--- Records reaction.added and reaction.removed, then tells the tenant's topic
+-- Records reaction.added and reaction.deleted, then tells the tenant's topic
 -- which subject changed. The payload carries ids only.
 create or replace function "app_private"."reactions_changed"()
 returns trigger
@@ -1629,7 +1629,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:a756647fd600c6e6bde0eac60185b772c02251ac803f1246e2d57c4f46ffc817
+-- @bsb-hash sha256:3b76e067c51225af17dbeba7b2729cad2640e37dedf546fece9a7e6bf3b5ff64
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1749,7 +1749,7 @@ create trigger "bsb_reactions_check"
   before insert on "better_supabase"."reactions"
   for each row execute function "better_supabase"."reactions_check"();
 
--- Records reaction.added and reaction.removed, then tells the tenant's topic
+-- Records reaction.added and reaction.deleted, then tells the tenant's topic
 -- which subject changed. The payload carries ids only.
 create or replace function "better_supabase"."reactions_changed"()
 returns trigger
@@ -2262,7 +2262,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:595d5576d4f388d78dedc8c120325c8d8713e281b37971449e0aa1c6b0bb7253
+-- @bsb-hash sha256:e4613baf190577f34fb1cdcdfcd432c7e2a97da1d0eb65b94f136cdf5fcd93df
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2373,7 +2373,7 @@ create trigger "bsb_reactions_check"
   before insert on "better_supabase"."reactions"
   for each row execute function "better_supabase"."reactions_check"();
 
--- Records reaction.added and reaction.removed, then tells the tenant's topic
+-- Records reaction.added and reaction.deleted, then tells the tenant's topic
 -- which subject changed. The payload carries ids only.
 create or replace function "better_supabase"."reactions_changed"()
 returns trigger
@@ -2793,7 +2793,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:0f6ca454dfeb626d606d9062f86afb9a8d3d4dd3d2147e72046159c116ce4bd3
+-- @bsb-hash sha256:5c68b7c4eeda57c2f79f72e7d9ae65734d394ba921e17a1899a53d5d291f94d6
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2913,7 +2913,7 @@ create trigger "bsb_reactions_check"
   before insert on "better_supabase"."reactions"
   for each row execute function "better_supabase"."reactions_check"();
 
--- Records reaction.added and reaction.removed, then tells the tenant's topic
+-- Records reaction.added and reaction.deleted, then tells the tenant's topic
 -- which subject changed. The payload carries ids only.
 create or replace function "better_supabase"."reactions_changed"()
 returns trigger

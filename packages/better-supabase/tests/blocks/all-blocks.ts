@@ -241,7 +241,7 @@ export type AllBlocks = {
   readonly domains: typeof domainsBlock;
   readonly drive: typeof driveBlock;
   readonly employees: typeof employeesBlock;
-  readonly engagements: typeof activitiesBlock;
+  readonly activities: typeof activitiesBlock;
   readonly "legal-entities": typeof legalEntitiesBlock;
   readonly "mail-sync": typeof mailSyncBlock;
   readonly segments: typeof segmentsBlock;

@@ -1,13 +1,13 @@
 -- ==== schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:872ffebccec6775ab3ed50fe3f8aa2e258d5c0d3e5fe2e04aa1704f1055b9a1f
--- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
+-- @bsb-hash sha256:26c1f072a25e99ecc26794f49e52b6536bab53f7392e0a70a277bd4d1029f482
+-- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Gmail, Outlook and other mailboxes synced per member: threads and messages
--- linked to the people and companies they involve, logged as engagements.
+-- linked to the people and companies they involve, logged as activities.
 create table "better_supabase"."mail_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -45,7 +45,7 @@ create table "better_supabase"."mail_threads" (
   unique ("account_id", "external_id")
 );
 create index mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
+create index mail_threads_activity_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;

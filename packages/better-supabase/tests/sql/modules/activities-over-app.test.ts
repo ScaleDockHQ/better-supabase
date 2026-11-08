@@ -50,12 +50,9 @@ const OWN_TABLES = {
 
 const BLOCKS: AnyBlocksConfig = {
   activities: {
-    tables: {
-      engagements: "public.activities",
-      links: "public.activity_links",
-    },
+    tables: { activities: "public.activities", links: "public.activity_links" },
     columns: {
-      engagements: {
+      activities: {
         tenant: "org_id",
         type: "kind",
         durationSeconds: null,
@@ -63,7 +60,7 @@ const BLOCKS: AnyBlocksConfig = {
         createdBy: null,
         updatedAt: null,
       },
-      links: { tenant: "org_id", engagement: "activity_id", position: null },
+      links: { tenant: "org_id", activity: "activity_id", position: null },
     },
   },
 };
@@ -101,7 +98,7 @@ async function run(check: string): Promise<void> {
 }
 
 describe("activities over the app's tables", BOOT, () => {
-  it("logs, edits, completes and lists engagements in an enum type column", async () => {
+  it("logs, edits, completes and lists activities in an enum type column", async () => {
     await expect(
       run(`do $$
 declare

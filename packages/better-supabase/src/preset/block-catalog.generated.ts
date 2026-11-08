@@ -1406,7 +1406,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "team.deleted",
         "team.updated",
         "team_member.added",
-        "team_member.removed"
+        "team_member.deleted"
       ],
       "subpath": "better-supabase/blocks/teams",
       "react": null,
@@ -1905,7 +1905,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "events": [
         "reaction.added",
-        "reaction.removed"
+        "reaction.deleted"
       ],
       "subpath": "better-supabase/blocks/reactions",
       "react": {
@@ -2497,7 +2497,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
     },
     {
       "name": "activities",
-      "title": "Engagements",
+      "title": "Activities",
       "category": "CRM & sales",
       "description": "Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.",
       "requires": [
@@ -3731,7 +3731,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "mail-sync",
       "title": "Mail sync",
       "category": "CRM & sales",
-      "description": "Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.",
+      "description": "Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.",
       "requires": [
         "memberships",
         "permissions",
@@ -5243,7 +5243,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "advisory_product.updated",
         "advisory_product_version.created",
         "sbom_component.imported",
-        "vex_statement.saved",
+        "vex_statement.updated",
         "vulnerability.created",
         "vulnerability.enriched",
         "vulnerability.exploited"
@@ -5405,7 +5405,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
     {
       "name": "crm",
       "title": "CRM",
-      "description": "SaaS plus parties, pipelines, deals, quotes, sales targets and engagements, with synced mailboxes, email sequences, segments, assignment queues, enrichment, forecasts and lead scoring, a job queue for the sequence timers, tags, comments, an activity feed, custom fields, saved views and search.",
+      "description": "SaaS plus parties, pipelines, deals, quotes, sales targets and activities, with synced mailboxes, email sequences, segments, assignment queues, enrichment, forecasts and lead scoring, a job queue for the sequence timers, tags, comments, an activity feed, custom fields, saved views and search.",
       "group": "products",
       "groupTitle": "Products",
       "blocks": [
@@ -6599,7 +6599,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
     {
       "name": "customer-success",
       "title": "Customer success",
-      "description": "SaaS plus accounts as parties, health scores from rules and metrics, NPS forms, playbooks as enrollments and engagements.",
+      "description": "SaaS plus accounts as parties, health scores from rules and metrics, NPS forms, playbooks as enrollments and activities.",
       "group": "verticals",
       "groupTitle": "Verticals",
       "blocks": [

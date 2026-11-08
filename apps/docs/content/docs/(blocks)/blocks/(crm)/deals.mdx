@@ -151,7 +151,7 @@ const call = await deals
 // { won, commit, bestCase, pipeline, notCalled, omit, later, attainment, gap, owners }
 ```
 
-`forecast` sums one currency in a period: deals won in it, open deals closing in it by forecast category (`notCalled` when the rep has made no call), and `later` for open deals that close after it. `attainment` is won plus commit over the target, and `owners` splits the same sums per owner. `health(pipelineId)` lists the open deals with their days in stage, whether they are rotting, whether the close date slipped, whether there is no next step, and whether the next step is overdue. With the [engagements](/docs/blocks/activities) module installed, a planned engagement on the deal counts as its next step.
+`forecast` sums one currency in a period: deals won in it, open deals closing in it by forecast category (`notCalled` when the rep has made no call), and `later` for open deals that close after it. `attainment` is won plus commit over the target, and `owners` splits the same sums per owner. `health(pipelineId)` lists the open deals with their days in stage, whether they are rotting, whether the close date slipped, whether there is no next step, and whether the next step is overdue. With the [activities](/docs/blocks/activities) module installed, a planned activity on the deal counts as its next step.
 
 ## Events
 

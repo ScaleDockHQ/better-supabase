@@ -211,7 +211,7 @@ export const blockEvents: Events<BlockEvents> = {
     "product_variant.deleted",
     "product_variant.updated",
     "reaction.added",
-    "reaction.removed",
+    "reaction.deleted",
     "return.received",
     "return.requested",
     "share_link.created",
@@ -230,7 +230,7 @@ export const blockEvents: Events<BlockEvents> = {
     "team.restored",
     "team.updated",
     "team_member.added",
-    "team_member.removed",
+    "team_member.deleted",
   ],
 };
 
@@ -354,7 +354,7 @@ export const blockEventSchemas = {
   "product_variant.deleted": true,
   "product_variant.updated": true,
   "reaction.added": true,
-  "reaction.removed": true,
+  "reaction.deleted": true,
   "return.received": true,
   "return.requested": true,
   "share_link.created": true,
@@ -373,7 +373,7 @@ export const blockEventSchemas = {
   "team.restored": true,
   "team.updated": true,
   "team_member.added": true,
-  "team_member.removed": true,
+  "team_member.deleted": true,
 } as const;
 
 /**

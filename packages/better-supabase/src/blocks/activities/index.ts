@@ -1,20 +1,20 @@
 export {
   createActivities,
-  type Engagement,
-  type EngagementAudience,
-  type EngagementInput,
+  type Activity,
+  type ActivityAudience,
+  type ActivityInput,
   type Activities,
   type ActivitiesOptions,
-  type EngagementSubject,
+  type ActivitySubject,
 } from "./activities.ts";
 
 export {
-  ENGAGEMENT_TRANSCRIBE_QUEUE,
-  type EngagementActionItem,
-  type EngagementNotes,
-  type EngagementNotesInput,
-  type EngagementRecording,
-  type EngagementRecordingStatus,
+  ACTIVITY_TRANSCRIBE_QUEUE,
+  type ActivityActionItem,
+  type ActivityNotes,
+  type ActivityNotesInput,
+  type ActivityRecording,
+  type ActivityRecordingStatus,
   type NoteTaker,
   type NoteTakerInput,
   type Transcriber,
@@ -46,4 +46,4 @@ export { activitiesEvents } from "./events.ts";
 
 export type { ActivitiesEvents } from "./events.ts";
 
-export { engagementChangeSchema, engagementInputSchema } from "./schemas.ts";
+export { activityChangeSchema, activityInputSchema } from "./schemas.ts";

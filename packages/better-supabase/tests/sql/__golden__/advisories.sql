@@ -1169,7 +1169,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:6a8c2e05b25dbd493a0432c532ac997d73f50d3a7db7ac6227e45a891a31d1dc
+-- @bsb-hash sha256:b127749a79dd6eca08f4f94584d5d8497fb24fa9de887fff72d978ea058ced20
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1969,9 +1969,9 @@ begin
     where w."id" = v_old."id"
     returning * into v_row;
   end if;
-  perform "better_supabase".emit_event('vex_statement.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'productId', v_row."product_id", 'versionId', v_row."version_id", 'vulnerabilityId', v_row."vulnerability_id", 'vulnId', v_vuln, 'status', v_row."status"), 'vex-statements/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/advisories');
+  perform "better_supabase".emit_event('vex_statement.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'productId', v_row."product_id", 'versionId', v_row."version_id", 'vulnerabilityId', v_row."vulnerability_id", 'vulnId', v_vuln, 'status', v_row."status"), 'vex-statements/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/advisories');
   perform better_supabase.audit_event(
-    event_type => 'vex_statement.saved',
+    event_type => 'vex_statement.updated',
     category => 'data',
     target_type => 'vex_statement',
     record_id => v_row."id"::text,

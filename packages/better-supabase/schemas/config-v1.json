@@ -6113,7 +6113,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "engagementType": {
+              "activityType": {
                 "type": "string"
               },
               "matchDomains": {

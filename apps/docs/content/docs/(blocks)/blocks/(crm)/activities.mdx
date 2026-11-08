@@ -3,17 +3,17 @@ title: Activities
 description: Calls, emails, meetings, notes and tasks logged on one or more records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 ---
 
-`activities` logs the work people do around a record: a call with its outcome and duration, an email, a meeting, a note, or a task with a due time. One engagement can sit on several records at once, such as a call on a deal, its company and the person on the line, so each record's panel shows it. Any record registered in [`config.subjects`](/docs/blocks/sql#subject-registry) can carry engagements.
+`activities` logs the work people do around a record: a call with its outcome and duration, an email, a meeting, a note, or a task with a due time. One activity can sit on several records at once, such as a call on a deal, its company and the person on the line, so each record's panel shows it. Any record registered in [`config.subjects`](/docs/blocks/sql#subject-registry) can carry activities.
 
-This block is the logged work, not the system history. The [activity feed](/docs/blocks/timeline) records what the system did (a stage change, a comment), and every engagement event carries its main record, so the feed shows both on one timeline.
+This block is the logged work, not the system history. The [activity feed](/docs/blocks/timeline) records what the system did (a stage change, a comment), and every activity event carries its main record, so the feed shows both on one timeline.
 
-Reading needs `activities.read`, and logging needs `activities.write`. The author and the owner edit an engagement, and `activities.manage` edits anyone's. `activities.read_restricted` reads every [restricted note](#progress-notes). Admins get every permission, and members get `activities.read` and `activities.write`.
+Reading needs `activities.read`, and logging needs `activities.write`. The author and the owner edit an activity, and `activities.manage` edits anyone's. `activities.read_restricted` reads every [restricted note](#progress-notes). Admins get every permission, and members get `activities.read` and `activities.write`.
 
 ```bash
 better-supabase add activities
 ```
 
-The block's entity is `activity` (the `activities` table; before 0.47 it was `engagement`). Installing it registers `activity` as a subject, searchable by title, body and outcome when the search module is installed. Rename it with `blocks.activities.entities`, for example `{ activity: "touchpoint" }`. `engagementInputSchema` and `engagementChangeSchema` validate what `log` and `update` take.
+The block's entity is `activity` (the `activities` table; before 0.47 it was `activity`). Installing it registers `activity` as a subject, searchable by title, body and outcome when the search module is installed. Rename it with `blocks.activities.entities`, for example `{ activity: "touchpoint" }`. `activityInputSchema` and `activityChangeSchema` validate what `log` and `update` take.
 
 The module needs `tenant`, `permissions` and `subjects`.
 
@@ -64,18 +64,18 @@ const rows = useActivities({ limit: 50 });
 
 ## Log and change
 
-`log(organizationId, input, subjects)` needs a `type` and a `title`. The first record in `subjects` is the engagement's main record, which its events carry. Every record must exist in the organization and be readable by the caller (`ACTIVITY_SUBJECT_FORBIDDEN`). The owner defaults to the caller, and assigning it to someone else notifies them when the [notifications](/docs/blocks/notifications) module is installed.
+`log(organizationId, input, subjects)` needs a `type` and a `title`. The first record in `subjects` is the activity's main record, which its events carry. Every record must exist in the organization and be readable by the caller (`ACTIVITY_SUBJECT_FORBIDDEN`). The owner defaults to the caller, and assigning it to someone else notifies them when the [notifications](/docs/blocks/notifications) module is installed.
 
-`options.types` lists the types (default `call`, `email`, `meeting`, `note`, `task`; `ACTIVITY_TYPE_INVALID` for another). An `externalRef`, such as a message id from a mail provider or an event id from a calendar, is unique per organization: logging it again updates the engagement, so a sync can replay.
+`options.types` lists the types (default `call`, `email`, `meeting`, `note`, `task`; `ACTIVITY_TYPE_INVALID` for another). An `externalRef`, such as a message id from a mail provider or an event id from a calendar, is unique per organization: logging it again updates the activity, so a sync can replay.
 
 `update(id, input, subjects?)` changes the keys you pass (`null` clears one) and replaces the records when you pass `subjects`. `complete(id, { outcome })` marks it done now, and `{ done: false }` opens it again. `remove(id)` deletes it.
 
-Installing the block registers activities as the `activity` subject, so the [attachments](/docs/blocks/attachments) block keeps files on a task, a call or an email: upload to `{ type: "activity", id: task.id }` and list them with the same subject. Only people who can read the engagement can add or see its files.
+Installing the block registers activities as the `activity` subject, so the [attachments](/docs/blocks/attachments) block keeps files on a task, a call or an email: upload to `{ type: "activity", id: task.id }` and list them with the same subject. Only people who can read the activity can add or see its files.
 
 ## Your own fields
 
 Columns you add to `activities` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
-keyed by column name with their SQL type. `log` and `update` write them from `fields`, and every engagement comes back with them under `fields`. Pass a
+keyed by column name with their SQL type. `log` and `update` write them from `fields`, and every activity comes back with them under `fields`. Pass a
 [Standard Schema](https://standardschema.dev) as `fields` to type them,
 parse them on reads and validate them on writes; a bad value is a
 `validation` error before anything reaches the database (see
@@ -84,12 +84,12 @@ parse them on reads and validate them on writes; a bad value is a
 ```ts
 import { z } from "zod";
 
-const engagements = createActivities({
+const activities = createActivities({
   transport,
   fields: z.object({ region: z.enum(["emea", "amer", "apac"]) }),
 });
 
-await engagements.log(
+await activities.log(
   organizationId,
   { type: "call", title: "Intro", fields: { region: "emea" } },
   subjects,
@@ -98,7 +98,7 @@ await engagements.log(
 
 ## Bookings
 
-With the [bookings](/docs/blocks/bookings) block installed, set `blocks.activities.options.bookings: true` and every confirmed booking becomes a `meeting` engagement. A trigger on the bookings table keeps it in step, so bookings made through the public link or by a direct write are logged too.
+With the [bookings](/docs/blocks/bookings) block installed, set `blocks.activities.options.bookings: true` and every confirmed booking becomes a `meeting` activity. A trigger on the bookings table keeps it in step, so bookings made through the public link or by a direct write are logged too.
 
 ```ts
 export default defineConfig({
@@ -110,27 +110,27 @@ export default defineConfig({
 });
 ```
 
-| Booking                     | Engagement                                                                                                                                    |
+| Booking                     | Activity                                                                                                                                      |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | Confirmed                   | A `meeting` titled with the service and the customer's name, due at the start, with the notes as its body and the length in `durationSeconds` |
 | Rescheduled while confirmed | The same meeting moves to the new time and opens again                                                                                        |
 | Cancelled after confirming  | The meeting is done at the cancel time, with the outcome `cancelled: <reason>`                                                                |
 
-The meeting's `externalRef` is `booking:<id>`, so it is one engagement per booking, and code that logs the same booking with that ref updates it instead of adding a second one. With [parties](/docs/blocks/contacts) installed, the meeting sits on the person whose user or email (in any case) matches the booker's, and on that person's company (the primary link first). A booker with no contact gets a meeting on no record, which every reader of the organization sees. The owner is the member who made the booking, else the contact's owner. It needs `meeting` in `options.types`, and installing it without the bookings block fails at render time. The events are the usual `activity.logged`, `activity.updated` and `activity.completed`.
+The meeting's `externalRef` is `booking:<id>`, so it is one activity per booking, and code that logs the same booking with that ref updates it instead of adding a second one. With [parties](/docs/blocks/contacts) installed, the meeting sits on the person whose user or email (in any case) matches the booker's, and on that person's company (the primary link first). A booker with no contact gets a meeting on no record, which every reader of the organization sees. The owner is the member who made the booking, else the contact's owner. It needs `meeting` in `options.types`, and installing it without the bookings block fails at render time. The events are the usual `activity.logged`, `activity.updated` and `activity.completed`.
 
 ## Read
 
-| Method                                         | Returns                                                                                               |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `of(subject, { types, before, limit })`        | A record's engagements, newest first: done ones by when they happened, open ones by when they are due |
-| `next(subject)`                                | The open engagement with the earliest due time, or `undefined`: a record's next step                  |
-| `open(organizationId, { ownerId, dueBefore })` | A member's open engagements, earliest due first; the caller's by default                              |
+| Method                                         | Returns                                                                                              |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `of(subject, { types, before, limit })`        | A record's activities, newest first: done ones by when they happened, open ones by when they are due |
+| `next(subject)`                                | The open activity with the earliest due time, or `undefined`: a record's next step                   |
+| `open(organizationId, { ownerId, dueBefore })` | A member's open activities, earliest due first; the caller's by default                              |
 
-Each engagement has `overdue`: open and past its due time. Reads run as the caller: an engagement is visible to members who can read one of its records, or to every reader of the organization when it is on none. A [progress note's audience](#progress-notes) can narrow or widen that.
+Each activity has `overdue`: open and past its due time. Reads run as the caller: an activity is visible to members who can read one of its records, or to every reader of the organization when it is on none. A [progress note's audience](#progress-notes) can narrow or widen that.
 
 ## Progress notes
 
-Care and case work writes progress notes (rapportages) as engagements of type `note`, or `report` when you add it to `options.types`. Each engagement takes an `audience`, a `category` and a `goalId`, locks a while after it is written, takes addenda and can be flagged as entered in error.
+Care and case work writes progress notes (rapportages) as activities of type `note`, or `report` when you add it to `options.types`. Each activity takes an `audience`, a `category` and a `goalId`, locks a while after it is written, takes addenda and can be flagged as entered in error.
 
 ```ts
 const note = await db.activities
@@ -163,11 +163,11 @@ await db.activities
 
 `restrictedRoles` lists record team roles, such as `["psychologist"]`. The check uses `has_subject_role`, so team membership counts only for the roles you name. `category` is one of `options.noteCategories` (default `general`, `care`, `medical`, `behavior`, `family`, `incident`). `goalId` names a care plan goal the note reports on; it is a plain id, with no foreign key.
 
-Engagements of a `options.lockTypes` type (default `note` and `report`) get `lockedAt` when they are logged: `options.lockAfterHours` later, 24 by default, and `0` locks them at once. After that, `update`, `complete` and `remove` fail with `ACTIVITY_LOCKED`, and so does logging the same `externalRef` again. Changing an engagement's type to a locked type sets `lockedAt` from when it was created. Set `lockTypes: []` to lock nothing. Other types, such as tasks and calls, never lock.
+Activities of a `options.lockTypes` type (default `note` and `report`) get `lockedAt` when they are logged: `options.lockAfterHours` later, 24 by default, and `0` locks them at once. After that, `update`, `complete` and `remove` fail with `ACTIVITY_LOCKED`, and so does logging the same `externalRef` again. Changing an activity's type to a locked type sets `lockedAt` from when it was created. Set `lockTypes: []` to lock nothing. Other types, such as tasks and calls, never lock.
 
-`amend(id, body)` adds an addendum: a new engagement with your `body`, on the same records, with the original's type, title, audience, roles, category and goal, and `amendsId` pointing at the original. Whoever can read the original and holds `activities.write` may add one, also once it is locked. The addendum locks on the same schedule.
+`amend(id, body)` adds an addendum: a new activity with your `body`, on the same records, with the original's type, title, audience, roles, category and goal, and `amendsId` pointing at the original. Whoever can read the original and holds `activities.write` may add one, also once it is locked. The addendum locks on the same schedule.
 
-`markError(id, reason)` flags an engagement as entered in error with `markedErrorAt`, `markedErrorBy` and `markedErrorReason`. The row stays, so the record keeps what was written, and the flag locks it. The author, the owner and `activities.manage` may flag one, once.
+`markError(id, reason)` flags an activity as entered in error with `markedErrorAt`, `markedErrorBy` and `markedErrorReason`. The row stays, so the record keeps what was written, and the flag locks it. The author, the owner and `activities.manage` may flag one, once.
 
 ```ts
 export default defineConfig({
@@ -183,16 +183,16 @@ export default defineConfig({
 });
 ```
 
-On your own table, map any of `audience`, `restrictedRoles`, `category`, `lockedAt`, `amends`, `goal`, `markedErrorAt`, `markedErrorBy` and `markedErrorReason` to `null` in `blocks.activities.columns.engagements` to leave that part out. `restrictedRoles` needs `audience`, and `markedErrorBy` and `markedErrorReason` need `markedErrorAt`.
+On your own table, map any of `audience`, `restrictedRoles`, `category`, `lockedAt`, `amends`, `goal`, `markedErrorAt`, `markedErrorBy` and `markedErrorReason` to `null` in `blocks.activities.columns.activities` to leave that part out. `restrictedRoles` needs `audience`, and `markedErrorBy` and `markedErrorReason` need `markedErrorAt`.
 
 ## Recordings and notes
 
-`blocks.activities.options.recordings` (off by default) stores call and meeting recordings, their transcripts and notes about an engagement. It needs the [ai-files](/docs/blocks/ai-files) block, which holds the audio or video, and adds the `engagement_recordings`, `engagement_transcript_segments` and `engagement_notes` tables. The block imports no speech or AI SDK (ADR 0010): you pass a `Transcriber` and a `NoteTaker` that wrap the provider you use.
+`blocks.activities.options.recordings` (off by default) stores call and meeting recordings, their transcripts and notes about an activity. It needs the [ai-files](/docs/blocks/ai-files) block, which holds the audio or video, and adds the `activity_recordings`, `activity_transcript_segments` and `activity_notes` tables. The block imports no speech or AI SDK (ADR 0010): you pass a `Transcriber` and a `NoteTaker` that wrap the provider you use.
 
 ```ts
 import { createActivities } from "better-supabase/blocks/activities";
 
-const engagements = createActivities({
+const activities = createActivities({
   transport,
   service: serviceTransport,
   files: aiFiles,
@@ -215,43 +215,43 @@ const engagements = createActivities({
   noteTaker: {
     apiVersion: 1,
     model: "my-model",
-    summarize: async ({ engagement, transcript }) =>
-      summarizeCall(engagement, transcript),
+    summarize: async ({ activity, transcript }) =>
+      summarizeCall(activity, transcript),
   },
 });
 
-const recording = await engagements
-  .attachRecording(engagementId, fileId, { language: "en" })
+const recording = await activities
+  .attachRecording(activityId, fileId, { language: "en" })
   .orThrow();
 ```
 
-`attachRecording(engagementId, fileId)` links a ready ai-files file of the same organization: the author, the owner and `activities.manage` may attach one, and the file must be the caller's unless they hold `activities.manage`. The recording starts `pending`. With the [jobs](/docs/blocks/queue) block installed it queues a transcription on `engagements.transcribe`; register `transcribeJob()` as that queue's handler, and its last attempt marks the recording `failed` with the error. Without jobs, call `transcribe(recordingId)` yourself or run `drainRecordings()` on a schedule as the service role.
+`attachRecording(activityId, fileId)` links a ready ai-files file of the same organization: the author, the owner and `activities.manage` may attach one, and the file must be the caller's unless they hold `activities.manage`. The recording starts `pending`. With the [jobs](/docs/blocks/queue) block installed it queues a transcription on `activities.transcribe`; register `transcribeJob()` as that queue's handler, and its last attempt marks the recording `failed` with the error. Without jobs, call `transcribe(recordingId)` yourself or run `drainRecordings()` on a schedule as the service role.
 
 `transcribe` signs the file's URL and reads its bytes through `files`, calls the transcriber and saves its speaker turns. `saveTranscript(recordingId, transcript)` stores a transcript you already have, such as one a meeting tool exports; saving again replaces it. Each segment has a `speaker` label, an optional `speakerUserId`, `startMs` and `endMs` from the start of the recording, its `text` and an optional `confidence`.
 
-`summarize(engagementId)` gives the note taker the engagement and every transcript turn and saves its summary and action items as the engagement's notes (`source: "ai"`, with the model). `saveNotes(engagementId, { summary, actionItems })` saves notes a member wrote (`source: "member"`), replacing earlier ones.
+`summarize(activityId)` gives the note taker the activity and every transcript turn and saves its summary and action items as the activity's notes (`source: "ai"`, with the model). `saveNotes(activityId, { summary, actionItems })` saves notes a member wrote (`source: "member"`), replacing earlier ones.
 
-| Method                                      | Returns                                                      |
-| ------------------------------------------- | ------------------------------------------------------------ |
-| `recordings(engagementId)`                  | The engagement's recordings, oldest first, with their status |
-| `transcript(recordingId, { after, limit })` | Speaker turns in order, 500 by default and 5000 at most      |
-| `notes(engagementId)`                       | The engagement's notes, or `undefined`                       |
+| Method                                      | Returns                                                    |
+| ------------------------------------------- | ---------------------------------------------------------- |
+| `recordings(activityId)`                    | The activity's recordings, oldest first, with their status |
+| `transcript(recordingId, { after, limit })` | Speaker turns in order, 500 by default and 5000 at most    |
+| `notes(activityId)`                         | The activity's notes, or `undefined`                       |
 
-Recordings, transcripts and notes are readable by whoever can read the engagement. Teammates see the filename and media type without access to the file itself. `testTranscriber` and `testNoteTaker` from `better-supabase/testing` check that your wrappers keep the contract.
+Recordings, transcripts and notes are readable by whoever can read the activity. Teammates see the filename and media type without access to the file itself. `testTranscriber` and `testNoteTaker` from `better-supabase/testing` check that your wrappers keep the contract.
 
 ## Events
 
-| Event                                                                           | Data                                                                             |
-| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `activity.logged`, `activity.updated`, `activity.completed`, `activity.deleted` | `organizationId`, `engagementId`, `type`, `subjectType`, `subjectId`, `subjects` |
-| `activity.recorded`, `activity.transcribed`                                     | The same, and `recordingId`                                                      |
-| `activity.summarized`                                                           | The same as `activity.logged`                                                    |
-| `activity.amended`                                                              | The same for the addendum, and `amendsId`: the original                          |
-| `activity.error_marked`                                                         | The same, and `reason`                                                           |
+| Event                                                                           | Data                                                                           |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `activity.logged`, `activity.updated`, `activity.completed`, `activity.deleted` | `organizationId`, `activityId`, `type`, `subjectType`, `subjectId`, `subjects` |
+| `activity.recorded`, `activity.transcribed`                                     | The same, and `recordingId`                                                    |
+| `activity.summarized`                                                           | The same as `activity.logged`                                                  |
+| `activity.amended`                                                              | The same for the addendum, and `amendsId`: the original                        |
+| `activity.error_marked`                                                         | The same, and `reason`                                                         |
 
 ## Hooks
 
-The module calls `before_activity_log(tenant, attrs jsonb, subjects jsonb)` and `after_activity_log(engagement uuid)`. A `before_` hook raises to refuse the log. The TypeScript client takes `hooks` for its methods (see [extending blocks](/docs/extending/blocks)).
+The module calls `before_activity_log(tenant, attrs jsonb, subjects jsonb)` and `after_activity_log(activity uuid)`. A `before_` hook raises to refuse the log. The TypeScript client takes `hooks` for its methods (see [extending blocks](/docs/extending/blocks)).
 
 ## Wire it to ReUI
 
@@ -259,27 +259,27 @@ The ReUI CRM Activity Timeline reads `of(subject)` and groups the rows into day 
 
 ## Errors
 
-| Hint                                                                           | Cause                                                      |
-| ------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| `ACTIVITY_FORBIDDEN`                                                           | the caller lacks `activities.write`                        |
-| `ACTIVITY_TYPE_INVALID`                                                        | not a configured type                                      |
-| `ACTIVITY_TITLE_REQUIRED`                                                      | the title is empty                                         |
-| `ACTIVITY_SUBJECTS_INVALID`                                                    | `subjects` isn't a list of `{ type, id }`                  |
-| `ACTIVITY_SUBJECT_FORBIDDEN`                                                   | a record is unknown, in another organization or unreadable |
-| `ACTIVITY_NOT_FOUND`                                                           | no engagement the caller can edit, or read for `amend`     |
-| `ACTIVITY_LOCKED`                                                              | the engagement is locked or flagged in error               |
-| `ACTIVITY_AUDIENCE_INVALID`                                                    | not `team`, `subject` or `restricted`, or bad roles        |
-| `ACTIVITY_CATEGORY_INVALID`                                                    | not one of `options.noteCategories`                        |
-| `ACTIVITY_BODY_REQUIRED`                                                       | an addendum without a body                                 |
-| `ACTIVITY_REASON_REQUIRED`                                                     | `markError` without a reason                               |
-| `ACTIVITY_ALREADY_MARKED_ERROR`                                                | the engagement is already flagged in error                 |
-| `AI_FILE_NOT_FOUND`                                                            | no ready file of the organization the caller may attach    |
-| `ACTIVITY_RECORDING_EXISTS`                                                    | the file is already a recording of the engagement          |
-| `ACTIVITY_RECORDING_NOT_FOUND`                                                 | no such recording                                          |
-| `ACTIVITY_TRANSCRIPT_INVALID`                                                  | a segment lacks its text or ends before it starts          |
-| `ACTIVITY_NOTES_INVALID`                                                       | an empty summary or an action item without text            |
-| `ENGAGEMENT_NO_TRANSCRIBER`, `ENGAGEMENT_NO_FILES`, `ENGAGEMENT_NO_NOTE_TAKER` | `createActivities` lacks the option the method needs       |
-| `ENGAGEMENT_TRANSCRIBE_FAILED`, `ENGAGEMENT_SUMMARIZE_FAILED`                  | the transcriber or note taker threw                        |
+| Hint                                                                     | Cause                                                      |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| `ACTIVITY_FORBIDDEN`                                                     | the caller lacks `activities.write`                        |
+| `ACTIVITY_TYPE_INVALID`                                                  | not a configured type                                      |
+| `ACTIVITY_TITLE_REQUIRED`                                                | the title is empty                                         |
+| `ACTIVITY_SUBJECTS_INVALID`                                              | `subjects` isn't a list of `{ type, id }`                  |
+| `ACTIVITY_SUBJECT_FORBIDDEN`                                             | a record is unknown, in another organization or unreadable |
+| `ACTIVITY_NOT_FOUND`                                                     | no activity the caller can edit, or read for `amend`       |
+| `ACTIVITY_LOCKED`                                                        | the activity is locked or flagged in error                 |
+| `ACTIVITY_AUDIENCE_INVALID`                                              | not `team`, `subject` or `restricted`, or bad roles        |
+| `ACTIVITY_CATEGORY_INVALID`                                              | not one of `options.noteCategories`                        |
+| `ACTIVITY_BODY_REQUIRED`                                                 | an addendum without a body                                 |
+| `ACTIVITY_REASON_REQUIRED`                                               | `markError` without a reason                               |
+| `ACTIVITY_ALREADY_MARKED_ERROR`                                          | the activity is already flagged in error                   |
+| `AI_FILE_NOT_FOUND`                                                      | no ready file of the organization the caller may attach    |
+| `ACTIVITY_RECORDING_EXISTS`                                              | the file is already a recording of the activity            |
+| `ACTIVITY_RECORDING_NOT_FOUND`                                           | no such recording                                          |
+| `ACTIVITY_TRANSCRIPT_INVALID`                                            | a segment lacks its text or ends before it starts          |
+| `ACTIVITY_NOTES_INVALID`                                                 | an empty summary or an action item without text            |
+| `ACTIVITY_NO_TRANSCRIBER`, `ACTIVITY_NO_FILES`, `ACTIVITY_NO_NOTE_TAKER` | `createActivities` lacks the option the method needs       |
+| `ACTIVITY_TRANSCRIBE_FAILED`, `ACTIVITY_SUMMARIZE_FAILED`                | the transcriber or note taker threw                        |
 
 ## Without the client
 
@@ -288,10 +288,10 @@ The ReUI CRM Activity Timeline reads `of(subject)` and groups the rows into day 
 ```ts
 import { createActivities } from "better-supabase/blocks/activities";
 
-const engagements = createActivities({ transport });
+const activities = createActivities({ transport });
 const deal = { type: "deal", id: dealId };
 
-await engagements
+await activities
   .log(
     organizationId,
     {
@@ -305,7 +305,7 @@ await engagements
   )
   .orThrow();
 
-await engagements
+await activities
   .log(
     organizationId,
     { type: "task", title: "Send proposal", dueAt: friday },

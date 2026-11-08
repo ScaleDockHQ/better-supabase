@@ -344,7 +344,7 @@ const FAKE_RECORDING: TranscriberInput = {
 };
 
 /**
- * Proves a `Transcriber` for the engagements block names its model, returns
+ * Proves a `Transcriber` for the activities block names its model, returns
  * speaker turns in order with `startMs` at most `endMs` and text on each, and
  * rejects once its signal is aborted. Pass a real recording in `input` to call
  * the real provider.
@@ -406,12 +406,12 @@ export function testTranscriber(
 }
 
 export interface TestNoteTakerOptions {
-  /** The engagement and transcript to summarize. Defaults to a short call. */
+  /** The activity and transcript to summarize. Defaults to a short call. */
   readonly input?: Parameters<NoteTaker["summarize"]>[0];
 }
 
 const FAKE_CALL: Parameters<NoteTaker["summarize"]>[0] = {
-  engagement: { id: "engagement", kind: "call", title: "Intro call" },
+  activity: { id: "activity", kind: "call", title: "Intro call" },
   transcript: [
     {
       recordingId: "recording",
@@ -433,7 +433,7 @@ const FAKE_CALL: Parameters<NoteTaker["summarize"]>[0] = {
 };
 
 /**
- * Proves a `NoteTaker` for the engagements block names its model, returns a
+ * Proves a `NoteTaker` for the activities block names its model, returns a
  * non-empty summary with well-formed action items, and rejects once its signal
  * is aborted. It calls the real model.
  */

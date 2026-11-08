@@ -35,12 +35,12 @@ begin
     raise exception 'the activities upgrade copies action_items into tasks as the service role or the migration role';
   end if;
   for v_note in
-    select x.${n("engagement")} as id, x.${n("tenant")} as tenant, x.${COLUMN} as items
+    select x.${n("activity")} as id, x.${n("tenant")} as tenant, x.${COLUMN} as items
     from ${notes} x
     where jsonb_typeof(x.${COLUMN}) = 'array'
       and jsonb_array_length(x.${COLUMN}) > 0
-      and not exists (select 1 from ${actions} y where y.${a("engagement")} = x.${n("engagement")})
-    order by x.${n("engagement")}
+      and not exists (select 1 from ${actions} y where y.${a("activity")} = x.${n("activity")})
+    order by x.${n("activity")}
   loop
     v_position := 0;
     for v_item in select e.value from jsonb_array_elements(v_note.items) e loop
@@ -66,7 +66,7 @@ begin
         jsonb_strip_nulls(jsonb_build_object('title', v_title, 'dueAt', v_due)),
         case when v_owner is null then '{}'::uuid[] else array[v_owner] end
       ) ->> 'id')::uuid;
-      insert into ${actions} (${a("tenant")}, ${a("engagement")}, ${a("task")})
+      insert into ${actions} (${a("tenant")}, ${a("activity")}, ${a("task")})
       values (v_note.tenant, v_note.id, v_task);
     end loop;
   end loop;
@@ -111,9 +111,9 @@ export const NOTE_ACTION_ITEMS_TO_TASKS: BlockSqlUpgrade = {
         : `create table if not exists ${ctx.table("actions")} (
         ${a("id")} uuid primary key default gen_random_uuid(),
         ${a("tenant")} ${ctx.idType} not null,
-        ${a("engagement")} uuid not null references ${ctx.table("engagements")} (${ctx.col("engagements", "id")}) on delete cascade,
+        ${a("activity")} uuid not null references ${ctx.table("activities")} (${ctx.col("activities", "id")}) on delete cascade,
         ${a("task")} uuid not null references ${tasks.table("items")} (${tasks.col("items", "id")}) on delete cascade,${ctx.has("actions", "createdAt") ? `\n        ${a("createdAt")} timestamptz not null default now(),` : ""}
-        unique (${a("engagement")}, ${a("task")})
+        unique (${a("activity")}, ${a("task")})
       );`;
 
     const move =

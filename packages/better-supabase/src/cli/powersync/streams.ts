@@ -580,12 +580,12 @@ function readerOrganizations(
 
 /**
  * The care tables of an instance: every table of an observations or medications
- * instance, and the progress notes of an activities instance (`note`
- * engagements that are open to the team, and their links). Rows sync to the
- * members of the organizations where the user holds a role with the instance's
- * `read` permission. PowerSync replicates past row-level security, so without a
- * roles access model there is nothing to narrow the rows by and the command
- * refuses to generate the stream.
+ * instance, and the progress notes of an activities instance (`note` activities
+ * that are open to the team, and their links). Rows sync to the members of the
+ * organizations where the user holds a role with the instance's `read`
+ * permission. PowerSync replicates past row-level security, so without a roles
+ * access model there is nothing to narrow the rows by and the command refuses
+ * to generate the stream.
  */
 function careTables(
   input: PowerSyncInput,
@@ -648,24 +648,24 @@ function careTables(
         query: `SELECT * FROM ${table} WHERE ${tenant} IN reader_orgs AND type = 'note'${open}`,
       });
     } else if (columns.has("activity_id") && columns.has("subject_type")) {
-      const engagements = [...tablesOf(input, instance.key)].find(
+      const activities = [...tablesOf(input, instance.key)].find(
         ([, declared]) => declared.has("type") && declared.has("title"),
       );
 
-      if (engagements === undefined) {
+      if (activities === undefined) {
         continue;
       }
 
       const open = [
-        engagements[1].has("audience") ? " AND audience = 'team'" : "",
-        engagements[1].has("restricted_roles")
+        activities[1].has("audience") ? " AND audience = 'team'" : "",
+        activities[1].has("restricted_roles")
           ? " AND restricted_roles IS NULL"
           : "",
       ].join("");
 
       synced.push({
         ...base,
-        query: `SELECT activity_id || ':' || subject_type || ':' || subject_id AS id, * FROM ${table} WHERE ${tenant} IN reader_orgs AND activity_id IN (SELECT id FROM ${qualifiedIdent(engagements[0])} WHERE ${tenant} IN reader_orgs AND type = 'note'${open})`,
+        query: `SELECT activity_id || ':' || subject_type || ':' || subject_id AS id, * FROM ${table} WHERE ${tenant} IN reader_orgs AND activity_id IN (SELECT id FROM ${qualifiedIdent(activities[0])} WHERE ${tenant} IN reader_orgs AND type = 'note'${open})`,
       });
     }
   }

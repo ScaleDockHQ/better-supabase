@@ -38,7 +38,7 @@ const EVENTS: BlockSqlEvents<TeamsEvents> = {
     subject: "teams",
     payload: ["organizationId", "id", "userId"],
   },
-  "team_member.removed": {
+  "team_member.deleted": {
     subject: "teams",
     payload: ["organizationId", "id", "userId"],
   },
@@ -430,7 +430,7 @@ begin
   end if;
   delete from ${members}
   where ${memberTeam} = remove_team_member.team and ${memberUser} = remove_team_member.member;
-  ${record(ctx, "team_member.removed", "remove_team_member.team", "v_tenant", undefined, "remove_team_member.member")}
+  ${record(ctx, "team_member.deleted", "remove_team_member.team", "v_tenant", undefined, "remove_team_member.member")}
   return found;
 end;
 $$;

@@ -196,7 +196,7 @@ describe.skipIf(!live)("reactions", () => {
       );
 
       expect(new Set(events.map((event) => event.type))).toEqual(
-        new Set(["reaction.added", "reaction.removed"]),
+        new Set(["reaction.added", "reaction.deleted"]),
       );
     } finally {
       await s.close();
@@ -319,7 +319,7 @@ describe.skipIf(!live)("reactions", () => {
       ).toEqual(
         new Set([
           "reaction.added:vote",
-          "reaction.removed:vote",
+          "reaction.deleted:vote",
           "reaction.added:emoji",
         ]),
       );

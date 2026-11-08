@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:d0306d8cc0aefcaace961851aed62117ed060a454bc04e3a57e743975bdded32
+-- @bsb-hash sha256:15499024e0b6b559e315513ff1a5ba56b765c8e2a9eea28bb9c960bf4a173ef9
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -342,9 +342,9 @@ begin
   end if;
   delete from "better_supabase"."team_members"
   where "team_id" = remove_team_member.team and "user_id" = remove_team_member.member;
-  perform "better_supabase".emit_event('team_member.removed', jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', remove_team_member.member), 'teams/' || (remove_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
+  perform "better_supabase".emit_event('team_member.deleted', jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', remove_team_member.member), 'teams/' || (remove_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
   perform better_supabase.audit_event(
-    event_type => 'team_member.removed',
+    event_type => 'team_member.deleted',
     category => 'membership',
     target_type => 'team',
     record_id => (remove_team_member.team)::text,

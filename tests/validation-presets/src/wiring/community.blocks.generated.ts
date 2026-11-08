@@ -186,7 +186,7 @@ export const blockEvents: Events<BlockEvents> = {
     "post_board.created",
     "post_board.updated",
     "reaction.added",
-    "reaction.removed",
+    "reaction.deleted",
     "score.changed",
     "score_model.created",
     "score_model.deleted",
@@ -205,7 +205,7 @@ export const blockEvents: Events<BlockEvents> = {
     "team.restored",
     "team.updated",
     "team_member.added",
-    "team_member.removed",
+    "team_member.deleted",
   ],
 };
 
@@ -300,7 +300,7 @@ export const blockEventSchemas = {
   "post_board.created": true,
   "post_board.updated": true,
   "reaction.added": true,
-  "reaction.removed": true,
+  "reaction.deleted": true,
   "score.changed": true,
   "score_model.created": true,
   "score_model.deleted": true,
@@ -319,7 +319,7 @@ export const blockEventSchemas = {
   "team.restored": true,
   "team.updated": true,
   "team_member.added": true,
-  "team_member.removed": true,
+  "team_member.deleted": true,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

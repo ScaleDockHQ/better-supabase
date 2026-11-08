@@ -298,7 +298,7 @@ the streams filter instead. A user syncs the rows of the organizations where
 their role holds the block's `read` key (`observations.read`,
 `medications.read`, `activities.read`), including system observation
 definitions. Only progress notes (`type = 'note'`) open to the team sync, with
-their record links, never a restricted engagement. Record-team limits are not
+their record links, never a restricted activity. Record-team limits are not
 applied on the device.
 
 The upload routes replay each write through the block's functions:
@@ -319,7 +319,7 @@ export const connector = createUploadConnector({
   classify: careUploadOutcome,
   tables: {
     activities: progressNoteRoute(bsb.activities, powersync),
-    engagement_subjects: activityLinksRoute(),
+    activity_subjects: activityLinksRoute(),
     observations: observationRoute(bsb.observations, powersync),
     medication_administrations: medicationAdministrationRoute(bsb.medications),
   },

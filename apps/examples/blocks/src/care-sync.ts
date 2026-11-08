@@ -39,7 +39,7 @@ export function careConnector(options: {
     classify: careUploadOutcome,
     tables: {
       activities: progressNoteRoute(options.activities, options.powersync),
-      engagement_subjects: activityLinksRoute(),
+      activity_subjects: activityLinksRoute(),
       observations: observationRoute(options.observations, options.powersync),
       medication_administrations: medicationAdministrationRoute(
         options.medications,

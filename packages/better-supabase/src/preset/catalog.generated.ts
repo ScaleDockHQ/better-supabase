@@ -4005,7 +4005,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     },
     {
       "name": "activities",
-      "title": "Engagements",
+      "title": "Activities",
       "category": "crm",
       "requires": [
         "memberships",
@@ -4028,7 +4028,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "entities": {
         "specs": {
           "activity": {
-            "table": "engagements",
+            "table": "activities",
             "singular": "activity",
             "keyed": true,
             "primary": true,
@@ -4049,7 +4049,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "tables": {
-          "engagements": {
+          "activities": {
             "name": "activities",
             "columns": {
               "id": "id",
@@ -7317,7 +7317,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "snippet": "snippet",
               "lastMessageAt": "last_message_at",
               "messageCount": "message_count",
-              "engagement": "activity_id",
+              "activity": "activity_id",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
@@ -25434,7 +25434,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "vulnerability.created",
           "vulnerability.enriched",
           "vulnerability.exploited",
-          "vex_statement.saved",
+          "vex_statement.updated",
           "advisory.created",
           "advisory.updated",
           "advisory.published"
@@ -28586,12 +28586,41 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ActivitiesOptions"
+        },
+        {
+          "name": "Activity",
+          "fields": true
+        },
+        {
+          "name": "ActivityActionItem"
+        },
+        {
+          "name": "ActivityAudience"
+        },
+        {
+          "name": "ActivityInput",
+          "fields": true
+        },
+        {
+          "name": "ActivityNotes"
+        },
+        {
+          "name": "ActivityNotesInput"
+        },
+        {
+          "name": "ActivityRecording"
+        },
+        {
+          "name": "ActivityRecordingStatus"
+        },
+        {
+          "name": "ActivitySubject"
         }
       ],
       "entitySchemas": {
         "activity": {
           "input": {
-            "title": "EngagementInput",
+            "title": "ActivityInput",
             "fields": {
               "type": {
                 "kind": "string",
@@ -28673,7 +28702,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             },
             "jsonSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "EngagementInput",
+              "title": "ActivityInput",
               "type": "object",
               "properties": {
                 "type": {
@@ -28776,7 +28805,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           },
           "change": {
-            "title": "EngagementChange",
+            "title": "ActivityChange",
             "fields": {
               "type": {
                 "kind": "string",
@@ -28860,7 +28889,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             },
             "jsonSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "EngagementChange",
+              "title": "ActivityChange",
               "type": "object",
               "properties": {
                 "type": {
@@ -32392,7 +32421,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "ReactionsEvents",
         "types": [
           "reaction.added",
-          "reaction.removed"
+          "reaction.deleted"
         ]
       }
     },
@@ -33212,7 +33241,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "team.restored",
           "team.deleted",
           "team_member.added",
-          "team_member.removed"
+          "team_member.deleted"
         ]
       }
     },

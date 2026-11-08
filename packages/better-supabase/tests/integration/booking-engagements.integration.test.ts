@@ -27,7 +27,7 @@ const layout: BlockSqlLayout = {
   modules: { activities: { options: { bookings: true } } },
 };
 
-describe.skipIf(!live)("bookings to engagements", () => {
+describe.skipIf(!live)("bookings to activities", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
 
   afterAll(() => pool.end());
@@ -43,7 +43,7 @@ describe.skipIf(!live)("bookings to engagements", () => {
       const transport = sqlTransport(s.sql);
       const bookings = createBookings({ transport });
       const parties = createContacts({ transport });
-      const engagements = createActivities({ transport });
+      const activities = createActivities({ transport });
 
       await s.as(owner);
 
@@ -108,13 +108,13 @@ describe.skipIf(!live)("bookings to engagements", () => {
         .orThrow();
 
       await s.as(owner);
-      expect(await engagements.of({ subject: person }).orThrow()).toEqual([]);
+      expect(await activities.of({ subject: person }).orThrow()).toEqual([]);
 
       await s.as(member);
       await bookings.confirm(held.id).orThrow();
 
       await s.as(owner);
-      const [meeting] = await engagements.of({ subject: person }).orThrow();
+      const [meeting] = await activities.of({ subject: person }).orThrow();
 
       expect(meeting).toMatchObject({
         type: "meeting",
@@ -134,7 +134,7 @@ describe.skipIf(!live)("bookings to engagements", () => {
 
       await s.as(owner);
 
-      const [cancelled] = await engagements
+      const [cancelled] = await activities
         .of({ subject: { type: "company", id: acme.id } })
         .orThrow();
 

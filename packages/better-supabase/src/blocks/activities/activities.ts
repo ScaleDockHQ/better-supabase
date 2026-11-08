@@ -8,9 +8,9 @@ import type { AiFiles } from "../ai-files/types.ts";
 import type { JobHandler } from "../queue/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type {
-  EngagementNotes,
-  EngagementNotesInput,
-  EngagementRecording,
+  ActivityNotes,
+  ActivityNotesInput,
+  ActivityRecording,
   NoteTaker,
   Transcriber,
   Transcript,
@@ -44,19 +44,19 @@ import {
   transcriptOf,
 } from "./recordings.ts";
 
-/** A record an engagement is on. */
-export interface EngagementSubject {
+/** A record an activity is on. */
+export interface ActivitySubject {
   readonly type: string;
   readonly id: string;
 }
 
 /**
- * Who reads an engagement besides its author and owner: the tenant's readers of
+ * Who reads an activity besides its author and owner: the tenant's readers of
  * its records (`team`), also guests with a read grant on one of them
  * (`subject`), or only members with one of `restrictedRoles` on a record's team
  * or `activities.read_restricted` (`restricted`).
  */
-export type EngagementAudience = "team" | "subject" | "restricted";
+export type ActivityAudience = "team" | "subject" | "restricted";
 
 const AUDIENCES: ReadonlySet<unknown> = new Set([
   "team",
@@ -64,11 +64,11 @@ const AUDIENCES: ReadonlySet<unknown> = new Set([
   "restricted",
 ]);
 
-const isAudience = (value: unknown): value is EngagementAudience =>
+const isAudience = (value: unknown): value is ActivityAudience =>
   AUDIENCES.has(value);
 
 /** A call, email, meeting, note or task logged on one or more records. */
-export interface Engagement<F extends object = Record<never, never>> {
+export interface Activity<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   /** `call`, `email`, `meeting`, `note`, `task` or a configured type. */
@@ -84,20 +84,20 @@ export interface Engagement<F extends object = Record<never, never>> {
   /** The id in the system it came from, such as a mail or calendar provider. */
   readonly externalRef?: string;
   /** The records it is on; the first is its main record. */
-  readonly subjects: readonly EngagementSubject[];
+  readonly subjects: readonly ActivitySubject[];
   /** Open and past its due time. */
   readonly overdue: boolean;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   /** `team` unless set; absent when the table has no audience column. */
-  readonly audience?: EngagementAudience;
-  /** The record team roles that read a `restricted` engagement. */
+  readonly audience?: ActivityAudience;
+  /** The record team roles that read a `restricted` activity. */
   readonly restrictedRoles?: readonly string[];
   /** One of `options.noteCategories`. */
   readonly category?: string;
   /** When it locks: after this, only an addendum or an error flag changes it. */
   readonly lockedAt?: Temporal.Instant;
-  /** The engagement this one is an addendum to. */
+  /** The activity this one is an addendum to. */
   readonly amendsId?: string;
   /** A care plan goal it reports on. */
   readonly goalId?: string;
@@ -116,7 +116,7 @@ export interface Engagement<F extends object = Record<never, never>> {
  * The fields of a write. On update, left out keeps the value and `null` clears
  * it.
  */
-export interface EngagementInput<F extends object = Record<never, never>> {
+export interface ActivityInput<F extends object = Record<never, never>> {
   readonly type?: string;
   readonly title?: string;
   readonly body?: string | null;
@@ -126,10 +126,10 @@ export interface EngagementInput<F extends object = Record<never, never>> {
   readonly dueAt?: Temporal.Instant | null;
   readonly doneAt?: Temporal.Instant | null;
   readonly durationSeconds?: number | null;
-  /** Logging the same `externalRef` again updates the engagement. */
+  /** Logging the same `externalRef` again updates the activity. */
   readonly externalRef?: string | null;
   /** `null` sets it back to `team`. */
-  readonly audience?: EngagementAudience | null;
+  readonly audience?: ActivityAudience | null;
   /** An empty list clears the roles. */
   readonly restrictedRoles?: readonly string[];
   readonly category?: string | null;
@@ -138,75 +138,72 @@ export interface EngagementInput<F extends object = Record<never, never>> {
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-/** `F` types the engagements' extra columns, from the `fields` schema. */
+/** `F` types the activities' extra columns, from the `fields` schema. */
 export interface Activities<F extends object = Record<never, never>> {
   /**
-   * Logs an engagement on the records in `subjects`, the first being its main
+   * Logs an activity on the records in `subjects`, the first being its main
    * record.
    */
   log(input: {
     organizationId: string;
-    input: EngagementInput<F> & {
-      readonly type: string;
-      readonly title: string;
-    };
-    subjects: readonly EngagementSubject[];
-  }): AsyncResult<Engagement<F>>;
-  /** Changes an engagement, and its records when `subjects` is given. */
+    input: ActivityInput<F> & { readonly type: string; readonly title: string };
+    subjects: readonly ActivitySubject[];
+  }): AsyncResult<Activity<F>>;
+  /** Changes an activity, and its records when `subjects` is given. */
   update(input: {
     id: string;
-    input: EngagementInput<F>;
-    subjects?: readonly EngagementSubject[] | undefined;
-  }): AsyncResult<Engagement<F>>;
+    input: ActivityInput<F>;
+    subjects?: readonly ActivitySubject[] | undefined;
+  }): AsyncResult<Activity<F>>;
   /** Marks it done now, with an outcome, or open again with `done: false`. */
   complete(
     input: { id: string } & {
       readonly done?: boolean;
       readonly outcome?: string;
     },
-  ): AsyncResult<Engagement<F>>;
+  ): AsyncResult<Activity<F>>;
   remove(id: string): AsyncResult<boolean>;
   /**
-   * Adds an addendum to an engagement the caller can read: a new engagement
-   * with `body`, on the same records, with the same type, title and audience. A
+   * Adds an addendum to an activity the caller can read: a new activity with
+   * `body`, on the same records, with the same type, title and audience. A
    * locked note changes this way only.
    */
-  amend(input: { id: string; body: string }): AsyncResult<Engagement<F>>;
+  amend(input: { id: string; body: string }): AsyncResult<Activity<F>>;
   /**
-   * Flags an engagement as entered in error with a reason. The row stays and
+   * Flags an activity as entered in error with a reason. The row stays and
    * locks. The author, the owner and members with `activities.manage` may.
    */
-  markError(input: { id: string; reason: string }): AsyncResult<Engagement<F>>;
-  /** A record's engagements, newest first (50 by default, at most 200). */
+  markError(input: { id: string; reason: string }): AsyncResult<Activity<F>>;
+  /** A record's activities, newest first (50 by default, at most 200). */
   of(
-    input: { subject: EngagementSubject } & {
+    input: { subject: ActivitySubject } & {
       readonly types?: readonly string[];
       readonly before?: Temporal.Instant;
       readonly limit?: number;
     },
-  ): AsyncResult<Engagement<F>[]>;
-  /** The next open engagement with a due time on a record, or `undefined`. */
-  next(subject: EngagementSubject): AsyncResult<Engagement<F> | undefined>;
-  /** A member's open engagements, earliest due first. Default: the caller's. */
+  ): AsyncResult<Activity<F>[]>;
+  /** The next open activity with a due time on a record, or `undefined`. */
+  next(subject: ActivitySubject): AsyncResult<Activity<F> | undefined>;
+  /** A member's open activities, earliest due first. Default: the caller's. */
   open(
     input: { organizationId: string } & {
       readonly ownerId?: string;
       readonly dueBefore?: Temporal.Instant;
       readonly limit?: number;
     },
-  ): AsyncResult<Engagement<F>[]>;
+  ): AsyncResult<Activity<F>[]>;
   /**
    * Attaches a ready ai-files file as a call or meeting recording
    * (`options.recordings`). With the jobs block it queues a transcription on
-   * `engagements.transcribe`.
+   * `activities.transcribe`.
    */
   attachRecording(
-    input: { engagementId: string; fileId: string } & {
+    input: { activityId: string; fileId: string } & {
       readonly language?: string;
     },
-  ): AsyncResult<EngagementRecording>;
-  /** An engagement's recordings, oldest first. */
-  recordings(engagementId: string): AsyncResult<EngagementRecording[]>;
+  ): AsyncResult<ActivityRecording>;
+  /** An activity's recordings, oldest first. */
+  recordings(activityId: string): AsyncResult<ActivityRecording[]>;
   /** A recording's speaker turns in order (500 by default, at most 5000). */
   transcript(
     input: { recordingId: string } & {
@@ -218,16 +215,16 @@ export interface Activities<F extends object = Record<never, never>> {
   saveTranscript(input: {
     recordingId: string;
     transcript: Transcript & { readonly model?: string };
-  }): AsyncResult<EngagementRecording>;
+  }): AsyncResult<ActivityRecording>;
   /**
    * Transcribes a recording with `transcriber`, reading the file through
    * `files`, and saves the result. Runs on `service` when given.
    */
   transcribe(
     input: { recordingId: string } & { readonly signal?: AbortSignal },
-  ): AsyncResult<EngagementRecording>;
+  ): AsyncResult<ActivityRecording>;
   /**
-   * The handler for the `engagements.transcribe` queue. The last attempt marks
+   * The handler for the `activities.transcribe` queue. The last attempt marks
    * the recording failed with the error.
    */
   transcribeJob(): JobHandler<{ readonly recordingId: string }>;
@@ -239,20 +236,20 @@ export interface Activities<F extends object = Record<never, never>> {
     readonly batch?: number;
     readonly signal?: AbortSignal;
   }): AsyncResult<number>;
-  /** The engagement's notes, or `undefined`. */
-  notes(engagementId: string): AsyncResult<EngagementNotes | undefined>;
+  /** The activity's notes, or `undefined`. */
+  notes(activityId: string): AsyncResult<ActivityNotes | undefined>;
   /** Saves notes a member wrote, replacing earlier ones. */
   saveNotes(input: {
-    engagementId: string;
-    notes: EngagementNotesInput;
-  }): AsyncResult<EngagementNotes>;
+    activityId: string;
+    notes: ActivityNotesInput;
+  }): AsyncResult<ActivityNotes>;
   /**
-   * Writes the engagement's notes with `noteTaker` from its transcripts and
-   * saves them.
+   * Writes the activity's notes with `noteTaker` from its transcripts and saves
+   * them.
    */
   summarize(
-    input: { engagementId: string } & { readonly signal?: AbortSignal },
-  ): AsyncResult<EngagementNotes>;
+    input: { activityId: string } & { readonly signal?: AbortSignal },
+  ): AsyncResult<ActivityNotes>;
 }
 
 export interface ActivitiesOptions<
@@ -265,7 +262,7 @@ export interface ActivitiesOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the engagements' extra columns (columns the app's
+   * A Standard Schema for the activities' extra columns (columns the app's
    * schema files add to the table), keyed by column name. It types and parses
    * `fields` on reads and validates them on writes.
    */
@@ -298,8 +295,8 @@ const provider = <T>(hint: string, run: () => Promise<T>): AsyncResult<T> =>
     }
   });
 
-function engagementOf(value: unknown): Engagement {
-  const row = recordOf(value, "engagement");
+function activityOf(value: unknown): Activity {
+  const row = recordOf(value, "activity");
 
   const optional = {
     body: optionalText(row["body"]),
@@ -331,7 +328,7 @@ function engagementOf(value: unknown): Engagement {
     organizationId: textOf(row["tenant_id"]),
     type: textOf(row["type"]),
     title: textOf(row["title"]),
-    subjects: recordsOf(row["subjects"], "engagement subjects").map(
+    subjects: recordsOf(row["subjects"], "activity subjects").map(
       (subject) => ({
         type: textOf(subject["type"]),
         id: textOf(subject["id"]),
@@ -347,7 +344,7 @@ function engagementOf(value: unknown): Engagement {
 }
 
 /** The attrs of a write: the keys the input sets, instants as ISO text. */
-function attrsOf(input: EngagementInput): Record<string, unknown> {
+function attrsOf(input: ActivityInput): Record<string, unknown> {
   const { dueAt, doneAt, ...rest } = input;
 
   return {
@@ -358,12 +355,12 @@ function attrsOf(input: EngagementInput): Record<string, unknown> {
 }
 
 const subjectsArg = (
-  subjects: readonly EngagementSubject[],
+  subjects: readonly ActivitySubject[],
 ): { type: string; id: string }[] =>
   subjects.map((subject) => ({ type: subject.type, id: subject.id }));
 
 /**
- * The engagements block: calls, emails, meetings, notes and tasks on any record
+ * The activities block: calls, emails, meetings, notes and tasks on any record
  * registered in `config.subjects`, for a record's activity panel, a "next step"
  * and a member's task list.
  */
@@ -384,25 +381,22 @@ export function createActivities<
   const transcriber = injectableOf("transcriber", options.transcriber);
   const noteTaker = injectableOf("note taker", options.noteTaker);
 
-  const fields: BlockFields<F> = blockFields(
-    options.fields,
-    "engagement fields",
-  );
+  const fields: BlockFields<F> = blockFields(options.fields, "activity fields");
 
-  const parsed = (engagement: Engagement): AsyncResult<Engagement<F>> =>
-    AsyncResult.from(() => fields.read(engagement.fields)).map((value) => ({
-      ...engagement,
+  const parsed = (activity: Activity): AsyncResult<Activity<F>> =>
+    AsyncResult.from(() => fields.read(activity.fields)).map((value) => ({
+      ...activity,
       fields: value,
     }));
 
   const parsedAll = (
-    engagements: readonly Engagement[],
-  ): AsyncResult<Engagement<F>[]> =>
+    activities: readonly Activity[],
+  ): AsyncResult<Activity<F>[]> =>
     AsyncResult.from(async () => {
-      const out: Engagement<F>[] = [];
+      const out: Activity<F>[] = [];
 
-      for (const engagement of engagements) {
-        const read = await parsed(engagement);
+      for (const activity of activities) {
+        const read = await parsed(activity);
 
         if (!read.ok) {
           return read;
@@ -416,7 +410,7 @@ export function createActivities<
 
   /** The attrs of a write, with the extra fields checked first. */
   const checked = (
-    input: EngagementInput<F>,
+    input: ActivityInput<F>,
   ): AsyncResult<Record<string, unknown>> => {
     const { fields: extra, ...rest } = input;
 
@@ -455,11 +449,11 @@ export function createActivities<
     const { files } = options;
 
     if (transcriber === undefined) {
-      return missing("transcriber", "ENGAGEMENT_NO_TRANSCRIBER");
+      return missing("transcriber", "ACTIVITY_NO_TRANSCRIBER");
     }
 
     if (files === undefined) {
-      return missing("files block", "ENGAGEMENT_NO_FILES");
+      return missing("files block", "ACTIVITY_NO_FILES");
     }
 
     return service(
@@ -479,7 +473,7 @@ export function createActivities<
               .map((url) => ({ recording, url })),
       )
       .andThen(({ recording, url }) =>
-        provider("ENGAGEMENT_TRANSCRIBE_FAILED", () =>
+        provider("ACTIVITY_TRANSCRIBE_FAILED", () =>
           transcriber.transcribe(
             {
               file: {
@@ -525,7 +519,7 @@ export function createActivities<
           call(
             "log_activity",
             { tenant: organizationId, attrs, subjects: subjectsArg(subjects) },
-            engagementOf,
+            activityOf,
           ),
         )
         .andThen(parsed),
@@ -535,11 +529,11 @@ export function createActivities<
           call(
             "update_activity",
             {
-              engagement: id,
+              activity: id,
               attrs,
               subjects: subjects === undefined ? null : subjectsArg(subjects),
             },
-            engagementOf,
+            activityOf,
           ),
         )
         .andThen(parsed),
@@ -547,24 +541,22 @@ export function createActivities<
       call(
         "complete_activity",
         {
-          engagement: id,
+          activity: id,
           done: complete.done ?? true,
           outcome: complete.outcome ?? null,
         },
-        engagementOf,
+        activityOf,
       ).andThen(parsed),
     remove: (id) =>
-      call("delete_activity", { engagement: id }, (value) => value === true),
+      call("delete_activity", { activity: id }, (value) => value === true),
     amend: ({ id, body }) =>
-      call("amend_activity", { engagement: id, body }, engagementOf).andThen(
+      call("amend_activity", { activity: id, body }, activityOf).andThen(
         parsed,
       ),
     markError: ({ id, reason }) =>
-      call(
-        "mark_activity_error",
-        { engagement: id, reason },
-        engagementOf,
-      ).andThen(parsed),
+      call("mark_activity_error", { activity: id, reason }, activityOf).andThen(
+        parsed,
+      ),
     of: ({ subject, ...list }) =>
       call(
         "activities_of",
@@ -575,13 +567,13 @@ export function createActivities<
           before: instantArg(list.before) ?? null,
           page_size: list.limit ?? null,
         },
-        (value) => recordsOf(value, "activities_of").map(engagementOf),
+        (value) => recordsOf(value, "activities_of").map(activityOf),
       ).andThen(parsedAll),
     next: (subject) =>
       call(
         "next_activity",
         { subject_type: subject.type, subject_id: subject.id },
-        (value) => (value === null ? undefined : engagementOf(value)),
+        (value) => (value === null ? undefined : activityOf(value)),
       ).andThen((found) =>
         found === undefined ? AsyncResult.ok(undefined) : parsed(found),
       ),
@@ -594,20 +586,20 @@ export function createActivities<
           due_before: instantArg(list.dueBefore) ?? null,
           page_size: list.limit ?? null,
         },
-        (value) => recordsOf(value, "open_activities").map(engagementOf),
+        (value) => recordsOf(value, "open_activities").map(activityOf),
       ).andThen(parsedAll),
-    attachRecording: ({ engagementId, fileId, ...attach }) =>
+    attachRecording: ({ activityId, fileId, ...attach }) =>
       call(
         "attach_activity_recording",
         {
-          engagement: engagementId,
+          activity: activityId,
           file: fileId,
           language: attach.language ?? null,
         },
         recordingOf,
       ),
-    recordings: (engagementId) =>
-      call("activity_recordings", { engagement: engagementId }, (value) =>
+    recordings: (activityId) =>
+      call("activity_recordings", { activity: activityId }, (value) =>
         recordsOf(value, "activity_recordings").map(recordingOf),
       ),
     transcript: ({ recordingId, ...page }) =>
@@ -667,47 +659,44 @@ export function createActivities<
           return ok(done);
         }),
       ),
-    notes: (engagementId) =>
-      call("activity_notes", { engagement: engagementId }, (value) =>
+    notes: (activityId) =>
+      call("activity_notes", { activity: activityId }, (value) =>
         value === null ? undefined : notesOf(value),
       ),
-    saveNotes: ({ engagementId, notes }) =>
+    saveNotes: ({ activityId, notes }) =>
       call(
         "save_activity_notes",
-        {
-          engagement: engagementId,
-          notes: notesArg(notes, "member", undefined),
-        },
+        { activity: activityId, notes: notesArg(notes, "member", undefined) },
         notesOf,
       ),
-    summarize: ({ engagementId, ...summarizeOptions }) => {
+    summarize: ({ activityId, ...summarizeOptions }) => {
       if (noteTaker === undefined) {
-        return missing("note taker", "ENGAGEMENT_NO_NOTE_TAKER");
+        return missing("note taker", "ACTIVITY_NO_NOTE_TAKER");
       }
 
       return call(
         "activity_with_transcripts",
-        { engagement: engagementId },
+        { activity: activityId },
         (value) => value,
       )
         .andThen((value) =>
           value === null
             ? AsyncResult.err(
-                dbError("not_found", "no such engagement", {
+                dbError("not_found", "no such activity", {
                   hint: "ACTIVITY_NOT_FOUND",
                 }),
               )
-            : parsed(
-                engagementOf(recordOf(value, "engagement")["engagement"]),
-              ).map((engagement) => ({
-                engagement,
-                transcript: transcriptOf(
-                  recordOf(value, "engagement")["segments"],
-                ),
-              })),
+            : parsed(activityOf(recordOf(value, "activity")["activity"])).map(
+                (activity) => ({
+                  activity,
+                  transcript: transcriptOf(
+                    recordOf(value, "activity")["segments"],
+                  ),
+                }),
+              ),
         )
         .andThen((input) =>
-          provider("ENGAGEMENT_SUMMARIZE_FAILED", () =>
+          provider("ACTIVITY_SUMMARIZE_FAILED", () =>
             noteTaker.summarize(
               input,
               summarizeOptions.signal === undefined
@@ -720,7 +709,7 @@ export function createActivities<
           call(
             "save_activity_notes",
             {
-              engagement: engagementId,
+              activity: activityId,
               notes: notesArg(notes, "ai", noteTaker.model),
             },
             notesOf,

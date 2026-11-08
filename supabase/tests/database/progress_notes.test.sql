@@ -169,7 +169,7 @@ select results_eq(
   'a guest reads only the subject note'
 );
 select is(
-  (select count(*)::int from better_supabase.engagement_subjects
+  (select count(*)::int from better_supabase.activity_subjects
    where activity_id = current_setting('test.subject')::uuid),
   1,
   'a guest reads the subject note''s record link'
@@ -190,7 +190,7 @@ set local role authenticated;
 select throws_ok(
   format($$select better_supabase.update_activity('%s', '{"title": "Changed"}', null)$$, current_setting('test.team')),
   '55000',
-  'the engagement is locked: add an addendum with amend_activity instead',
+  'the activity is locked: add an addendum with amend_activity instead',
   'a locked note cannot be edited'
 );
 select throws_ok(
@@ -218,7 +218,7 @@ select throws_ok(
 select throws_ok(
   format($$select better_supabase.mark_activity_error('%s', 'Again')$$, current_setting('test.subject')),
   '55000',
-  'the engagement is already marked in error',
+  'the activity is already marked in error',
   'a note is marked in error once'
 );
 

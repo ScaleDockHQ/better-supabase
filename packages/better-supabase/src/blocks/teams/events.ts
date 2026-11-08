@@ -11,7 +11,7 @@ export type TeamsEvents = {
   readonly "team.restored": SaasEventData;
   readonly "team.deleted": SaasEventData;
   readonly "team_member.added": SaasEventData;
-  readonly "team_member.removed": SaasEventData;
+  readonly "team_member.deleted": SaasEventData;
 };
 
 /** The `teams` block's event types, for its manifest and `onBlockEvent`. */
@@ -22,5 +22,5 @@ export const teamsEvents: Events<TeamsEvents> = defineEvents({
   "team.restored": event<SaasEventData>(),
   "team.deleted": event<SaasEventData>(),
   "team_member.added": event<SaasEventData>(),
-  "team_member.removed": event<SaasEventData>(),
+  "team_member.deleted": event<SaasEventData>(),
 });

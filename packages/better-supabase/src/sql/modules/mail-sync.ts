@@ -79,7 +79,7 @@ const NAMES: BlockSqlNames = {
       description:
         "The threads' activity column is activity_id, after the activity entity (ADR 0152).",
       table: "threads",
-      columns: { engagement: "engagement_id" },
+      columns: { activity: "activity_id" },
     },
   ],
   entities: {
@@ -88,7 +88,7 @@ const NAMES: BlockSqlNames = {
     mail_message: { table: "messages", singular: "mail_message" },
   },
   events: EVENTS,
-  options: ["engagementType", "matchDomains"],
+  options: ["activityType", "matchDomains"],
   tables: {
     accounts: {
       name: "mail_accounts",
@@ -130,7 +130,7 @@ const NAMES: BlockSqlNames = {
         snippet: "snippet",
         lastMessageAt: "last_message_at",
         messageCount: "message_count",
-        engagement: "activity_id",
+        activity: "activity_id",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
@@ -138,7 +138,7 @@ const NAMES: BlockSqlNames = {
         "subject",
         "snippet",
         "messageCount",
-        "engagement",
+        "activity",
         "createdAt",
         "updatedAt",
       ],
@@ -257,17 +257,17 @@ export interface MailNames {
   readonly connect: string;
   readonly send: string;
   readonly manage: string;
-  readonly engagementType: string;
+  readonly activityType: string;
   readonly matchDomains: boolean;
 }
 
 function names(ctx: BlockSqlContext): MailNames {
   const keys = moduleOperations("mail-sync");
-  const engagementType = ctx.text("engagementType", "email");
+  const activityType = ctx.text("activityType", "email");
 
-  if (!TYPE.test(engagementType)) {
+  if (!TYPE.test(activityType)) {
     throw new TypeError(
-      "blocks.mail-sync.options.engagementType must be a lowercase engagement type",
+      "blocks.mail-sync.options.activityType must be a lowercase activity type",
     );
   }
 
@@ -306,7 +306,7 @@ function names(ctx: BlockSqlContext): MailNames {
     connect: ctx.permission("connect", keys.connect),
     send: ctx.permission("send", keys.send),
     manage: ctx.permission("manage", keys.manage),
-    engagementType,
+    activityType,
     matchDomains: ctx.flag("matchDomains", true),
   };
 }
@@ -314,8 +314,8 @@ function names(ctx: BlockSqlContext): MailNames {
 function tables(ctx: BlockSqlContext, n: MailNames): string {
   const { t, a, h, m, l, k, e } = n;
 
-  const engagement = ctx.installed("activities")
-    ? ` references ${ctx.of("activities").table("engagements")} (${ctx.of("activities").col("engagements", "id")}) on delete set null`
+  const activity = ctx.installed("activities")
+    ? ` references ${ctx.of("activities").table("activities")} (${ctx.of("activities").col("activities", "id")}) on delete set null`
     : "";
 
   const visible = n.fn("mail_thread_visible");
@@ -355,11 +355,11 @@ create table if not exists ${t("threads")} (
   ${h("tenant")} ${ctx.idType} not null,
   ${h("account")} uuid not null references ${t("accounts")} (${a("id")}) on delete cascade,
   ${h("externalId")} text not null,${line("threads", "subject", (c) => `${c} text,`)}${line("threads", "snippet", (c) => `${c} text,`)}
-  ${h("lastMessageAt")} timestamptz,${line("threads", "messageCount", (c) => `${c} integer not null default 0,`)}${line("threads", "engagement", (c) => `${c} uuid${engagement},`)}${line("threads", "createdAt", (c) => `${c} timestamptz not null default now(),`)}${line("threads", "updatedAt", (c) => `${c} timestamptz not null default now(),`)}
+  ${h("lastMessageAt")} timestamptz,${line("threads", "messageCount", (c) => `${c} integer not null default 0,`)}${line("threads", "activity", (c) => `${c} uuid${activity},`)}${line("threads", "createdAt", (c) => `${c} timestamptz not null default now(),`)}${line("threads", "updatedAt", (c) => `${c} timestamptz not null default now(),`)}
   unique (${h("account")}, ${h("externalId")})
 );${unique("threads", "external", `${h("account")}, ${h("externalId")}`)}
 create index if not exists ${ctx.naming.rename("mail_threads_tenant_recent_idx")} on ${t("threads")} (${h("tenant")}, ${h("lastMessageAt")} desc);
-${ctx.has("threads", "engagement") ? `create index if not exists ${ctx.naming.rename("mail_threads_engagement_idx")} on ${t("threads")} (${h("engagement")}) where ${h("engagement")} is not null;\n` : ""}${lockTable(t("threads"), { read: true })}
+${ctx.has("threads", "activity") ? `create index if not exists ${ctx.naming.rename("mail_threads_activity_idx")} on ${t("threads")} (${h("activity")}) where ${h("activity")} is not null;\n` : ""}${lockTable(t("threads"), { read: true })}
 create table if not exists ${t("messages")} (
   ${m("id")} uuid primary key default gen_random_uuid(),
   ${m("tenant")} ${ctx.idType} not null,
@@ -447,7 +447,7 @@ function build(ctx: BlockSqlContext): string {
 
   return `${schemaPreamble(ctx)}
 -- Gmail, Outlook and other mailboxes synced per member: threads and messages
--- linked to the people and companies they involve, logged as engagements.
+-- linked to the people and companies they involve, logged as activities.
 ${tables(ctx, n)}${mailSyncFunctions(ctx, n)}`;
 }
 
@@ -517,7 +517,7 @@ export const MAIL_SYNC: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Mail sync",
   description:
-    "Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.",
+    "Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.",
   requires: ["memberships", "permissions", "subjects"],
   integrates: ["outbox", "audit", "contacts", "activities", "data-lifecycle"],
   target: "schema",

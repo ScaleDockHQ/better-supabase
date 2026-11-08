@@ -107,7 +107,7 @@ keys, subject types, hint codes, functions and event types. 0.47 also renamed th
 tables (`work_items` becomes `tasks`, `rules` becomes `automations`): the
 upgrade migration renames each table with its indexes, policies and
 constraints, so no row moves. The foreign key columns that point at a task or
-an activity (`work_item_id`, `engagement_id`) become `task_id` and
+an activity (`work_item_id`, `activity_id`) become `task_id` and
 `activity_id` the same way.
 
 1. Block names are kebab-case. Existing block names do not change.

@@ -1,4 +1,4 @@
--- Bookings to engagements: a confirmed booking keeps one meeting engagement,
+-- Bookings to activities: a confirmed booking keeps one meeting activity,
 -- linked to the booker's person and company, and cancelling it completes the
 -- meeting. Acme (…0001) has the owner …a1 (supabase/seed.sql).
 begin;
@@ -32,7 +32,7 @@ insert into better_supabase.bookings (id, tenant_id, resource_id, service_id, du
 select is(
   (select count(*)::int from better_supabase.activities where external_ref = 'booking:' || (select id from ids where name = 'booking')),
   0,
-  'a held booking logs no engagement'
+  'a held booking logs no activity'
 );
 
 update better_supabase.bookings set status = 'confirmed', hold_expires_at = null where id = (select id from ids where name = 'booking');
@@ -44,7 +44,7 @@ select results_eq(
   'confirming logs an open meeting owned by the person''s owner'
 );
 select results_eq(
-  $$select s.subject_type, s.subject_id, s.position from better_supabase.engagement_subjects s
+  $$select s.subject_type, s.subject_id, s.position from better_supabase.activity_subjects s
     join better_supabase.activities e on e.id = s.activity_id
     where e.external_ref = 'booking:' || (select id from ids where name = 'booking') order by s.position$$,
   $$values ('person'::text, (select id::text from ids where name = 'person'), 1), ('company'::text, (select id::text from ids where name = 'company'), 2)$$,
@@ -74,7 +74,7 @@ select results_eq(
 select is(
   (select count(*)::int from better_supabase.activities where external_ref = 'booking:' || (select id from ids where name = 'booking')),
   1,
-  'rescheduling keeps one engagement'
+  'rescheduling keeps one activity'
 );
 select is(
   (select count(*)::int from better_supabase.outbox_events where type = 'activity.updated'),
@@ -82,7 +82,7 @@ select is(
   'rescheduling records activity.updated'
 );
 select is(
-  (select count(*)::int from better_supabase.engagement_subjects s join better_supabase.activities e on e.id = s.activity_id
+  (select count(*)::int from better_supabase.activity_subjects s join better_supabase.activities e on e.id = s.activity_id
    where e.external_ref = 'booking:' || (select id from ids where name = 'booking')),
   2,
   'rescheduling does not duplicate the links'
@@ -113,14 +113,14 @@ select results_eq(
   'an unknown booker gets a meeting owned by the booking''s author'
 );
 select is(
-  (select count(*)::int from better_supabase.engagement_subjects s join better_supabase.activities e on e.id = s.activity_id
+  (select count(*)::int from better_supabase.activity_subjects s join better_supabase.activities e on e.id = s.activity_id
    where e.external_ref = 'booking:' || (select id from ids where name = 'stranger')),
   0,
   'an unknown booker links no subject'
 );
 
 select ok(
-  not has_function_privilege('authenticated', 'better_supabase.bsb_booking_engagement()', 'execute'),
+  not has_function_privilege('authenticated', 'better_supabase.bsb_booking_activity()', 'execute'),
   'the trigger function is not callable by users'
 );
 

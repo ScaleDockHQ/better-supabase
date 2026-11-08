@@ -655,7 +655,7 @@ begin
     where w.${s("id")} = v_old.${s("id")}
     returning * into v_row;
   end if;
-  ${rec.statement("vex_statement.saved", "v_row", "v_vuln")}
+  ${rec.statement("vex_statement.updated", "v_row", "v_vuln")}
   select y.${v("version")} into v_label from ${versions} y where y.${v("id")} = v_row.${s("version")};
   return ${statementJson("v_row", "v_vuln", "v_label")};
 end;

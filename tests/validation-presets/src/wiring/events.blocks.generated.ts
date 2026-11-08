@@ -189,7 +189,7 @@ export const blockEvents: Events<BlockEvents> = {
     "team.restored",
     "team.updated",
     "team_member.added",
-    "team_member.removed",
+    "team_member.deleted",
     "waitlist_entry.approved",
     "waitlist_entry.rejected",
   ],
@@ -295,7 +295,7 @@ export const blockEventSchemas = {
   "team.restored": true,
   "team.updated": true,
   "team_member.added": true,
-  "team_member.removed": true,
+  "team_member.deleted": true,
   "waitlist_entry.approved": true,
   "waitlist_entry.rejected": true,
 } as const;

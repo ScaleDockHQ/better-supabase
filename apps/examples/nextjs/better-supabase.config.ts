@@ -176,7 +176,7 @@ export default defineConfig({
     // The record history the customer page shows, moved out of comments.
     timeline: {},
     // Members' Gmail and Outlook mail, linked to parties and logged as
-    // email engagements.
+    // email activities.
     "mail-sync": {},
     // Saved filters over companies and deals, refreshed on a schedule.
     segments: {},

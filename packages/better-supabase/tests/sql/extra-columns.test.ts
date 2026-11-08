@@ -34,7 +34,7 @@ const CASES: readonly {
   },
   {
     module: "activities",
-    table: "engagements",
+    table: "activities",
     writes: [
       `"region" = case when log_activity.attrs -> 'fields' ? 'region'`,
       `"region" = case when update_activity.attrs -> 'fields' ? 'region'`,

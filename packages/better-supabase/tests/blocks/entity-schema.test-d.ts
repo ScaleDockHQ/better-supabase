@@ -2,10 +2,10 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { describe, expectTypeOf, it } from "vitest";
 
-import type { EngagementInput } from "../../src/blocks/activities/activities.ts";
+import type { ActivityInput } from "../../src/blocks/activities/activities.ts";
 import type {
-  engagementChangeSchema,
-  engagementInputSchema,
+  activityChangeSchema,
+  activityInputSchema,
 } from "../../src/blocks/activities/schemas.ts";
 import type { NewAttachment } from "../../src/blocks/attachments/attachments.ts";
 import type { attachmentInputSchema } from "../../src/blocks/attachments/schemas.ts";
@@ -107,12 +107,12 @@ describe("entitySchema", () => {
     expectTypeOf<
       Out<typeof attachmentInputSchema>
     >().toEqualTypeOf<NewAttachment>();
-    expectTypeOf<Out<typeof engagementInputSchema>>().toEqualTypeOf<
-      EngagementInput & { readonly type: string; readonly title: string }
+    expectTypeOf<Out<typeof activityInputSchema>>().toEqualTypeOf<
+      ActivityInput & { readonly type: string; readonly title: string }
     >();
     expectTypeOf<
-      Out<typeof engagementChangeSchema>
-    >().toEqualTypeOf<EngagementInput>();
+      Out<typeof activityChangeSchema>
+    >().toEqualTypeOf<ActivityInput>();
     expectTypeOf<
       Out<typeof calendarEventInputSchema>
     >().toEqualTypeOf<CalendarEventInput>();

@@ -1,4 +1,4 @@
--- Engagement recordings on the fixture's access contract: the admin (…00a1)
+-- Activity recordings on the fixture's access contract: the admin (…00a1)
 -- of Acme (…0001) attaches an ai-files recording to a call, saves its
 -- transcript and the call's notes, and someone outside Acme (…00e2) reads
 -- none of it.

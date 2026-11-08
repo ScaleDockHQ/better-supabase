@@ -1,13 +1,13 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:d4c4119018ed35df92f4a76615092f8f03d0773a30f564be1c310c0b6cfea877
--- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
+-- @bsb-hash sha256:6b374ae79c768e0fbdce9560dfa18c45dae5340e6f975ae5d5cceae39cabf52f
+-- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Gmail, Outlook and other mailboxes synced per member: threads and messages
--- linked to the people and companies they involve, logged as engagements.
+-- linked to the people and companies they involve, logged as activities.
 create table "better_supabase"."mail_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -45,7 +45,7 @@ create table "better_supabase"."mail_threads" (
   unique ("account_id", "external_id")
 );
 create index mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
+create index mail_threads_activity_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
@@ -893,13 +893,13 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:df4d92217556e77d69209f086210e328e73ad1b9baa2eebf42b46f8a685cc90d
--- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
+-- @bsb-hash sha256:f280d3afd2bb0d2cf5de976c75dccaf612fb9677277f523d61811c0a17d41b77
+-- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Gmail, Outlook and other mailboxes synced per member: threads and messages
--- linked to the people and companies they involve, logged as engagements.
+-- linked to the people and companies they involve, logged as activities.
 create table "better_supabase"."mail_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -937,7 +937,7 @@ create table "better_supabase"."mail_threads" (
   unique ("account_id", "external_id")
 );
 create index mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
+create index mail_threads_activity_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
@@ -1179,7 +1179,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."match_mail_thread"(uuid) from public, anon, authenticated;
 
--- Logs or updates the thread's engagement; private mailboxes log none.
+-- Logs or updates the thread's activity; private mailboxes log none.
 create or replace function "better_supabase"."log_mail_thread"(thread uuid)
 returns void
 language plpgsql
@@ -1896,8 +1896,8 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:d08a2db8da3690bce96704dd1e740737309ff3e058119bd3ac480db60ab6bba4
--- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
+-- @bsb-hash sha256:7dcad40da6e5733f397232bf4e02996e89b21739c3a5b05451806bc320318102
+-- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1907,7 +1907,7 @@ alter default privileges in schema "app_private" revoke all on tables from publi
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Gmail, Outlook and other mailboxes synced per member: threads and messages
--- linked to the people and companies they involve, logged as engagements.
+-- linked to the people and companies they involve, logged as activities.
 create table "app_private"."mail_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -1945,7 +1945,7 @@ create table "app_private"."mail_threads" (
   unique ("account_id", "external_id")
 );
 create index mail_threads_tenant_recent_idx on "app_private"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index mail_threads_engagement_idx on "app_private"."mail_threads" ("activity_id") where "activity_id" is not null;
+create index mail_threads_activity_idx on "app_private"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "app_private"."mail_threads" enable row level security;
 revoke all on "app_private"."mail_threads" from public, anon, authenticated;
 grant select on "app_private"."mail_threads" to authenticated;
@@ -2793,13 +2793,13 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:15556e0c5e0b20852e70b83740331e262849c283ab89862f6881e248a3a4b5e6
--- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
+-- @bsb-hash sha256:637a17aa0077c50ca96c62fcaa0d4b7a340e9c7e3e2712a541c10d351c58a1f1
+-- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Gmail, Outlook and other mailboxes synced per member: threads and messages
--- linked to the people and companies they involve, logged as engagements.
+-- linked to the people and companies they involve, logged as activities.
 create table "better_supabase"."mail_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -2837,7 +2837,7 @@ create table "better_supabase"."mail_threads" (
   unique ("account_id", "external_id")
 );
 create index mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
+create index mail_threads_activity_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
@@ -3850,13 +3850,13 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:b7eb27ade715feaec78569f56badfa92dc3b79c0cde7c6380db4c63e3231259b
--- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
+-- @bsb-hash sha256:e1ec03b9e27059709bad79b2fb5f9c230e8c3d21a6897c13c8d402e41ce60748
+-- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Gmail, Outlook and other mailboxes synced per member: threads and messages
--- linked to the people and companies they involve, logged as engagements.
+-- linked to the people and companies they involve, logged as activities.
 -- better_supabase.mail_accounts is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."mail_accounts" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."mail_accounts" add column if not exists "tenant_id" uuid;
@@ -3891,7 +3891,7 @@ alter table "better_supabase"."mail_threads" add column if not exists "created_a
 alter table "better_supabase"."mail_threads" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_mail_threads_external_key" on "better_supabase"."mail_threads" ("account_id", "external_id");
 create index if not exists mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index if not exists mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
+create index if not exists mail_threads_activity_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 grant select on "better_supabase"."mail_threads" to authenticated;
 grant all on "better_supabase"."mail_threads" to service_role;
@@ -4728,13 +4728,13 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:d700b73ae270fe9fcdc033169be9f736fb988815815afb0ccaf691cd86ca6d78
--- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
+-- @bsb-hash sha256:de2d499402f9eab5c2548fa742f972b914d3f35f55084d85b5746ded34be25aa
+-- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Gmail, Outlook and other mailboxes synced per member: threads and messages
--- linked to the people and companies they involve, logged as engagements.
+-- linked to the people and companies they involve, logged as activities.
 create table "better_supabase"."mail_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
@@ -4772,7 +4772,7 @@ create table "better_supabase"."mail_threads" (
   unique ("account_id", "external_id")
 );
 create index mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("org_id", "last_message_at" desc);
-create index mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
+create index mail_threads_activity_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;

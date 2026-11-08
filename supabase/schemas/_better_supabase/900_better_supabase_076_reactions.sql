@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:d7d023454835f90a962ebb50e54ab55413a48b70cb84677c0d41dcc4f1e01c4a
+-- @bsb-hash sha256:2efb018ece802ee4b12b080955b296637861ab8e9b7449566fbf7b9d1f1c60b5
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -180,7 +180,7 @@ create trigger "bsb_reactions_check"
   before insert on "better_supabase"."reactions"
   for each row execute function "better_supabase"."reactions_check"();
 
--- Records reaction.added and reaction.removed, then tells the tenant's topic
+-- Records reaction.added and reaction.deleted, then tells the tenant's topic
 -- which subject changed. The payload carries ids only.
 create or replace function "better_supabase"."reactions_changed"()
 returns trigger
@@ -199,7 +199,7 @@ begin
     perform "better_supabase".emit_event('reaction.added', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'emoji', v_row."emoji", 'actor', v_row."actor", 'kind', v_row."kind", 'value', v_row."value"), 'reactions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reactions');
   else
     v_row := old;
-    perform "better_supabase".emit_event('reaction.removed', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'emoji', v_row."emoji", 'actor', v_row."actor", 'kind', v_row."kind", 'value', v_row."value"), 'reactions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reactions');
+    perform "better_supabase".emit_event('reaction.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'emoji', v_row."emoji", 'actor', v_row."actor", 'kind', v_row."kind", 'value', v_row."value"), 'reactions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/reactions');
   end if;
   if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
     perform realtime.send(jsonb_build_object('subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'changed', 'reactions:' || v_row."tenant_id"::text, true);

@@ -24,9 +24,9 @@ the deal team. Add your own deal columns with `alter table ... add column` in yo
 ## Config
 
 The `crm` preset brings the SaaS blocks (organizations, notifications, the
-outbox, ...) plus parties, pipelines, deals, quotes, targets, engagements,
+outbox, ...) plus parties, pipelines, deals, quotes, targets, activities,
 tags, comments, an activity feed, custom fields, saved views and search, and
-the sales engagement blocks below. The
+the sales activity blocks below. The
 deals block registers `deal` as a subject, so the config names no
 `subjects.deal`; set the deal page on the block's entity and add `reminders`
 for follow-ups:
@@ -75,7 +75,7 @@ The preset adds the blocks that find, rank and work those leads:
 
 | Block                                     | Role in the app                                                   |
 | ----------------------------------------- | ----------------------------------------------------------------- |
-| [mail-sync](/docs/blocks/mail-sync)       | Each rep's mailbox, synced into engagements on the contact        |
+| [mail-sync](/docs/blocks/mail-sync)       | Each rep's mailbox, synced into activities on the contact         |
 | [sequences](/docs/blocks/sequences)       | Email steps a lead is enrolled in, sent through the mailbox       |
 | [segments](/docs/blocks/segments)         | Saved rules such as "leads in the Netherlands with no owner"      |
 | [assignment](/docs/blocks/assignment)     | Queues that hand new leads to reps by turn, weight or territory   |

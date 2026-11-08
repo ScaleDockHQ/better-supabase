@@ -13,7 +13,7 @@ import { bindModuleRegistry, moduleContext } from "./module-context.ts";
 import { ACCESS_REQUESTS } from "./modules/access-requests.ts";
 import { ACCOUNTING } from "./modules/accounting.ts";
 import { ACKNOWLEDGEMENTS } from "./modules/acknowledgements.ts";
-import { ENGAGEMENTS } from "./modules/activities.ts";
+import { ACTIVITIES } from "./modules/activities.ts";
 import { ADVISORIES } from "./modules/advisories.ts";
 import { AGENT_CHECKOUT } from "./modules/agent-checkout.ts";
 import { AGENTS_MODULE } from "./modules/agents.ts";
@@ -384,7 +384,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(TEMPLATES),
       built(PIPELINES),
       built(PARTIES),
-      built(ENGAGEMENTS),
+      built(ACTIVITIES),
       built(DEALS),
       built(WORK_ITEMS),
       built(QUOTES),

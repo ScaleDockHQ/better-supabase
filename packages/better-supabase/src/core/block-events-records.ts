@@ -13,29 +13,29 @@ export interface PartyEventData {
 }
 
 /**
- * Events from the engagements module. `subjectType` and `subjectId` name the
- * engagement's main record; `subjects` lists every record it is on.
+ * Events from the activities module. `subjectType` and `subjectId` name the
+ * activity's main record; `subjects` lists every record it is on.
  */
-export interface EngagementEventData extends SubjectEventData {
+export interface ActivityEventData extends SubjectEventData {
   readonly organizationId: string;
-  readonly engagementId: string;
+  readonly activityId: string;
   /** `call`, `email`, `meeting`, `note`, `task` or a configured type. */
   readonly type: string;
   readonly subjects: readonly { readonly type: string; readonly id: string }[];
 }
 
 /** `activity.recorded` and `activity.transcribed`: a recording's turn. */
-export interface EngagementRecordingEventData extends EngagementEventData {
+export interface ActivityRecordingEventData extends ActivityEventData {
   readonly recordingId: string;
 }
 
-/** `activity.amended`: `engagementId` is the addendum, `amendsId` the original. */
-export interface EngagementAmendedEventData extends EngagementEventData {
+/** `activity.amended`: `activityId` is the addendum, `amendsId` the original. */
+export interface ActivityAmendedEventData extends ActivityEventData {
   readonly amendsId: string;
 }
 
-/** `activity.error_marked`: the engagement was flagged as entered in error. */
-export interface EngagementErrorMarkedEventData extends EngagementEventData {
+/** `activity.error_marked`: the activity was flagged as entered in error. */
+export interface ActivityErrorMarkedEventData extends ActivityEventData {
   readonly reason: string;
 }
 

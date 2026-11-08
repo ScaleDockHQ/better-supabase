@@ -505,7 +505,7 @@ describe("powersyncOutput for the care blocks", () => {
 
     expect(out.tables["activities"]).toEqual([
       "activities",
-      "engagement_subjects",
+      "activity_subjects",
     ]);
 
     expect(out.streams).toContain(

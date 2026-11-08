@@ -75,7 +75,7 @@ const EVENTS: BlockSqlEvents<AdvisoriesEvents> = {
     subject: "vulnerabilities",
     payload: [...vulnerability.payload, "kevAddedOn", "kevDueOn"],
   },
-  "vex_statement.saved": {
+  "vex_statement.updated": {
     subject: "vex-statements",
     payload: [
       "organizationId",

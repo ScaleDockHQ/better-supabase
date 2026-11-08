@@ -1,12 +1,12 @@
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:88bab11f9dd4e72fea26211cf7a846278eeb5236f92e8a37c25a717c2ef9a1dc
--- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
+-- @bsb-hash sha256:3d73db7dffa44574a482c28b8a8e5258bfcbd2a94b5eacc31def97eb4dd28cdd
+-- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Gmail, Outlook and other mailboxes synced per member: threads and messages
--- linked to the people and companies they involve, logged as engagements.
+-- linked to the people and companies they involve, logged as activities.
 create table "better_supabase"."mail_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -44,7 +44,7 @@ create table "better_supabase"."mail_threads" (
   unique ("account_id", "external_id")
 );
 create index mail_threads_tenant_recent_idx on "better_supabase"."mail_threads" ("tenant_id", "last_message_at" desc);
-create index mail_threads_engagement_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
+create index mail_threads_activity_idx on "better_supabase"."mail_threads" ("activity_id") where "activity_id" is not null;
 alter table "better_supabase"."mail_threads" enable row level security;
 revoke all on "better_supabase"."mail_threads" from public, anon, authenticated;
 grant select on "better_supabase"."mail_threads" to authenticated;
@@ -286,7 +286,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."match_mail_thread"(uuid) from public, anon, authenticated;
 
--- Logs or updates the thread's engagement; private mailboxes log none.
+-- Logs or updates the thread's activity; private mailboxes log none.
 create or replace function "better_supabase"."log_mail_thread"(thread uuid)
 returns void
 language plpgsql

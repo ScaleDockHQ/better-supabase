@@ -104,7 +104,7 @@ const SUBJECT_EVENTS = [
   "subject.restored",
   "subject.purged",
   "reaction.added",
-  "reaction.removed",
+  "reaction.deleted",
   "approval.requested",
   "approval.approved",
   "approval.rejected",

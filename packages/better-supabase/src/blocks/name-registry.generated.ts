@@ -63,12 +63,12 @@ export interface BlockNameRegistry {
   };
   readonly "activities": {
     readonly tables: {
-      readonly "engagements": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt" | "audience" | "restrictedRoles" | "category" | "lockedAt" | "amends" | "goal" | "markedErrorAt" | "markedErrorBy" | "markedErrorReason";
-      readonly "links": "tenant" | "engagement" | "subjectType" | "subjectId" | "position";
-      readonly "recordings": "id" | "tenant" | "engagement" | "file" | "filename" | "mediaType" | "status" | "language" | "durationSeconds" | "error" | "model" | "createdBy" | "createdAt" | "transcribedAt";
+      readonly "activities": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt" | "audience" | "restrictedRoles" | "category" | "lockedAt" | "amends" | "goal" | "markedErrorAt" | "markedErrorBy" | "markedErrorReason";
+      readonly "links": "tenant" | "activity" | "subjectType" | "subjectId" | "position";
+      readonly "recordings": "id" | "tenant" | "activity" | "file" | "filename" | "mediaType" | "status" | "language" | "durationSeconds" | "error" | "model" | "createdBy" | "createdAt" | "transcribedAt";
       readonly "segments": "recording" | "tenant" | "position" | "speaker" | "speakerUser" | "startsMs" | "endsMs" | "text" | "confidence";
-      readonly "notes": "engagement" | "tenant" | "summary" | "model" | "source" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "actions": "id" | "tenant" | "engagement" | "task" | "createdAt";
+      readonly "notes": "activity" | "tenant" | "summary" | "model" | "source" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "actions": "id" | "tenant" | "activity" | "task" | "createdAt";
     };
     readonly functions: "activities_of" | "amend_activity" | "complete_activity" | "delete_activity" | "log_activity" | "mark_activity_error" | "next_activity" | "open_activities" | "update_activity";
     readonly actions: "read" | "write" | "manage" | "readRestricted";
@@ -1439,7 +1439,7 @@ export interface BlockNameRegistry {
   readonly "mail-sync": {
     readonly tables: {
       readonly "accounts": "id" | "tenant" | "user" | "provider" | "address" | "credentialRef" | "share" | "status" | "cursor" | "lastSyncedAt" | "lastError" | "createdAt" | "updatedAt";
-      readonly "threads": "id" | "tenant" | "account" | "externalId" | "subject" | "snippet" | "lastMessageAt" | "messageCount" | "engagement" | "createdAt" | "updatedAt";
+      readonly "threads": "id" | "tenant" | "account" | "externalId" | "subject" | "snippet" | "lastMessageAt" | "messageCount" | "activity" | "createdAt" | "updatedAt";
       readonly "messages": "id" | "tenant" | "account" | "thread" | "externalId" | "rfcId" | "direction" | "fromAddress" | "fromName" | "to" | "cc" | "subject" | "snippet" | "bodyText" | "bodyHtml" | "sentAt" | "templateVersion" | "trackingHash" | "openedAt" | "openCount" | "clickedAt" | "clickCount" | "createdAt";
       readonly "trackedLinks": "tenant" | "message" | "position" | "url" | "clickCount" | "createdAt";
       readonly "tracking": "id" | "tenant" | "message" | "kind" | "position" | "userAgent" | "occurredAt";

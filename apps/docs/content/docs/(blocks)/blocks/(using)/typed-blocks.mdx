@@ -128,7 +128,7 @@ export const renameTask = bsb.blockAction(({ db }) => db.tasks, "update", {
 ## Input schemas
 
 The entity blocks (catalog, deals, employees, parties and tasks) and the
-collaboration blocks with an input object (comments, attachments, engagements
+collaboration blocks with an input object (comments, attachments, activities
 and calendar) export a Standard Schema for each input, such as
 `taskInputSchema` or `commentInputSchema`. It
 validates without a validation library and converts to JSON Schema. A

@@ -76,10 +76,10 @@ may be your own enum or domain.
   - `better_supabase.acknowledgement_notices`: `id`, `tenant_id`, `subject_type`, `subject_id`, `version_id`, `user_id`, `notified_at`
 - `activities`
   - `better_supabase.activities`: `id`, `tenant_id`, `type`, `title`, `body`, `outcome`, `owner_id`, `due_at`, `done_at`, `created_at`; typed: `type`
-  - `better_supabase.engagement_subjects`: `tenant_id`, `activity_id`, `subject_type`, `subject_id`
-  - `better_supabase.engagement_recordings`: `id`, `tenant_id`, `activity_id`, `file_id`, `filename`, `media_type`, `status`, `created_at`; typed: `status`
-  - `better_supabase.engagement_transcript_segments`: `recording_id`, `tenant_id`, `position`, `starts_ms`, `ends_ms`, `text`
-  - `better_supabase.engagement_notes`: `activity_id`, `tenant_id`, `summary`, `source`; typed: `source`
+  - `better_supabase.activity_subjects`: `tenant_id`, `activity_id`, `subject_type`, `subject_id`
+  - `better_supabase.activity_recordings`: `id`, `tenant_id`, `activity_id`, `file_id`, `filename`, `media_type`, `status`, `created_at`; typed: `status`
+  - `better_supabase.activity_transcript_segments`: `recording_id`, `tenant_id`, `position`, `starts_ms`, `ends_ms`, `text`
+  - `better_supabase.activity_notes`: `activity_id`, `tenant_id`, `summary`, `source`; typed: `source`
   - `better_supabase.activity_note_actions`: `id`, `tenant_id`, `activity_id`, `task_id`
 - `advisories`
   - `better_supabase.advisory_products`: `id`, `tenant_id`, `key`, `name`, `vendor`, `description`, `archived_at`, `created_by`, `created_at`, `updated_at`

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { activitiesBlock } from "../../src/blocks/activities/manifest.ts";
-import { engagementInputSchema } from "../../src/blocks/activities/schemas.ts";
+import { activityInputSchema } from "../../src/blocks/activities/schemas.ts";
 import { attachmentsBlock } from "../../src/blocks/attachments/manifest.ts";
 import { calendarBlock } from "../../src/blocks/calendar/manifest.ts";
 import { calendarEventInputSchema } from "../../src/blocks/calendar/schemas.ts";
@@ -94,7 +94,7 @@ describe("entity schemas", () => {
       mentionIds: [ID],
     });
 
-    const engagement = await engagementInputSchema["~standard"].validate({
+    const activity = await activityInputSchema["~standard"].validate({
       type: "call",
       title: "x".repeat(501),
       dueAt: null,
@@ -106,7 +106,7 @@ describe("entity schemas", () => {
     });
 
     expect(comment.issues?.map((issue) => issue.path)).toEqual([["body"]]);
-    expect(engagement.issues?.map((issue) => issue.path)).toEqual([["title"]]);
+    expect(activity.issues?.map((issue) => issue.path)).toEqual([["title"]]);
     expect(event.issues?.map((issue) => issue.path)).toEqual([["status"]]);
     expect(commentsBlock.schemas).toEqual({});
     expect(Object.keys(attachmentsBlock.schemas)).toEqual(["attachment"]);

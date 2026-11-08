@@ -24,11 +24,7 @@ describe("whatsappDeliveries", () => {
         whatsapp({
           statuses: [
             { id: "w1", status: "delivered" },
-            {
-              id: "w2",
-              status: "failed",
-              errors: [{ title: "Re-engagement" }],
-            },
+            { id: "w2", status: "failed", errors: [{ title: "Re-activity" }] },
             { id: "w3", status: "failed", errors: [{ message: "boom" }] },
             { id: "w4", status: "warning" },
             { status: "read" },
@@ -42,7 +38,7 @@ describe("whatsappDeliveries", () => {
       only: true,
       updates: [
         { externalId: "w1", status: "delivered" },
-        { externalId: "w2", status: "failed", error: "Re-engagement" },
+        { externalId: "w2", status: "failed", error: "Re-activity" },
         { externalId: "w3", status: "failed", error: "boom" },
       ],
     });

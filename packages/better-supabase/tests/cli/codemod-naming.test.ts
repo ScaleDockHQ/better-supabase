@@ -169,7 +169,7 @@ describe("renameMigrationSql", () => {
       }) as const;
 
     const renames = [
-      rename("trigger", "bookings_engagement", "bsb_bookings_engagement"),
+      rename("trigger", "bookings_activity", "bsb_bookings_activity"),
       rename("index", "bsb_old_scope", "bsb_old_scope_key"),
     ];
 
@@ -177,11 +177,11 @@ describe("renameMigrationSql", () => {
 
     const sql = renameMigrationSql(
       renames,
-      'create trigger bookings_engagement after insert on "better_supabase"."bookings"; create index bsb_old_scope on t (a);',
+      'create trigger bookings_activity after insert on "better_supabase"."bookings"; create index bsb_old_scope on t (a);',
     )!;
 
     expect(sql).toContain(
-      'alter trigger "bookings_engagement" on "better_supabase"."bookings" rename to "bsb_bookings_engagement"',
+      'alter trigger "bookings_activity" on "better_supabase"."bookings" rename to "bsb_bookings_activity"',
     );
     expect(sql).toContain(
       'alter index "better_supabase"."bsb_old_scope" rename to "bsb_old_scope_key"',

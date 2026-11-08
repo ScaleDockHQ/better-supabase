@@ -41,7 +41,7 @@ const threadRow = {
   snippet: null,
   last_message_at: AT,
   message_count: 2,
-  engagement_id: "e1",
+  activity_id: "e1",
   subjects: [{ type: "person", id: "p1" }],
 };
 
@@ -142,7 +142,7 @@ const answers = {
     },
   ],
   list_mail_threads: [threadRow],
-  mail_threads_of: [{ ...threadRow, subjects: null, engagement_id: null }],
+  mail_threads_of: [{ ...threadRow, subjects: null, activity_id: null }],
   get_mail_thread: (args: Record<string, unknown>) =>
     args["thread"] === "t1"
       ? {
@@ -260,7 +260,7 @@ describe("createMailSync", () => {
       id: "t1",
       address: "me@acme.test",
       messageCount: 2,
-      engagementId: "e1",
+      activityId: "e1",
       subjects: [{ type: "person", id: "p1" }],
     });
     await mail
@@ -282,7 +282,7 @@ describe("createMailSync", () => {
       .orThrow();
 
     expect(of[0]?.subjects).toEqual([]);
-    expect(of[0]?.engagementId).toBeUndefined();
+    expect(of[0]?.activityId).toBeUndefined();
     await mail
       .threadsOf({
         subject: { type: "person", id: "p1" },

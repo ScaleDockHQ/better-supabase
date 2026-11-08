@@ -1,40 +1,40 @@
 import type {
-  EngagementAmendedEventData,
-  EngagementErrorMarkedEventData,
-  EngagementEventData,
-  EngagementRecordingEventData,
+  ActivityAmendedEventData,
+  ActivityErrorMarkedEventData,
+  ActivityEventData,
+  ActivityRecordingEventData,
 } from "../../core/block-events.ts";
 import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** The events of the `engagements` block: type to data. */
+/** The events of the `activities` block: type to data. */
 export type ActivitiesEvents = {
-  readonly "activity.logged": EngagementEventData;
-  readonly "activity.updated": EngagementEventData;
-  readonly "activity.completed": EngagementEventData;
-  readonly "activity.deleted": EngagementEventData;
+  readonly "activity.logged": ActivityEventData;
+  readonly "activity.updated": ActivityEventData;
+  readonly "activity.completed": ActivityEventData;
+  readonly "activity.deleted": ActivityEventData;
   /** A recording was attached (`options.recordings`). */
-  readonly "activity.recorded": EngagementRecordingEventData;
+  readonly "activity.recorded": ActivityRecordingEventData;
   /** A recording's transcript was saved. */
-  readonly "activity.transcribed": EngagementRecordingEventData;
-  /** The engagement's notes were saved. */
-  readonly "activity.summarized": EngagementEventData;
-  /** An addendum was added to an engagement. */
-  readonly "activity.amended": EngagementAmendedEventData;
-  /** An engagement was flagged as entered in error. */
-  readonly "activity.error_marked": EngagementErrorMarkedEventData;
+  readonly "activity.transcribed": ActivityRecordingEventData;
+  /** The activity's notes were saved. */
+  readonly "activity.summarized": ActivityEventData;
+  /** An addendum was added to an activity. */
+  readonly "activity.amended": ActivityAmendedEventData;
+  /** An activity was flagged as entered in error. */
+  readonly "activity.error_marked": ActivityErrorMarkedEventData;
 };
 
-/** The `engagements` block's event types, for its manifest and `onBlockEvent`. */
+/** The `activities` block's event types, for its manifest and `onBlockEvent`. */
 export const activitiesEvents: Events<ActivitiesEvents> = defineEvents({
-  "activity.logged": event<EngagementEventData>(),
-  "activity.updated": event<EngagementEventData>(),
-  "activity.completed": event<EngagementEventData>(),
-  "activity.deleted": event<EngagementEventData>(),
-  "activity.recorded": event<EngagementRecordingEventData>(),
-  "activity.transcribed": event<EngagementRecordingEventData>(),
-  "activity.summarized": event<EngagementEventData>(),
-  "activity.amended": event<EngagementAmendedEventData>(),
-  "activity.error_marked": event<EngagementErrorMarkedEventData>(),
+  "activity.logged": event<ActivityEventData>(),
+  "activity.updated": event<ActivityEventData>(),
+  "activity.completed": event<ActivityEventData>(),
+  "activity.deleted": event<ActivityEventData>(),
+  "activity.recorded": event<ActivityRecordingEventData>(),
+  "activity.transcribed": event<ActivityRecordingEventData>(),
+  "activity.summarized": event<ActivityEventData>(),
+  "activity.amended": event<ActivityAmendedEventData>(),
+  "activity.error_marked": event<ActivityErrorMarkedEventData>(),
 });

@@ -143,7 +143,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "crm",
     title: "CRM",
     description:
-      "SaaS plus parties, pipelines, deals, quotes, sales targets and engagements, with synced mailboxes, email sequences, segments, assignment queues, enrichment, forecasts and lead scoring, a job queue for the sequence timers, tags, comments, an activity feed, custom fields, saved views and search.",
+      "SaaS plus parties, pipelines, deals, quotes, sales targets and activities, with synced mailboxes, email sequences, segments, assignment queues, enrichment, forecasts and lead scoring, a job queue for the sequence timers, tags, comments, an activity feed, custom fields, saved views and search.",
     group: "products",
     blocks: [
       ...SAAS_LINKED,
@@ -588,7 +588,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "customer-success",
     title: "Customer success",
     description:
-      "SaaS plus accounts as parties, health scores from rules and metrics, NPS forms, playbooks as enrollments and engagements.",
+      "SaaS plus accounts as parties, health scores from rules and metrics, NPS forms, playbooks as enrollments and activities.",
     group: "verticals",
     blocks: [
       ...SAAS,

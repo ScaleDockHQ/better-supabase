@@ -548,7 +548,7 @@
     },
     {
       "from": "bookings_engagement",
-      "to": "bsb_bookings_engagement",
+      "to": "bsb_bookings_activity",
       "kind": "trigger",
       "since": "0.54",
       "table": "better_supabase.bookings"
@@ -1633,6 +1633,55 @@
       "from": "better_supabase.workflow_step_library",
       "to": "workflow_step_templates",
       "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "better_supabase.engagement_subjects",
+      "to": "activity_subjects",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "better_supabase.engagement_recordings",
+      "to": "activity_recordings",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "better_supabase.engagement_notes",
+      "to": "activity_notes",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "better_supabase.engagement_transcript_segments",
+      "to": "activity_transcript_segments",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "mail_threads_engagement_idx",
+      "to": "mail_threads_activity_idx",
+      "kind": "index",
+      "table": "better_supabase.mail_threads",
+      "since": "0.54"
+    },
+    {
+      "from": "vex_statement.saved",
+      "to": "vex_statement.updated",
+      "kind": "event",
+      "since": "0.54"
+    },
+    {
+      "from": "team_member.removed",
+      "to": "team_member.deleted",
+      "kind": "event",
+      "since": "0.54"
+    },
+    {
+      "from": "reaction.removed",
+      "to": "reaction.deleted",
+      "kind": "event",
       "since": "0.54"
     }
   ],

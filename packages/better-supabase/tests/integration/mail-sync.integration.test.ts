@@ -165,7 +165,7 @@ describe.skipIf(!live)("mail-sync", () => {
         messageCount: 1,
         subjects: [person],
       });
-      expect(thread?.engagementId).toBeDefined();
+      expect(thread?.activityId).toBeDefined();
       expect(
         await mail.link({ threadId: thread!.id, subjects: [person] }),
       ).toMatchObject({ ok: false });

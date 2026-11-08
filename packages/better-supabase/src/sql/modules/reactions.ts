@@ -31,7 +31,7 @@ const PAYLOAD = [
 
 const EVENTS: BlockSqlEvents<ReactionsEvents> = {
   "reaction.added": { subject: "reactions", payload: PAYLOAD },
-  "reaction.removed": { subject: "reactions", payload: PAYLOAD },
+  "reaction.deleted": { subject: "reactions", payload: PAYLOAD },
 };
 
 const NAMES: BlockSqlNames = {
@@ -334,7 +334,7 @@ create trigger ${ctx.trigger("reactions_check")}
   before insert on ${reactions}
   for each row execute function ${fn("reactions_check")}();
 
--- Records reaction.added and reaction.removed, then tells the tenant's topic
+-- Records reaction.added and reaction.deleted, then tells the tenant's topic
 -- which subject changed. The payload carries ids only.
 create or replace function ${fn("reactions_changed")}()
 returns trigger
@@ -353,7 +353,7 @@ begin
     ${event("reaction.added", "v_row")}
   else
     v_row := old;
-    ${event("reaction.removed", "v_row")}
+    ${event("reaction.deleted", "v_row")}
   end if;
   ${ctx.broadcast(`${sqlString(`${topic}:`)} || v_row.${c("tenant")}::text`, "'changed'", `jsonb_build_object('subjectType', v_row.${c("subjectType")}, 'subjectId', v_row.${c("subjectId")})`)}
   return null;

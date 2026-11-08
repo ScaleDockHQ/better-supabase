@@ -38,7 +38,7 @@ function transport(
 const RECORDING = {
   id: "r1",
   organizationId: "o",
-  engagementId: "e1",
+  activityId: "e1",
   fileId: "f1",
   filename: "call.webm",
   mediaType: "audio/webm",
@@ -63,7 +63,7 @@ const TRANSCRIBED = {
 };
 
 const NOTES = {
-  engagementId: "e1",
+  activityId: "e1",
   organizationId: "o",
   summary: "Proposal by Friday",
   actionTaskIds: ["t1", "t2"],
@@ -74,7 +74,7 @@ const NOTES = {
   updatedAt: "2026-10-14T09:00:00Z",
 };
 
-const ENGAGEMENT = {
+const ACTIVITY = {
   id: "e1",
   tenant_id: "o",
   type: "call",
@@ -127,7 +127,7 @@ const files = (fail = false) => {
     },
   };
 
-  // SAFETY: the engagements block only calls sign and read.
+  // SAFETY: the activities block only calls sign and read.
   return { reads, files: value as unknown as AiFiles };
 };
 
@@ -164,27 +164,27 @@ const job = (attempts: number): Job<{ readonly recordingId: string }> =>
     readonly recordingId: string;
   }>;
 
-describe("engagement recordings", () => {
+describe("activity recordings", () => {
   it("attaches a file and lists recordings", async () => {
     const t = transport({
       attach_activity_recording: () => RECORDING,
       activity_recordings: () => [RECORDING, TRANSCRIBED],
     });
 
-    const engagements = createActivities({ transport: t });
+    const activities = createActivities({ transport: t });
 
-    const recording = await engagements
-      .attachRecording({ engagementId: "e1", fileId: "f1", language: "en" })
+    const recording = await activities
+      .attachRecording({ activityId: "e1", fileId: "f1", language: "en" })
       .orThrow();
 
-    await engagements
-      .attachRecording({ engagementId: "e1", fileId: "f2" })
+    await activities
+      .attachRecording({ activityId: "e1", fileId: "f2" })
       .orThrow();
-    const all = await engagements.recordings("e1").orThrow();
+    const all = await activities.recordings("e1").orThrow();
 
     expect(t.calls[0]).toEqual([
       "attach_activity_recording",
-      { engagement: "e1", file: "f1", language: "en" },
+      { activity: "e1", file: "f1", language: "en" },
     ]);
     expect(t.calls[1]?.[1]).toMatchObject({ language: null });
     expect(recording).toMatchObject({
@@ -203,14 +203,14 @@ describe("engagement recordings", () => {
       save_activity_transcript: () => TRANSCRIBED,
     });
 
-    const engagements = createActivities({ transport: t });
+    const activities = createActivities({ transport: t });
 
-    const segments = await engagements
+    const segments = await activities
       .transcript({ recordingId: "r1", after: 0, limit: 10 })
       .orThrow();
 
-    await engagements.transcript({ recordingId: "r1" }).orThrow();
-    await engagements
+    await activities.transcript({ recordingId: "r1" }).orThrow();
+    await activities
       .saveTranscript({
         recordingId: "r1",
         transcript: {
@@ -254,18 +254,18 @@ describe("engagement recordings", () => {
 
     const store = files();
 
-    const engagements = createActivities({
+    const activities = createActivities({
       transport: t,
       service,
       files: store.files,
       transcriber: transcriber(),
     });
 
-    const recording = await engagements
+    const recording = await activities
       .transcribe({ recordingId: "r1", signal: new AbortController().signal })
       .orThrow();
 
-    await engagements.transcribe({ recordingId: "r1" }).orThrow();
+    await activities.transcribe({ recordingId: "r1" }).orThrow();
 
     expect(recording.status).toBe("transcribed");
     expect(store.reads).toEqual(["f1", "f1"]);
@@ -300,7 +300,7 @@ describe("engagement recordings", () => {
 
     const seen: (string | undefined)[] = [];
 
-    const engagements = createActivities({
+    const activities = createActivities({
       transport: service,
       files: files().files,
       transcriber: {
@@ -313,7 +313,7 @@ describe("engagement recordings", () => {
       },
     });
 
-    await engagements.transcribe({ recordingId: "r1" }).orThrow();
+    await activities.transcribe({ recordingId: "r1" }).orThrow();
 
     expect(seen).toEqual([undefined]);
   });
@@ -342,8 +342,8 @@ describe("engagement recordings", () => {
       transcriber: transcriber(),
     }).transcribe({ recordingId: "r1" });
 
-    expect(none.ok || none.error.hint).toBe("ENGAGEMENT_NO_TRANSCRIBER");
-    expect(noFiles.ok || noFiles.error.hint).toBe("ENGAGEMENT_NO_FILES");
+    expect(none.ok || none.error.hint).toBe("ACTIVITY_NO_TRANSCRIBER");
+    expect(noFiles.ok || noFiles.error.hint).toBe("ACTIVITY_NO_FILES");
     expect(gone.ok || gone.error.hint).toBe("ACTIVITY_RECORDING_NOT_FOUND");
     expect(unsigned.ok || unsigned.error.kind).toBe("not_found");
   });
@@ -409,19 +409,19 @@ describe("engagement recordings", () => {
       fail_activity_recording: () => false,
     });
 
-    const engagements = createActivities({
+    const activities = createActivities({
       transport: service,
       files: files().files,
       transcriber: transcriber(),
     });
 
-    const done = await engagements.drainRecordings({ batch: 5 }).orThrow();
+    const done = await activities.drainRecordings({ batch: 5 }).orThrow();
 
-    const aborted = await engagements
+    const aborted = await activities
       .drainRecordings({ signal: AbortSignal.abort() })
       .orThrow();
 
-    const signalled = await engagements
+    const signalled = await activities
       .drainRecordings({ signal: new AbortController().signal })
       .orThrow();
 
@@ -463,10 +463,10 @@ describe("recording rows", () => {
   });
 });
 
-describe("engagement notes", () => {
+describe("activity notes", () => {
   it("reads and saves a member's notes", async () => {
     const t = transport({
-      activity_notes: (args) => (args["engagement"] === "e1" ? NOTES : null),
+      activity_notes: (args) => (args["activity"] === "e1" ? NOTES : null),
       save_activity_notes: () => ({
         ...NOTES,
         source: "member",
@@ -475,15 +475,15 @@ describe("engagement notes", () => {
       }),
     });
 
-    const engagements = createActivities({ transport: t });
+    const activities = createActivities({ transport: t });
     const due = Temporal.Instant.from("2026-10-16T09:00:00Z");
 
-    const notes = (await engagements.notes("e1").orThrow())!;
-    const none = await engagements.notes("e2").orThrow();
+    const notes = (await activities.notes("e1").orThrow())!;
+    const none = await activities.notes("e2").orThrow();
 
-    const saved = await engagements
+    const saved = await activities
       .saveNotes({
-        engagementId: "e1",
+        activityId: "e1",
         notes: {
           summary: "Short",
           actionItems: [{ text: "Call back", ownerId: "u1", dueAt: due }],
@@ -491,8 +491,8 @@ describe("engagement notes", () => {
       })
       .orThrow();
 
-    await engagements
-      .saveNotes({ engagementId: "e1", notes: { summary: "Only" } })
+    await activities
+      .saveNotes({ activityId: "e1", notes: { summary: "Only" } })
       .orThrow();
 
     expect(notes.actionTaskIds).toEqual(["t1", "t2"]);
@@ -501,7 +501,7 @@ describe("engagement notes", () => {
     expect(saved).toMatchObject({ source: "member", actionTaskIds: [] });
     expect(saved.model).toBeUndefined();
     expect(t.calls[2]?.[1]).toEqual({
-      engagement: "e1",
+      activity: "e1",
       notes: {
         summary: "Short",
         actionItems: [
@@ -511,7 +511,7 @@ describe("engagement notes", () => {
       },
     });
     expect(t.calls[3]?.[1]).toEqual({
-      engagement: "e1",
+      activity: "e1",
       notes: { summary: "Only", actionItems: [], source: "member" },
     });
   });
@@ -519,7 +519,7 @@ describe("engagement notes", () => {
   it("summarizes the transcripts with the note taker", async () => {
     const t = transport({
       activity_with_transcripts: () => ({
-        engagement: ENGAGEMENT,
+        activity: ACTIVITY,
         segments: SEGMENTS.map((segment) => ({
           ...segment,
           recordingId: "r1",
@@ -540,18 +540,18 @@ describe("engagement notes", () => {
       },
     };
 
-    const engagements = createActivities({ transport: t, noteTaker });
+    const activities = createActivities({ transport: t, noteTaker });
 
-    const notes = await engagements
-      .summarize({ engagementId: "e1", signal: new AbortController().signal })
+    const notes = await activities
+      .summarize({ activityId: "e1", signal: new AbortController().signal })
       .orThrow();
 
-    await engagements.summarize({ engagementId: "e1" }).orThrow();
+    await activities.summarize({ activityId: "e1" }).orThrow();
 
     expect(notes.summary).toBe("Proposal by Friday");
     expect(inputs[0]).toMatchObject([
       {
-        engagement: { id: "e1", title: "Intro call" },
+        activity: { id: "e1", title: "Intro call" },
         transcript: [
           { recordingId: "r1", position: 1, speaker: "Ann" },
           { recordingId: "r1", position: 2, text: "Hi" },
@@ -563,7 +563,7 @@ describe("engagement notes", () => {
     expect(t.calls[1]).toEqual([
       "save_activity_notes",
       {
-        engagement: "e1",
+        activity: "e1",
         notes: {
           summary: "Proposal by Friday",
           actionItems: [],
@@ -574,34 +574,31 @@ describe("engagement notes", () => {
     ]);
   });
 
-  it("refuses to summarize without a note taker or engagement", async () => {
+  it("refuses to summarize without a note taker or activity", async () => {
     const t = transport({ activity_with_transcripts: () => null });
 
     const none = await createActivities({ transport: t }).summarize({
-      engagementId: "e1",
+      activityId: "e1",
     });
 
     const gone = await createActivities({
       transport: t,
       noteTaker: { model: "m", summarize: async () => ({ summary: "x" }) },
-    }).summarize({ engagementId: "e1" });
+    }).summarize({ activityId: "e1" });
 
     const broken = await createActivities({
       transport: transport({
-        activity_with_transcripts: () => ({
-          engagement: ENGAGEMENT,
-          segments: [],
-        }),
+        activity_with_transcripts: () => ({ activity: ACTIVITY, segments: [] }),
       }),
       noteTaker: {
         model: "m",
         summarize: () => Promise.reject(new Error("model down")),
       },
-    }).summarize({ engagementId: "e1" });
+    }).summarize({ activityId: "e1" });
 
-    expect(none.ok || none.error.hint).toBe("ENGAGEMENT_NO_NOTE_TAKER");
+    expect(none.ok || none.error.hint).toBe("ACTIVITY_NO_NOTE_TAKER");
     expect(gone.ok || gone.error.hint).toBe("ACTIVITY_NOT_FOUND");
-    expect(broken.ok || broken.error.hint).toBe("ENGAGEMENT_SUMMARIZE_FAILED");
+    expect(broken.ok || broken.error.hint).toBe("ACTIVITY_SUMMARIZE_FAILED");
   });
 
   it("refuses a transcriber or note taker on another API version", () => {

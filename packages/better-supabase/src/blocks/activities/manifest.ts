@@ -5,7 +5,7 @@ import { defineBlock } from "../define-block.ts";
 import { createActivities } from "./activities.ts";
 import { activitiesEvents } from "./events.ts";
 import { activitiesSqlOptions } from "./options.ts";
-import { engagementChangeSchema, engagementInputSchema } from "./schemas.ts";
+import { activityChangeSchema, activityInputSchema } from "./schemas.ts";
 
 /** The `activities` block's manifest (ADR 0029). */
 export const activitiesBlock: BlockOf<
@@ -20,7 +20,7 @@ export const activitiesBlock: BlockOf<
   events: activitiesEvents,
   consumes: { files: "optional" },
   schemas: {
-    activity: { input: engagementInputSchema, change: engagementChangeSchema },
+    activity: { input: activityInputSchema, change: activityChangeSchema },
   },
   create: createActivities,
   category: "crm",

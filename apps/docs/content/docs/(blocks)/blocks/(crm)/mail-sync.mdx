@@ -1,13 +1,13 @@
 ---
 title: Mail sync
-description: Sync each member's Gmail or Outlook mailbox through their own OAuth grant, match threads to people and companies, log them as email engagements and send replies.
+description: Sync each member's Gmail or Outlook mailbox through their own OAuth grant, match threads to people and companies, log them as email activities and send replies.
 ---
 
 The `mail-sync` block pulls each member's mailbox into Postgres and puts the
 mail on the records it concerns. A sync job stores new messages by thread,
 links each thread to the [parties](/docs/blocks/contacts) whose addresses it
 names (a person by email, a company by its people or its domain) and logs it
-as an `email` [engagement](/docs/blocks/activities) on them. Members can
+as an `email` [activity](/docs/blocks/activities) on them. Members can
 also send from their mailbox, and the sent message shows on the thread
 before the next sync.
 
@@ -15,7 +15,7 @@ before the next sync.
 better-supabase add mail-sync   # adds tenant, access and subjects as well
 ```
 
-Install `contacts` and `engagements` too for the matching and the timeline;
+Install `contacts` and `activities` too for the matching and the timeline;
 without them, threads stay in the mailbox and can be linked by hand to any
 registered subject.
 
@@ -28,7 +28,7 @@ registered subject.
 
 A mailbox's `share` decides who reads its threads. With `records` (the
 default), a member with `mail_sync.read` sees a thread when they can read one of
-its linked records, and the thread is logged as an engagement. With
+its linked records, and the thread is logged as an activity. With
 `private`, only the mailbox's owner sees its threads and nothing is logged.
 
 ## Providers and grants
@@ -224,10 +224,10 @@ blocks: {
 },
 ```
 
-| Option           | Default | What it does                                                       |
-| ---------------- | ------- | ------------------------------------------------------------------ |
-| `engagementType` | `email` | the engagement type a thread is logged as                          |
-| `matchDomains`   | `true`  | link a thread to the company whose domain one of its addresses has |
+| Option         | Default | What it does                                                       |
+| -------------- | ------- | ------------------------------------------------------------------ |
+| `activityType` | `email` | the activity type a thread is logged as                            |
+| `matchDomains` | `true`  | link a thread to the company whose domain one of its addresses has |
 
 ## Events
 

@@ -86,24 +86,24 @@ ${internal(`${fn("match_mail_thread")}(uuid)`)}
 }
 
 /**
- * Logs a thread of a mailbox that shares with records as one engagement on its
+ * Logs a thread of a mailbox that shares with records as one activity on its
  * records, updated in place as messages arrive.
  */
-function engagementSql(ctx: BlockSqlContext, n: MailNames): string {
+function activitySql(ctx: BlockSqlContext, n: MailNames): string {
   const { fn, t, a, h, l } = n;
   const log = ctx.of("activities").fn("log_activity");
 
   const thread = (column: string): string =>
     n.has("threads", column) ? `x.${h(column)}` : "null::text";
 
-  const keep = n.has("threads", "engagement")
+  const keep = n.has("threads", "activity")
     ? `
-  update ${t("threads")} x set ${h("engagement")} = (v_result ->> 'id')::uuid
+  update ${t("threads")} x set ${h("activity")} = (v_result ->> 'id')::uuid
   where x.${h("id")} = v_row.id;`
     : "";
 
   return `
--- Logs or updates the thread's engagement; private mailboxes log none.
+-- Logs or updates the thread's activity; private mailboxes log none.
 create or replace function ${fn("log_mail_thread")}(thread uuid)
 returns void
 language plpgsql
@@ -133,7 +133,7 @@ begin
   v_claims := current_setting('request.jwt.claims', true);
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
   v_result := ${log}(v_row.tenant, jsonb_build_object(
-    'type', ${sqlString(n.engagementType)},
+    'type', ${sqlString(n.activityType)},
     'title', coalesce(nullif(trim(v_row.subject), ''), '(no subject)'),
     'body', v_row.snippet,
     'ownerId', v_row.owner,
@@ -916,7 +916,7 @@ export function mailSyncFunctions(ctx: BlockSqlContext, n: MailNames): string {
   return [
     storeSql(ctx, n),
     ctx.installed("contacts") ? matchSql(ctx, n) : "",
-    ctx.installed("activities") ? engagementSql(ctx, n) : "",
+    ctx.installed("activities") ? activitySql(ctx, n) : "",
     accountSql(ctx, n),
     messageSql(ctx, n),
     readSql(ctx, n),

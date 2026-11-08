@@ -11,7 +11,7 @@ checks apply:
 | Local table                  | Route                                 |
 | ---------------------------- | ------------------------------------- |
 | `activities`                 | `progressNoteRoute(activities, db)`   |
-| `engagement_subjects`        | `activityLinksRoute()`                |
+| `activity_subjects`          | `activityLinksRoute()`                |
 | `observations`               | `observationRoute(observations, db)`  |
 | `medication_administrations` | `medicationAdministrationRoute(meds)` |
 
@@ -31,7 +31,7 @@ export const connector = createUploadConnector({
   classify: careUploadOutcome,
   tables: {
     activities: progressNoteRoute(bsb.activities, powersync),
-    engagement_subjects: activityLinksRoute(),
+    activity_subjects: activityLinksRoute(),
     observations: observationRoute(bsb.observations, powersync),
     medication_administrations: medicationAdministrationRoute(bsb.medications),
   },

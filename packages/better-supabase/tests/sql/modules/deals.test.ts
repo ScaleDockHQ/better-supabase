@@ -81,7 +81,7 @@ describe("deals module", () => {
     expect(body("deals", render())).toContain("'DEAL-' || v_seq::text");
   });
 
-  it("reads the next step from engagements when installed", () => {
+  it("reads the next step from activities when installed", () => {
     expect(body("deals", render({}, ["activities"]))).toContain(
       "next_activity\"('deal'",
     );

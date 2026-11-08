@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:10fff1a3a6f7e99fa4140163a9c1dd302155f33f89dd56beb4feaec9c4893d08
+-- @bsb-hash sha256:6da98bcebaa86f0957a6752ffdb7c85f1f7bdca9baa501648c12506af930befa
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -273,9 +273,9 @@ begin
   end if;
   delete from "centrakit"."team_members"
   where "team_id" = remove_team_member.team and "user_id" = remove_team_member.member;
-  perform "better_supabase".emit_event('team_member.removed', jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', remove_team_member.member), 'teams/' || (remove_team_member.team)::text, (v_tenant)::text, null, 'domain');
+  perform "better_supabase".emit_event('team_member.deleted', jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', remove_team_member.member), 'teams/' || (remove_team_member.team)::text, (v_tenant)::text, null, 'domain');
   perform better_supabase.audit_event(
-    event_type => 'team_member.removed',
+    event_type => 'team_member.deleted',
     category => 'membership',
     target_type => 'team',
     record_id => (remove_team_member.team)::text,
