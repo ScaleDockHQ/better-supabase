@@ -41,6 +41,23 @@
         "cold": 0.43,
         "warm": 0.37,
         "incremental": 0.43
+      },
+      "server": {
+        "ts6": {
+          "types": 13530,
+          "instantiations": 38693,
+          "checkTime": 0.0
+        },
+        "ts7": {
+          "types": 17036,
+          "instantiations": 38842,
+          "checkTime": 0.0
+        },
+        "ts71": {
+          "types": 17146,
+          "instantiations": 38745,
+          "checkTime": 0.0
+        }
       }
     },
     "centrakit": {
@@ -79,6 +96,23 @@
         "cold": 0.5,
         "warm": 0.43,
         "incremental": 0.5
+      },
+      "server": {
+        "ts6": {
+          "types": 17684,
+          "instantiations": 42804,
+          "checkTime": 0.0
+        },
+        "ts7": {
+          "types": 23288,
+          "instantiations": 42966,
+          "checkTime": 0.0
+        },
+        "ts71": {
+          "types": 23398,
+          "instantiations": 42869,
+          "checkTime": 0.0
+        }
       }
     }
   },

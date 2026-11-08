@@ -55,6 +55,8 @@ interface BaselineEntry extends Profile {
   readonly measurement: Readonly<Record<Mode, Measurement>>;
   readonly gen?: GenTimes;
   readonly mapper?: MapperTimes;
+  /** The server program over the profile's schema (ADR 0450). */
+  readonly server?: Readonly<Record<Compiler, Measurement>>;
 }
 
 interface Baseline {
@@ -533,6 +535,7 @@ interface Run {
   readonly measurement: Readonly<Record<Mode, Measurement>>;
   readonly gen: GenTimes;
   readonly mapper: MapperTimes;
+  readonly server: Readonly<Record<Compiler, Measurement>>;
 }
 
 interface Timed<T> {
@@ -612,6 +615,55 @@ function writeTsconfig(contentMapper: boolean): void {
   );
 }
 
+/**
+ * The server's program: `createServer` over the generated schema, a context per
+ * request and reads through `ctx.db`. It has its own gate so a change to the
+ * server types (ADR 0450) cannot hide in the client program's numbers.
+ */
+function serverProgram(profile: Profile): string {
+  const lines = [
+    "import { createSupabase } from 'better-supabase';",
+    "import { createServer } from 'better-supabase/server';",
+    "import { schema } from './generated.ts';",
+    "const server = createServer(createSupabase(schema), { env: { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'key' } });",
+    "export async function run(request: Request): Promise<void> {",
+    "  const ctx = await server.context(request);",
+  ];
+
+  for (let i = 1; i <= profile.queried; i += 1) {
+    lines.push(
+      `  await ctx.db.${name(i)}.list({ select: ['id', 'name'], where: { active: true } }).orThrow();`,
+      `  await ctx.db.${name(i)}.create({ organizationId: 'o', name: 'n' }, { select: ['id'] }).orThrow();`,
+    );
+  }
+
+  lines.push("}", "");
+
+  return lines.join("\n");
+}
+
+function benchServer(
+  profile: Profile,
+): Readonly<Record<Compiler, Measurement>> {
+  writeFileSync(join(work, "server.ts"), serverProgram(profile));
+  writeFileSync(
+    join(work, "tsconfig.server.json"),
+    JSON.stringify({
+      extends: "./tsconfig.json",
+      compilerOptions: { lib: ["ES2024", "DOM"] },
+      files: ["server.ts"],
+    }),
+  );
+
+  const project = join(work, "tsconfig.server.json");
+
+  return {
+    ts6: measure(compilers.ts6, [], project),
+    ts7: measure(compilers.ts7, [], project),
+    ts71: measure(compilers.ts71, [], project),
+  };
+}
+
 function run(profile: Profile): Run {
   rmSync(work, { recursive: true, force: true });
   mkdirSync(work, { recursive: true });
@@ -628,6 +680,8 @@ function run(profile: Profile): Run {
     ts7: measure(compilers.ts7),
     ts71: ts71.value,
   };
+
+  const server = benchServer(profile);
 
   const warm = gen();
   writeFileSync(
@@ -657,6 +711,7 @@ function run(profile: Profile): Run {
   return {
     measurement: { ...measurement, ts71Mapper: mapperWarm.value },
     gen: { cold, warm, incremental },
+    server,
     mapper: {
       files: ts71.seconds,
       cold: mapperCold.seconds,
@@ -696,6 +751,7 @@ for (const [profileName, profile] of Object.entries(
     measurement: current.measurement,
     gen: current.gen,
     mapper: current.mapper,
+    server: current.server,
   };
   console.log(
     `${profileName}: ${String(profile.tables)} tables, ${String(profile.queried)} queried, gen cold ${current.gen.cold.toFixed(2)}s, warm ${current.gen.warm.toFixed(2)}s, incremental ${current.gen.incremental.toFixed(2)}s`,
@@ -704,6 +760,10 @@ for (const [profileName, profile] of Object.entries(
   for (const mode of MODES) {
     console.log(`  ${mode}: ${describe(current.measurement[mode])}`);
   }
+
+  console.log(
+    `  server program: ${(["ts6", "ts7", "ts71"] as const).map((compiler) => `${compiler} ${String(current.server[compiler].instantiations)} instantiations, ${String(current.server[compiler].types)} types`).join("; ")}`,
+  );
 
   console.log(
     `  ts71 tsc: files ${current.mapper.files.toFixed(2)}s, mapper cold ${current.mapper.cold.toFixed(2)}s, warm ${current.mapper.warm.toFixed(2)}s, incremental ${current.mapper.incremental.toFixed(2)}s`,
@@ -755,6 +815,7 @@ for (const [profileName, profile] of Object.entries(
     }
   }
 
+  checkServer(profileName, current.server, previous.server);
   checkGen(profileName, current.gen, previous.gen);
   checkMapper(profileName, current.mapper, previous.mapper);
 }
@@ -795,6 +856,32 @@ function checkMapper(
  * Gen runs in Node, so the TypeScript 6 calibration (tsc in JavaScript) is the
  * closer measure of how much slower this machine is.
  */
+function checkServer(
+  profileName: string,
+  now: Readonly<Record<Compiler, Measurement>>,
+  before: Readonly<Record<Compiler, Measurement>> | undefined,
+): void {
+  if (!before) {
+    console.error(
+      `${profileName} has no server baseline. Run \`pnpm --filter @better-supabase/types-perf update\`.`,
+    );
+    process.exitCode = 1;
+
+    return;
+  }
+
+  for (const compiler of ["ts6", "ts7", "ts71"] as const) {
+    for (const metric of ["instantiations", "types"] as const) {
+      if (now[compiler][metric] > before[compiler][metric] * (1 + TOLERANCE)) {
+        console.error(
+          `${profileName} server (${compiler}): ${metric} grew from ${String(before[compiler][metric])} to ${String(now[compiler][metric])} (tolerance ${String(TOLERANCE * 100)}%).`,
+        );
+        process.exitCode = 1;
+      }
+    }
+  }
+}
+
 function checkGen(
   profileName: string,
   now: GenTimes,
