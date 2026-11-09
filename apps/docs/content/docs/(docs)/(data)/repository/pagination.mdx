@@ -23,6 +23,8 @@ const { items, page } = await db.customers
 one extra row, so it never needs a count. Without `orderBy`, pages are
 ordered by the primary key, so they never overlap.
 
+An estimated or planned total says so: `page.capped` is `true` when `total` is the planner's estimate and `false` when it is exact. `formatPageTotal(page, { locale?, capped? })` turns it into text, `12,300` for an exact total and `~12,300` for an estimate; pass `capped: (n) => ...` for your language's wording. `db.customers.counted()` is `count()` with the same flag: `{ count, capped }`.
+
 ## Offset and limit
 
 When the caller already speaks in offsets (a data grid, a REST API with

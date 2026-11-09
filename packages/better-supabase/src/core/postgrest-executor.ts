@@ -320,6 +320,28 @@ function build(
   }
 }
 
+/** Supabase's `max_rows`, where PostgREST's estimated count turns to a guess. */
+const ESTIMATED_COUNT_THRESHOLD = 1000;
+
+/**
+ * Whether a select's count is the planner's estimate. PostgREST counts an
+ * `estimated` request exactly up to its `db-max-rows` (1000 on Supabase) and
+ * estimates past it, without saying which; a `planned` count always estimates.
+ */
+function cappedOf(op: Operation, count: number | null): { capped?: boolean } {
+  if (op.kind !== "select" || count === null) {
+    return {};
+  }
+
+  if (op.count === "planned") {
+    return { capped: true };
+  }
+
+  return op.count === "estimated"
+    ? { capped: count > ESTIMATED_COUNT_THRESHOLD }
+    : {};
+}
+
 function rowsOf(data: unknown): readonly Record<string, unknown>[] {
   if (data === null || data === undefined) {
     return [];
@@ -606,7 +628,11 @@ export function postgrestExecutor(
         );
       }
 
-      return ok({ rows: rowsOf(response.data), count: response.count ?? null });
+      return ok({
+        rows: rowsOf(response.data),
+        count: response.count ?? null,
+        ...cappedOf(op, response.count ?? null),
+      });
     } finally {
       limit.clear();
     }

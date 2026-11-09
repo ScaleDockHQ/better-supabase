@@ -19,6 +19,12 @@ export interface ExecuteResult {
   /** Rows keyed by the aliases in the operation's selection. */
   readonly rows: readonly Record<string, unknown>[];
   readonly count: number | null;
+  /**
+   * `true` when `count` is the planner's estimate (a `planned` count, or an
+   * `estimated` one past the threshold) and `false` when it is exact. Absent
+   * for executors that don't know, and for results without a count mode.
+   */
+  readonly capped?: boolean;
 }
 
 /**

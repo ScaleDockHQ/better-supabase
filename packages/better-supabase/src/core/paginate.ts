@@ -51,6 +51,7 @@ export function offsetEnvelope(
   total: number | null,
   size: number,
   offset: number,
+  capped?: boolean,
 ): {
   readonly items: readonly Row[];
   readonly page: {
@@ -59,6 +60,7 @@ export function offsetEnvelope(
     readonly total: number | null;
     readonly pages: number | null;
     readonly hasMore: boolean;
+    readonly capped?: boolean;
   };
 } {
   return {
@@ -69,6 +71,7 @@ export function offsetEnvelope(
       total,
       pages: total === null ? null : Math.max(1, Math.ceil(total / size)),
       hasMore: rows.length > size,
+      ...(capped === undefined ? {} : { capped }),
     },
   };
 }

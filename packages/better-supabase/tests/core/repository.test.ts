@@ -257,6 +257,26 @@ describe("reads", () => {
     expect(last().headers.get("prefer")).toContain("count=exact");
   });
 
+  it("reports an estimated PostgREST count as capped past 1,000 rows", async () => {
+    const big = capturingClient(() => ({
+      body: [],
+      headers: { "content-range": "*/5000" },
+    }));
+
+    expect(
+      await sbCamel.connect(big.client).customers.counted().orThrow(),
+    ).toEqual({ count: 5000, capped: true });
+
+    const small = capturingClient(() => ({
+      body: [],
+      headers: { "content-range": "*/42" },
+    }));
+
+    expect(
+      await sbCamel.connect(small.client).customers.counted().orThrow(),
+    ).toEqual({ count: 42, capped: false });
+  });
+
   it("paginates with a keyset cursor", async () => {
     const rows = [
       { id: "a", name: "Alpha" },

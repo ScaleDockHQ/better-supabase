@@ -133,6 +133,9 @@ export interface BetterResultRepository<
     Err
   >;
   count(args?: CountOptions<M, T> & FindExt<E, M, T>): Out<number, Err>;
+  counted(
+    args?: CountOptions<M, T> & FindExt<E, M, T>,
+  ): Out<{ readonly count: number; readonly capped: boolean }, Err>;
   aggregate<const A extends AggregateOptions<M, T> & FindExt<E, M, T>>(
     args: A,
   ): Out<AggregateResult<M, T, A>, Err>;

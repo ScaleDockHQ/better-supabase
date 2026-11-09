@@ -292,6 +292,21 @@ export function createRepository(
       return ok(op.returning ? (result.data.rows[0] ?? null) : null);
     });
 
+  const runCount = (args?: CallParams) => {
+    const mode = args?.["mode"];
+
+    const op = selectOp(
+      { where: args?.["where"] },
+      {
+        selection: { columns: [], includes: [] },
+        count: mode === "planned" || mode === "exact" ? mode : "estimated",
+        head: true,
+      },
+    );
+
+    return run(op, args);
+  };
+
   const updateWhere = (args: CallParams) =>
     guarded(async () => {
       const where = builder.where(table, args["where"]);
@@ -510,20 +525,22 @@ export function createRepository(
 
     count(args?: CallParams) {
       return guarded(async () => {
-        const mode = args?.["mode"];
-
-        const op = selectOp(
-          { where: args?.["where"] },
-          {
-            selection: { columns: [], includes: [] },
-            count: mode === "planned" || mode === "exact" ? mode : "estimated",
-            head: true,
-          },
-        );
-
-        const result = await run(op, args);
+        const result = await runCount(args);
 
         return result.ok ? ok(result.data.count ?? 0) : result;
+      });
+    },
+
+    counted(args?: CallParams) {
+      return guarded(async () => {
+        const result = await runCount(args);
+
+        return result.ok
+          ? ok({
+              count: result.data.count ?? 0,
+              capped: result.data.capped === true,
+            })
+          : result;
       });
     },
 
@@ -697,7 +714,13 @@ export function createRepository(
     }
 
     return ok(
-      offsetEnvelope(result.data.rows, result.data.count, size, offset),
+      offsetEnvelope(
+        result.data.rows,
+        result.data.count,
+        size,
+        offset,
+        result.data.capped,
+      ),
     );
   }
 

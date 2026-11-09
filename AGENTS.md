@@ -459,6 +459,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0429: Default import titles come from a template option.
 - 0431: `gen --offline` reads only the saved snapshot.
 - 0432: Re-issue a taken number when the item asks.
+- 0433: Counts report whether the planner answered.
 - 0500: Check scale practices in doctor from the catalog and the schema files.
 - 0501: Keep the legal entity number key swaps as `do` blocks until the owning modules render the key.
 - 0520: Accept the 0.26 provider fields as optional additions.
