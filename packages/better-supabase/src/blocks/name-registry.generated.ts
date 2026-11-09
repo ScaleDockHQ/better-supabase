@@ -1393,11 +1393,11 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "accounts": "id" | "tenant" | "kind" | "code" | "name" | "unit" | "scale" | "holderType" | "holderId" | "owner" | "allowNegative" | "readPermission" | "managedBy" | "metadata" | "closedAt" | "createdAt" | "updatedAt";
       readonly "transactions": "id" | "tenant" | "kind" | "referenceType" | "referenceId" | "memo" | "key" | "reverses" | "metadata" | "effectiveAt" | "actor" | "createdAt";
-      readonly "entries": "id" | "tenant" | "transaction" | "account" | "amount" | "unit" | "createdAt";
+      readonly "entries": "id" | "tenant" | "transaction" | "account" | "amount" | "unit" | "effectiveAt" | "createdAt";
       readonly "balances": "account" | "tenant" | "balance" | "held" | "available" | "updatedAt";
       readonly "holds": "id" | "tenant" | "account" | "amount" | "status" | "referenceType" | "referenceId" | "expiresAt" | "transaction" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "capture_ledger_hold" | "close_ledger_account" | "expire_ledger_holds" | "get_ledger_transaction" | "ledger_account_entries" | "ledger_account_for" | "ledger_append_only" | "ledger_apply_entry" | "ledger_capture" | "ledger_check_balanced" | "ledger_hold" | "ledger_post" | "ledger_read_grants" | "ledger_release" | "ledger_unhold" | "list_ledger_accounts" | "open_ledger_account" | "place_ledger_hold" | "post_ledger_transaction" | "release_ledger_hold" | "reverse_ledger_transaction";
+    readonly functions: "capture_ledger_hold" | "close_ledger_account" | "expire_ledger_holds" | "get_ledger_transaction" | "get_many" | "ledger_account_entries" | "ledger_account_for" | "ledger_append_only" | "ledger_apply_entry" | "ledger_capture" | "ledger_check_balanced" | "ledger_hold" | "ledger_post" | "ledger_read_grants" | "ledger_release" | "ledger_unhold" | "list_ledger_accounts" | "open_ledger_account" | "place_ledger_hold" | "post_ledger_transaction" | "release_ledger_hold" | "reverse_ledger_transaction";
     readonly actions: "read" | "manage" | "post";
     readonly hooks: "before_ledger_transaction_post" | "after_ledger_transaction_post";
     readonly entities: {

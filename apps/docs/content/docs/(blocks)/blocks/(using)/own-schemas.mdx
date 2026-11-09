@@ -508,7 +508,7 @@ may be your own enum or domain.
 - `ledger`
   - `better_supabase.ledger_accounts`: `id`, `tenant_id`, `kind`, `code`, `name`, `unit`, `scale`, `holder_type`, `holder_id`, `owner_id`, `allow_negative`, `read_permission`, `managed_by`, `metadata`, `closed_at`, `created_at`, `updated_at`; typed: `kind`
   - `better_supabase.ledger_transactions`: `id`, `tenant_id`, `kind`, `reference_type`, `reference_id`, `idempotency_key`, `reverses`, `metadata`, `effective_at`, `actor_id`, `created_at`
-  - `better_supabase.ledger_entries`: `id`, `tenant_id`, `transaction_id`, `account_id`, `amount`, `unit`, `created_at`
+  - `better_supabase.ledger_entries`: `id`, `tenant_id`, `transaction_id`, `account_id`, `amount`, `unit`, `effective_at`, `created_at`
   - `better_supabase.ledger_balances`: `account_id`, `tenant_id`, `balance`, `held`
   - `better_supabase.ledger_holds`: `id`, `tenant_id`, `account_id`, `amount`, `status`, `transaction_id`, `created_at`; typed: `status`
 - `legal-entities`

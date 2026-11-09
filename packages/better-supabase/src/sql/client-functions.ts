@@ -186,7 +186,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   leave:
     "accrue_leave adjust_leave_balance archive_leave_type cancel_leave_request close_leave_year leave_balances leave_ledger_entries leave_working_days list_leave_requests list_leave_types request_leave save_leave_type split_leave_request update_leave_request",
   ledger:
-    "capture_ledger_hold close_ledger_account get_ledger_transaction ledger_account_entries list_ledger_accounts open_ledger_account place_ledger_hold post_ledger_transaction release_ledger_hold reverse_ledger_transaction",
+    "capture_ledger_hold close_ledger_account get_ledger_transaction get_many ledger_account_entries list_ledger_accounts open_ledger_account place_ledger_hold post_ledger_transaction release_ledger_hold reverse_ledger_transaction",
   "legal-entities":
     "create_legal_entity get_legal_entity get_legal_entity_settings legal_entities_disable_check legal_entity_of list_legal_entities reset_legal_entity_setting resolve_setting set_default_legal_entity set_legal_entity_archived set_legal_entity_setting update_legal_entity",
   "mail-sync":
