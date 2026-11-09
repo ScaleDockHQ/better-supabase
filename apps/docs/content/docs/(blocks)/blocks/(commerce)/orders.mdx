@@ -101,6 +101,8 @@ Lines for the same variant add up, and the cart's promotion codes move
 with them. Linking an identity to the anonymous user
 (`supabase.auth.linkIdentity`) keeps the id, so it needs no merge.
 
+The invoice that checkout creates is titled `options.titleTemplate` (default `Order {number}`).
+
 ## Shipping
 
 ```ts

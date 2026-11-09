@@ -100,6 +100,8 @@ await db.invoices.delete(draftId);
 
 The SQL functions are `update_invoice(invoice, attrs jsonb)` and `delete_invoice(invoice)`. They record `invoice.updated` and `invoice.deleted`.
 
+An imported invoice without a title gets `options.titleTemplate` (default `Invoice {number}`, with `draft` for a number not yet given), and an imported opening balance gets `options.openingTitleTemplate` (default `Opening balance {number}`) as its title and line description. Set them in the tenant's language.
+
 ## Issue and number
 
 A draft has no number. `issue(invoiceId, issuedOn?)` gives it the next number of its kind (`INV-1`, credit notes `CN-1`, or the formats of `invoice` and `credit_note` entities in [numbering](/docs/blocks/numbering)), sets the issue date (today by default) and a due date `termsDays` later (`options.termsDays`, default 30), and freezes its lines. `issue(invoiceId, issuedOn, { dueOn })` sets the due date itself, on or after the issue date (`INVOICE_DUE_INVALID`), and an invoice created with `termsDays: null` (over your own table with a nullable terms column) has no due date. The number is taken in the same transaction that issues the invoice, so an issue that fails takes none. Numbers are taken only on issue, so a voided draft leaves no gap. An issued invoice voided by mistake keeps its number.

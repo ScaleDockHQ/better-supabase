@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:c15f957ff6819b69e9d86149cb82a0918931f8909604486cf72c26669884c259
+-- @bsb-hash sha256:52e1ab39767cd46fc806bbbdd3a80a7cc9c5274d0da4520c65b981a40ef6b8d4
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3265,7 +3265,7 @@ begin
     v_id := (v_made ->> 'id')::uuid;
   else
     v_made := "better_supabase"."create_invoice"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-      'title', coalesce(nullif(v_data ->> 'title', ''), 'Invoice ' || coalesce(v_number, 'draft')),
+      'title', coalesce(nullif(v_data ->> 'title', ''), replace('Invoice {number}', '{number}', coalesce(v_number, 'draft'))),
       'currency', v_data -> 'currency',
       'termsDays', v_data -> 'termsDays',
       'note', v_data -> 'note',
@@ -3379,8 +3379,8 @@ begin
     'currency', v_data -> 'currency', 'company', v_data -> 'company', 'contact', v_data -> 'contact',
     'legalEntityId', v_data -> 'legalEntityId',
     'direction', case when v_data ->> 'side' = 'supplier' then 'purchase' else 'sales' end,
-    'title', coalesce(nullif(v_data ->> 'title', ''), 'Opening balance ' || coalesce(v_data ->> 'number', '')),
-    'lines', jsonb_build_array(jsonb_build_object('description', 'Opening balance ' || coalesce(v_data ->> 'number', ''),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Opening balance {number}', '{number}', coalesce(v_data ->> 'number', ''))),
+    'lines', jsonb_build_array(jsonb_build_object('description', replace('Opening balance {number}', '{number}', coalesce(v_data ->> 'number', '')),
       'quantity', 1, 'unitAmount', v_balance, 'taxRateBps', 0)),
     'totals', jsonb_build_object('subtotal', v_balance, 'tax', 0, 'total', v_balance)))),
     import_open_item.subject_id, false);

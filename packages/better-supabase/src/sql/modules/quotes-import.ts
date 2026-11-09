@@ -133,7 +133,7 @@ begin
   end if;
   perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
   v_made := ${fn("create_quote")}(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-    'title', coalesce(nullif(v_data ->> 'title', ''), 'Quote ' || v_number),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace(${sqlString(ctx.text("titleTemplate", "Quote {number}"))}, '{number}', v_number)),
     'currency', v_data -> 'currency',
     'validUntil', v_data -> 'validUntil',
     'terms', v_data -> 'terms',

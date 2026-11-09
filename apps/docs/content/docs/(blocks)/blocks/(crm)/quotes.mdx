@@ -94,6 +94,8 @@ const rows = useQuotes({ limit: 50 });
 
 `create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [numbering](/docs/blocks/numbering)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.recordTypes` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
 
+An imported quote without a title gets `options.titleTemplate` (default `Quote {number}`; `{number}` is the quote's number), so a Dutch tenant sets `Offerte {number}`.
+
 Over your own quotes table, a company or contact can be one id column of a fixed type, such as a foreign key to your customers, as on [invoices](/docs/blocks/invoices). Map the type column to `null` and name the type in `options.company` (or `options.contact`): `create` and `update` write the id in the column's own type, refuse another type (`QUOTE_COMPANY_UNSUPPORTED`), and a read returns the fixed type as `company_type`. `fromQuote` on invoices passes the customer on to the invoice.
 
 ```ts

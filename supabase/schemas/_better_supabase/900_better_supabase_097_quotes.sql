@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:d475d762f9b230a6ef536acbdc0ea40cace55f8c87a1df8bf490892e103cc555
+-- @bsb-hash sha256:d27ad8b7a867d312f52d7522842b46263426ffda6f440f364c603c8eed385535
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1724,7 +1724,7 @@ begin
   end if;
   perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
   v_made := "better_supabase"."create_quote"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-    'title', coalesce(nullif(v_data ->> 'title', ''), 'Quote ' || v_number),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', v_number)),
     'currency', v_data -> 'currency',
     'validUntil', v_data -> 'validUntil',
     'terms', v_data -> 'terms',

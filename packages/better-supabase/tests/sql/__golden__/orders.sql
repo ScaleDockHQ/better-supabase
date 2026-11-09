@@ -2419,7 +2419,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:2440ef3d716eac428d7cb27a3d681e0916b68ed7dc6e6bd5d5e469d2f4db8734
+-- @bsb-hash sha256:86eae9f9582adf771a2d139ca7ab4017d17e404adc41938b57b1a6c03667cdbe
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3598,7 +3598,7 @@ begin
     end loop;
     end if;
     v_invoice := "better_supabase"."create_invoice"(v_order.tenant,
-      jsonb_build_object('title', 'Order ' || v_order.number, 'currency', v_order.currency, 'termsDays', 0,
+      jsonb_build_object('title', replace('Order {number}', '{number}', v_order.number::text), 'currency', v_order.currency, 'termsDays', 0,
         'origin', jsonb_build_object('type', 'order', 'id', v_order.id::text)),
       (select coalesce(jsonb_agg(jsonb_build_object(
       'description', case when l."quantity" = 1 then l."title" else l."title" || ' x ' || l."quantity"::text end,

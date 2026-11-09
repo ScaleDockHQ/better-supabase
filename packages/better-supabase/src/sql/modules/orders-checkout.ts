@@ -65,7 +65,7 @@ function orderInvoice(
   return {
     id: invoices.colName("invoices", "id"),
     create: `v_invoice := ${invoices.fn("create_invoice")}(v_order.tenant,
-      jsonb_build_object('title', 'Order ' || v_order.number, 'currency', v_order.currency, 'termsDays', 0,
+      jsonb_build_object('title', replace(${sqlString(ctx.text("titleTemplate", "Order {number}"))}, '{number}', v_order.number::text), 'currency', v_order.currency, 'termsDays', 0,
         'origin', jsonb_build_object('type', 'order', 'id', v_order.id::text)),
       ${lines});
     v_invoice := ${invoices.fn("issue_invoice")}((v_invoice ->> ${ic("id")})::uuid, current_date);

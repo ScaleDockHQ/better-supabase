@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:ac582d5ac8a7f5248a73f410883b190bdea93fa334f656fec93754057958e934
+-- @bsb-hash sha256:d6a79bb7455324b01761f565346a188841b8cef15bbaa2df7f7fe4359856913c
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1179,7 +1179,7 @@ begin
     end loop;
     end if;
     v_invoice := "better_supabase"."create_invoice"(v_order.tenant,
-      jsonb_build_object('title', 'Order ' || v_order.number, 'currency', v_order.currency, 'termsDays', 0,
+      jsonb_build_object('title', replace('Order {number}', '{number}', v_order.number::text), 'currency', v_order.currency, 'termsDays', 0,
         'origin', jsonb_build_object('type', 'order', 'id', v_order.id::text)),
       (select coalesce(jsonb_agg(jsonb_build_object(
       'description', case when l."quantity" = 1 then l."title" else l."title" || ' x ' || l."quantity"::text end,
