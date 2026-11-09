@@ -2591,6 +2591,20 @@ off instead. Run `better-supabase codemod owned-columns` to
 declare the columns in your schema files, or map the column to `null` in
 `blocks.<name>.columns` to keep the feature off.
 
+### BS623
+
+**Warning: a block's unique index repeats one of yours.** A block creates a
+unique index on a table where your own files already have a unique index over
+the same columns, or over a subset of them. Your index is the stricter key, so
+the block's adds write cost and storage and guarantees nothing more. Drop the
+block's index, or narrow the block's key to the columns your index covers.
+
+### BS624
+
+**Warning: a block's trigger repeats one of yours.** A block creates a trigger
+that keeps `updated_at` current on a table where your files already call
+`track_updated_at()`, so both run on every write. Keep one of them.
+
 ### BS612
 
 **Info: the proxy re-syncs session cookies with `setAll`.** Since 0.40 the library's own cookie handling in `bsb.proxy` writes them. Remove the callback.
