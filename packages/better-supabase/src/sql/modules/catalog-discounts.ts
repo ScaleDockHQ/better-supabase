@@ -5,6 +5,7 @@ import type { Names } from "./catalog-names.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, lockTable, serviceGrant, userGrant } from "../shared.ts";
 import { guard } from "./catalog-functions.ts";
+import { productImportTargets } from "./catalog-product-import.ts";
 import { supplyImportTargets } from "./catalog-supply.ts";
 
 /** What a discount group groups: customers or products. */
@@ -791,5 +792,9 @@ function discountImportTargets(
 export function catalogImportTargets(
   own: BlockSqlContext,
 ): readonly ImportTargetContribution[] {
-  return [...supplyImportTargets(own), ...discountImportTargets(own)];
+  return [
+    ...supplyImportTargets(own),
+    ...discountImportTargets(own),
+    ...productImportTargets(own),
+  ];
 }

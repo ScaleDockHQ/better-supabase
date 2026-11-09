@@ -2942,7 +2942,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "updatedAt": "updated_at",
               "price": "price",
               "currency": "currency",
-              "trackInventory": "track_inventory"
+              "trackInventory": "track_inventory",
+              "manufacturer": "manufacturer",
+              "model": "model",
+              "taxCode": "tax_code"
             }
           },
           "variants": {

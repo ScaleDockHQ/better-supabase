@@ -20,8 +20,8 @@ import {
   channelTables,
 } from "./catalog-channels.ts";
 import {
-  discountColumns,
   catalogImportTargets,
+  discountColumns,
   DISCOUNT_ENTITIES,
   discountContract,
   discountFunctions,
@@ -44,6 +44,10 @@ import {
   storefrontFunctions,
 } from "./catalog-merchandising.ts";
 import { catalogRank } from "./catalog-names.ts";
+import {
+  productDetailColumns,
+  productImportSql,
+} from "./catalog-product-import.ts";
 import {
   supplyColumns,
   supplyContract,
@@ -156,8 +160,20 @@ const NAMES: BlockSqlNames = {
         price: "price",
         currency: "currency",
         trackInventory: "track_inventory",
+        manufacturer: "manufacturer",
+        model: "model",
+        taxCode: "tax_code",
       },
-      optional: ["description", "kind", "price", "currency", "trackInventory"],
+      optional: [
+        "description",
+        "kind",
+        "price",
+        "currency",
+        "trackInventory",
+        "manufacturer",
+        "model",
+        "taxCode",
+      ],
       typed: ["status", "kind"],
     },
     options: {
@@ -509,6 +525,7 @@ function tables(ctx: BlockSqlContext, names: Names): string {
     ctx.has("products", "trackInventory")
       ? [`${c("products", "trackInventory")} boolean not null default true`]
       : []),
+    ...productDetailColumns(ctx, c),
   ]
     .map((column) => `\n  ${column},`)
     .join("");
@@ -811,7 +828,7 @@ function build(ctx: BlockSqlContext): string {
 -- categories, collections, price lists, sales channels, translations,
 -- product media and an optional public storefront.
 ${currencyMinorUnitsFunction(names.fn("currency_minor_units"))}
-${tables(ctx, names)}${supplyColumns(ctx)}${discountColumns(ctx)}${productFunctions(ctx, names)}${variantStatusFunction(ctx, names)}${optionFunctions(ctx, names)}${priceFunctions(ctx, names)}${categoryFunctions(ctx, names)}${collectionFunctions(ctx, names)}${storefrontFunctions(ctx, names)}${channelModuleFunctions(ctx, names)}${supplyFunctions(ctx, names)}${discountFunctions(ctx, names)}
+${tables(ctx, names)}${supplyColumns(ctx)}${discountColumns(ctx)}${productFunctions(ctx, names)}${productImportSql(ctx)}${variantStatusFunction(ctx, names)}${optionFunctions(ctx, names)}${priceFunctions(ctx, names)}${categoryFunctions(ctx, names)}${collectionFunctions(ctx, names)}${storefrontFunctions(ctx, names)}${channelModuleFunctions(ctx, names)}${supplyFunctions(ctx, names)}${discountFunctions(ctx, names)}
 ${ctx.hasTable("storefronts") ? storefrontPolicies(ctx, names) : ""}
 `;
 }
