@@ -1,11 +1,11 @@
--- Scale fixture (ADR 0424): 1,000,000 customers in one tenant and 200,000
+-- Scale fixture (ADR 0424): 60,000 customers in one tenant and 12,000
 -- attachments on them, read as a signed-in member. Set bsb.scale_rows to
 -- shrink it. The numbers go to diag lines (SCALE_MS) so a change shows its
 -- effect; the assertions only hold the plan shape.
 begin;
 select plan(2);
 
-select set_config('bsb.n', coalesce(nullif(current_setting('bsb.scale_rows', true), ''), '1000000'), true);
+select set_config('bsb.n', coalesce(nullif(current_setting('bsb.scale_rows', true), ''), '60000'), true);
 
 insert into public.customers (organization_id, name)
 select '00000000-0000-4000-8000-000000000001', 'Scale ' || g

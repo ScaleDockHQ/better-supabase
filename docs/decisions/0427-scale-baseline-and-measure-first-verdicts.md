@@ -23,10 +23,9 @@ were marked "measure first".
   took 439 ms with 1,000 `search_refresh` calls and no `audit_row_change`.
 
 `bsb.scale_rows` resizes the first two. A 1,000,000-row seed did not finish in
-six minutes on the shared machine (the customer triggers dominate), so the
-documented runs used 60,000 and 200,000 rows. `supabase test db` runs only
-`supabase/tests/database`, so these run on request:
-`supabase test db supabase/tests/scale/<file>`.
+six minutes on the shared machine or on a CI runner (the customer triggers
+dominate), so the defaults are the sizes of the documented runs, 60,000 and
+200,000 rows. `supabase test db` runs these files with the rest.
 
 Measure-first verdicts, from `pg_stat_statements` on CentraKit develop:
 

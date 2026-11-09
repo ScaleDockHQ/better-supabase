@@ -1,10 +1,10 @@
 -- Count modes on the scale fixture (ADR 0425): the exact count scans every
 -- visible row, the estimated count stops at the PostgREST threshold and asks
--- the planner above it. Set bsb.scale_rows to resize (default 1,000,000).
+-- the planner above it. Set bsb.scale_rows to resize (default 200,000).
 begin;
 select plan(3);
 
-select set_config('bsb.n', coalesce(nullif(current_setting('bsb.scale_rows', true), ''), '1000000'), true);
+select set_config('bsb.n', coalesce(nullif(current_setting('bsb.scale_rows', true), ''), '200000'), true);
 
 insert into public.customers (organization_id, name)
 select '00000000-0000-4000-8000-000000000001', 'Count ' || g
