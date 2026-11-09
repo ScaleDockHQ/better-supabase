@@ -260,8 +260,12 @@ the `warnings` of the batch outcome, and the item is still written.
 The buyer is stored as given in the `buyer` column. With the
 [legal entities](/docs/blocks/legal-entities) block on, the item's
 `legalEntity` sets `legal_entity_id`. Importing the same document again
-writes nothing. A document edited after the import is reported as a conflict,
-and a document whose source changed yields `IMPORT_DOCUMENT_CHANGED`.
+writes nothing. Set `data.update` to `apply` to write the header and, when the
+line count is unchanged, the line title and tax. A different line count
+replaces the lines inside the import session. A void or paid document keeps
+its postings unless `data.repost` is true. A document edited after the import
+is reported as a conflict, and a document whose source changed yields
+`IMPORT_DOCUMENT_CHANGED` while `update` stays `keep`.
 
 ### Opening open items
 

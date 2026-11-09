@@ -92,6 +92,48 @@ export function quoteImportFunctions(
   end if;`
     : "";
 
+  const quoteLines = n.t("lines");
+  const ql = (column: string): string => n.c("lines", column);
+  const quoteLineHas = (column: string): boolean => ctx.has("lines", column);
+
+  const quoteLineTax = [
+    ...(quoteLineHas("taxRateBps")
+      ? [
+          `${ql("taxRateBps")} = coalesce((e.l ->> 'taxRateBps')::integer, l.${ql("taxRateBps")})`,
+        ]
+      : []),
+    ...(quoteLineHas("taxCode")
+      ? [
+          `${ql("taxCode")} = coalesce(nullif(e.l ->> 'taxCode', ''), l.${ql("taxCode")})`,
+        ]
+      : []),
+  ]
+    .map((assignment) => `,\n        ${assignment}`)
+    .join("");
+
+  const quoteApply = [
+    ...(has("title")
+      ? [
+          `${q("title")} = coalesce(nullif(v_data ->> 'title', ''), y.${q("title")})`,
+        ]
+      : []),
+    ...(has("currency")
+      ? [
+          `${q("currency")} = coalesce(nullif(v_data ->> 'currency', ''), y.${q("currency")})`,
+        ]
+      : []),
+    ...(has("validUntil")
+      ? [
+          `${q("validUntil")} = coalesce(nullif(v_data ->> 'validUntil', '')::date, y.${q("validUntil")})`,
+        ]
+      : []),
+    ...(has("companyId")
+      ? [
+          `${q("companyId")} = coalesce(nullif(v_data ->> 'companyId', ''), y.${q("companyId")})`,
+        ]
+      : []),
+  ];
+
   return `
 -- The import target of the quote entity (ADR 0141): item.data is { number,
 -- status?, title?, currency, validUntil?, createdAt?, sentAt?, viewedAt?,
@@ -120,7 +162,23 @@ begin
     if not found then
       ${fail("IMPORT_ITEM_INVALID", "the quote no longer exists", "22023")}
     end if;
-    return jsonb_build_object('subjectId', v_row.${q("id")}::text, 'updatedAt', v_row.${q("updatedAt")}, 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source quote changed after it was imported; an imported quote is kept as imported, so import the correction as a new quote')));
+    if coalesce(v_data ->> 'update', 'keep') is distinct from 'apply' then
+      return jsonb_build_object('subjectId', v_row.${q("id")}::text, 'updatedAt', v_row.${q("updatedAt")}, 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source quote changed after it was imported; an imported quote is kept as imported, so import the correction as a new quote')));
+    end if;
+    v_id := v_row.${q("id")};
+    update ${t("quotes")} y set
+      ${[...sets, ...quoteApply].join(",\n      ")}
+    where y.${q("id")} = v_id;
+    if (select count(*) from ${quoteLines} l where l.${ql("parent")} = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb)) then
+      update ${quoteLines} l set
+        ${ql("description")} = coalesce(nullif(e.l ->> 'title', ''), nullif(e.l ->> 'description', ''), l.${ql("description")})${quoteLineTax}
+      from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n)
+      where l.${ql("parent")} = v_id and l.${ql("position")} = e.n::integer;
+    elsif jsonb_typeof(v_data -> 'lines') = 'array' then
+      perform ${fn("set_quote_lines")}(v_id, v_data -> 'lines');
+    end if;
+    select * into v_row from ${t("quotes")} y where y.${q("id")} = v_id;
+    return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row.${q("updatedAt")}, 'warnings', v_warnings);
   end if;
   if v_number is null then
     ${fail("IMPORT_ITEM_INVALID", "a quote needs its number", "22023")}

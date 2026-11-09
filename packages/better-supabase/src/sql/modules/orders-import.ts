@@ -193,7 +193,35 @@ begin
     if not found then
       ${fail("IMPORT_ITEM_INVALID", "the order no longer exists", "22023")}
     end if;
-    return jsonb_build_object('subjectId', import_order.subject_id, 'updatedAt', v_updated, 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source order changed after it was imported; an imported order is kept as imported')));
+    if coalesce(v_data ->> 'update', 'keep') is distinct from 'apply' then
+      return jsonb_build_object('subjectId', import_order.subject_id, 'updatedAt', v_updated, 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source order changed after it was imported; an imported order is kept as imported')));
+    end if;
+    v_id := import_order.subject_id::uuid;
+    update ${orders} x set
+      ${o("status")} = case when x.${o("status")}::text in ('cancelled', 'paid') and coalesce((v_data ->> 'repost')::boolean, false) = false then x.${o("status")} else ${ctx.cast("orders", "status", `coalesce(nullif(v_data ->> 'status', ''), x.${o("status")}::text)`)} end,
+      ${o("customer")} = coalesce(nullif(v_data ->> 'customerId', '')::uuid, x.${o("customer")}),
+      ${o("currency")} = coalesce(nullif(upper(v_data ->> 'currency'), ''), x.${o("currency")}),
+      ${o("placedAt")} = coalesce(nullif(v_data ->> 'placedAt', '')::timestamptz, x.${o("placedAt")}),
+      ${o("subtotal")} = coalesce((v_data -> 'totals' ->> 'subtotal')::bigint, x.${o("subtotal")}),
+      ${o("taxTotal")} = coalesce((v_data -> 'totals' ->> 'taxTotal')::bigint, x.${o("taxTotal")}),
+      ${o("total")} = coalesce((v_data -> 'totals' ->> 'total')::bigint, x.${o("total")})
+    where x.${o("id")} = v_id;
+    if coalesce((v_data ->> 'repost')::boolean, false) or (select x.${o("status")}::text from ${orders} x where x.${o("id")} = v_id) not in ('cancelled', 'paid') then
+      if (select count(*) from ${lines} l where l.${ol("order")} = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb)) then
+        update ${lines} l set
+          ${ol("title")} = coalesce(nullif(e.l ->> 'title', ''), l.${ol("title")}),
+          ${ol("tax")} = coalesce((e.l ->> 'tax')::bigint, l.${ol("tax")})
+        from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n)
+        where l.${ol("order")} = v_id and l.${ol("position")} = e.n::integer;
+      elsif jsonb_typeof(v_data -> 'lines') = 'array' then
+        delete from ${lines} l where l.${ol("order")} = v_id;
+        insert into ${lines} (${lineColumns.map(([column]) => column).join(", ")})
+        select ${lineColumns.map(([, value]) => value).join(", ")}
+        from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
+      end if;
+    end if;
+    select x.${o("updatedAt")} into v_updated from ${orders} x where x.${o("id")} = v_id;
+    return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated, 'warnings', v_warnings);
   end if;
   if v_number is null then
     ${fail("IMPORT_ITEM_INVALID", "an order needs its number", "22023")}
