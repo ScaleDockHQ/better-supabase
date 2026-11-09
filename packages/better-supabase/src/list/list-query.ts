@@ -46,6 +46,7 @@ import {
   filterJsonSchema,
   filterWhere,
 } from "./filter-query.ts";
+import { facetCacheKey, loadFacetCounts, openListRun } from "./list-facets.ts";
 
 /** Facet value meaning "not set": filters with `is null`. */
 export const UNSET = "__unset__";
@@ -73,8 +74,19 @@ export interface ListQueryConfig<
   /**
    * Also count rows per facet value, with one grouped aggregate per facet that
    * runs next to the page: one wave. Needs PostgREST aggregates.
+   * `facetCountMode: "capped"` reads a bounded sample instead of grouping the
+   * whole match.
    */
   readonly facetCounts?: C;
+  /**
+   * `exact` groups every matching row. `capped` reads at most `facetScanCap`
+   * rows per facet and counts those, so a large tenant is not scanned. The page
+   * then sets `facetCountsCapped` when the cap was reached. Defaults to
+   * `exact`.
+   */
+  readonly facetCountMode?: "exact" | "capped";
+  /** Rows read per facet when `facetCountMode` is `capped`. Defaults to 1000. */
+  readonly facetScanCap?: number;
   /**
    * How the page total is counted. Defaults to `'planned'`, the planner's
    * estimate.
@@ -220,6 +232,11 @@ export interface FacetCountFields<F extends string> {
   readonly facetCounts: FacetCounts<F>;
   /** Facets with more values than `facetLimit`, whose counts are cut. */
   readonly facetCountsTruncated: readonly F[];
+  /**
+   * `true` when a capped read stopped at `facetScanCap`, so the counts are not
+   * the whole match.
+   */
+  readonly facetCountsCapped?: boolean;
 }
 
 export interface ListDefinition<
@@ -284,6 +301,17 @@ export interface ListDefinition<
     query: ListQuery<S, F>,
     extra?: A,
   ): AsyncResult<ListPage<Payload<M, T, A>, F, C, P>>;
+  /**
+   * The facet counts for `query`, ignoring page, cursor and size. Cache the
+   * result under `facetCacheKey` and pass it back as `extra.facetCounts`.
+   */
+  countFacets(
+    db: { readonly [K in T]: RepositoryOf<M, K, E> },
+    query: ListQuery<S, F>,
+    extra?: ListExtra<M, T>,
+  ): AsyncResult<FacetCountFields<F>>;
+  /** Stable while the page, cursor and size change, and the filters do not. */
+  facetCacheKey(query: ListQuery<S, F>): string;
   /** OpenAPI 3.1 query parameters. */
   readonly openapi: readonly OpenApiParameter[];
   /** JSON Schema of the typed input, e.g. for MCP tool arguments. */
@@ -296,6 +324,11 @@ export interface ListExtra<M extends AnyModels, T extends keyof M> {
   readonly where?: WhereInput<M, T>;
   /** Overrides the config's `count` for this run. */
   readonly count?: CountMode;
+  /**
+   * Facet counts already loaded, for example from a cache keyed by
+   * `facetCacheKey`. `run` attaches them and does not count again.
+   */
+  readonly facetCounts?: FacetCountFields<string>;
 }
 
 export type ListParsers<S extends string, F extends string> = {
@@ -440,6 +473,8 @@ export function defineListQuery<
   const maxPageSize = config.maxPageSize ?? 200;
   const maxSearch = config.maxSearchLength ?? 200;
   const facetLimit = config.facetLimit ?? 100;
+  const facetCountMode = config.facetCountMode ?? "exact";
+  const facetScanCap = config.facetScanCap ?? 1000;
   const cursor = config.pagination !== "offset";
   // SAFETY: config.sorts is keyed by S, and Object.keys widens the keys to string.
   const sortKeys = Object.keys(config.sorts) as S[];
@@ -1050,6 +1085,73 @@ export function defineListQuery<
     },
   };
 
+  function facetFilter(
+    query: ListQuery<S, F>,
+    facet: { readonly key: string },
+    extraWhere: Where | undefined,
+  ): Where | undefined {
+    const search = searchWhere(query);
+    const tree = treeWhere(query);
+
+    const others = facets.filter((other) => other.key !== facet.key);
+
+    return and([
+      extraWhere,
+      search,
+      tree,
+      ...others.map((other) => {
+        // SAFETY: facets are built from config.facets, which is keyed by F.
+        const selected = query.facets[other.key as F];
+
+        return facetWhere(other, selected);
+      }),
+    ]);
+  }
+
+  function readFacetCounts(
+    loaded: ReturnType<typeof openRun>,
+    query: ListQuery<S, F>,
+  ): AsyncResult<FacetCountFields<F>> {
+    const counts = loadFacetCounts({
+      enabled: config.facetCounts === true,
+      mode: facetCountMode,
+      facets,
+      facetLimit,
+      scanCap: facetScanCap,
+      options: loaded.options,
+      filterFor: (facet) => facetFilter(query, facet, loaded.extraWhere),
+      list: (request) => loaded.repository.list(request),
+      aggregate: (request) => loaded.repository.aggregate(request),
+      countsOf: (facet, groups) =>
+        countsOf({ ...facet, nullable: false }, groups),
+    });
+
+    // SAFETY: facet keys are F, the names from config.facets.
+    return counts as AsyncResult<FacetCountFields<F>>;
+  }
+
+  function openRun(
+    db: { readonly [K in T]: RepositoryOf<M, K, E> },
+    query: ListQuery<S, F>,
+    extra: ListExtra<M, T> | undefined,
+    page = true,
+  ) {
+    // SAFETY: args() returns an object of page options.
+    const base = args(query) as Record<string, unknown>;
+
+    // SAFETY: extra is the optional list input, read as a record so the page can drop cached counts.
+    const raw = extra as Record<string, unknown> | undefined;
+
+    return openListRun({
+      table: db[table],
+      base,
+      extra: raw,
+      cursor,
+      page,
+      combine: (left, right) => and([left, right]),
+    });
+  }
+
   return {
     table,
     // SAFETY: `pagination` is P when given, and P defaults to `cursor`.
@@ -1134,116 +1236,54 @@ export function defineListQuery<
       ) as never,
     args,
     run(db, query, extra) {
-      // SAFETY: args() returns an object of page options.
-      const base = args(query) as Record<string, unknown>;
+      const loaded = openRun(db, query, extra);
 
-      // SAFETY: extra is optional ListExtra, and the rest spread keeps its
-      // other page options.
-      const {
-        where: extraWhere,
-        count,
-        select: _select,
-        include: _include,
-        ...options
-      } = (extra ?? {}) as ListExtra<M, T> & Record<string, unknown>;
+      if (!config.facetCounts || loaded.cachedCounts) {
+        const counts = loaded.cachedCounts;
 
-      // SAFETY: base comes from args(), whose where is a Where for table T.
-      const combined = and([extraWhere, base["where"] as Where | undefined]);
-
-      // SAFETY: db is generic over M; this helper only calls page and
-      // aggregate on table T.
-      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `db` is generic over M; this helper only needs page and aggregate.
-      const repository = db[table] as unknown as {
-        page: (input: Record<string, unknown>) => AsyncResult<unknown>;
-        aggregate: (input: Record<string, unknown>) => AsyncResult<unknown>;
-      };
-
-      const page = repository.page({
-        ...extra,
-        ...base,
-        ...(cursor ? {} : { count: count ?? base["count"] }),
-        ...(combined ? { where: combined } : {}),
-      });
-
-      if (!config.facetCounts) {
-        // SAFETY: without facet counts, run returns the page result as is.
-        return page as AsyncResult<never>;
-      }
-
-      if (facets.length === 0) {
-        // SAFETY: page returns a page object, which gets an empty facetCounts field.
-        return page.map((data) => ({
-          ...(data as object),
-          facetCounts: {},
-          facetCountsTruncated: [],
-        })) as AsyncResult<never>;
-      }
-
-      // Per facet, rows per value under every other facet's selection, so
-      // picking a value doesn't zero the other values of the same facet.
-      const search = searchWhere(query);
-      const tree = treeWhere(query);
-
-      const counted = facets.map((facet) => {
-        const filter = and([
-          extraWhere,
-          search,
-          tree,
-          // SAFETY: facets are built from config.facets, which is keyed by F.
-          ...facets.map((other) =>
-            other === facet
-              ? undefined
-              : facetWhere(other, query.facets[other.key as F]),
-          ),
-        ]);
-
-        return repository.aggregate({
-          ...options,
-          ...(filter ? { where: filter } : {}),
-          groupBy: [facet.column],
-          _count: true,
-          orderBy: [{ _count: "desc" }, { [facet.column]: "asc" }],
-          limit: facetLimit + 1,
-        });
-      });
-
-      // SAFETY: page returns a page object, and aggregate with groupBy
-      // returns one row per group.
-      return page.andThen(async (data) => {
-        const results = await Promise.all(counted);
-        const facetCounts: Record<string, Record<string, number>> = {};
-        const truncated: string[] = [];
-
-        for (const [index, facet] of facets.entries()) {
-          const result = results[index]!;
-
-          if (!result.ok) {
-            return result;
-          }
-
-          // SAFETY: aggregate with groupBy returns one row per group.
-          const rows = result.data as Record<string, unknown>[];
-
-          if (rows.length > facetLimit) {
-            truncated.push(facet.key);
-          }
-
-          facetCounts[facet.key] = countsOf(facet, rows.slice(0, facetLimit));
+        if (!counts) {
+          // SAFETY: without facet counts, run returns the page result as is.
+          return loaded.page as AsyncResult<never>;
         }
+
+        const attached = loaded.page.map((data) => {
+          // SAFETY: page returns a page object.
+          const row = data as object;
+
+          return { ...row, ...counts };
+        });
+
+        // SAFETY: the cached counts are the facet fields of this page.
+        return attached as AsyncResult<never>;
+      }
+
+      const countsPromise = readFacetCounts(loaded, query);
+
+      const withCounts = loaded.page.andThen(async (data) => {
+        const counts = await countsPromise;
+
+        if (!counts.ok) {
+          return counts;
+        }
+
+        // SAFETY: page returns a page object.
+        const row = data as object;
 
         // A literal, not ok(), keeps the error classes out of this entry.
         return {
           ok: true as const,
-          // SAFETY: page returns a page object.
-          data: {
-            ...(data as object),
-            facetCounts,
-            facetCountsTruncated: truncated,
-          },
+          data: { ...row, ...counts.data },
           error: null,
         };
-      }) as AsyncResult<never>;
+      });
+
+      // SAFETY: the counts are the facet fields of this page.
+      return withCounts as AsyncResult<never>;
     },
+    countFacets(db, query, extra) {
+      return readFacetCounts(openRun(db, query, extra, false), query);
+    },
+    facetCacheKey,
     openapi,
     jsonSchema,
   };
