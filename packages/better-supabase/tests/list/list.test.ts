@@ -108,7 +108,14 @@ describe("defineListQuery", () => {
 
     expect(page).toEqual({
       items: [{ id: "c1", name: "Acme" }],
-      page: { number: 1, size: 25, total: 1, pages: 1, hasMore: false },
+      page: {
+        number: 1,
+        size: 25,
+        total: 1,
+        pages: 1,
+        hasMore: false,
+        capped: true,
+      },
     });
     const params = last().params;
     expect(params.get("organization_id")).toBe("eq.org-1");

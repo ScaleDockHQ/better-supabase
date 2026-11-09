@@ -40,7 +40,7 @@ each item in one line. This record says, per item that did not become code, why.
 - **The medium items** (7.6, 7.1, 7.2, 1.7, 1.23, 1.24, 1.21, 1.4, 1.10, 1.15 to 1.18,
   4.1, 4.2, 5.3, 3.2, 9.3, 8.1, 8.3, 8.5, 1.27, 6.3, 11.1, 11.3 and the carried
   items), **1.11 to 1.14, 1.19, 3.3, 3.4, 4.3 to 4.5, 5.4, 10.1 to 10.9, 9.5, 9.6 and
-  11.2**: not started in this branch. 9.5 waits for PermDock's compact snapshot.
+  11.2**: not started in this branch. 9.5 waits for the authorization provider's compact snapshot.
 
 ## Consequences
 

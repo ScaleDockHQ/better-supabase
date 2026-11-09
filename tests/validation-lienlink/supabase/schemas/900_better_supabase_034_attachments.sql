@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:768b4150f627a25be078ad350d3cdc77b419e9a8d6266cc55779e8b79cfbba87
+-- @bsb-hash sha256:a60e5a96d72159936e07503d2c889639f68d16c7e30edc451a4dd2a38098c596
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -368,7 +368,7 @@ create policy bsb_attachments_read on "better_supabase"."attachments"
 create policy bsb_attachments_insert on "better_supabase"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false)
+    and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
     and ("subject_type" is null or case "subject_type"
     when 'job' then exists (select 1 from "public"."jobs" s where s."id"::text = "subject_id" and s."organization_id" = "tenant_id")
     else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
@@ -1095,7 +1095,7 @@ create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as rest
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false)
+    and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
     and ("subject_type" is null or case "subject_type"
     when 'job' then exists (select 1 from "public"."jobs" s where s."id"::text = "subject_id" and s."organization_id" = "tenant_id")
     else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
