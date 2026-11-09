@@ -108,7 +108,7 @@ A draft has no number. `issue(invoiceId, issuedOn?)` gives it the next number of
 
 The number belongs to the period of the issue date, so a numbering format with a year (`{yyyy}-{n}`) numbers an invoice issued on 31 December in that year's sequence, even when it is issued in January.
 
-The invoices table keeps the identifier unique per organization, direction and kind, so sales invoices, purchase bills and credit notes are numbered apart. When numbering restarts each period, the number repeats (2025-1 and 2026-1) while the identifier does not, which is why the key is the identifier. There is no option to turn the key off. Over your own table the block adds the unique index on its identifier column, and a table without an identifier column uses the number column.
+The invoices table keeps the identifier unique per organization, direction and kind, so sales invoices, purchase bills and credit notes are numbered apart. When numbering restarts each period, the number repeats (2025-1 and 2026-1) while the identifier does not, which is why the key is the identifier. There is no option to turn the key off: `options.uniqueNumber` was removed in 0.58, and the config refuses it. Before you apply the migration that adds the key, find numbers that repeat inside a kind with the query in the [0.57 to 0.58 guide](/docs/migration/0.57-to-0.58#invoice-numbers). Over your own table the block adds the unique index on its identifier column, and a table without an identifier column uses the number column.
 
 ```ts title="better-supabase.config.ts"
 blocks: {

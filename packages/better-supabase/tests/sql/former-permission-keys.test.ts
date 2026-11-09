@@ -44,3 +44,13 @@ export default defineConfig({
     expect(text).toContain('tasks: { permissions: { view: "keep" } }');
   });
 });
+
+describe("the removed uniqueNumber option", () => {
+  it("is refused with a way out", () => {
+    expect(() =>
+      renderBlocks(["invoices"], {
+        modules: { invoices: { options: { uniqueNumber: true } } },
+      }),
+    ).toThrow(/uniqueNumber was removed.*distinct `identifier`/su);
+  });
+});
