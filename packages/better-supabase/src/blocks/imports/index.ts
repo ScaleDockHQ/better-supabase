@@ -60,6 +60,8 @@ export { importsSqlOptions, type ImportsSqlOptions } from "./options.ts";
 
 export { importsBlock } from "./manifest.ts";
 
+export { integrityReport, type IntegrityCheck } from "./integrity.ts";
+
 export {
   diffItems,
   stableJson,

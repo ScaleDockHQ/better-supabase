@@ -1574,6 +1574,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "integrates": [
         "attachments",
+        "contacts",
+        "invoices",
+        "ledger",
         "outbox",
         "search"
       ],

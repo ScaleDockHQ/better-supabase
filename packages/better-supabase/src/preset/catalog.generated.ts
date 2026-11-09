@@ -2099,6 +2099,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "attachments",
+        "contacts",
+        "invoices",
+        "ledger",
         "outbox",
         "search"
       ],

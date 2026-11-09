@@ -22,6 +22,7 @@ import { batchSql } from "./imports-batch.ts";
 import { CHUNK_TABLE, chunkFunctions, chunkTable } from "./imports-chunks.ts";
 import { importContract as contract } from "./imports-contract.ts";
 import { hashFunctions } from "./imports-hashes.ts";
+import { eventsPolicyOf, importIntegritySql } from "./imports-integrity.ts";
 import {
   importIssueCounts,
   importIssueHelpers,
@@ -37,7 +38,6 @@ import {
 } from "./imports-targets.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
-/** The SQLSTATE a dry run raises to roll its writes back. */
 const DRY_RUN_STATE = "BSDRY";
 
 const EVENTS: BlockSqlEvents<ImportsEvents> = {
@@ -125,37 +125,6 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-const EVENT_MODES: ReadonlySet<string> = new Set(["skip", "tag", "emit"]);
-
-/**
- * `blocks.imports.options.events` as the JSON the session carries: an outbox
- * event type (or `default`) to `skip`, `tag` or `emit`. Without an entry an
- * event is skipped, so an import fires no webhook or workflow unless asked.
- */
-function eventsPolicyOf(ctx: BlockSqlContext): string {
-  const where = "blocks['imports'].options.events";
-  const raw: unknown = ctx.option("events") ?? {};
-
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new TypeError(
-      `${where} must map event types (or "default") to skip, tag or emit`,
-    );
-  }
-
-  const policy: Record<string, string> = {};
-
-  for (const [type, mode] of new Map<string, unknown>(Object.entries(raw))) {
-    if (typeof mode !== "string" || !EVENT_MODES.has(mode)) {
-      throw new TypeError(`${where}.${type} must be skip, tag or emit`);
-    }
-
-    policy[type] = mode;
-  }
-
-  return JSON.stringify(policy);
-}
-
-/** `blocks.imports.options.audit`: one audit entry per row or per entity. */
 function auditModeOf(ctx: BlockSqlContext): "rows" | "summary" {
   const raw: unknown = ctx.option("audit") ?? "rows";
 
@@ -552,7 +521,7 @@ begin
 end;
 $$;
 ${serviceGrant(`${ctx.fn("finish_import")}(uuid, text, integer, text)`)}
-${importIssueHelpers(ctx, manage)}
+${importIssueHelpers(ctx, manage)}${importIntegritySql(ctx)}
 
 -- Writes the items of one entity: an unknown key inserts, an equal hash is
 -- unchanged and writes nothing, a changed hash updates unless the row changed
@@ -1056,7 +1025,14 @@ export const IMPORTS: BlockSqlDefinition = {
   description:
     "Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.",
   requires: ["memberships", "permissions", "queue"],
-  integrates: ["attachments", "outbox", "search"],
+  integrates: [
+    "attachments",
+    "contacts",
+    "invoices",
+    "ledger",
+    "outbox",
+    "search",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,
