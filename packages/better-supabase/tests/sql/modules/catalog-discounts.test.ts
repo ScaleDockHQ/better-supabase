@@ -6,13 +6,14 @@ import { renderBlocks } from "../../../src/sql/render.ts";
 
 const render = (
   names: readonly string[],
+  module: string,
   options?: Record<string, unknown>,
 ): string =>
   renderBlocks(
     [...names],
     options === undefined
       ? {}
-      : ({ modules: { quotes: { options } } } satisfies BlockSqlLayout),
+      : ({ modules: { [module]: { options } } } satisfies BlockSqlLayout),
   )
     .map((file) => file.contents)
     .join("\n");
@@ -43,25 +44,31 @@ describe("catalog discount matrix", () => {
   it("registers import targets for groups and rules", () => {
     expect(sql).toContain("import_discount_group");
     expect(sql).toContain("import_discount_rule");
+    expect(sql).toContain("import_party_discount_group");
   });
 });
 
 describe("discountMatrix option", () => {
   it("leaves quote lines unpriced by the matrix by default", () => {
-    expect(render(["catalog", "quotes"])).not.toContain(
+    expect(render(["catalog", "quotes"], "quotes")).not.toContain(
       'resolve_line_discount"(v_tenant',
     );
   });
 
   it("prices quote lines through the matrix when on", () => {
-    expect(render(["catalog", "quotes"], { discountMatrix: true })).toContain(
-      'resolve_line_discount"(v_tenant',
-    );
+    expect(
+      render(["catalog", "quotes"], "quotes", { discountMatrix: true }),
+    ).toContain('resolve_line_discount"(v_tenant');
   });
 
   it("passes a uuid party column as the text party", () => {
-    expect(render(["catalog", "quotes"], { discountMatrix: true })).toMatch(
-      /resolve_line_discount"\(v_tenant, \(\(select [^;]+\)\)::text,/,
-    );
+    const cast = /resolve_line_discount"\([^)]*\(select [^;]+\)\)::text,/;
+
+    expect(
+      render(["catalog", "quotes"], "quotes", { discountMatrix: true }),
+    ).toMatch(cast);
+    expect(
+      render(["catalog", "invoices"], "invoices", { discountMatrix: true }),
+    ).toMatch(cast);
   });
 });

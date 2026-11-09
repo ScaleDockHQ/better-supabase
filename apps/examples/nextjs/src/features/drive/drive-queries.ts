@@ -60,7 +60,10 @@ async function loadFolder(folderId: string | null) {
   const drive = driveOf(db);
 
   const [children, path] = await Promise.all([
-    drive.list({ organizationId: tenant, options: { parentId: folderId } }),
+    drive.list({
+      organizationId: tenant,
+      options: { parentId: folderId, pageSize: 100 },
+    }),
     folderId === null ? null : drive.path(folderId),
   ]);
 

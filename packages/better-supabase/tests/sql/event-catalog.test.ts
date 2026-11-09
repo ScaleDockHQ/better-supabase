@@ -84,6 +84,10 @@ const OPTIONAL = new Set([
   "approval_policy.created",
   "approval_policy.updated",
   "approval_policy.deleted",
+  // Recorded only for a machine that turns lifecycle calls on.
+  "status.paused",
+  "status.resumed",
+  "status.flagged",
 ]);
 
 const declared = (module: string): string[] =>

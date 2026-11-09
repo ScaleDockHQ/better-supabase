@@ -60,6 +60,21 @@ export function powersyncEngine(
   const { cache, connector, throttleMs, tables, local, fallback, ...executor } =
     options;
 
+  // Tables whose reads ran on the server. A reconnect refreshes those, and
+  // leaves SQLite-backed reads to PowerSync's own change events.
+  const serverTables = new Set<string>();
+
+  const trackServer = (inner: Executor): Executor => ({
+    ...inner,
+    execute: (op, context) => {
+      if (op.kind === "select") {
+        serverTables.add(op.table.key);
+      }
+
+      return inner.execute(op, context);
+    },
+  });
+
   const changes: DataChanges | undefined =
     database.onChange === undefined
       ? undefined
@@ -75,7 +90,9 @@ export function powersyncEngine(
             );
 
             const unlisten = onReconnect(database, () => {
-              engine.invalidate(["bsb"]);
+              for (const key of serverTables) {
+                engine.invalidate(["bsb", key]);
+              }
             });
 
             return () => {
@@ -96,7 +113,9 @@ export function powersyncEngine(
     connect: (server) =>
       powersyncExecutor(database, {
         ...executor,
-        ...(fallback === false ? {} : { fallback: fallback ?? server }),
+        ...(fallback === false
+          ? {}
+          : { fallback: trackServer(fallback ?? server) }),
       }),
     sync:
       currentStatus === undefined || !listens

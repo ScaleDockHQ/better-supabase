@@ -110,6 +110,20 @@ export { blocks };
 import { createCommentsController } from "better-supabase/blocks/comments";
 export { createCommentsController };
 `,
+  // The Expo app: the native client, the native React helpers and PowerSync.
+  "client/native + react/native + powersync": `
+import { defineSchema, createSupabase } from "better-supabase";
+import { createNativeClient, syncQueryWithApp } from "better-supabase/client/native";
+import { powersyncEngine } from "better-supabase/powersync";
+import { OfflineBoundary, nativePermissions } from "better-supabase/react/native";
+import meta from "./generated.meta.js";
+const betterSupabase = createSupabase(defineSchema(meta));
+export const open = (supabase) =>
+  createNativeClient(betterSupabase, supabase, {
+    engine: powersyncEngine(supabase),
+  });
+export { syncQueryWithApp, OfflineBoundary, nativePermissions };
+`,
 } satisfies Readonly<Record<string, string>>;
 
 /**

@@ -643,4 +643,59 @@ describe("defineListQuery", () => {
       "size",
     ]);
   });
+
+  it("caps facet counts at a sample and reuses a cached count", async () => {
+    const faceted = defineListQuery(betterSupabase, "customers", {
+      facets: { status: "status" },
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+      facetCounts: true,
+      facetCountMode: "capped",
+      facetScanCap: 2,
+    });
+
+    const { client, requests } = capturingClient((request) => {
+      const select = request.params.get("select");
+
+      if (select === "status") {
+        return { body: [{ status: "active" }, { status: "lead" }] };
+      }
+
+      return { body: [{ id: "c1" }], headers: { "content-range": "0-0/1" } };
+    });
+
+    const db = betterSupabase.connect(client);
+    const first = faceted.defaults;
+    const second = { ...faceted.defaults, size: 10 };
+
+    expect(faceted.facetCacheKey(first)).toBe(faceted.facetCacheKey(second));
+
+    const page = await faceted.run(db, first).orThrow();
+
+    expect(page.facetCounts.status).toEqual({
+      lead: 1,
+      active: 1,
+      archived: 0,
+    });
+    expect(page.facetCountsCapped).toBe(true);
+    expect(
+      requests.some((request) => request.params.get("select") === "status"),
+    ).toBe(true);
+    expect(
+      requests
+        .find((request) => request.params.get("select") === "status")
+        ?.params.get("limit"),
+    ).toBe("2");
+    expect(
+      requests.some((request) =>
+        request.params.get("select")?.includes("count()"),
+      ),
+    ).toBe(false);
+
+    const counts = await faceted.countFacets(db, second).orThrow();
+    const before = requests.length;
+
+    await faceted.run(db, second, { facetCounts: counts }).orThrow();
+    expect(requests).toHaveLength(before + 1);
+  });
 });

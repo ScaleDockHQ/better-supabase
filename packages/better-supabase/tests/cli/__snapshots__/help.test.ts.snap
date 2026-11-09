@@ -558,6 +558,33 @@ Docs: https://bettersupabase.com/docs/cli/codemod
 "
 `;
 
+exports[`help > documents codes 1`] = `
+"Usage: better-supabase codes [options]
+
+Prints the stable error and import-warning codes. --json prints the catalog.
+
+Global options
+  --cwd <dir>                Project directory
+  --config <file>            Config file, relative to --cwd
+  --env <name>               Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                     Print one JSON document on stdout; a failure prints an error document on stderr. On by default in agent mode
+  --agent <auto|yes|no>      Agent mode (JSON output, no prompts, confirmation for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --effects-digest <digest>  The digest from a confirmation_required result; with --yes, confirms exactly those effects
+  -y, --yes                  Answer yes to every confirmation; ask nothing
+  --non-interactive          Never prompt; fail with input_required when a value is missing. On in CI and agent mode
+  --no-color                 Print no colors, like $NO_COLOR
+  --debug                    Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help                 Show help
+
+Examples
+  # Prints every code and its English message
+  $ better-supabase codes --json
+
+Side effects: None.
+Docs: https://bettersupabase.com/docs/cli/codes
+"
+`;
+
 exports[`help > documents completion 1`] = `
 "Usage: better-supabase completion [options] [shell]
 
@@ -1622,6 +1649,7 @@ Options
   --tests-dir <dir>  Where the pgtap module goes. Defaults to database.sql.testsDir
   --dry-run          Show what would be written
   --force            Overwrite or remove block files that were edited by hand
+  --preserve <file>  Leave this hand-edited block file in place and write the new render beside it as .new
   --no-cache         Render every module again instead of reading the render cache
 
 Global options
@@ -1762,6 +1790,7 @@ Local stack
 Inspect
   automations  Lists the automations the installed blocks ship
   doctor       Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --fail-on warning
+  codes        Prints the stable error and import-warning codes. --json prints the catalog.
   config       Prints the resolved config: the file it came from, the active environment and every option with its default, or the preset it names with --preset
   mcp          Serves the CLI to coding agents as an MCP server on stdio: read-only tools, and file writes with --allow-writes and the user's consent
 

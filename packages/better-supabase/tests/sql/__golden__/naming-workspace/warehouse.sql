@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_166_warehouse.sql
+-- ==== schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
 -- @bsb-hash sha256:94d47875cf8179640ebde02dabd52cf7415d574fbad59e86c2ca8466e09224c3
@@ -1682,7 +1682,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_166_warehouse.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block-data warehouse
 -- @bsb-hash sha256:de99a8b453ef3a1d4c58c453b819cfb6b0f618135357c930067906efa72c5215

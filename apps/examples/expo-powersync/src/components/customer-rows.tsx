@@ -1,9 +1,9 @@
 import type { ReactElement } from "react";
-import type { ListRenderItem } from "react-native";
 
+import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { memo } from "react";
-import { FlatList, Pressable, Text } from "react-native";
+import { Pressable, Text } from "react-native";
 
 interface Row {
   readonly id: string;
@@ -30,28 +30,29 @@ function CustomerRowItem({ row }: { readonly row: Row }): ReactElement {
 
 const CustomerRow = memo(CustomerRowItem);
 
-const renderRow: ListRenderItem<Row> = ({ item }) => <CustomerRow row={item} />;
-
 const rowKey = (row: Row): string => row.id;
 
 /**
- * One row per customer; `memo` skips a row whose props didn't change between
- * two renders of the page.
+ * One row per customer. The list draws the rows on screen and asks for the next
+ * page as the reader nears the end.
  */
 export function CustomerRows({
   rows,
   footer,
+  onEndReached,
 }: {
   readonly rows: readonly Row[];
   readonly footer: ReactElement;
+  readonly onEndReached?: (() => void) | undefined;
 }) {
   return (
-    <FlatList
+    <FlashList
       data={rows}
       keyExtractor={rowKey}
-      renderItem={renderRow}
+      renderItem={({ item }) => <CustomerRow row={item} />}
       ListFooterComponent={footer}
-      contentInsetAdjustmentBehavior="automatic"
+      onEndReached={onEndReached}
+      onEndReachedThreshold={0.5}
     />
   );
 }

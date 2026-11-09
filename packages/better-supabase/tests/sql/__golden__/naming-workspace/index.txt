@@ -119,6 +119,7 @@ legal-entities
 funding
 payroll-export
 maintenance
+warranty
 dam
 tax
 document-templates

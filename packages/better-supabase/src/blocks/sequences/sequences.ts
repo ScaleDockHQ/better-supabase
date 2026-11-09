@@ -196,6 +196,7 @@ export interface Sequences {
   /** The organization's sequences; archived ones only with that status. */
   list(filter?: {
     readonly status?: SequenceStatus;
+    readonly limit?: number;
   }): AsyncResult<readonly Sequence[]>;
   get(sequenceId: string): AsyncResult<Sequence>;
   /** Deletes a sequence with its enrollments; false when there was none. */
@@ -529,10 +530,15 @@ export function createSequences(options: SequencesOptions): Sequences {
         call(
           "list_sequences",
           { tenant: organizationId, status: filter.status ?? null },
-          (value) =>
-            recordsOf(value, "list_sequences").map((row) =>
+          (value) => {
+            const rows = recordsOf(value, "list_sequences").map((row) =>
               sequenceOf(row, "list_sequences"),
-            ),
+            );
+
+            return filter.limit === undefined
+              ? rows
+              : rows.slice(0, filter.limit);
+          },
         ),
       ),
     get: (sequenceId) =>

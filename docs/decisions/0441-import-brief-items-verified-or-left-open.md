@@ -33,10 +33,13 @@ each item in one line. This record says, per item that did not become code, why.
 ## Still open, with the reason
 
 - **6.2 localized seeds, 1.22 ordered-series warning, 3.1 open-items fast path,
-  9.4 `indexes.skip`, 8.2 notNull and 4.6 `sanitizeText` packs.** The plan gives one
-  line for each and the brief text is not in the repository, so the behaviour to build
-  is not defined here. They need their brief paragraph before code; each is a small
-  slice once it exists.
+  8.2 notNull and 4.6 `sanitizeText` packs.** The brief now names each one.
+  They are still open: 6.2 needs a seed catalog for en, nl and de across every
+  seed function; 1.22 needs an ordered-series import warning and a chunk sort;
+  3.1 needs stored invoice balances instead of replaying the ledger for today;
+  8.2 needs not-null inferred from function bodies (the config and `@notNull`
+  tag remain overrides); 4.6 needs the `better-supabase/normalize` subpath from
+  4.1, which is not shipped. 9.4 `indexes.skip` is `blocks.<name>.indexes.skip`.
 - **The medium items** (7.6, 7.1, 7.2, 1.7, 1.23, 1.24, 1.21, 1.4, 1.10, 1.15 to 1.18,
   4.1, 4.2, 5.3, 3.2, 9.3, 8.1, 8.3, 8.5, 1.27, 6.3, 11.1, 11.3 and the carried
   items), **1.11 to 1.14, 1.19, 3.3, 3.4, 4.3 to 4.5, 5.4, 10.1 to 10.9, 9.5, 9.6 and
@@ -44,5 +47,5 @@ each item in one line. This record says, per item that did not become code, why.
 
 ## Consequences
 
-Nothing changes in the library. When the brief paragraphs are added to the repository
-(or pasted into an issue), each open item becomes its own slice with a pgTAP test.
+9.4 is `blocks.<name>.indexes.skip`. The other open items stay open until their
+slice lands. 9.5 still waits for the authorization provider's compact snapshot.

@@ -1,5 +1,6 @@
+import { FlashList } from "@shopify/flash-list";
 import { Stack } from "expo-router";
-import { ScrollView } from "react-native";
+import { View } from "react-native";
 
 import { ApiKeysTable } from "../components/api-keys-table";
 import { AuditLogTable } from "../components/audit-log-table";
@@ -12,15 +13,55 @@ import { RevokeAdmin } from "../components/revoke-admin";
  * with the same hooks as the Next.js example, and a role revoke whose effect
  * the revoked user's device picks up without signing in again.
  */
+const sections = ["members", "revoke", "invite", "keys", "audit"] as const;
+
+type Section = (typeof sections)[number];
+
+function TeamSection({ item }: { readonly item: Section }) {
+  switch (item) {
+    case "members": {
+      return <MembersTable />;
+    }
+
+    case "revoke": {
+      return <RevokeAdmin />;
+    }
+
+    case "invite": {
+      return <InviteDialog />;
+    }
+
+    case "keys": {
+      return <ApiKeysTable />;
+    }
+
+    case "audit": {
+      return <AuditLogTable />;
+    }
+
+    default: {
+      const unexpected: never = item;
+
+      throw new Error(unexpected);
+    }
+  }
+}
+
 export default function TeamScreen() {
   return (
-    <ScrollView contentContainerStyle={{ gap: 24, padding: 16 }}>
+    <>
       <Stack.Screen options={{ title: "Team" }} />
-      <MembersTable />
-      <RevokeAdmin />
-      <InviteDialog />
-      <ApiKeysTable />
-      <AuditLogTable />
-    </ScrollView>
+      <FlashList
+        data={sections}
+        keyExtractor={(item) => item}
+        renderItem={TeamSection}
+        contentContainerStyle={{ padding: 16 }}
+        ItemSeparatorComponent={Separator}
+      />
+    </>
   );
+}
+
+function Separator() {
+  return <View style={{ height: 24 }} />;
 }

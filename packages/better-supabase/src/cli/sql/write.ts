@@ -198,7 +198,11 @@ export async function write(
         ]),
       ].map((path) => guardedRemoval(path)),
     }),
-    { "dry-run": dryRun, force: args.force === true },
+    {
+      "dry-run": dryRun,
+      force: args.force === true,
+      ...(args.preserve === undefined ? {} : { preserve: [args.preserve] }),
+    },
   );
 
   lines.push(...changeLines(applied));

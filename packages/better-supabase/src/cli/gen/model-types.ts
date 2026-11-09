@@ -49,6 +49,11 @@ export interface RelationModel {
   /** Database names of the foreign key's columns and the ones it references. */
   readonly fkColumns: readonly string[];
   readonly refColumns: readonly string[];
+  /**
+   * Foreign key names that share this relation. A composite key whose first
+   * column is the single-column key to the same table is one of these.
+   */
+  readonly aliases?: readonly string[];
   readonly meta: RelationMeta;
 }
 

@@ -428,10 +428,28 @@ function tenantSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     ? `(select coalesce(jsonb_agg(r."role" order by r."role"), '[]'::jsonb) from ${membershipRolesTable(ctx)} r where r.${tenant} = m.${tenant} and r.${user} = m.${user})`
     : `jsonb_build_array(${role})`;
 
+  const claimFormat = ctx.text("claimFormat", "array");
+
   const claimJson =
-    ctx.text("claimFormat", "array") === "map"
+    claimFormat === "map"
       ? `coalesce(jsonb_object_agg(m.${tenant}::text, ${many ? roleSet : role}), '{}'::jsonb)`
-      : `coalesce(jsonb_agg(jsonb_build_object(
+      : claimFormat === "summary"
+        ? `jsonb_build_object(
+      'form', 'summary',
+      'roles', coalesce(jsonb_agg(distinct ${role} order by ${role}), '[]'::jsonb),
+      'tenants', coalesce(jsonb_object_agg(m.${tenant}::text, (
+        select count(*)::integer
+        from (
+          select distinct ${role} as role_name
+          from ${m} named
+          where named.${user} = m.${user}
+            and not better_supabase.user_disabled(named.${user})
+            and not better_supabase.tenant_disabled(named.${tenant})${activeMembership(ctx, "named")}
+        ) names
+        where names.role_name < ${role}
+      )), '{}'::jsonb)
+    )`
+        : `coalesce(jsonb_agg(jsonb_build_object(
       'scope', ${sqlString(ctx.claims.scope)},
       'id', m.${tenant},
       'roles', ${roleSet}
@@ -534,7 +552,8 @@ grant execute on function ${ctx.fn("has_organization_role")}(${id}, text[]) to a
 grant execute on function ${ctx.fn("organization_member_role")}(${id}, uuid) to service_role;
 
 -- The memberships claim. \`claimFormat: 'array'\` (the default) is
--- [{ scope, id, roles }]; \`'map'\` is { [tenant id]: role }. When an
+-- [{ scope, id, roles }]; \`'map'\` is { [tenant id]: role }; \`'summary'\`
+-- is { form, roles, tenants } with a role index per tenant. When an
 -- authorization provider's hook writes this claim, use its hook instead.
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',

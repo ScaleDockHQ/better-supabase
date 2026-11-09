@@ -44,6 +44,7 @@ export async function getPlans(): Promise<readonly PlanOption[]> {
         planFeatures: { select: ["featureKey", "included", "value"] },
       },
       orderBy: { position: "asc" },
+      limit: 100,
     })
     .orThrow();
 

@@ -81,6 +81,7 @@ import {
   OPEN_ITEM_EVENTS,
   openItemContract,
 } from "./invoices-open-items.ts";
+import { OPEN_ITEMS_TABLE } from "./invoices-open-store.ts";
 import { PURCHASE_COLUMNS, purchaseNames } from "./invoices-purchase.ts";
 import { repairContract } from "./invoices-repair.ts";
 import {
@@ -255,6 +256,7 @@ const NAMES: BlockSqlNames = {
         status: "status",
         termsDays: "terms_days",
         issuedOn: "issued_on",
+        suppliedOn: "supplied_on",
         dueOn: "due_on",
         paidTotal: "paid_total",
         creditedTotal: "credited_total",
@@ -302,6 +304,7 @@ const NAMES: BlockSqlNames = {
         "note",
         "originType",
         "originId",
+        "suppliedOn",
         "depositBps",
         "depositAmount",
         "discountBps",
@@ -348,6 +351,7 @@ const NAMES: BlockSqlNames = {
     dunningRunItems: DUNNING_RUN_ITEMS_TABLE,
     dunningHistory: DUNNING_HISTORY_TABLE,
     allocations: ALLOCATIONS_TABLE,
+    openItems: OPEN_ITEMS_TABLE,
     lineSources: LINE_SOURCES_TABLE,
     approvalLevels: APPROVAL_LEVELS_TABLE,
     approvals: APPROVALS_TABLE,
@@ -467,7 +471,7 @@ create table if not exists ${t("invoices")} (
   ${i("currency")} char(3) not null check (${i("currency")} ~ '^[A-Z]{3}$'),
   ${i("status")} text not null default 'draft' check (${i("status")} in ('draft', 'issued', 'partially_paid', 'paid', 'void', 'uncollectible')),
   ${i("termsDays")} integer not null default 30 check (${i("termsDays")} >= 0),
-  ${i("issuedOn")} date,
+  ${i("issuedOn")} date,${column("suppliedOn", "date")}
   ${i("dueOn")} date,
   ${i("paidTotal")} bigint not null default 0,
   ${i("creditedTotal")} bigint not null default 0,

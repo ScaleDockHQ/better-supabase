@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_167_rfqs.sql
+-- ==== schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
 -- @bsb-hash sha256:ecc18afb22aa3c76f357dd9a0da571c3b42aaa3c9df93ad305fbc3d87a3356ae
@@ -910,7 +910,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."rfq_quote_lines" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_167_rfqs.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block-data rfqs
 -- @bsb-hash sha256:4f060bda0baa0954c3319bfb338686aa96c7946ee6b9106908b1bba5bf406eaa

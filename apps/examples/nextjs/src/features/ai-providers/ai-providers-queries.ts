@@ -42,7 +42,9 @@ export async function getProviderKeys(): Promise<ProviderKeysRead> {
     return { ok: true, keys: [] };
   }
 
-  const result = await aiProviders(supabase).keys.list(organizationId);
+  const result = await aiProviders(supabase).keys.list(organizationId, {
+    limit: 100,
+  });
 
   if (!result.ok) {
     return { ok: false, error: result.error };

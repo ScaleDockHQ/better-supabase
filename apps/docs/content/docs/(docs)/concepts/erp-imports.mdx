@@ -109,3 +109,55 @@ See [Custom fields](/docs/blocks/custom-fields).
   changed in the ledger. See [Invoices](/docs/blocks/invoices#repair-stored-totals).
 - Order payments are `payments` rows, so import them through the payments
   entity of the source.
+
+## 9. Order of entities
+
+Import parties before the documents that name them, products before the lines
+that sell them, and accounts and journals before ledger entries. Targets name
+that order with `dependsOn`. `importWaves` groups entities that do not depend
+on each other into one wave, and a later wave waits until every chunk of the
+earlier wave is done. Set `plan.unordered` only when the file is already in
+the right order.
+
+A worked order for a bookkeeping file is: payment terms, parties, products,
+quotes, orders, invoices, payments, allocations, accounts, journals, entries,
+opening balances.
+
+## 10. Repeat imports and a dry run
+
+Send `sourceUpdatedAt` when the source has a modification time. A row whose
+time is not newer than the stored one is skipped before it is hashed.
+`diffItems` reports the same split (`created`, `changed`, `unchanged`) before
+you start a run.
+
+A dry run writes no subject row. `list_import_diff` reads the counts and the
+first changed fields. Pass `previous` on an item to store the old and new
+value of each field that differs.
+
+## 11. Historical documents
+
+`settlement: "row"` writes a paid or partially paid invoice without a ledger
+posting. `settlement: "link"` adds an allocation to an existing receipt and
+still posts nothing. An imported accounting entry opens the fiscal year and
+its twelve periods when they are missing. Set `options.closeHistorical` to
+close earlier open years, and refuse an opening balance set that does not
+add up to zero.
+
+## 12. Performance
+
+Keep a chunk near a few hundred rows. Batch targets write one statement per
+chunk. Skip the search watch for the duration of the run
+(`better_supabase.search_deferred`). After the documents are in, call
+`rebuild_open_items` once instead of replaying every invoice. `import_integrity`
+then counts duplicate keys, unbalanced entries, negative invoices that are not
+credit notes, issued documents without a number, and archived parties without
+a date.
+
+## 13. App targets
+
+Register an app target with `blocks.imports.options.targets`. The write is
+`(run uuid, item jsonb, subject_id text) returns jsonb` and returns
+`subjectId` and `updatedAt`. An `updatedAt` reader `(subject_id text) returns
+timestamptz` leaves a row a user edited after the import as `conflicted`.
+`dependsOn` names the entities that must finish first. A natural key adopts a
+row that already exists. See [Imports](/docs/blocks/imports).

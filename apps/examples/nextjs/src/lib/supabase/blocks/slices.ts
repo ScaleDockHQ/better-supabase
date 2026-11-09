@@ -1250,8 +1250,12 @@ export const facilitiesConfig = {
       set_task_assignees: "set_maintenance_request_assignees",
       task_tree: "maintenance_request_tree",
       update_tasks: "update_maintenance_requests",
+      list_task_materials: "list_maintenance_request_materials",
+      list_task_specification: "list_maintenance_request_specification",
       save_iteration: "facilities_save_iteration",
       save_project: "facilities_save_project",
+      save_task_material_line: "save_maintenance_request_material_line",
+      save_task_specification_line: "save_maintenance_request_specification_line",
     },
     entities: [{
       from: {

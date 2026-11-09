@@ -11,6 +11,7 @@ import {
   parseDeclared,
 } from "../sql/index.ts";
 import { codeRanges } from "./code-ranges.ts";
+import { CliError } from "./core/errors.ts";
 import { layoutFor } from "./sql/providers.ts";
 
 /** One `extraColumns` option of a block in the config. */
@@ -346,18 +347,29 @@ export function extraColumnsCodemod(): Codemod {
       const modules = layout.modules;
 
       const tableOf = (block: string, key: string): string | undefined => {
-        const ctx = moduleContext(
-          block,
-          { ...layout, ...(modules === undefined ? {} : { modules }) },
-          config.blockNames,
-        );
+        try {
+          const ctx = moduleContext(
+            block,
+            { ...layout, ...(modules === undefined ? {} : { modules }) },
+            config.blockNames,
+          );
 
-        return legacyOptionTarget(
-          block,
-          key,
-          config.blocks[block]?.tables,
-          (logical) => ctx.tableName(logical),
-        )?.table;
+          return legacyOptionTarget(
+            block,
+            key,
+            config.blocks[block]?.tables,
+            (logical) => ctx.tableName(logical),
+          )?.table;
+        } catch (error) {
+          if (error instanceof CliError) {
+            throw error;
+          }
+
+          const message =
+            error instanceof Error ? error.message : String(error);
+
+          throw new CliError("config_invalid", message, { cause: error });
+        }
       };
 
       return extraColumnsFiles({

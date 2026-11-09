@@ -1,5 +1,7 @@
 export { BetterSupabase, createSupabase } from "./core/define.ts";
 
+export { decodeRpcReturn, registerRpcReturn } from "./schema/rpc-returns.ts";
+
 export type {
   ConnectOptions,
   SupabaseOptions,

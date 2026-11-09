@@ -230,6 +230,40 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           "blocks.outbox.options.defaultSource",
           "blocks.webhooks-out.options.secretStorage",
         ],
+        // Block columns on tables CentraKit creates itself, left undeclared.
+        "warning BS622": [
+          "centrakit.import_runs.diff",
+          "centrakit.import_runs.heartbeat_at",
+          "centrakit.import_runs.lease_expires_at",
+          "centrakit.import_runs.outcome",
+          "centrakit.import_runs.plan",
+        ],
+        // Raises in the generated modules that pass no stable hint code.
+        "warning BS627": [
+          "supabase/schemas/900_better_supabase_003_audit.sql",
+          "supabase/schemas/900_better_supabase_003_audit.sql",
+          "supabase/schemas/900_better_supabase_003_audit.sql",
+          "supabase/schemas/900_better_supabase_003_audit.sql",
+          "supabase/schemas/900_better_supabase_003_audit.sql",
+          "supabase/schemas/900_better_supabase_003_audit.sql",
+          "supabase/schemas/900_better_supabase_007_queue.sql",
+          "supabase/schemas/900_better_supabase_007_queue.sql",
+          "supabase/schemas/900_better_supabase_007_queue.sql",
+          "supabase/schemas/900_better_supabase_007_queue.sql",
+          "supabase/schemas/900_better_supabase_010_realtime_tables.sql",
+          "supabase/schemas/900_better_supabase_010_realtime_tables.sql",
+          "supabase/schemas/900_better_supabase_010_realtime_tables.sql",
+          "supabase/schemas/900_better_supabase_010_realtime_tables.sql",
+          "supabase/schemas/900_better_supabase_010_realtime_tables.sql",
+          "supabase/schemas/900_better_supabase_011_jsonb_schemas.sql",
+          "supabase/schemas/900_better_supabase_020_impersonation.sql",
+          "supabase/schemas/900_better_supabase_064_imports.sql",
+        ],
+        // Two foreign keys to one table whose first columns differ.
+        "warning BS630": [
+          "centrakit.employees",
+          "centrakit.notification_events",
+        ],
         // CentraKit's tables without the audit trigger.
         "error BS315": [
           "centrakit.contact_profiles",

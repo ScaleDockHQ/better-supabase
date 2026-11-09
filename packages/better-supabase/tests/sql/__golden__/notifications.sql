@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:3e2bb385c34c3fef6522eb813a699421addc2d0c549611ed956b5f9c9c946b2f
+-- @bsb-hash sha256:c6e945121845e1cfbafc830dc7bc4f4d8faedd9e3bea30dfd7778c13ee7df7dd
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,7 +48,7 @@ create table "better_supabase"."notification_recipients" (
   "created_at" timestamptz not null default now(),
   unique ("event_id", "user_id")
 );
-create index notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc) where "dismissed_at" is null;
+create index notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc, "id" desc) where "dismissed_at" is null;
 create index notification_recipients_unread_idx on "better_supabase"."notification_recipients" ("user_id") where "read_at" is null and "dismissed_at" is null;
 create index notification_recipients_user_idx on "better_supabase"."notification_recipients" ("user_id");
 alter table "better_supabase"."notification_recipients" enable row level security;
@@ -1584,7 +1584,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:8cceca180309d85d0e0f161002515bcb806bbc66c619fc6f85895290d65b651e
+-- @bsb-hash sha256:94700465d57928deae1a22399ebc145e6fbd18ff2d6d815dc6a8404ca5b5bce2
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1631,7 +1631,7 @@ create table "better_supabase"."notification_recipients" (
   "created_at" timestamptz not null default now(),
   unique ("event_id", "user_id")
 );
-create index notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc) where "dismissed_at" is null;
+create index notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc, "id" desc) where "dismissed_at" is null;
 create index notification_recipients_unread_idx on "better_supabase"."notification_recipients" ("user_id") where "read_at" is null and "dismissed_at" is null;
 create index notification_recipients_user_idx on "better_supabase"."notification_recipients" ("user_id");
 alter table "better_supabase"."notification_recipients" enable row level security;
@@ -3245,7 +3245,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:3273517075a07a8455192d686b99bc06122a47826180c9c0ad7018f9ebd116de
+-- @bsb-hash sha256:6ee367ed93e93b585cc60d766555e5eeca40beec5f8d3fe29dc0ad43aa0896f9
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3297,7 +3297,7 @@ create table "app_private"."notification_recipients" (
   "created_at" timestamptz not null default now(),
   unique ("event_id", "user_id")
 );
-create index notification_recipients_inbox_idx on "app_private"."notification_recipients" ("user_id", "created_at" desc) where "dismissed_at" is null;
+create index notification_recipients_inbox_idx on "app_private"."notification_recipients" ("user_id", "created_at" desc, "id" desc) where "dismissed_at" is null;
 create index notification_recipients_unread_idx on "app_private"."notification_recipients" ("user_id") where "read_at" is null and "dismissed_at" is null;
 create index notification_recipients_user_idx on "app_private"."notification_recipients" ("user_id");
 alter table "app_private"."notification_recipients" enable row level security;
@@ -4833,7 +4833,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:d6cbfdce1e0b086e22300f81c5d181adaff3b03353511d0317e4e39cfd4848aa
+-- @bsb-hash sha256:d4baabb355fd42229bc38af33144d84dbe3d27906a0f638b5c747e344ee535c7
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4880,7 +4880,7 @@ create table "better_supabase"."notification_recipients" (
   "created_at" timestamptz not null default now(),
   unique ("event_id", "user_id")
 );
-create index notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc) where "dismissed_at" is null;
+create index notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc, "id" desc) where "dismissed_at" is null;
 create index notification_recipients_unread_idx on "better_supabase"."notification_recipients" ("user_id") where "read_at" is null and "dismissed_at" is null;
 create index notification_recipients_user_idx on "better_supabase"."notification_recipients" ("user_id");
 alter table "better_supabase"."notification_recipients" enable row level security;
@@ -6704,7 +6704,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:4e9a41f0b68904efab5e592d1b7f4f6c183ca0a768d996dc9219991634639c5d
+-- @bsb-hash sha256:0dc2d36c0f95ac8ecb7ee50437aba406891a42b91b8ae575f52ebc26b25c05a5
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6747,7 +6747,7 @@ alter table "better_supabase"."notification_recipients" add column if not exists
 alter table "better_supabase"."notification_recipients" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."notification_events" add column if not exists "actions" jsonb;
 alter table "better_supabase"."notification_recipients" add column if not exists "resolution" jsonb;
-create index if not exists notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc) where "dismissed_at" is null;
+create index if not exists notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc, "id" desc) where "dismissed_at" is null;
 create index if not exists notification_recipients_unread_idx on "better_supabase"."notification_recipients" ("user_id") where "read_at" is null and "dismissed_at" is null;
 create index if not exists notification_recipients_user_idx on "better_supabase"."notification_recipients" ("user_id");
 alter table "better_supabase"."notification_recipients" enable row level security;
@@ -8273,7 +8273,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:29903bfc15c7d1896cb590308912c7ab2d86d6848f0ed5b652213b586f8ec4c5
+-- @bsb-hash sha256:6454f51b39d9a9c2545054e1825ced6ce15f445346525992d31ef4a5de6791bd
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8320,7 +8320,7 @@ create table "better_supabase"."notification_recipients" (
   "created_at" timestamptz not null default now(),
   unique ("event_id", "user_id")
 );
-create index notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc) where "dismissed_at" is null;
+create index notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc, "id" desc) where "dismissed_at" is null;
 create index notification_recipients_unread_idx on "better_supabase"."notification_recipients" ("user_id") where "read_at" is null and "dismissed_at" is null;
 create index notification_recipients_user_idx on "better_supabase"."notification_recipients" ("user_id");
 alter table "better_supabase"."notification_recipients" enable row level security;

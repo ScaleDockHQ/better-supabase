@@ -404,7 +404,7 @@ describe("codemod extra-columns", () => {
     );
 
     expect(await readFile(configFile, "utf-8")).toContain(
-      'columns: { nodes: { deletedAt: "deleted_at" } }',
+      'deletedAt: "deleted_at"',
     );
 
     // Pinned, so a second run changes nothing.
@@ -452,5 +452,99 @@ describe("codemod extra-columns", () => {
     );
 
     expect(result.output).toContain('deletedAt: "deleted_at"');
+  });
+
+  it("reads tenant pins from a block, an instance and an unknown module", async () => {
+    const config = resolveConfig(
+      { blocks: { invoices: { tables: { invoices: "public.invoices" } } } },
+      root,
+    );
+
+    const result = await runCodemod(
+      {
+        ...config,
+        blocks: {
+          ...config.blocks,
+          invoices: {
+            tables: { invoices: "invoices" },
+            columns: {
+              invoices: { tenant: "org_id" },
+              missing: { tenant: "org_id" },
+              skipped: { tenant: null },
+            },
+          },
+          "not-real": { columns: { rows: { tenant: "tenant_id" } } },
+        },
+        instances: {
+          billing: {
+            name: "billing",
+            block: "invoices",
+            uses: {},
+            config: {
+              schema: "billing",
+              tables: { invoices: "docs" },
+              columns: { invoices: { tenant: "buyer_id" } },
+            },
+          },
+        },
+      },
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+    );
+
+    expect(result.code).toBe(0);
+  });
+
+  it("fails when a block's column pins cannot be read", async () => {
+    const configFile = join(root, "bsb.config.ts");
+
+    await writeFile(configFile, "export default {};\n");
+
+    const result = await runCodemod(
+      {
+        ...resolveConfig({ blocks: { drive: {} } }, root),
+        blocks: { drive: { tables: { notATable: "public.x" } } },
+      },
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+      undefined,
+      configFile,
+    );
+
+    expect(result.code).toBe(2);
+    expect(result.error).toContain("notATable");
+  });
+
+  it("reports an optional column the database does not have", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/schemas/app.sql"),
+      `create table public.reminders (id uuid primary key, organization_id uuid not null);
+create table public.reminder_rules (id uuid primary key, organization_id uuid not null);
+create table public.reminder_deliveries (id uuid primary key, organization_id uuid not null);`,
+    );
+    const configFile = join(root, "bsb.config.ts");
+
+    await writeFile(configFile, "export default {};\n");
+
+    const result = await runCodemod(
+      resolveConfig(
+        {
+          blocks: {
+            reminders: {
+              tables: {
+                rules: "public.reminder_rules",
+                reminders: "public.reminders",
+                deliveries: "public.reminder_deliveries",
+              },
+            },
+          },
+        },
+        root,
+      ),
+      parseCommandArgs(codemodCommand("owned-columns"), ["owned-columns"]),
+      undefined,
+      configFile,
+    );
+
+    expect(result.output).toContain("optional");
   });
 });

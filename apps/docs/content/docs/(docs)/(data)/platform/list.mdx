@@ -126,6 +126,22 @@ frequent first, with ties in column order. A facet with more values keeps the
 page.facetCountsTruncated; // [] when every facet was counted in full
 ```
 
+`facetCountMode: "capped"` reads at most `facetScanCap` rows per facet (1000 by
+default) and counts that sample, instead of grouping every matching row. When
+the cap is reached, `page.facetCountsCapped` is true. `countFacets` returns
+those counts without the page, and `facetCacheKey` stays the same while the
+page, cursor and size change, so a cache can keep them:
+
+```ts
+const key = customerList.facetCacheKey(query);
+const counts = await customerList.countFacets(db, query).orThrow();
+const page = await customerList
+  .run(db, nextPage, { facetCounts: counts })
+  .orThrow();
+```
+
+A later page then does not count again.
+
 This needs PostgREST aggregates (`pgrst.db_aggregates_enabled`); doctor warns
 with [BS210](/docs/cli/doctor) when they are off. The counts
 [sort by `_count`](/docs/repository/aggregates#sort-groups-by-an-aggregate),

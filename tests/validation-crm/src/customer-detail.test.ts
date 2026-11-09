@@ -53,7 +53,7 @@ describe("customer detail", () => {
           },
         },
       ],
-      customerLocationsByCustomer: [],
+      customerLocations: [],
       _count_quotes: [{ count: 3 }],
       _count_invoices: [{ count: 2 }],
     }));

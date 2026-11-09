@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:d423bdf7e9b8be2d0cb68637acd279601f50f98042fae73894c35d2e3c82205a
@@ -435,7 +435,7 @@ $$;
 revoke execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08
@@ -449,7 +449,7 @@ values ('ai-evals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:6e3c050736b680d3d91418e79fed77be9574ae9438bfbbfcbe8c5e380894ee51
@@ -927,7 +927,7 @@ $$;
 revoke execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08
@@ -941,7 +941,7 @@ values ('ai-evals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:1a57bb99944de98e29443275c13fe74ba60125c09399a9cc0737396442c1ce34
@@ -1383,7 +1383,7 @@ $$;
 revoke execute on function "app_private"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "app_private"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08
@@ -1397,7 +1397,7 @@ values ('ai-evals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:e645a3c86c604b8169d333ab1f0ce5c7b31e2e801e07325a8650c721a751b661
@@ -1952,7 +1952,7 @@ as $$ select "better_supabase"."compare_eval_runs"($1, $2, $3) $$;
 revoke execute on function "api"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "api"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08
@@ -1966,7 +1966,7 @@ values ('ai-evals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:fe8926dc7a06036cf4d3d2ebd916bd4c7d6778c1b19edeb9b39ed6dc5869f09a
@@ -2394,7 +2394,7 @@ $$;
 revoke execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08
@@ -2408,7 +2408,7 @@ values ('ai-evals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
 -- @bsb-hash sha256:4e84f4f971e1970f22d2f068282e06a140f45bb5f15ea1695065701c9deceb47
@@ -2845,7 +2845,7 @@ $$;
 revoke execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."compare_eval_runs"(uuid, uuid, numeric) to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_181_ai_evals.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block-data ai-evals
 -- @bsb-hash sha256:29804813de8ce89a753953e7c33b5e6ba8a2a96b56aa5d12ccea830e60103d08

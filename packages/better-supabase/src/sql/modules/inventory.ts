@@ -306,6 +306,8 @@ const NAMES: BlockSqlNames = {
         supplierId: "supplier_id",
         status: "status",
         currency: "currency",
+        exchangeRate: "exchange_rate",
+        number: "number",
         expectedAt: "expected_at",
         note: "note",
         createdAt: "created_at",
@@ -318,6 +320,8 @@ const NAMES: BlockSqlNames = {
         sourceTemplate: "source_template_id",
       },
       optional: [
+        "exchangeRate",
+        "number",
         "shipTo",
         "originType",
         "originId",
@@ -338,8 +342,11 @@ const NAMES: BlockSqlNames = {
         variant: "variant_id",
         quantity: "quantity_ordered",
         received: "quantity_received",
+        quantityCanceled: "quantity_canceled",
+        taxCode: "tax_code",
         unitCost: "unit_cost",
       },
+      optional: ["quantityCanceled", "taxCode"],
     },
     ...PROCUREMENT_TABLES,
     ...TRACKING_TABLES,
@@ -505,7 +512,7 @@ create table if not exists ${t("purchaseOrders")} (
   ${po("supplierType")} text,
   ${po("supplierId")} text,
   ${po("status")} text not null default 'draft' check (${po("status")} in ('draft', 'ordered', 'partially_received', 'received', 'cancelled')),
-  ${po("currency")} char(3) not null check (${po("currency")} ~ '^[A-Z]{3}$'),
+  ${po("currency")} char(3) not null check (${po("currency")} ~ '^[A-Z]{3}$'),${ctx.has("purchaseOrders", "exchangeRate") ? `\n  ${po("exchangeRate")} numeric check (${po("exchangeRate")} is null or ${po("exchangeRate")} > 0),` : ""}${ctx.has("purchaseOrders", "number") ? `\n  ${po("number")} text,` : ""}
   ${po("expectedAt")} timestamptz,
   ${po("note")} text,
   ${po("createdAt")} timestamptz not null default now(),
@@ -515,7 +522,7 @@ create table if not exists ${t("purchaseOrders")} (
   unique (${po("id")}, ${po("tenant")})
 );
 create index if not exists ${ctx.naming.rename("purchase_orders_location_idx")} on ${t("purchaseOrders")} (${po("location")});
-create index if not exists ${ctx.naming.rename("purchase_orders_status_idx")} on ${t("purchaseOrders")} (${po("tenant")}, ${po("status")});
+create index if not exists ${ctx.naming.rename("purchase_orders_status_idx")} on ${t("purchaseOrders")} (${po("tenant")}, ${po("status")});${ctx.has("purchaseOrders", "number") ? `\ncreate unique index if not exists ${ctx.naming.rename("purchase_orders_number_idx")} on ${t("purchaseOrders")} (${po("tenant")}, ${po("number")}) where ${po("number")} is not null;` : ""}
 ${lockTable(t("purchaseOrders"), { read: true })}
 ${read("purchaseOrders")}
 
@@ -525,7 +532,7 @@ create table if not exists ${t("purchaseOrderLines")} (
   ${pl("order")} uuid not null references ${t("purchaseOrders")} (${po("id")}) on delete cascade,
   ${pl("variant")} uuid not null references ${variants},
   ${pl("quantity")} ${QUANTITY} not null check (${pl("quantity")} > 0),
-  ${pl("received")} ${QUANTITY} not null default 0 check (${pl("received")} between 0 and ${pl("quantity")}),
+  ${pl("received")} ${QUANTITY} not null default 0 check (${pl("received")} between 0 and ${pl("quantity")}${ctx.has("purchaseOrderLines", "quantityCanceled") ? ` - ${pl("quantityCanceled")}` : ""}),${ctx.has("purchaseOrderLines", "quantityCanceled") ? `\n  ${pl("quantityCanceled")} ${QUANTITY} not null default 0 check (${pl("quantityCanceled")} between 0 and ${pl("quantity")}),` : ""}${ctx.has("purchaseOrderLines", "taxCode") ? `\n  ${pl("taxCode")} text,` : ""}
   ${pl("unitCost")} bigint not null check (${pl("unitCost")} >= 0),
   unique (${pl("order")}, ${pl("variant")})
 );
@@ -623,6 +630,27 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     {
       name: "inventory_overview",
       args: ["{id}", "integer", "integer"],
+      returns: "jsonb",
+    },
+    {
+      name: "inventory_levels",
+      args: ["{id}", "uuid[]", "uuid"],
+      returns: "jsonb",
+    },
+    { name: "inventory_status_counts", args: ["{id}"], returns: "jsonb" },
+    {
+      name: "list_inventory_movements",
+      args: [
+        "{id}",
+        "uuid",
+        "uuid",
+        "uuid",
+        "uuid",
+        "text",
+        "text",
+        "integer",
+        "integer",
+      ],
       returns: "jsonb",
     },
     {

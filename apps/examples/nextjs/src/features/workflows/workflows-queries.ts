@@ -23,7 +23,9 @@ export async function getSchedules(): Promise<readonly ScheduleRow[]> {
     return [];
   }
 
-  const schedules = await db.workflows.schedules.list(tenant).orThrow();
+  const schedules = await db.workflows.schedules
+    .list(tenant, { limit: 100 })
+    .orThrow();
 
   return schedules.map((schedule) => ({
     id: schedule.id,

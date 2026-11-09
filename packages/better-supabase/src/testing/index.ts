@@ -282,6 +282,10 @@ export { flagOverrideCookie } from "./flags.ts";
 
 export type { FlagOverrideCookie, FlagOverrideCookieOptions } from "./flags.ts";
 
+export { testImportTarget, importTargetPgTap } from "./import-target.ts";
+
+export type { ImportTargetFixture, ImportTargetSpec } from "./import-target.ts";
+
 export { createFakeClient } from "./fake-client.ts";
 
 export type {

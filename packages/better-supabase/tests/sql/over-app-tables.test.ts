@@ -520,6 +520,18 @@ create unique index if not exists d_key on "public"."t" ("x") nulls not distinct
     expect(out).not.toContain(IMPLIED_UNIQUE_MARK);
   });
 
+  it("keeps a key an expression index does not imply", () => {
+    const out = withoutImpliedUniqueIndexes(sql, tables, {
+      "public.t": [
+        { name: "expr", columns: ["org"], unique: true, plain: false },
+      ],
+    });
+
+    expect(out).toContain("a_key");
+    expect(out).toContain("b_key");
+    expect(out).toContain("c_key");
+  });
+
   it("keeps every index when the app has no unique key over them", () => {
     const out = withoutImpliedUniqueIndexes(sql, tables, {
       "public.t": [{ columns: ["org", "number"] }],

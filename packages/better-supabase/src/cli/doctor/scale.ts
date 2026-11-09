@@ -559,6 +559,55 @@ const SCALE_CHECKS: readonly Rule[] = [
       }
     },
   },
+  {
+    code: "BS628",
+    severity: "warning",
+    title: "A list cursor has no matching index",
+    description:
+      "A list function orders or continues by created_at and id, and the same file has no btree index that contains both columns. The cursor then sorts the tenant. Add an index on (tenant, created_at, id) in the same direction as the order.",
+    check(context) {
+      return sqlTexts(context).flatMap((file) => {
+        const indexes = file.text.toLowerCase();
+        const findings: FindingInput[] = [];
+
+        for (const statement of splitStatements(file.text)) {
+          const flat = statement.text.replaceAll(/\s+/g, " ");
+
+          const name =
+            /create\s+(?:or\s+replace\s+)?function\s+[\w."]+\.(list_\w+)/i.exec(
+              flat,
+            );
+
+          if (!name?.[1]) {
+            continue;
+          }
+
+          const usesCursor =
+            /order by [^;]*created_at[^;]*\bid\b/i.test(flat) ||
+            /\(\s*[\w.]+\s*,\s*[\w.]+\s*\)\s*</.test(flat);
+
+          if (!usesCursor) {
+            continue;
+          }
+
+          const indexed =
+            /create\s+(?:unique\s+)?index[\s\S]*created_at[\s\S]*\bid\b/i.test(
+              indexes,
+            );
+
+          if (!indexed) {
+            findings.push({
+              message: `${name[1]} pages by created_at and id, and ${file.path} has no index that contains both.`,
+              target: file.path,
+              location: { file: file.path, line: statement.line },
+            });
+          }
+        }
+
+        return findings;
+      });
+    },
+  },
 ];
 
 /** The scale, override, Edge Function and tenant trigger rules. */

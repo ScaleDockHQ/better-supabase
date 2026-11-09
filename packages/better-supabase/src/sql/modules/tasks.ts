@@ -26,6 +26,7 @@ import { myWorkTenant } from "./subjects.ts";
 import { backfillProjectDimensions } from "./tasks-data.ts";
 import { checklistTable, taskExtrasContract } from "./tasks-extras.ts";
 import { taskFunctions } from "./tasks-functions.ts";
+import { taskLinesContract, taskLinesSql } from "./tasks-lines.ts";
 
 /** The subject type of a project, after `blocks.tasks.entities`. */
 export function projectType(tasks: BlockSqlContext): string {
@@ -155,6 +156,7 @@ const NAMES: BlockSqlNames = {
         iteration: "iteration_id",
         priority: "priority",
         estimate: "estimate",
+        estimatedMinutes: "estimated_minutes",
         progress: "progress",
         startAt: "start_at",
         endAt: "end_at",
@@ -180,6 +182,7 @@ const NAMES: BlockSqlNames = {
         "project",
         "iteration",
         "estimate",
+        "estimatedMinutes",
         "progress",
         "startAt",
         "endAt",
@@ -191,6 +194,39 @@ const NAMES: BlockSqlNames = {
       ],
       typed: ["state", "closeReason"],
       mappable: ["priority"],
+    },
+    specification: {
+      name: "task_specification_lines",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        item: "task_id",
+        description: "description",
+        quantity: "quantity",
+        unit: "unit",
+        estimate: "estimate",
+        rank: "rank",
+        createdAt: "created_at",
+      },
+    },
+    materials: {
+      name: "task_material_lines",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        item: "task_id",
+        variant: "variant_id",
+        quantity: "quantity",
+        unit: "unit",
+        rank: "rank",
+        createdAt: "created_at",
+      },
     },
     checklist: {
       name: "task_checklist_items",
@@ -398,7 +434,7 @@ create table if not exists ${t("items")} (
   ${w("title")} text not null check (length(${w("title")}) between 1 and 500),${column("items", "body", (name) => `${name} text`)}
   ${w("parent")} uuid references ${t("items")} (${w("id")}) on delete cascade,
   ${w("team")} uuid,${column("items", "project", (name) => `${name} uuid${ctx.hasTable("projects") ? ` references ${t("projects")} (${p("id")}) on delete set null` : ""}`)}${column("items", "iteration", (name) => `${name} uuid${ctx.hasTable("iterations") ? ` references ${t("iterations")} (${i("id")}) on delete set null` : ""}`)}
-  ${w("priority")} smallint not null default 0 check (${w("priority")} between 0 and 4),${column("items", "estimate", (name) => `${name} numeric(10, 2) check (${name} >= 0)`)}${column("items", "progress", (name) => `${name} smallint check (${name} between 0 and 100)`)}${column("items", "startAt", (name) => `${name} timestamptz`)}${column("items", "endAt", (name) => `${name} timestamptz`)}
+  ${w("priority")} smallint not null default 0 check (${w("priority")} between 0 and 4),${column("items", "estimate", (name) => `${name} numeric(10, 2) check (${name} >= 0)`)}${column("items", "estimatedMinutes", (name) => `${name} integer check (${name} >= 0)`)}${column("items", "progress", (name) => `${name} smallint check (${name} between 0 and 100)`)}${column("items", "startAt", (name) => `${name} timestamptz`)}${column("items", "endAt", (name) => `${name} timestamptz`)}
   ${w("dueAt")} timestamptz,
   ${w("pipeline")} uuid,
   ${w("stage")} uuid,
@@ -427,7 +463,8 @@ create table if not exists ${t("assignees")} (
 create index if not exists ${sqlIdent(`${ctx.tableName("assignees").name}_user_idx`)} on ${t("assignees")} (${a("user")});
 ${lockModuleTable(ctx, "assignees", { read: true })}
 ${read("assignees")}
-${checklistTable(ctx, n)}`;
+${checklistTable(ctx, n)}
+${taskLinesSql(ctx, n)}`;
 }
 
 /**
@@ -622,6 +659,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         ]
       : []),
     ...taskExtrasContract(ctx),
+    ...taskLinesContract(ctx),
   ];
 }
 
@@ -778,6 +816,7 @@ export const WORK_ITEMS: BlockSqlDefinition = {
     "option-sets",
     "templates",
     "tags",
+    "catalog",
   ],
   target: "schema",
   modes: ["managed", "custom"],

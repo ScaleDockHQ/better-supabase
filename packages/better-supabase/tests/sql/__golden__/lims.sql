@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_164_lims.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
 -- @bsb-hash sha256:9867c1a9af582b0397ca22c0b94f9aad184ee0b9e3dfa5083b3be22a053aeaf0
@@ -634,7 +634,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."lims_results" as res
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_164_lims.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block-data lims
 -- @bsb-hash sha256:7b7e412cabd4be556c915fdce87de40880f85a2850a13ec2253ba8cffc91fa5e
@@ -648,7 +648,7 @@ values ('lims', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_164_lims.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
 -- @bsb-hash sha256:75e8abb326f14ded0e34f1628b51f92fb33617f3cdaa48b8ff770130b19abdae
@@ -1384,7 +1384,7 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.lims_methods deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lims_method","event_prefix":"lims_method"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.lims_results deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lims_result","event_prefix":"lims_result"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_164_lims.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block-data lims
 -- @bsb-hash sha256:7b7e412cabd4be556c915fdce87de40880f85a2850a13ec2253ba8cffc91fa5e
@@ -1398,7 +1398,7 @@ values ('lims', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_164_lims.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
 -- @bsb-hash sha256:85aace150327f3418ad439bad7b8af529ef96174f7a7cdef1a5ef7273ae4dba5
@@ -2039,7 +2039,7 @@ create policy bsb_tenant_scope_delete on "app_private"."lims_results" as restric
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_164_lims.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block-data lims
 -- @bsb-hash sha256:7b7e412cabd4be556c915fdce87de40880f85a2850a13ec2253ba8cffc91fa5e
@@ -2053,7 +2053,7 @@ values ('lims', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_164_lims.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
 -- @bsb-hash sha256:10d7d443f7343f084c0072ed4b5dd927a811b59cd2250eb5715c2c6d7e713b22
@@ -2796,7 +2796,7 @@ as $$ select "better_supabase"."instrument_status"($1, $2, $3) $$;
 revoke execute on function "api"."instrument_status"(uuid, uuid, date) from public, anon;
 grant execute on function "api"."instrument_status"(uuid, uuid, date) to authenticated, service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_164_lims.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block-data lims
 -- @bsb-hash sha256:7b7e412cabd4be556c915fdce87de40880f85a2850a13ec2253ba8cffc91fa5e
@@ -2810,7 +2810,7 @@ values ('lims', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_164_lims.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
 -- @bsb-hash sha256:f1c6bdfba43dae0aea15fae7b1e73b0c94a2cd6f79ef179c826828f92c135dfa
@@ -3440,7 +3440,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."lims_results" as res
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_164_lims.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block-data lims
 -- @bsb-hash sha256:7b7e412cabd4be556c915fdce87de40880f85a2850a13ec2253ba8cffc91fa5e
@@ -3454,7 +3454,7 @@ values ('lims', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_164_lims.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
 -- @bsb-hash sha256:4390c4426339722444b9700f1e332a5c731ea7f02c53c9f867592e3c1be41b8c
@@ -4090,7 +4090,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."lims_results" as res
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_164_lims.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block-data lims
 -- @bsb-hash sha256:7b7e412cabd4be556c915fdce87de40880f85a2850a13ec2253ba8cffc91fa5e

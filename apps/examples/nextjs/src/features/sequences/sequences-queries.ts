@@ -33,7 +33,7 @@ async function loadSequences(): Promise<readonly SequenceCard[] | null> {
     return null;
   }
 
-  const sequences = await db.sequences.list().orThrow();
+  const sequences = await db.sequences.list({ limit: 100 }).orThrow();
 
   return sequences.map((sequence) => ({
     id: sequence.id,

@@ -49,6 +49,11 @@ export interface Machine {
   readonly optional?: true;
   /** The column that marks a template row; the transition trigger skips it. */
   readonly template?: string;
+  /**
+   * The machine comes from another block. Its trigger is attached after that
+   * block creates the table, because this module is installed first.
+   */
+  readonly contributed?: true;
 }
 
 /** An app table that keeps a machine's history. */
@@ -101,7 +106,7 @@ export function machines(ctx: BlockSqlContext): readonly Machine[] {
       const item = machine(each.name, each.entry, ctx.subjects, ctx.naming);
 
       if (each.optional !== true) {
-        return item;
+        return { ...item, contributed: true };
       }
 
       if (item.stages || item.lifecycle || item.workflow !== undefined) {

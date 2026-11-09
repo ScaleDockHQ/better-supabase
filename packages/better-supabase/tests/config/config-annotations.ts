@@ -451,6 +451,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
       "Serve the schema types through the TypeScript 7.1 content mapper: gen writes a slim generated.ts and schema.bsb instead of the type files.",
     default: false,
   },
+  "gen.types.tables.only": {
+    description:
+      "Table, view and foreign-table names database.types.ts includes. Other relations are omitted.",
+  },
   "gen.tableModules": {
     description:
       "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses. false writes the single module.",
@@ -507,6 +511,14 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "$defs.moduleConfig.tenantScope": {
     description:
       "This block's tenant scope policies. Defaults to database.sql.tenantScope.",
+  },
+  "$defs.moduleConfig.indexes": {
+    description:
+      "Index names this block should not create, when one of your indexes already covers them. skip lists create index names, such as invoices_tenant_status_idx. A name the module does not create is an error.",
+  },
+  "$defs.permissionsBlock.indexes": {
+    description:
+      "Index names this block should not create, when one of your indexes already covers them. skip lists create index names, such as invoices_tenant_status_idx. A name the module does not create is an error.",
   },
   "$defs.moduleConfig.functions": {
     description:

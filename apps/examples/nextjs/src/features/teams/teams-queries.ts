@@ -29,7 +29,7 @@ export async function getTeams(): Promise<readonly Team[]> {
   cacheLife("max");
   cacheTag(teamsTag(tenant));
 
-  return db.teams.list(tenant).orThrow();
+  return db.teams.list(tenant, { limit: 100 }).orThrow();
 }
 
 /**
@@ -46,6 +46,7 @@ export async function getTeamCustomers(teamId: string) {
       where: { ownerTeamId: teamId },
       select: ["id", "name", "status"],
       orderBy: { name: "asc" },
+      limit: 100,
     })
     .orThrow();
 }

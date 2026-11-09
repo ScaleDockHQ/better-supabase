@@ -1,15 +1,15 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { BlockSeeds, SeedTable } from "../seeds.ts";
 
+import { LETTERHEADS } from "../seed-labels.ts";
+
 /**
- * The letterhead each locale starts with: the legal entity's name, register
- * number, tax number and bank account on one line, in that country's words. A
- * template prints it with `{{texts.letterhead}}`; `en` seeds none, because an
- * English speaking organization has no single country.
+ * The letterhead each locale starts with. A template prints it with
+ * `{{texts.letterhead}}`. `en`, `nl` and `de` come from the seed catalog. `fr`
+ * stays beside them.
  */
-const LETTERHEADS: Readonly<Record<string, string>> = {
-  nl: "{{entity.name}} · KvK {{entity.cocNumber}} · BTW {{entity.vatNumber}} · IBAN {{entity.iban}}",
-  de: "{{entity.name}} · Handelsregister {{entity.cocNumber}} · USt-IdNr. {{entity.vatNumber}} · IBAN {{entity.iban}}",
+const LETTERHEAD_TEXT: Readonly<Record<string, string>> = {
+  ...LETTERHEADS.locales,
   fr: "{{entity.name}} · RCS {{entity.cocNumber}} · TVA {{entity.vatNumber}} · IBAN {{entity.iban}}",
 };
 
@@ -26,7 +26,7 @@ export const documentTemplateSeeds: BlockSeeds = {
 
     const y = (column: string): string => ctx.col("textBlocks", column);
 
-    return Object.entries(LETTERHEADS).map(([locale, body]) => ({
+    return Object.entries(LETTERHEAD_TEXT).map(([locale, body]) => ({
       table: ctx.table("textBlocks"),
       tenantColumn: y("tenant"),
       key: [y("key"), y("language")],

@@ -194,6 +194,7 @@ import type { vercelMarketplaceBlock } from "../../src/blocks/vercel-marketplace
 import type { versionsBlock } from "../../src/blocks/versions/manifest.ts";
 import type { waitlistBlock } from "../../src/blocks/waitlist/manifest.ts";
 import type { warehouseBlock } from "../../src/blocks/warehouse/manifest.ts";
+import type { warrantyBlock } from "../../src/blocks/warranty/manifest.ts";
 import type {
   incomingWebhooksBlock,
   webhooksBlock,
@@ -281,6 +282,7 @@ export type AllBlocks = {
   readonly inspections: typeof inspectionsBlock;
   readonly meetings: typeof meetingsBlock;
   readonly maintenance: typeof maintenanceBlock;
+  readonly warranty: typeof warrantyBlock;
   readonly dam: typeof damBlock;
   readonly lims: typeof limsBlock;
   readonly appraisals: typeof appraisalsBlock;

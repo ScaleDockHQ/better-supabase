@@ -100,10 +100,9 @@ describe("an app's own declarative schema with blocks over it", () => {
       ],
       "public.notes": ["id", "body"],
     });
-    expect(layout.ownIndexes?.["public.contacts"]).toContainEqual({
-      columns: ["id"],
-      unique: true,
-    });
+    expect(layout.ownIndexes?.["public.contacts"]).toContainEqual(
+      expect.objectContaining({ columns: ["id"], unique: true }),
+    );
   });
 
   it("adds the saved snapshot's tables, while the app's files still win", async () => {
@@ -146,10 +145,9 @@ create index if not exists customers_block_idx on public.customers (organization
     expect(layout.ownIndexes?.["public.customers"]).not.toContainEqual(
       expect.objectContaining({ name: "customers_block_idx" }),
     );
-    expect(layout.ownIndexes?.["public.contacts"]).toContainEqual({
-      columns: ["id"],
-      unique: true,
-    });
+    expect(layout.ownIndexes?.["public.contacts"]).toContainEqual(
+      expect.objectContaining({ columns: ["id"], unique: true }),
+    );
   });
 
   it("takes the snapshot's views as the app's, with whether Postgres writes through them", async () => {

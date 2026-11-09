@@ -416,6 +416,55 @@ export function restrictSchemas(
 export interface DatabaseTypesOptions {
   readonly schemas: readonly string[];
   readonly postgrestVersion: string;
+  /** Relation names to keep. Unset keeps every relation in `schemas`. */
+  readonly tablesOnly?: readonly string[];
+}
+
+/**
+ * Drops relations `only` does not name. A name is `table` or `schema.table`.
+ * Columns and keys of a dropped relation go with it, and a relationship stays
+ * only when both ends stay.
+ */
+export function restrictTables(
+  metadata: GeneratorMetadata,
+  only: readonly string[],
+): GeneratorMetadata {
+  const keep = new Set(only);
+
+  const named = (schema: string, name: string): boolean =>
+    keep.has(name) || keep.has(`${schema}.${name}`);
+
+  const keptIds = new Set(
+    [
+      ...metadata.tables,
+      ...metadata.views,
+      ...metadata.materializedViews,
+      ...metadata.foreignTables,
+    ]
+      .filter((relation) => named(relation.schema, relation.name))
+      .map((relation) => relation.id),
+  );
+
+  return {
+    ...metadata,
+    tables: metadata.tables.filter((table) => named(table.schema, table.name)),
+    views: metadata.views.filter((view) => named(view.schema, view.name)),
+    materializedViews: metadata.materializedViews.filter((view) =>
+      named(view.schema, view.name),
+    ),
+    foreignTables: metadata.foreignTables.filter((table) =>
+      named(table.schema, table.name),
+    ),
+    columns: metadata.columns.filter((column) => keptIds.has(column.table_id)),
+    primaryKeys: metadata.primaryKeys.filter((key) =>
+      keptIds.has(key.table_id),
+    ),
+    relationships: metadata.relationships.filter(
+      (relationship) =>
+        named(relationship.schema, relationship.relation) &&
+        named(relationship.referenced_schema, relationship.referenced_relation),
+    ),
+  };
 }
 
 let oxfmt: Promise<typeof Oxfmt | undefined> | undefined;
@@ -468,8 +517,14 @@ export function generateDatabaseTypes(
 ): Promise<string> {
   const { generateTypescript, sortGeneratorMetadata } = loadGeneration();
 
+  const scoped = restrictSchemas(metadata, options.schemas);
+
   return generateTypescript(
-    sortGeneratorMetadata(restrictSchemas(metadata, options.schemas)),
+    sortGeneratorMetadata(
+      options.tablesOnly === undefined
+        ? scoped
+        : restrictTables(scoped, options.tablesOnly),
+    ),
     {
       postgrestVersion: options.postgrestVersion,
       detectOneToOneRelationships: true,

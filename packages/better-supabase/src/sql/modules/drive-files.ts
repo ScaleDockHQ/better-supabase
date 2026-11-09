@@ -666,7 +666,8 @@ $$;
 ${userGrant(`${fn("drive_restore")}(uuid, text)`)}
 
 -- The bin: entries the caller may restore, newest first.
-create or replace function ${fn("drive_bin")}(tenant ${ctx.idType}, page_size integer default 50, before timestamptz default null)
+drop function if exists ${fn("drive_bin")}(${ctx.idType}, integer, timestamptz);
+create or replace function ${fn("drive_bin")}(tenant ${ctx.idType}, page_size integer default 50, before timestamptz default null, before_id uuid default null)
 returns jsonb
 language plpgsql
 stable
@@ -687,7 +688,13 @@ begin
       from ${trash.table("items")} i
       join ${T} x on x.${n("id")}::text = i.${ti("subjectId")}
       where i.${ti("tenant")} = drive_bin.tenant and i.${ti("subjectType")} = ${typeLit} and i.${ti("depth")} = 0
-        and (drive_bin.before is null or i.${ti("trashedAt")} < drive_bin.before)
+        and (
+          drive_bin.before is null
+          or (i.${ti("trashedAt")}, i.${ti("id")}) < (
+            drive_bin.before,
+            coalesce(drive_bin.before_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)
+          )
+        )
         and (${SERVICE_CALLER} or ${canWrite(`x.${n("id")}`)})
       order by i.${ti("trashedAt")} desc, i.${ti("id")}
       limit ${pageSize("drive_bin.page_size", 50, 200)}
@@ -695,7 +702,7 @@ begin
   );
 end;
 $$;
-${userGrant(`${fn("drive_bin")}(${ctx.idType}, integer, timestamptz)`)}
+${userGrant(`${fn("drive_bin")}(${ctx.idType}, integer, timestamptz, uuid)`)}
 
 -- Deletes a bin entry for good (the share role, or drive.manage).
 create or replace function ${fn("drive_purge")}(item uuid)

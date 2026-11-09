@@ -168,6 +168,7 @@ export interface Pipelines<F extends object = Record<never, never>> {
   list(input: {
     organizationId: string;
     subjectType: string;
+    limit?: number;
   }): AsyncResult<Pipeline<F>[]>;
   /**
    * Creates or renames a pipeline. The first of a type and scope is its
@@ -399,11 +400,15 @@ export function createPipelines<
   const fields: BlockFields<F> = blockFields(options.fields, "pipeline fields");
 
   const client: Pipelines<F> = {
-    list: ({ organizationId, subjectType }) =>
+    list: ({ organizationId, subjectType, limit }) =>
       call(
         "list_pipelines",
         { tenant: organizationId, subject_type: subjectType },
-        (value) => recordsOf(value, "list_pipelines").map(pipelineOf),
+        (value) => {
+          const rows = recordsOf(value, "list_pipelines").map(pipelineOf);
+
+          return limit === undefined ? rows : rows.slice(0, limit);
+        },
       ).andThen((pipelines) => readAllFields(fields, pipelines)),
     upsert: ({ organizationId, input }) =>
       writeFields(fields, input.fields, (checked) =>

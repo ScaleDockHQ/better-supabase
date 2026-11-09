@@ -5,6 +5,25 @@ import { CODEC_TYPE, applyCasing, codecFor, enumType } from "./model-types.ts";
 import { arrayOf, configFor } from "./shared.ts";
 
 const NOT_NULL_TAG = /@notNull(?:\(([^)]*)\))?/u;
+const RETURNS_TAG = /@bsb\s+returns=(\S+)/u;
+
+const COALESCE_RETURN = /\b(?:return|select)\s+coalesce\s*\(/i;
+
+/**
+ * A scalar function whose body returns `coalesce(...)` always yields a value.
+ * `undefined` when the body is missing or the shape is not that simple.
+ */
+export function inferNotNull(source: string | undefined): true | undefined {
+  if (source === undefined) {
+    return undefined;
+  }
+
+  const body = source
+    .replaceAll(/--[^\n]*/g, "")
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "");
+
+  return COALESCE_RETURN.test(body) ? true : undefined;
+}
 
 /**
  * The `@notNull` tag in a function's comment: `true` for every result, or the
@@ -27,6 +46,13 @@ export function notNullTag(
         .split(",")
         .map((name) => name.trim())
         .filter((name) => name !== "");
+}
+
+/** `@bsb returns=./file.ts#Schema` from a function comment. */
+export function returnsTag(comment: string | undefined): string | undefined {
+  const match = comment === undefined ? null : RETURNS_TAG.exec(comment);
+
+  return match?.[1];
 }
 
 /** The callable functions; warns about functions another schema shadows. */
@@ -94,7 +120,8 @@ export function buildFunctions(
         fn.name,
       )?.notNull;
 
-      const notNull = configured ?? notNullTag(fn.comment);
+      const notNull =
+        configured ?? inferNotNull(fn.source) ?? notNullTag(fn.comment);
 
       const source =
         configured === undefined
@@ -188,6 +215,23 @@ export function buildFunctions(
         }
       }
 
+      const tagged = returnsTag(fn.comment);
+      let returnsSchema: string | undefined;
+
+      if (tagged !== undefined) {
+        const [from, name] = tagged.split("#");
+
+        if (!from || !name) {
+          throw new TypeError(
+            `@bsb returns on ${fn.schema}.${fn.name} must look like "./path.ts#schemaName"`,
+          );
+        }
+
+        ctx.jsonImports.set(name, { name, from, value: true });
+        returnsSchema = name;
+        returns = `StandardSchemaV1.InferOutput<typeof ${name}>`;
+      }
+
       return {
         key: fn.name,
         meta: {
@@ -198,6 +242,7 @@ export function buildFunctions(
           returnsSet: fn.returnsSet,
           volatility: fn.volatility,
           ...(result ? { result } : {}),
+          ...(returnsSchema ? { returnsSchema } : {}),
         },
         args: fn.args.map((arg) => ({
           name: arg.name,

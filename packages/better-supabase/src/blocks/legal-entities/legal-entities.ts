@@ -126,6 +126,7 @@ export interface LegalEntities {
   /** The default first, then by code. */
   list(options?: {
     readonly includeArchived?: boolean;
+    readonly limit?: number;
   }): AsyncResult<readonly LegalEntity[]>;
   /**
    * The entity `id` stands for: itself, or the default when `id` is omitted.
@@ -287,10 +288,15 @@ export function createLegalEntities(
             tenant: organizationId,
             include_archived: listOptions.includeArchived ?? false,
           },
-          (value) =>
-            recordsOf(value, "list_legal_entities").map((row) =>
+          (value) => {
+            const rows = recordsOf(value, "list_legal_entities").map((row) =>
               legalEntityOf(row, "list_legal_entities"),
-            ),
+            );
+
+            return listOptions.limit === undefined
+              ? rows
+              : rows.slice(0, listOptions.limit);
+          },
         ),
       ),
     of: (id) =>

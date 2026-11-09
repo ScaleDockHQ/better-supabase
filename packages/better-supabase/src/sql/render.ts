@@ -7,6 +7,11 @@ import { apiWrappers } from "./api-schema.ts";
 import { clientFunctions } from "./client-functions.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
 import {
+  applyIndexSkips,
+  indexSkipOf,
+  withoutSkippedIndexes,
+} from "./index-skip.ts";
+import {
   instanceRenames,
   renameIdentifiers,
   renamedInstances,
@@ -80,11 +85,28 @@ export function moduleBody(
     layout.ownPolicies,
   );
 
-  return bsbNames(
+  const named = bsbNames(
     layout.rerunnable === true
       ? rerunnableDdl(body)
       : staticDdl(body, appTableSet(ctx)),
   );
+
+  const skip = indexSkipOf(layout.modules?.[name], `blocks.${name}.indexes`);
+
+  if (skip.length === 0) {
+    return named;
+  }
+
+  const stripped = withoutSkippedIndexes(named, new Set(skip));
+  const left = skip.filter((index) => !stripped.removed.includes(index));
+
+  if (left.length > 0) {
+    throw new TypeError(
+      `blocks.${name}.indexes.skip names ${left.join(", ")}, which this module does not create. Indexes: ${stripped.created.toSorted().join(", ")}`,
+    );
+  }
+
+  return stripped.sql;
 }
 
 /**
@@ -145,17 +167,21 @@ export function renderBlocks(
     [...files, ...appFiles].filter((file) => file.kind === "schema"),
   );
 
-  return withUnscopedFile(
+  const covered = withUnscopedFile(
     [...(prelude === undefined ? [] : [prelude]), ...files, ...appFiles],
     layout,
-  ).map((file) => ({
-    ...file,
-    contents: withBlockHash(
-      file.kind === "schema"
-        ? withoutCoveredPolicies(file.contents, layout.ownPolicies)
-        : file.contents,
-    ),
-  }));
+  ).map((file) =>
+    file.kind === "schema"
+      ? {
+          ...file,
+          contents: withoutCoveredPolicies(file.contents, layout.ownPolicies),
+        }
+      : file,
+  );
+
+  return applyIndexSkips(covered, (instance) =>
+    indexSkipOf(layout.modules?.[instance], `blocks.${instance}.indexes`),
+  ).map((file) => ({ ...file, contents: withBlockHash(file.contents) }));
 }
 
 function moduleFiles(

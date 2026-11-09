@@ -332,7 +332,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:547513db426f38e52f838ca1f29cf674605b69295787d2c12a02528d1ab2707a
+-- @bsb-hash sha256:6eaafbec1b4950a9c643eeb31fc19117e5d2c138118bb6419d8e684c75d7cd48
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -352,6 +352,22 @@ create table "better_supabase"."status_history" (
   "reason" text,
   "created_at" timestamptz not null default now()
 );
+create or replace function better_supabase.bsb_record_visible(p_table text, p_column text, p_id text)
+returns boolean
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  v_found boolean;
+begin
+  execute format('select exists (select 1 from %s s where s.%I::text = $1)', p_table::regclass, p_column)
+    into v_found using p_id;
+  return coalesce(v_found, false);
+end;
+$$;
+revoke execute on function better_supabase.bsb_record_visible(text, text, text) from public, anon;
+grant execute on function better_supabase.bsb_record_visible(text, text, text) to authenticated, service_role;
 create index status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
 alter table "better_supabase"."status_history" enable row level security;
 revoke all on "better_supabase"."status_history" from public, anon, authenticated;
@@ -359,7 +375,10 @@ grant select on "better_supabase"."status_history" to authenticated;
 grant all on "better_supabase"."status_history" to service_role;
 create policy bsb_status_history_read on "better_supabase"."status_history"
   for select to authenticated
-  using (false);
+  using (case "better_supabase"."status_history"."subject_type"
+      when 'warranty_claim' then better_supabase.bsb_record_visible('"better_supabase"."warranty_claims"', 'id', "better_supabase"."status_history"."subject_id")
+      else false
+    end);
 create table "better_supabase"."status_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -378,7 +397,10 @@ grant select on "better_supabase"."status_stages" to authenticated;
 grant all on "better_supabase"."status_stages" to service_role;
 create policy bsb_status_stages_read on "better_supabase"."status_stages"
   for select to authenticated
-  using (false);
+  using (case "better_supabase"."status_stages"."subject_type"
+      when 'warranty_claim' then better_supabase.bsb_record_visible('"better_supabase"."warranty_claims"', 'id', "better_supabase"."status_stages"."subject_id")
+      else false
+    end);
 create table "better_supabase"."subject_lifecycles" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -401,7 +423,51 @@ grant select on "better_supabase"."subject_lifecycles" to authenticated;
 grant all on "better_supabase"."subject_lifecycles" to service_role;
 create policy bsb_subject_lifecycles_read on "better_supabase"."subject_lifecycles"
   for select to authenticated
-  using (false);
+  using (case "better_supabase"."subject_lifecycles"."subject_type"
+      when 'warranty_claim' then better_supabase.bsb_record_visible('"better_supabase"."warranty_claims"', 'id', "better_supabase"."subject_lifecycles"."subject_id")
+      else false
+    end);
+
+
+create or replace function better_supabase.bsb_transition_warranty_claim()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new."status" is null then
+      new."status" := 'draft';
+    end if;
+    -- An import run (ADR 0141) may insert a row in any status: one synthetic
+    -- imported history row stands for how it got there, and no event fires.
+    if better_supabase.import_run() is not null and new."status" is not null then
+      insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
+        values (new."tenant_id", 'warranty_claim', new."id"::text, null::text, new."status"::text, coalesce(auth.uid(), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'id', '')::uuid), 'imported', nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
+    end if;
+    
+    
+    return new;
+  end if;
+  if new."status" is not distinct from old."status" then
+    return new;
+  end if;
+  -- An import may set a status the state machine would refuse. The import
+  -- already checked the row.
+  if better_supabase.import_run() is not null then
+    return new;
+  end if;
+  if not (case old."status"::text when 'draft' then new."status"::text = any ('{submitted}'::text[]) when 'submitted' then new."status"::text = any ('{approved,denied}'::text[]) when 'approved' then new."status"::text = any ('{closed}'::text[]) when 'denied' then new."status"::text = any ('{closed}'::text[]) else false end) then
+    raise exception 'that status change is not allowed' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
+  end if;
+  insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
+        values (new."tenant_id", 'warranty_claim', new."id"::text, old."status"::text, new."status"::text, coalesce(auth.uid(), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'id', '')::uuid), nullif(current_setting('better_supabase.transition_reason', true), ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
+  
+  perform "better_supabase".emit_event('status.changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'warranty_claim', 'subjectId', new."id"::text, 'from', old."status"::text, 'to', new."status"::text, 'reason', nullif(current_setting('better_supabase.transition_reason', true), '')), 'statuses/warranty_claim/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/state-machine');
+  return new;
+end;
+$$;
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor
@@ -437,7 +503,13 @@ begin
         using transition.subject_type, transition.subject_id, transition.to_status;
     end if;
   end;
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case transition.subject_type
+    when 'warranty_claim' then
+      update "better_supabase"."warranty_claims" s set "status" = better_supabase.as_column_type(transition.to_status, (null::"better_supabase"."warranty_claims")."status")
+      where s."id" = (transition.subject_id)::uuid;
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
   v_found := found;
   perform set_config('better_supabase.transition_reason', '', true);
   perform set_config('better_supabase.transition_actor', '', true);
@@ -472,7 +544,12 @@ declare
 begin
   perform set_config('better_supabase.lifecycle_changed', '', true);
   perform set_config('better_supabase.lifecycle_op', (jsonb_build_object('machine', pause_lifecycle.subject_type, 'id', pause_lifecycle.subject_id, 'op', 'pause', 'until', pause_lifecycle.until, 'reason', pause_lifecycle.reason))::text, true);
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case pause_lifecycle.subject_type
+    when 'warranty_claim' then
+      raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
   v_found := found;
   v_changed := current_setting('better_supabase.lifecycle_changed', true) = '1';
   perform set_config('better_supabase.lifecycle_op', '', true);
@@ -499,7 +576,12 @@ declare
 begin
   perform set_config('better_supabase.lifecycle_changed', '', true);
   perform set_config('better_supabase.lifecycle_op', (jsonb_build_object('machine', resume_lifecycle.subject_type, 'id', resume_lifecycle.subject_id, 'op', 'resume'))::text, true);
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case resume_lifecycle.subject_type
+    when 'warranty_claim' then
+      raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
   v_found := found;
   v_changed := current_setting('better_supabase.lifecycle_changed', true) = '1';
   perform set_config('better_supabase.lifecycle_op', '', true);
@@ -527,7 +609,12 @@ declare
 begin
   perform set_config('better_supabase.lifecycle_changed', '', true);
   perform set_config('better_supabase.lifecycle_op', (jsonb_build_object('machine', set_lifecycle_flag.subject_type, 'id', set_lifecycle_flag.subject_id, 'op', 'flag', 'flag', set_lifecycle_flag.flag, 'enabled', coalesce(set_lifecycle_flag.enabled, false)))::text, true);
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case set_lifecycle_flag.subject_type
+    when 'warranty_claim' then
+      raise exception 'the machine has no lifecycle; set lifecycle: true' using errcode = '22023', hint = 'STATE_LIFECYCLE_DISABLED';
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
   v_found := found;
   v_changed := current_setting('better_supabase.lifecycle_changed', true) = '1';
   perform set_config('better_supabase.lifecycle_op', '', true);
@@ -557,7 +644,22 @@ declare
   v_step integer;
   v_paused boolean := false;
 begin
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case status_state.subject_type
+    when 'warranty_claim' then
+      select s."status"::text, s."tenant_id"::text into v_status, v_tenant
+      from "better_supabase"."warranty_claims" s where s."id" = (status_state.subject_id)::uuid;
+      if not found then
+        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
+      end if;
+
+      v_step := array_position(null::text[], v_status);
+      return jsonb_build_object(
+        'organizationId', v_tenant, 'subjectType', 'warranty_claim', 'subjectId', status_state.subject_id,
+        'status', v_status, 'order', to_jsonb(null::text[]), 'step', v_step, 'steps', null, 'progress', null,
+        'version', null, 'flags', '[]'::jsonb, 'paused', false, 'pausedAt', null, 'pausedUntil', null, 'pauseReason', null);
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
 end;
 $$;
 revoke execute on function "better_supabase"."status_state"(text, text) from public, anon;
@@ -572,7 +674,27 @@ security invoker
 set search_path = ''
 as $$
 begin
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case list_status_history.subject_type
+    when 'warranty_claim' then
+      if not exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (list_status_history.subject_id)::uuid) then
+        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
+      end if;
+      return coalesce((
+        select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
+          'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
+          'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
+        from (select h."id"::text as id, h."from_status" as from_status, h."to_status" as to_status,
+          h."actor_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
+        from "better_supabase"."status_history" h
+        where h."subject_type" = 'warranty_claim'
+          and h."subject_id" = list_status_history.subject_id
+          and (list_status_history.before is null or h."created_at" < list_status_history.before)
+        order by h."created_at" desc, h."id" desc
+        limit least(greatest(coalesce(list_status_history.max_rows, 50), 1), 500)) r
+      ), '[]'::jsonb);
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
 end;
 $$;
 revoke execute on function "better_supabase"."list_status_history"(text, text, timestamptz, integer) from public, anon;
@@ -588,7 +710,15 @@ security invoker
 set search_path = ''
 as $$
 begin
-  raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  case list_status_stages.subject_type
+    when 'warranty_claim' then
+      if not exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (list_status_stages.subject_id)::uuid) then
+        raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
+      end if;
+      return '[]'::jsonb;
+    else
+      raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
+  end case;
 end;
 $$;
 revoke execute on function "better_supabase"."list_status_stages"(text, text) from public, anon;
@@ -601,7 +731,10 @@ create policy bsb_tenant_scope_select on "better_supabase"."status_history" as r
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (false)
+    or (case "better_supabase"."status_history"."subject_type"
+      when 'warranty_claim' then better_supabase.bsb_record_visible('"better_supabase"."warranty_claims"', 'id', "better_supabase"."status_history"."subject_id")
+      else false
+    end)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."status_history" as restrictive
   for insert to public
@@ -617,7 +750,10 @@ create policy bsb_tenant_scope_select on "better_supabase"."status_stages" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (false)
+    or (case "better_supabase"."status_stages"."subject_type"
+      when 'warranty_claim' then better_supabase.bsb_record_visible('"better_supabase"."warranty_claims"', 'id', "better_supabase"."status_stages"."subject_id")
+      else false
+    end)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."status_stages" as restrictive
   for insert to public
@@ -633,7 +769,10 @@ create policy bsb_tenant_scope_select on "better_supabase"."subject_lifecycles" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (false)
+    or (case "better_supabase"."subject_lifecycles"."subject_type"
+      when 'warranty_claim' then better_supabase.bsb_record_visible('"better_supabase"."warranty_claims"', 'id', "better_supabase"."subject_lifecycles"."subject_id")
+      else false
+    end)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."subject_lifecycles" as restrictive
   for insert to public

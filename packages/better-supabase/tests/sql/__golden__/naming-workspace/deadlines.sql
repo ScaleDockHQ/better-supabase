@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_171_deadlines.sql
+-- ==== schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
 -- @bsb-hash sha256:9974ebd0ddcc0fca24cf3af81161139f8525a588ad3fe3ca9df90d1480bdc81b
@@ -1751,7 +1751,7 @@ comment on function "better_supabase"."compute_deadline"(uuid, text, text, text,
 revoke execute on function "better_supabase"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) from public, anon;
 grant execute on function "better_supabase"."compute_deadline"(uuid, text, text, text, text, text, jsonb, date) to authenticated, service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_171_deadlines.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block-data deadlines
 -- @bsb-hash sha256:7ea2732774b4ed46501ce1403ec32652ba8d39b914a294487d9f53853ccc2c11

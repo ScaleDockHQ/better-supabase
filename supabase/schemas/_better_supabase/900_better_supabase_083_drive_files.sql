@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:63862307f14035af251e1f8534b8d207a68280a51ed8996be9e84734cfcc867a
+-- @bsb-hash sha256:dfa874c29253e46aa07d276a4e058200ff0c6495b6a1a9d1c3a57b281e8a1cd7
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -668,7 +668,8 @@ revoke execute on function "better_supabase"."drive_restore"(uuid, text) from pu
 grant execute on function "better_supabase"."drive_restore"(uuid, text) to authenticated, service_role;
 
 -- The bin: entries the caller may restore, newest first.
-create or replace function "better_supabase"."drive_bin"(tenant uuid, page_size integer default 50, before timestamptz default null)
+
+create or replace function "better_supabase"."drive_bin"(tenant uuid, page_size integer default 50, before timestamptz default null, before_id uuid default null)
 returns jsonb
 language plpgsql
 stable
@@ -689,7 +690,13 @@ begin
       from "better_supabase"."trash_items" i
       join "better_supabase"."drive_nodes" x on x."id"::text = i."subject_id"
       where i."tenant_id" = drive_bin.tenant and i."subject_type" = 'drive_node' and i."depth" = 0
-        and (drive_bin.before is null or i."trashed_at" < drive_bin.before)
+        and (
+          drive_bin.before is null
+          or (i."trashed_at", i."id") < (
+            drive_bin.before,
+            coalesce(drive_bin.before_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)
+          )
+        )
         and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'editor'))
       order by i."trashed_at" desc, i."id"
       limit least(greatest(coalesce(drive_bin.page_size, 50), 1), 200)
@@ -697,8 +704,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."drive_bin"(uuid, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."drive_bin"(uuid, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."drive_bin"(uuid, integer, timestamptz, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_bin"(uuid, integer, timestamptz, uuid) to authenticated, service_role;
 
 -- Deletes a bin entry for good (the share role, or drive.manage).
 create or replace function "better_supabase"."drive_purge"(item uuid)
@@ -1828,15 +1835,15 @@ as $$ select "better_supabase"."drive_restore"($1, $2) $$;
 revoke execute on function "api"."drive_restore"(uuid, text) from public, anon;
 grant execute on function "api"."drive_restore"(uuid, text) to authenticated, service_role;
 
-create or replace function "api"."drive_bin"(tenant uuid, page_size integer default 50, before timestamptz default null)
+create or replace function "api"."drive_bin"(tenant uuid, page_size integer default 50, before timestamptz default null, before_id uuid default null)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."drive_bin"($1, $2, $3) $$;
-revoke execute on function "api"."drive_bin"(uuid, integer, timestamptz) from public, anon;
-grant execute on function "api"."drive_bin"(uuid, integer, timestamptz) to authenticated, service_role;
+as $$ select "better_supabase"."drive_bin"($1, $2, $3, $4) $$;
+revoke execute on function "api"."drive_bin"(uuid, integer, timestamptz, uuid) from public, anon;
+grant execute on function "api"."drive_bin"(uuid, integer, timestamptz, uuid) to authenticated, service_role;
 
 create or replace function "api"."drive_purge"(item uuid)
 returns integer

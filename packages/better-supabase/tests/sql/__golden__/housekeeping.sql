@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_176_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
 -- @bsb-hash sha256:22f8953b4b87933610637b476330513e3572ee6b222b16bb6c07b0efaa279485
@@ -119,7 +119,7 @@ grant execute on function better_supabase.maintenance_schedule(text) to service_
 revoke execute on function better_supabase.maintenance_scheduler() from public, anon, authenticated;
 grant execute on function better_supabase.maintenance_scheduler() to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_175_housekeeping.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_176_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block-data housekeeping
 -- @bsb-hash sha256:6a87df78cad56be6b8e3240ea5ddeafcaac1a50276e719091119cd1fef511897
@@ -133,7 +133,7 @@ values ('housekeeping', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_176_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
 -- @bsb-hash sha256:6883a95fef5c50f2adda8fef5f3bf197216774f20f3e194e02807b2d4ec1645e
@@ -265,7 +265,7 @@ grant execute on function better_supabase.maintenance_schedule(text) to service_
 revoke execute on function better_supabase.maintenance_scheduler() from public, anon, authenticated;
 grant execute on function better_supabase.maintenance_scheduler() to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_175_housekeeping.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_176_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block-data housekeeping
 -- @bsb-hash sha256:6a87df78cad56be6b8e3240ea5ddeafcaac1a50276e719091119cd1fef511897
@@ -279,7 +279,7 @@ values ('housekeeping', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_176_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
 -- @bsb-hash sha256:e6fa858e0df13f22ec52805592628b777227bc88f2f4364539565b4770d6adb2
@@ -406,7 +406,7 @@ grant execute on function better_supabase.maintenance_schedule(text) to service_
 revoke execute on function better_supabase.maintenance_scheduler() from public, anon, authenticated;
 grant execute on function better_supabase.maintenance_scheduler() to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_175_housekeeping.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_176_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block-data housekeeping
 -- @bsb-hash sha256:6a87df78cad56be6b8e3240ea5ddeafcaac1a50276e719091119cd1fef511897
@@ -420,7 +420,7 @@ values ('housekeeping', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_176_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
 -- @bsb-hash sha256:ccdbb54731bd279b11a93e9aebd020a79711457bf7bf498776f1aade02bb3998
@@ -572,7 +572,7 @@ as $$ select "better_supabase"."maintenance_scheduler"() $$;
 revoke execute on function "api"."maintenance_scheduler"() from public, anon, authenticated;
 grant execute on function "api"."maintenance_scheduler"() to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_175_housekeeping.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_176_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block-data housekeeping
 -- @bsb-hash sha256:6a87df78cad56be6b8e3240ea5ddeafcaac1a50276e719091119cd1fef511897
@@ -586,7 +586,7 @@ values ('housekeeping', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_176_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
 -- @bsb-hash sha256:f54641626dc2bc32cee522d842582e42e090ef138b6d06bd2900f1f7531e03f0
@@ -705,7 +705,7 @@ grant execute on function better_supabase.maintenance_schedule(text) to service_
 revoke execute on function better_supabase.maintenance_scheduler() from public, anon, authenticated;
 grant execute on function better_supabase.maintenance_scheduler() to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_175_housekeeping.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_176_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block-data housekeeping
 -- @bsb-hash sha256:6a87df78cad56be6b8e3240ea5ddeafcaac1a50276e719091119cd1fef511897

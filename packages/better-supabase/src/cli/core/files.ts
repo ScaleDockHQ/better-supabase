@@ -128,6 +128,8 @@ export interface PlanFlags {
   readonly "dry-run"?: boolean | undefined;
   readonly check?: boolean | undefined;
   readonly force?: boolean | undefined;
+  /** Hand-edited paths whose new render is written beside them as `.new`. */
+  readonly preserve?: readonly string[] | undefined;
 }
 
 /** `--dry-run`, `--check` and `--force`, for a command's `args`. */
@@ -291,10 +293,17 @@ export async function applyPlan(
         : "write";
 
   const force = flags.force === true;
+  const preserve = new Set<string>();
+
+  for (const path of flags.preserve ?? []) {
+    preserve.add(path);
+  }
+
   const base = plan.base ?? plan.root;
   const changes: FileChange[] = [];
   const diffs: string[] = [];
   const staged: Staged[] = [];
+  const backups: Staged[] = [];
   const modes: { readonly path: string; readonly mode: number }[] = [];
   const seen = new Set<string>();
 
@@ -308,7 +317,20 @@ export async function applyPlan(
     seen.add(path);
     const shown = display(base, path);
     const current = await readIfExists(path);
-    const { outcome, reason } = outcomeOf(file, current, force);
+    const decided = outcomeOf(file, current, force);
+    let { outcome } = decided;
+    let { reason } = decided;
+
+    if (reason === HAND_EDITED && preserve.has(file.path)) {
+      outcome = "skip";
+      reason = "left in place; the new render is beside it as .new";
+      diffs.push(fileDiff(`${shown}.new`, undefined, file.contents, paint));
+      staged.push({
+        path: `${path}.new`,
+        contents: file.contents,
+        mode: file.mode,
+      });
+    }
 
     changes.push({
       file: shown,
@@ -316,6 +338,10 @@ export async function applyPlan(
       ...(file.note ? { note: file.note } : {}),
       ...(reason ? { reason } : {}),
     });
+
+    if (reason === HAND_EDITED && preserve.has(file.path)) {
+      continue;
+    }
 
     const conflict = reason !== undefined && KEPT.has(reason);
 
@@ -328,6 +354,19 @@ export async function applyPlan(
     }
 
     if (outcome === "create" || outcome === "update") {
+      if (
+        force &&
+        current !== undefined &&
+        blockFileState(current) === "edited"
+      ) {
+        backups.push({
+          path: `${path}.bak`,
+          contents: current,
+          mode: undefined,
+        });
+        diffs.push(`Backed up ${shown} to ${shown}.bak before overwriting.`);
+      }
+
       staged.push({ path, contents: file.contents, mode: file.mode });
     } else if (outcome === "unchanged" && file.mode !== undefined) {
       modes.push({ path, mode: file.mode });
@@ -361,8 +400,26 @@ export async function applyPlan(
     removed.push(path);
   }
 
-  if (mode === "write") {
-    await writeAll(staged);
+  const blocked = changes.some(
+    (change) => change.reason !== undefined && KEPT.has(change.reason),
+  );
+
+  if (mode === "write" && blocked) {
+    for (const [index, change] of changes.entries()) {
+      if (
+        change.outcome === "create" ||
+        change.outcome === "update" ||
+        change.outcome === "remove"
+      ) {
+        changes[index] = {
+          ...change,
+          outcome: "skip",
+          reason: "not written, because another file was left alone",
+        };
+      }
+    }
+  } else if (mode === "write") {
+    await writeAll([...backups, ...staged]);
 
     for (const path of removed) {
       await rm(path, { force: true });
@@ -460,7 +517,12 @@ export function planResult(
 
     return {
       code: 1,
-      output: [...(applied.mode === "write" ? [] : applied.diffs), text]
+      output: [
+        ...(conflicts.length > 0 || applied.mode !== "write"
+          ? applied.diffs
+          : []),
+        text,
+      ]
         .filter(Boolean)
         .join("\n\n"),
       error,

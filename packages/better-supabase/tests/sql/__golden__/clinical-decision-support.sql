@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
 -- @bsb-hash sha256:6be236a71d869b4f4225b8d6c5e371765f577c61537ad37635d3e80ff80edf34
@@ -602,7 +602,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as rest
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_169_clinical_decision_support.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block-data clinical-decision-support
 -- @bsb-hash sha256:1489add5de9fc5ff5ff278865e0ec1ea4f9f80995d36f7d7a76c308f1be5e23b
@@ -616,7 +616,7 @@ values ('clinical-decision-support', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
 -- @bsb-hash sha256:9eec042a210cdc7ad2c03b3993d7144746aa6d0338fc6b42f2ca200a5cba4d18
@@ -1293,7 +1293,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as rest
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_alerts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_alert","event_prefix":"care_alert"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_rules deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_rule","event_prefix":"care_rule"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_169_clinical_decision_support.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block-data clinical-decision-support
 -- @bsb-hash sha256:1489add5de9fc5ff5ff278865e0ec1ea4f9f80995d36f7d7a76c308f1be5e23b
@@ -1307,7 +1307,7 @@ values ('clinical-decision-support', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
 -- @bsb-hash sha256:6466d2403a6769e6d669e619bf89e08ad4f465c848be82b727c610ba83d3f5fd
@@ -1916,7 +1916,7 @@ create policy bsb_tenant_scope_delete on "app_private"."care_alerts" as restrict
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_169_clinical_decision_support.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block-data clinical-decision-support
 -- @bsb-hash sha256:1489add5de9fc5ff5ff278865e0ec1ea4f9f80995d36f7d7a76c308f1be5e23b
@@ -1930,7 +1930,7 @@ values ('clinical-decision-support', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
 -- @bsb-hash sha256:ee4700be41f816d8c580c0adee43b5033e0175e408e0fedca2bdb483e72716ef
@@ -2613,7 +2613,7 @@ as $$ select "better_supabase"."decide_care_alert"($1, $2, $3) $$;
 revoke execute on function "api"."decide_care_alert"(uuid, text, text) from public, anon;
 grant execute on function "api"."decide_care_alert"(uuid, text, text) to authenticated, service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_169_clinical_decision_support.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block-data clinical-decision-support
 -- @bsb-hash sha256:1489add5de9fc5ff5ff278865e0ec1ea4f9f80995d36f7d7a76c308f1be5e23b
@@ -2627,7 +2627,7 @@ values ('clinical-decision-support', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
 -- @bsb-hash sha256:01b8b9419f5cc5f97aa536e58b3edca90c573e1e7b592d216b70137bd7e60b80
@@ -3223,7 +3223,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as rest
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_169_clinical_decision_support.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block-data clinical-decision-support
 -- @bsb-hash sha256:1489add5de9fc5ff5ff278865e0ec1ea4f9f80995d36f7d7a76c308f1be5e23b
@@ -3237,7 +3237,7 @@ values ('clinical-decision-support', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
 -- @bsb-hash sha256:779215956708dedd4ce11c6445469a7ddc56860a20f33dad8e068c742445683c
@@ -3841,7 +3841,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as rest
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_169_clinical_decision_support.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block-data clinical-decision-support
 -- @bsb-hash sha256:1489add5de9fc5ff5ff278865e0ec1ea4f9f80995d36f7d7a76c308f1be5e23b

@@ -21,12 +21,17 @@
     },
     "organizations": {
       "tables": {
-        "organizations": "public.organizations"
+        "organizations": "public.organizations",
+        "profiles": null,
+        "paymentAccounts": "public.organization_payment_accounts"
       },
       "columns": {
         "organizations": {
           "createdBy": null,
           "deletedAt": null
+        },
+        "paymentAccounts": {
+          "tenant": "organization_id"
         }
       }
     },

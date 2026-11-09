@@ -1,0 +1,54 @@
+---
+title: Client permissions and lists
+description: Pass compact permissions to the client, page a list, and pause native hooks while offline.
+---
+
+`toSession(auth, { claims: false })` drops the JWT payload before a session
+crosses into a Client Component. Read permissions once with
+`better_supabase.bootstrap_permissions()` and pass that value to
+`PermissionsProvider`. `useCan("customers.read", tenantId)` checks the compact
+bitset or the expanded key lists.
+
+```tsx
+import { PermissionsProvider, useCan } from "better-supabase/react";
+
+export function Access({ permissions, children }) {
+  return (
+    <PermissionsProvider value={permissions}>{children}</PermissionsProvider>
+  );
+}
+
+export function RefundButton({ tenantId }) {
+  const allowed = useCan("customers.refund", tenantId);
+  return allowed ? <button type="button">Refund</button> : null;
+}
+```
+
+`claimFormat: "summary"` on the memberships block writes a role index per
+tenant instead of one object per membership. Leave the default `array` until
+every reader of the claim understands `summary`.
+
+## Infinite lists
+
+`defineInfiniteListHook` calls `page({ after, size })` and appends each page.
+
+```ts
+import { defineInfiniteListHook } from "better-supabase/react";
+
+export const useInfiniteCustomers = defineInfiniteListHook(
+  "customers",
+  (db) => db.customers,
+);
+```
+
+The first cursor page counts in `estimated` mode. Pass `count: "exact"` when
+the total has to be exact above `maxRows`.
+
+## Native
+
+`OfflineBoundary` takes a NetInfo-shaped object and pauses the data hooks
+while `isConnected` is false. Wrap NetInfo's unsubscribe function as
+`{ remove }` if that is what the installed package returns. `nativePermissions(store)` keeps the compact
+payload in a string store, keyed by user, tenant and `authz_ver`. Call `write`
+from `SessionProvider`'s `onAuthzChange`, and `read` before the network
+returns.

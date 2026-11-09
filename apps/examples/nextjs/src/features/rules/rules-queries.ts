@@ -43,7 +43,7 @@ async function loadRules(): Promise<readonly RuleRow[] | null> {
   }
 
   const rules = await db.automations
-    .list({ organizationId: tenant, subjectType: RULE_SUBJECT })
+    .list({ organizationId: tenant, subjectType: RULE_SUBJECT, limit: 100 })
     .orThrow();
 
   return rules.map((rule) => ({

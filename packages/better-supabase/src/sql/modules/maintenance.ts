@@ -306,7 +306,7 @@ function build(ctx: BlockSqlContext): string {
     return "";
   }
 
-  if (ctx.of("dispatch").mode === "custom") {
+  if (ctx.installed("dispatch") && ctx.of("dispatch").mode === "custom") {
     throw new TypeError(
       "blocks.maintenance needs the dispatch tables for its work orders; dispatch can't be in custom mode",
     );
@@ -320,7 +320,7 @@ ${tables(ctx)}
 ${maintenanceFunctions(ctx)}`;
 }
 
-function contract(): readonly BlockSqlContractFunction[] {
+function contract(_ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_maintenance_plan",
@@ -365,14 +365,15 @@ export const MAINTENANCE: BlockSqlDefinition = {
   title: "Maintenance",
   description:
     "Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.",
-  requires: [
-    "memberships",
-    "permissions",
-    "subjects",
+  requires: ["memberships", "permissions", "subjects", "recurrence"],
+  integrates: [
+    "assets",
     "dispatch",
-    "recurrence",
+    "inventory",
+    "outbox",
+    "audit",
+    "qualifications",
   ],
-  integrates: ["assets", "inventory", "outbox", "audit", "qualifications"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,

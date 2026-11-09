@@ -93,7 +93,10 @@ export interface AiRuns {
       runId: string;
       step: AiRunStepInput;
     }): AsyncResult<AiRunStep>;
-    list(runId: string): AsyncResult<readonly AiRunStep[]>;
+    list(
+      runId: string,
+      options?: { readonly limit?: number },
+    ): AsyncResult<readonly AiRunStep[]>;
   };
   /** The caller's undecided approvals across chats, newest first. */
   pendingApprovals(size?: number): AsyncResult<readonly AiPendingApproval[]>;
@@ -209,10 +212,14 @@ export function aiRunLookups(
           },
           stepOf,
         ),
-      list: (runId) =>
-        call("list_ai_run_steps", { run: runId }, (value) =>
-          recordsOf(value, "list_ai_run_steps").map(stepOf),
-        ),
+      list: (runId, options) =>
+        call("list_ai_run_steps", { run: runId }, (value) => {
+          const rows = recordsOf(value, "list_ai_run_steps").map(stepOf);
+
+          return options?.limit === undefined
+            ? rows
+            : rows.slice(0, options.limit);
+        }),
     },
     pendingApprovals: (size) =>
       call("list_pending_ai_tool_approvals", { size }, (value) =>

@@ -2595,17 +2595,66 @@ declare the columns in your schema files, or map the column to `null` in
 
 **Warning: a block's unique index repeats one of yours.** A block creates a
 unique index on a table where your own files already have a unique index over
-the same columns, or over a subset of them. Blocks leave out an index over the
-same columns, and the invoices number key when your key is a subset of it, so
-this finding is left for a case the block can't decide: the index serves an
-`on conflict` target or a foreign key. Drop the block's index with a hand
-migration, or narrow the block's key to the columns your index covers.
+the same columns, or over a subset of them. A partial unique index whose
+`where` is exactly `<column> is not null` counts as that full key. An
+expression key, such as `unique (tenant_id, lower(number))`, does not. Blocks
+leave out an index over the same columns, and the invoices number key when
+your key is a subset of it, so this finding is left for a case the block can't
+decide: the index serves an `on conflict` target or a foreign key. Drop the
+block's index with a hand migration, or narrow the block's key to the columns
+your index covers.
 
 ### BS624
 
 **Warning: a block's trigger repeats one of yours.** A block creates a trigger
 that keeps `updated_at` current on a table where your files already call
 `track_updated_at()`. Blocks leave their own trigger out of a table whose files call it, so the finding appears only for a trigger the block still adds, and both then run on every write. Keep one of them.
+
+### BS625
+
+**Warning: a block-columns file adds a column you pinned to an old name.** A
+`*.block-columns.sql` file adds a column under its 0.58 name, and
+`blocks.<name>.columns` pins that column to the name your table already has.
+Applying the file adds a second column. Delete the `add column` line, or drop
+the pin after you rename the column.
+
+### BS626
+
+**Warning: SQL still names a column 0.58 renamed.** An `audit` `ignore` or
+`redact` list, or a `->> '...'` key in your own SQL, still uses a column name
+this release renamed. `codemod naming` rewrites the audit lists. Update a JSON
+key a block function used to return. `organization_id` in your own JSON is
+left alone, and files `upgrade` rewrites are skipped.
+
+### BS628
+
+**Warning: a list cursor has no matching index.** A list function orders or
+continues by `created_at` and `id`, and the same file has no btree index that
+contains both columns. The cursor then sorts the tenant on every page. Add an
+index on `(tenant, created_at, id)` in the same direction as the order.
+
+### BS629
+
+**Warning: a migration drops import dispatch arms.** The newest migration that
+defines a function must contain every `when '<entity>' then` arm the schema
+file contains. An `import_apply_batch` in a schema file must also dispatch
+every entity in `blocks.imports.options.targets`. A regenerated migration that
+replaces the whole function from an older body drops targets the schema still
+calls. Sync the migration with the schema file.
+
+### BS627
+
+**Warning: a raise has no stable code.** A `raise exception` in a schema file
+without a `hint` leaves an app matching English message text. The hint is the
+code. `better-supabase codes --json` prints the catalog.
+
+### BS630
+
+**Warning: foreign keys to one table need two relation names.** Two foreign
+keys to the same table whose first columns differ become two relations, with a
+suffix so the names stay unique. A composite key that starts with the same
+column as a single-column key to that table is an alias of that relation.
+Rename one relation in `gen.tables`, or share the first column.
 
 ### BS612
 

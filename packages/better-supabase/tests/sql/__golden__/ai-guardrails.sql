@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
 -- @bsb-hash sha256:a04fb386089f7c02a9f9a1404fa0670054d1eb5cde00c9d33a653a57d7c2a8bc
@@ -166,7 +166,7 @@ $$;
 revoke execute on function "better_supabase"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_guardrail_decisions"() to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block-data ai-guardrails
 -- @bsb-hash sha256:7ad6925143264f72ccb6dee7cd17876e8f63303e2038b6199a6c423a7e9913f2
@@ -180,7 +180,7 @@ values ('ai-guardrails', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
 -- @bsb-hash sha256:3630b5e6e1266a0507888429392318d3b3c08a04e256bf0f88c861b67dbf7748
@@ -357,7 +357,7 @@ $$;
 revoke execute on function "better_supabase"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_guardrail_decisions"() to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block-data ai-guardrails
 -- @bsb-hash sha256:7ad6925143264f72ccb6dee7cd17876e8f63303e2038b6199a6c423a7e9913f2
@@ -371,7 +371,7 @@ values ('ai-guardrails', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
 -- @bsb-hash sha256:c2e45bd0a92998e3cd19ae38268e41deeee0d1a3ae1939e5949633472de00c10
@@ -544,7 +544,7 @@ $$;
 revoke execute on function "app_private"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "app_private"."purge_guardrail_decisions"() to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block-data ai-guardrails
 -- @bsb-hash sha256:7ad6925143264f72ccb6dee7cd17876e8f63303e2038b6199a6c423a7e9913f2
@@ -558,7 +558,7 @@ values ('ai-guardrails', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
 -- @bsb-hash sha256:e30114e392cb58b632c117cc2132d1cd0b8f16c32b703e4904f0f5a915eae4ab
@@ -777,7 +777,7 @@ as $$ select "better_supabase"."purge_guardrail_decisions"() $$;
 revoke execute on function "api"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "api"."purge_guardrail_decisions"() to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block-data ai-guardrails
 -- @bsb-hash sha256:7ad6925143264f72ccb6dee7cd17876e8f63303e2038b6199a6c423a7e9913f2
@@ -791,7 +791,7 @@ values ('ai-guardrails', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
 -- @bsb-hash sha256:a2b8609a883cebf98defacc8a04030c4a020f232f82edbef4a7a85b48b389783
@@ -955,7 +955,7 @@ $$;
 revoke execute on function "better_supabase"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_guardrail_decisions"() to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block-data ai-guardrails
 -- @bsb-hash sha256:7ad6925143264f72ccb6dee7cd17876e8f63303e2038b6199a6c423a7e9913f2
@@ -969,7 +969,7 @@ values ('ai-guardrails', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
 -- @bsb-hash sha256:b9b1e61f6937d48f5ece96001c76489165e2713fdd1f05ee3d8aea78874aefdd
@@ -1137,7 +1137,7 @@ $$;
 revoke execute on function "better_supabase"."purge_guardrail_decisions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_guardrail_decisions"() to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_182_ai_guardrails.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block-data ai-guardrails
 -- @bsb-hash sha256:7ad6925143264f72ccb6dee7cd17876e8f63303e2038b6199a6c423a7e9913f2

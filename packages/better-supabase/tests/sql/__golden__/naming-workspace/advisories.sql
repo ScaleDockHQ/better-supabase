@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_179_advisories.sql
+-- ==== schema supabase/schemas/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:c9fb046a4d8541a7632844af06f16e8f701a63f5817377ea606f18d5e01968ce
@@ -1152,7 +1152,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."advisory_vulnerabili
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_179_advisories.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705

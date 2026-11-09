@@ -15,6 +15,7 @@ pre-commit:
         - "tests/types/*/*.generated.ts"
         - "apps/examples/**/lib/supabase/*.generated.ts"
         - "apps/examples/**/lib/supabase/generated.*"
+        - "apps/examples/**/lib/supabase/blocks/slices.ts"
         - "tests/types/**/generated.*"
         - "tests/types/**/blocks.config.ts"
         - "apps/examples/**/lib/supabase/blocks.config.ts"

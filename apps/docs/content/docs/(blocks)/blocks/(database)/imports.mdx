@@ -3,7 +3,7 @@ title: Imports
 description: Import runs with an external record map. A rerun inserts new keys, skips unchanged ones, updates changed ones and leaves user edits alone, and CSV files get a suggested mapping and a dry run.
 ---
 
-`imports` is the counterpart of the data-lifecycle exporter. `parseCsv` reads RFC 4180 CSV (`SPEC_PINS.rfc4180`). `defineImport` names the source, a Standard Schema for one row, a row key and an `insert` function. `suggestMapping` pairs headers to fields. `dryRun` validates every row and returns errors without writing. `runImport` records the run, skips keys that already imported, inserts the rest in batches of 100 and finishes with `import.completed` or `import.failed`.
+`imports` is the counterpart of the data-lifecycle exporter. `parseCsv` reads RFC 4180 CSV (`SPEC_PINS.rfc4180`). `defineImport` names the source, a Standard Schema for one row, a row key and an `insert` function. `suggestMapping` pairs headers to fields. `dryRun` validates every row and returns errors without writing. `runImport` records the run, skips keys that already imported, inserts the rest in batches of 100 and finishes with `import.completed` or `import.failed`. Pass `accessToken` to read a token before every batch; an auth failure is retried once. A dropped batch returns `resumeFrom`, and passing that as `resume` continues the same run from that chunk.
 
 ```bash
 better-supabase add imports
@@ -85,8 +85,27 @@ insert. It returns `{ subjectId, role?, subjectType?, updatedAt? }`, or an
 array of them when one record writes several subjects (the first `primary`
 role is the one `resolve` returns). `updatedAt` is
 `(subject_id text) returns timestamptz`; without it a changed hash always
-overwrites. An entity without a target fails the batch with
-`IMPORT_TARGET_UNKNOWN`.
+overwrites. `ownedHash` is `(subject_id text) returns text` over the columns
+the importer writes. A newer `updated_at` is a conflict only when that hash
+changed. When only the stamp moved, the library realigns it and applies the
+row. `naturalKey` is `(tenant, item jsonb) returns text`. When no import record
+exists and it returns a subject, the write updates that row. `refs` maps each
+ref field to the entity it points at. The batch resolves those keys in one
+query and passes `resolved` to the write. A missing key is the warning
+`IMPORT_REF_MISSING`. A conflict, an error and a warning are stored on `import_run_issues`. A later run that
+applies the key sets `resolved_at`. `list_import_issues` pages them with a
+total capped at 10,000. `resolve_import_conflict` takes `keep` (the database
+value becomes the baseline) or `overwrite` (the next batch may write the
+source). `rebase_import_records(tenant, source, entities, keys)` copies the
+current stamp and hash onto the stored row. An entity without a target fails
+the batch with `IMPORT_TARGET_UNKNOWN`.
+
+`replaces: true` swaps a block's target for the app's `write` of the same
+entity. The batch loop, the hash and the record map stay the library's, so a
+later library change to that loop still runs. `before` and `after` name
+`(run uuid, item jsonb, subject_id text) returns jsonb` functions: `before`
+replaces the item, `after` replaces the write result. A null from either
+keeps the value it received.
 
 A target can add `batch: "schema.function"`, `(run uuid, items jsonb) returns
 jsonb`, to write a whole batch in set-based statements. The items that need a
@@ -102,14 +121,16 @@ table: on the local fixture, 3,000 customers took 356 ms through `batch` and
 
 These blocks contribute targets:
 
-| Block           | Entity               | Writes                                                                                |
-| --------------- | -------------------- | ------------------------------------------------------------------------------------- |
-| `catalog`       | `supplier_item`      | A supplier's price list row, by supplier and code                                     |
-| `catalog`       | `product_identifier` | An EAN or a supplier or manufacturer code on a variant                                |
-| `catalog`       | `discount_group`     | A customer or product discount group, with the customers of a customer group          |
-| `catalog`       | `discount_rule`      | A rule of the discount matrix, by group codes                                         |
-| `inventory`     | `stock_count`        | An open stock count with its lines, by location                                       |
-| `custom-fields` | `field_value`        | A custom field value of a record the record map knows, checked against its field type |
+| Block           | Entity                 | Writes                                                                                |
+| --------------- | ---------------------- | ------------------------------------------------------------------------------------- |
+| `catalog`       | `supplier_item`        | A supplier's price list row, by supplier and code                                     |
+| `catalog`       | `product_identifier`   | An EAN or a supplier or manufacturer code on a variant                                |
+| `catalog`       | `discount_group`       | A customer or product discount group, with the customers of a customer group          |
+| `catalog`       | `party_discount_group` | One party in one customer discount group, or out of it when the group is empty        |
+| `catalog`       | `discount_rule`        | A rule of the discount matrix, by group codes                                         |
+| `inventory`     | `stock_count`          | An open stock count with its lines, by location                                       |
+| `invoices`      | `invoice_allocation`   | A link from an existing receipt to an invoice, with no new ledger entry               |
+| `custom-fields` | `field_value`          | A custom field value of a record the record map knows, checked against its field type |
 
 The [catalog page](/docs/blocks/catalog#importing-price-lists-and-codes) lists
 the `data` each one takes.
@@ -241,8 +262,24 @@ the `warnings` of the batch outcome, and the item is still written.
 The buyer is stored as given in the `buyer` column. With the
 [legal entities](/docs/blocks/legal-entities) block on, the item's
 `legalEntity` sets `legal_entity_id`. Importing the same document again
-writes nothing. A document edited after the import is reported as a conflict,
-and a document whose source changed yields `IMPORT_DOCUMENT_CHANGED`.
+writes nothing. Set `data.update` to `apply` to write the header and, when the
+line count is unchanged, the line title and tax. A different line count
+replaces the lines inside the import session. A void or paid document keeps
+its postings unless `data.repost` is true. `data.settlement` of `row` writes
+`paid`, `partially_paid` or `open` on the invoice without a payment or a
+ledger entry. That row mode is the fast path and does not link the invoice to
+a receipt. Link mode is the `invoice_allocation` target: it writes
+`invoice_allocations` with `source` `import` and moves the paid total, and it
+posts no ledger entry. Use it when the receipt is already on the ledger. `suppliedOn` fills `supplied_on`, and fills the issue date when
+`issuedOn` is empty. A blank title keeps the number template. A line with a
+product is `product`. A payment term code and a tax rate that matches one
+code are resolved when those blocks are installed. A negative total becomes a
+credit note when `resolved.original` or `originalId` names the invoice, and
+stays an invoice with `IMPORT_CREDIT_WITHOUT_ORIGINAL` when it does not. A
+credit note in `settlement` `row` with no original records the same warning
+and posts nothing. A document edited after the import is reported as a
+conflict, and a document whose source changed yields
+`IMPORT_DOCUMENT_CHANGED` while `update` stays `keep`.
 
 ### Opening open items
 

@@ -281,6 +281,7 @@ create table if not exists ${cases} (
   foreign key (${c("tenant")}, ${c("kind")}) references ${kinds} (${k("tenant")}, ${k("id")}) on delete restrict
 );${appKey("cases", "tenant_number", `${c("tenant")}, ${c("number")}`)}${appKey("cases", "tenant_id", `${c("tenant")}, ${c("id")}`)}
 create index if not exists ${name("cases", "status_idx")} on ${cases} (${c("tenant")}, ${c("status")});
+create index if not exists ${name("cases", "created_idx")} on ${cases} (${c("tenant")}, ${c("createdAt")} desc, ${c("id")} desc);
 create index if not exists ${name("cases", "kind_stage_idx")} on ${cases} (${c("tenant")}, ${c("kind")}, ${c("stage")});
 create index if not exists ${name("cases", "board_idx")} on ${cases} (${c("pipeline")}, ${c("stage")}, ${c("rank")});
 create index if not exists ${name("cases", "owner_idx")} on ${cases} (${c("owner")}) where ${c("owner")} is not null;

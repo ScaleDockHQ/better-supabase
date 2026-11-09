@@ -21,6 +21,8 @@ export interface ImportItem {
   readonly data: Readonly<Record<string, unknown>>;
   /** Keys of other imported records this one points at, by entity. */
   readonly refs?: Readonly<Record<string, string>>;
+  /** When the source last changed this row. An older time skips the write. */
+  readonly sourceUpdatedAt?: string;
 }
 
 /** The outcome counts of one batch or one entity of a run. */
@@ -149,6 +151,64 @@ export async function dryRun<T>(
 
 const BATCH = 100;
 
+const transportKind = (error: unknown): "auth" | "dropped" | undefined => {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return undefined;
+  }
+
+  const { code } = error;
+
+  return code === "auth" || code === "dropped" ? code : undefined;
+};
+
+function droppedResult<T>(
+  id: string,
+  inserted: number,
+  chunk: number,
+  fresh: readonly T[],
+): RunImportResult<T> {
+  return {
+    id,
+    status: "failed",
+    imported: inserted,
+    errors: [{ row: chunk * BATCH + 1, message: "the connection dropped" }],
+    rows: fresh.slice(0, inserted),
+    resumeFrom: { runId: id, startChunk: chunk },
+  };
+}
+
+async function failedBatch<T>(
+  finish: (
+    id: string,
+    status: "failed",
+    count: number,
+    error: string | null,
+  ) => Promise<void>,
+  id: string,
+  inserted: number,
+  index: number,
+  fresh: readonly T[],
+  error: unknown,
+): Promise<RunImportResult<T>> {
+  const message = error instanceof Error ? error.message : String(error);
+  const first = index + 1;
+
+  await finish(id, "failed", inserted, message);
+
+  return {
+    id,
+    status: "failed",
+    imported: inserted,
+    errors: [
+      {
+        row: first,
+        message: `the batch starting at imported row ${first} failed: ${message}`,
+      },
+    ],
+    rows: fresh.slice(0, inserted),
+  };
+}
+
 /** What `import_upsert_batch` answers for one batch. */
 export interface ImportBatchReply extends ImportBatchCounts {
   readonly errors: readonly {
@@ -175,6 +235,11 @@ export interface RunImportResult<T> {
   readonly rows: readonly T[];
   /** Per outcome, for a run that wrote through `target`. */
   readonly counts?: ImportBatchCounts;
+  /**
+   * Set when a request dropped mid run. Pass it back as `resume` to continue
+   * from that chunk without writing the earlier chunks again.
+   */
+  readonly resumeFrom?: { readonly runId: string; readonly startChunk: number };
 }
 
 /**
@@ -204,10 +269,26 @@ export async function runImport<T>(
       count: number,
       error: string | null,
     ) => Promise<void>;
+    /** Called before every batch. A rejected token is retried once. */
+    readonly accessToken?: () => string | Promise<string>;
+    /** Continues a run that dropped, from this chunk, without calling `start`. */
+    readonly resume?:
+      | { readonly runId: string; readonly startChunk: number }
+      | undefined;
+    /**
+     * Sends one chunk. Throw `{ code: "auth" }` to refresh the token once, or
+     * `{ code: "dropped" }` to stop with `resumeFrom` set to this chunk.
+     */
+    readonly transport?: (input: {
+      readonly token: string;
+      readonly runId: string;
+      readonly chunk: number;
+      readonly items: readonly T[];
+    }) => Promise<void>;
   },
 ): Promise<RunImportResult<T>> {
   const preview = await dryRun(definition, csv, mapping);
-  const id = await hooks.start();
+  const id = hooks.resume?.runId ?? (await hooks.start());
 
   if (preview.errors.length > 0) {
     const error = preview.errors
@@ -240,65 +321,91 @@ export async function runImport<T>(
   });
 
   await hooks.running?.(id);
-  let inserted = 0;
+  const start = (hooks.resume?.startChunk ?? 0) * BATCH;
+  let inserted = start;
   const totals = { inserted: 0, updated: 0, unchanged: 0, conflicted: 0 };
 
-  for (let index = 0; index < fresh.length; index += BATCH) {
+  for (let index = start; index < fresh.length; index += BATCH) {
     const batch = fresh.slice(index, index + BATCH);
+    const chunk = index / BATCH;
 
-    try {
+    const send = async (token: string): Promise<void> => {
+      if (hooks.transport !== undefined) {
+        await hooks.transport({ token, runId: id, chunk, items: batch });
+
+        return;
+      }
+
       if (definition.target === undefined) {
         await definition.insert?.(batch, {
           organizationId: hooks.organizationId,
         });
-      } else {
-        const { entity, item } = definition.target;
 
-        if (hooks.upsertBatch === undefined) {
-          throw new TypeError(
-            `import "${definition.source}" has a target, so runImport needs hooks.upsertBatch`,
-          );
-        }
-
-        const reply = await hooks.upsertBatch(
-          entity,
-          batch.map((row) => ({
-            ...item(row),
-            key: item(row).key ?? definition.key(row),
-          })),
-        );
-
-        totals.inserted += reply.inserted;
-        totals.updated += reply.updated;
-        totals.unchanged += reply.unchanged;
-        totals.conflicted += reply.conflicted;
-
-        if (reply.errors.length > 0) {
-          throw new Error(
-            reply.errors
-              .map((item) => `${item.key ?? "item"}: ${item.message}`)
-              .join("; "),
-          );
-        }
+        return;
       }
+
+      const { entity, item } = definition.target;
+
+      if (hooks.upsertBatch === undefined) {
+        throw new TypeError(
+          `import "${definition.source}" has a target, so runImport needs hooks.upsertBatch`,
+        );
+      }
+
+      const reply = await hooks.upsertBatch(
+        entity,
+        batch.map((row) => ({
+          ...item(row),
+          key: item(row).key ?? definition.key(row),
+        })),
+      );
+
+      totals.inserted += reply.inserted;
+      totals.updated += reply.updated;
+      totals.unchanged += reply.unchanged;
+      totals.conflicted += reply.conflicted;
+
+      if (reply.errors.length > 0) {
+        throw new Error(
+          reply.errors
+            .map((item) => `${item.key ?? "item"}: ${item.message}`)
+            .join("; "),
+        );
+      }
+    };
+
+    const token =
+      hooks.accessToken === undefined ? "" : await hooks.accessToken();
+
+    try {
+      await send(token);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const first = index + 1;
+      const kind = transportKind(error);
 
-      await hooks.finish(id, "failed", inserted, message);
+      if (kind === "auth" && hooks.accessToken !== undefined) {
+        try {
+          await send(await hooks.accessToken());
+        } catch (retryError) {
+          const retryKind = transportKind(retryError);
 
-      return {
-        id,
-        status: "failed",
-        imported: inserted,
-        errors: [
-          {
-            row: first,
-            message: `the batch starting at imported row ${first} failed: ${message}`,
-          },
-        ],
-        rows: fresh.slice(0, inserted),
-      };
+          if (retryKind === "dropped") {
+            return droppedResult(id, inserted, chunk, fresh);
+          }
+
+          return failedBatch(
+            hooks.finish,
+            id,
+            inserted,
+            index,
+            fresh,
+            retryError,
+          );
+        }
+      } else if (kind === "dropped") {
+        return droppedResult(id, inserted, chunk, fresh);
+      } else {
+        return failedBatch(hooks.finish, id, inserted, index, fresh, error);
+      }
     }
 
     inserted += batch.length;

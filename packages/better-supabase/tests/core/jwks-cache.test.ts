@@ -160,6 +160,37 @@ describe("sharedJwks", () => {
     expect(fetch).toHaveBeenCalledTimes(4);
   });
 
+  it("serves a stale key set without waiting for the refresh", async () => {
+    clearJwksCache();
+
+    let clock = 0;
+    let release: (() => void) | undefined;
+
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => {
+      if (fetch.mock.calls.length > 1) {
+        await gate;
+      }
+
+      return Response.json(keys);
+    });
+
+    const options = { fetch, now: () => clock, cacheSeconds: 10 };
+
+    await sharedJwks(JWKS_URL, false, options);
+    clock = 11_000;
+
+    const started = Date.now();
+    const result = await sharedJwks(JWKS_URL, false, options);
+
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(result.ok && result.data).toEqual(keys);
+    release?.();
+  });
+
   it("purges every key set without an argument", async () => {
     clearJwksCache();
 

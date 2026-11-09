@@ -427,11 +427,12 @@ async function statusDatabaseUrl(
   let failure: string;
 
   try {
-    const status = await readStackStatus(
-      root,
-      env,
-      stack === undefined ? {} : { stack },
-    );
+    // A wedged Docker daemon makes `supabase status` wait on the engine. The
+    // caller only needs the URL or a failure, so give up and report no database.
+    const status = await readStackStatus(root, env, {
+      ...(stack === undefined ? {} : { stack }),
+      signal: AbortSignal.timeout(5000),
+    });
 
     const url = status.ok ? status.status["DB_URL"] : undefined;
 

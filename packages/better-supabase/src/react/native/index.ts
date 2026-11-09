@@ -37,6 +37,14 @@ export type {
 
 export { AUTHZ_EVENT, authzUserTopic } from "../../core/authz-topic.ts";
 
+export { OfflineBoundary } from "./offline.ts";
+
+export type { NetInfoLike } from "./offline.ts";
+
+export { nativePermissions } from "./permissions.ts";
+
+export type { PermissionStore } from "./permissions.ts";
+
 export type { AuthzVersionSource } from "../../core/authz-topic.ts";
 
 interface IdTokenClient {

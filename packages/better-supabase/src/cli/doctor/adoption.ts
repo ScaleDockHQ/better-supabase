@@ -36,6 +36,7 @@ import { configFor } from "../gen/shared.ts";
 import { isRecord } from "../guards.ts";
 import { appTablesWithoutPolicies } from "./app-table-policies.ts";
 import { adoptionContext, appTablesOf, appViewsOf } from "./app-tables.ts";
+import { shadowedBlockColumns, staleRenameKeys } from "./column-renames.ts";
 import {
   blockColumnsOnOwnedTables,
   duplicatedBlockObjects,
@@ -409,6 +410,23 @@ export const ADOPTION_RULES: readonly Rule[] = [
     description:
       "A block creates a trigger that keeps `updated_at` current on a table where your files already call `track_updated_at()`, Blocks leave their own trigger out of a table whose files call it, so the finding appears only for a trigger the block still adds, and both then run on every write. Keep one of them.",
     check: (context) => duplicatedBlockObjects(context, "trigger"),
+  },
+  {
+    code: "BS625",
+    severity: "warning",
+    title: "A block-columns file adds a column you pinned to an old name",
+    description:
+      "A `*.block-columns.sql` file adds a column under its 0.58 name, and `blocks.<name>.columns` pins that column to the name your table already has. Applying the file adds a second column beside the one the pin keeps. Delete the `add column` line, or drop the pin after you rename the column.",
+    check: (context) =>
+      shadowedBlockColumns(context.config, context.sqlFiles ?? []),
+  },
+  {
+    code: "BS626",
+    severity: "warning",
+    title: "SQL still names a column 0.58 renamed",
+    description:
+      "An `audit` `ignore` or `redact` list, or a `->> '...'` key in your own SQL, still uses a column name this release renamed. `codemod naming` rewrites the audit lists. Update a JSON key that a block function used to return, such as `purge_after`, to the name in the 0.58 guide. `organization_id` in your own JSON is left alone.",
+    check: (context) => staleRenameKeys(context.sqlFiles ?? []),
   },
   {
     code: "BS350",

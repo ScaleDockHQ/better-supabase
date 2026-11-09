@@ -15,6 +15,9 @@ export const permissionsConfig = {
 export const organizationsConfig = {
   schema: "better_supabase",
   options: {},
+  names: {
+    tenantColumn: "organization_id",
+  },
 } as const satisfies GeneratedBlock;
 
 /** The `profiles` instance's config slice. */

@@ -35,6 +35,29 @@ create unique index invoices_number on public.invoices (organization_id, number)
     ]);
   });
 
+  it("counts a not-null partial unique index and ignores an expression key", () => {
+    const found = duplicateObjects(
+      block(
+        `create unique index invoices_key on public.invoices (organization_id, direction, kind, number);
+create unique index present on public.t (z);`,
+      ),
+      app(
+        `create unique index invoices_expr on public.invoices (organization_id, lower(number));
+create unique index present on public.t (z) where z is not null;`,
+      ),
+      ["public"],
+    );
+
+    expect(found).toEqual([
+      expect.objectContaining({
+        table: "public.t",
+        block: "present",
+        app: "present",
+        reason: "identical",
+      }),
+    ]);
+  });
+
   it("leaves partial indexes, other tables and other columns alone", () => {
     expect(
       duplicateObjects(

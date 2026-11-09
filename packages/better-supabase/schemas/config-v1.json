@@ -2021,6 +2021,7 @@
               "versions",
               "waitlist",
               "warehouse",
+              "warranty",
               "webhook-inbox",
               "webhooks-in",
               "webhooks-out",
@@ -2217,6 +2218,7 @@
                   "versions",
                   "waitlist",
                   "warehouse",
+                  "warranty",
                   "webhook-inbox",
                   "webhooks-in",
                   "webhooks-out",
@@ -2762,6 +2764,9 @@
             "warehouse": {
               "$ref": "#/$defs/blocks/warehouse"
             },
+            "warranty": {
+              "$ref": "#/$defs/blocks/warranty"
+            },
             "webhook-inbox": {
               "$ref": "#/$defs/blocks/webhook-inbox"
             },
@@ -2826,6 +2831,25 @@
           "type": "boolean",
           "description": "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses. false writes the single module.",
           "default": true
+        },
+        "types": {
+          "type": "object",
+          "properties": {
+            "tables": {
+              "type": "object",
+              "properties": {
+                "only": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Table, view and foreign-table names database.types.ts includes. Other relations are omitted."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         },
         "blockModules": {
           "type": "boolean",
@@ -3519,6 +3543,20 @@
           "additionalProperties": false,
           "description": "This block's tenant scope policies. Defaults to database.sql.tenantScope."
         },
+        "indexes": {
+          "type": "object",
+          "properties": {
+            "skip": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z_][a-z0-9_]*$"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "description": "Index names this block should not create, when one of your indexes already covers them. skip lists create index names, such as invoices_tenant_status_idx. A name the module does not create is an error."
+        },
         "functions": {
           "type": "object",
           "additionalProperties": {
@@ -3763,6 +3801,20 @@
           },
           "additionalProperties": false,
           "description": "This block's tenant scope policies. Defaults to database.sql.tenantScope."
+        },
+        "indexes": {
+          "type": "object",
+          "properties": {
+            "skip": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z_][a-z0-9_]*$"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "description": "Index names this block should not create, when one of your indexes already covers them. skip lists create index names, such as invoices_tenant_status_idx. A name the module does not create is an error."
         },
         "functions": {
           "type": "object",
@@ -7936,6 +7988,17 @@
         }
       },
       "warehouse": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "warranty": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {

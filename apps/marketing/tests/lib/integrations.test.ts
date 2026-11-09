@@ -22,6 +22,8 @@ const UNLISTED = new Set([
   "next-offline-pwa",
   // A guide for running Hono and Next.js on one server, reached from both pages.
   "hono-and-next",
+  // Compact permissions, list paging and the native offline boundary.
+  "client-permissions",
 ]);
 
 /** Slugs with `(group)` folders removed, so a moved page still matches its URL. */

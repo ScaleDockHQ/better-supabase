@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:3efce6fa3e47e3ef5ab39da72121f4e8ce6637dfe5e75a353176da1ee2423728
@@ -488,7 +488,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."agent_mandates" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_178_agent_checkout.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238
@@ -502,7 +502,7 @@ values ('agent-checkout', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:705521ef52674e5b250c5a7a20b7f153536aa4efdc8c57b985cd4797f172e9c1
@@ -1069,7 +1069,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."agent_mandates" as r
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.checkout_sessions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"checkout_session","event_prefix":"checkout_session"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.agent_mandates deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"agent_mandate","event_prefix":"agent_mandate"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_178_agent_checkout.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238
@@ -1083,7 +1083,7 @@ values ('agent-checkout', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:3a7695aacde792344ace03b48c98bebb6f9e11928e6c8134c60e899e91bd16cb
@@ -1578,7 +1578,7 @@ create policy bsb_tenant_scope_delete on "app_private"."agent_mandates" as restr
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_178_agent_checkout.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238
@@ -1592,7 +1592,7 @@ values ('agent-checkout', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:8e70946b08ca0bb8a75bb1f6bc4d1043ed525a471a25cdae78898885ba865bf8
@@ -2180,7 +2180,7 @@ as $$ select "better_supabase"."list_agent_mandates"($1, $2) $$;
 revoke execute on function "api"."list_agent_mandates"(uuid, jsonb) from public, anon;
 grant execute on function "api"."list_agent_mandates"(uuid, jsonb) to authenticated, service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_178_agent_checkout.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238
@@ -2194,7 +2194,7 @@ values ('agent-checkout', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:0e4884e239a1877f409c36f6a6daee3c0bc2e1dbd868b5519bfafc4cbe2de77c
@@ -2679,7 +2679,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."agent_mandates" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_178_agent_checkout.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238
@@ -2693,7 +2693,7 @@ values ('agent-checkout', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:9ebed2db690041f6b25f17c510c6a53403070dba20f92f5dd8ad3a3ad7023a6c
@@ -3183,7 +3183,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."agent_mandates" as r
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_178_agent_checkout.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238

@@ -172,8 +172,9 @@ async function errorsFor(name: string, value: unknown): Promise<string[]> {
 
 describe("shipped JSON Schemas", () => {
   it("have an $id matching their file and are referenced by the code", async () => {
-    const files = (await readdir(SCHEMAS)).filter((file) =>
-      file.endsWith(".json"),
+    // error-codes.json is the raise-code catalog, not a JSON Schema.
+    const files = (await readdir(SCHEMAS)).filter(
+      (file) => file.endsWith(".json") && file !== "error-codes.json",
     );
 
     expect(files.toSorted((a, b) => a.localeCompare(b))).toEqual([

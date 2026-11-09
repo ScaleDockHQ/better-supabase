@@ -2,11 +2,55 @@ import type { NamingRename } from "./codemod-naming.ts";
 
 import { codeRanges } from "./code-ranges.ts";
 
+/** The innermost unclosed bracket before `at`, counting only code. */
+function openBracket(
+  text: string,
+  at: number,
+  ranges: readonly [number, number][],
+): "{" | "[" | "(" | undefined {
+  const stack: ("{" | "[" | "(")[] = [];
+
+  const push = (char: string): void => {
+    if (char === "{" || char === "[" || char === "(") {
+      stack.push(char);
+    }
+  };
+
+  for (const [start, end] of ranges) {
+    const stop = Math.min(end, at);
+
+    if (stop <= start) {
+      continue;
+    }
+
+    for (let index = start; index < stop; index += 1) {
+      const char = text[index];
+
+      if (char === "{" || char === "[" || char === "(") {
+        push(char);
+      } else if (
+        (char === "}" || char === "]" || char === ")") &&
+        stack.length > 0
+      ) {
+        stack.pop();
+      }
+    }
+
+    if (end >= at) {
+      break;
+    }
+  }
+
+  return stack.at(-1);
+}
+
 /**
  * `text` with each property or argument name of the `argument` rows renamed: `{
  * workItemId: id }`, `result.workItemId` and the shorthand `{ workItemId }`,
- * which keeps its local name (`{ taskId: workItemId }`). Only code counts, and
- * the names in an import or export list stay.
+ * which keeps its local name (`{ taskId: workItemId }`). A shorthand whose new
+ * name is the same token stays shorthand (`{ taskId }`, not `{ taskId: taskId
+ * }`). Only names inside `{` are renamed, plus a member access. The names in an
+ * import or export list stay.
  */
 export function renameArguments(
   text: string,
@@ -40,22 +84,18 @@ export function renameArguments(
       const previous = before.at(-1);
       const key = after.startsWith(":") && !after.startsWith("::");
       const shorthand = after.startsWith(",") || after.startsWith("}");
-
-      const insideBraces =
-        previous === "{" || previous === "," || previous === undefined;
-
+      const inObject = openBracket(text, at, ranges) === "{";
       const memberOf = previous === "." && before.at(-2) !== ".";
-
       const listed = /\b(?:import|export)(?:\s+type)?\s*\{[^}]*$/.test(before);
 
       let replacement: string | undefined;
 
       if (memberOf) {
         replacement = to;
-      } else if (insideBraces && key && !listed) {
+      } else if (inObject && key && !listed) {
         replacement = to;
-      } else if (insideBraces && shorthand && !listed) {
-        replacement = `${to}: ${match[0]}`;
+      } else if (inObject && shorthand && !listed) {
+        replacement = to === match[0] ? to : `${to}: ${match[0]}`;
       }
 
       if (replacement !== undefined) {
@@ -76,8 +116,9 @@ const escapeRegExp = (value: string): string =>
 
 /**
  * `text` with the block keys of the `blocks.<name>` rows renamed where code
- * reads them: `blocks["time-tracking"]` and `db.$blocks.timeTracking`. The
- * config key itself is renamed by the config scanner.
+ * reads them: `blocks["time-tracking"]`, `blockConfig["time-tracking"]` and
+ * `db.$blocks.timeTracking`. The config key itself is renamed by the config
+ * scanner.
  */
 export function renameBlockReferences(
   text: string,
@@ -101,11 +142,13 @@ export function renameBlockReferences(
     result = result
       .replaceAll(
         new RegExp(
-          String.raw`\bblocks\s*\[\s*(["'])${escapeRegExp(from)}\1\s*\]`,
+          String.raw`\b(?:blocks|blockConfig)\s*\[\s*(["'])${escapeRegExp(from)}\1\s*\]`,
           "g",
         ),
         (whole, quote: string, offset: number) =>
-          inCode(offset) ? `blocks[${quote}${to}${quote}]` : whole,
+          inCode(offset)
+            ? `${whole.startsWith("blockConfig") ? "blockConfig" : "blocks"}[${quote}${to}${quote}]`
+            : whole,
       )
       .replaceAll(
         new RegExp(String.raw`(\$blocks\.)${camel(from)}\b`, "g"),

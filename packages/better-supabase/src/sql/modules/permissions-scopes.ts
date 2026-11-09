@@ -325,6 +325,7 @@ export const MODULE_PERMISSION_SCOPES: {
   maintenance: { read: "tenant", record: "tenant", manage: "tenant" },
   appraisals: { read: "tenant", review: "tenant", manage: "tenant" },
   warehouse: { read: "tenant", pick: "tenant", manage: "tenant" },
+  warranty: { read: "tenant", write: "tenant", decide: "tenant" },
   meetings: { read: "tenant", write: "tenant", manage: "tenant" },
   manufacturing: {
     read: "tenant",

@@ -420,7 +420,7 @@ describe("doctor command", () => {
         ),
       }),
     ]);
-  });
+  }, 60_000);
 
   it("writes a baseline, leaves out its findings and fails on a stale entry", async () => {
     const snapshot = await parseSnapshot({

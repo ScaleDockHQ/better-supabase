@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:9b9aed4a05bbaa452fb4216d4e48bcb5ca955f6bce0841d59d541b808f693d54
+-- @bsb-hash sha256:d0f027e81b13f86f3b92caebdca45de94919addd7f27530336ba9324d92a070d
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -39,6 +39,8 @@ create table "better_supabase"."companies" (
   "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300),
   "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100),
   "phone" text,
+  "billing_email" text,
+  "bill_to_id" uuid,
   "lifecycle" text not null,
   "owner_id" uuid,
   "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
@@ -77,6 +79,10 @@ create table "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300),
+  "given_name" text,
+  "last_name" text,
+  "initials" text,
+  "infix" text,
   "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
@@ -136,6 +142,78 @@ grant all on "better_supabase"."company_people" to service_role;
 create policy bsb_company_people_read on "better_supabase"."company_people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
+
+create table "better_supabase"."party_locations" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "party_id" uuid not null,
+  "kind" text not null default 'other',
+  "line1" text,
+  "line2" text,
+  "postal_code" text,
+  "city" text,
+  "country" text,
+  "latitude" double precision,
+  "longitude" double precision,
+  "is_primary" boolean not null default false,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+alter table "better_supabase"."party_locations" enable row level security;
+revoke all on "better_supabase"."party_locations" from public, anon, authenticated;
+grant select on "better_supabase"."party_locations" to authenticated;
+grant all on "better_supabase"."party_locations" to service_role;
+create policy bsb_party_locations_read on "better_supabase"."party_locations"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
+
+create unique index party_locations_primary_idx
+  on "better_supabase"."party_locations" ("tenant_id", "party_id") where "is_primary";
+
+create table "better_supabase"."party_bank_accounts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "party_id" uuid not null,
+  "iban" text not null,
+  "bic" text,
+  "holder" text,
+  "is_primary" boolean not null default false,
+  unique ("tenant_id", "iban"),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+alter table "better_supabase"."party_bank_accounts" enable row level security;
+revoke all on "better_supabase"."party_bank_accounts" from public, anon, authenticated;
+grant select on "better_supabase"."party_bank_accounts" to authenticated;
+grant all on "better_supabase"."party_bank_accounts" to service_role;
+create policy bsb_party_bank_accounts_read on "better_supabase"."party_bank_accounts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
+
+create unique index party_bank_accounts_primary_idx
+  on "better_supabase"."party_bank_accounts" ("tenant_id", "party_id") where "is_primary";
+
+create table "better_supabase"."party_channels" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "party_id" uuid not null,
+  "party_kind" text not null constraint bsb_party_channels_party_kind_check check ("party_kind" in ('person', 'company')),
+  "channel" text not null constraint bsb_party_channels_channel_check check ("channel" in ('email', 'phone', 'mobile', 'fax', 'whatsapp')),
+  "label" text,
+  "address" text not null,
+  "is_primary" boolean not null default false,
+  unique ("tenant_id", "party_id", "channel", "address"),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+alter table "better_supabase"."party_channels" enable row level security;
+revoke all on "better_supabase"."party_channels" from public, anon, authenticated;
+grant select on "better_supabase"."party_channels" to authenticated;
+grant all on "better_supabase"."party_channels" to service_role;
+create policy bsb_party_channels_read on "better_supabase"."party_channels"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
+
 
 create table "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1346,6 +1424,315 @@ $$;
 revoke execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) to authenticated, service_role;
 
+-- One party. kind is person, company or auto (a legal suffix is a company).
+-- A name comes from displayName, then legalName, then the person names, then
+-- number. Anything but displayName adds IMPORT_NAME_FALLBACK. A repeat whose
+-- stored columns already match returns without writing.
+create or replace function "better_supabase"."import_party"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_party.item -> 'data';
+  v_tenant uuid := (import_party.item ->> 'tenant')::uuid;
+  v_display text := nullif(btrim(v_data ->> 'displayName'), '');
+  v_legal text := nullif(btrim(v_data ->> 'legalName'), '');
+  v_person text := nullif(btrim(concat_ws(' ', v_data ->> 'givenName', v_data ->> 'infix', v_data ->> 'lastName')), '');
+  v_number text := nullif(btrim(v_data ->> 'number'), '');
+  v_name text := coalesce(v_display, v_legal, v_person, v_number);
+  v_kind text := coalesce(nullif(v_data ->> 'kind', ''), 'auto');
+  v_warnings jsonb := '[]'::jsonb;
+  v_id uuid;
+  v_updated timestamptz;
+  v_same boolean;
+begin
+  if jsonb_typeof(v_data) is distinct from 'object' or v_name is null then
+    raise exception 'a party needs a display name, a legal name, a person name or a number' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_display is null then
+    v_warnings := jsonb_build_array(jsonb_build_object('code', 'IMPORT_NAME_FALLBACK', 'message', 'the party name came from a fallback'));
+  end if;
+  if v_kind = 'auto' then
+    v_kind := case when v_name ~* '\m(b\.?v\.?|n\.?v\.?|gmbh|ltd\.?|llc|inc\.?|bvba|vof|stichting|holding)\M' then 'company' else 'person' end;
+  end if;
+  if v_kind = 'company' then
+    if import_party.subject_id is not null then
+      select x."id", x."updated_at", x."name" is not distinct from v_name and x."legal_name" is not distinct from coalesce(v_legal, v_name) and x."vat_id" is not distinct from nullif(btrim(v_data ->> 'vatId'), '') and x."registration_id" is not distinct from nullif(btrim(v_data ->> 'registrationId'), '') and x."phone" is not distinct from better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region') and x."billing_email" is not distinct from nullif(lower(btrim(v_data ->> 'billingEmail')), '') and x."bill_to_id" is not distinct from nullif(coalesce(import_party.item -> 'resolved' ->> 'billTo', v_data ->> 'billToId'), '')::uuid and x."lifecycle" is not distinct from coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,prospect,customer,churned}'::text[])[1]) and x."language" is not distinct from nullif(btrim(v_data ->> 'language'), '') and x."roles" is not distinct from case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end and x."customer_terms_id" is not distinct from (select p."id" from "better_supabase"."payment_terms" p where p."tenant_id" = v_tenant and p."code" = nullif(btrim(v_data ->> 'termsCode'), '')) and x."archived_at" is not distinct from nullif(v_data ->> 'archivedAt', '')::timestamptz into v_id, v_updated, v_same
+      from "better_supabase"."companies" x
+      where x."id" = import_party.subject_id::uuid and x."tenant_id" = v_tenant;
+      if v_id is not null and v_same then
+        return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated, 'warnings', v_warnings);
+      end if;
+      update "better_supabase"."companies" x set "name" = v_name, "legal_name" = coalesce(v_legal, v_name), "vat_id" = nullif(btrim(v_data ->> 'vatId'), ''), "registration_id" = nullif(btrim(v_data ->> 'registrationId'), ''), "phone" = better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), "billing_email" = nullif(lower(btrim(v_data ->> 'billingEmail')), ''), "bill_to_id" = nullif(coalesce(import_party.item -> 'resolved' ->> 'billTo', v_data ->> 'billToId'), '')::uuid, "lifecycle" = coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,prospect,customer,churned}'::text[])[1]), "language" = nullif(btrim(v_data ->> 'language'), ''), "roles" = case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, "customer_terms_id" = (select p."id" from "better_supabase"."payment_terms" p where p."tenant_id" = v_tenant and p."code" = nullif(btrim(v_data ->> 'termsCode'), '')), "archived_at" = nullif(v_data ->> 'archivedAt', '')::timestamptz, "updated_at" = now()
+      where x."id" = import_party.subject_id::uuid and x."tenant_id" = v_tenant
+      returning x."id", x."updated_at" into v_id, v_updated;
+    end if;
+    if v_id is null then
+      insert into "better_supabase"."companies" ("tenant_id", "name", "legal_name", "vat_id", "registration_id", "phone", "billing_email", "bill_to_id", "lifecycle", "language", "roles", "customer_terms_id", "archived_at")
+      values (v_tenant, v_name, coalesce(v_legal, v_name), nullif(btrim(v_data ->> 'vatId'), ''), nullif(btrim(v_data ->> 'registrationId'), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), nullif(lower(btrim(v_data ->> 'billingEmail')), ''), nullif(coalesce(import_party.item -> 'resolved' ->> 'billTo', v_data ->> 'billToId'), '')::uuid, coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, (select p."id" from "better_supabase"."payment_terms" p where p."tenant_id" = v_tenant and p."code" = nullif(btrim(v_data ->> 'termsCode'), '')), nullif(v_data ->> 'archivedAt', '')::timestamptz)
+      returning "id", "updated_at" into v_id, v_updated;
+    end if;
+  elsif v_kind = 'person' then
+    if import_party.subject_id is not null then
+      select x."id", x."updated_at", x."name" is not distinct from v_name and x."given_name" is not distinct from nullif(btrim(v_data ->> 'givenName'), '') and x."last_name" is not distinct from nullif(btrim(v_data ->> 'lastName'), '') and x."initials" is not distinct from nullif(btrim(v_data ->> 'initials'), '') and x."infix" is not distinct from nullif(btrim(v_data ->> 'infix'), '') and x."email" is not distinct from nullif(lower(btrim(v_data ->> 'email')), '') and x."phone" is not distinct from better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region') and x."lifecycle" is not distinct from coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]) and x."language" is not distinct from nullif(btrim(v_data ->> 'language'), '') and x."roles" is not distinct from case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end and x."archived_at" is not distinct from nullif(v_data ->> 'archivedAt', '')::timestamptz into v_id, v_updated, v_same
+      from "better_supabase"."people" x
+      where x."id" = import_party.subject_id::uuid and x."tenant_id" = v_tenant;
+      if v_id is not null and v_same then
+        return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated, 'warnings', v_warnings);
+      end if;
+      update "better_supabase"."people" x set "name" = v_name, "given_name" = nullif(btrim(v_data ->> 'givenName'), ''), "last_name" = nullif(btrim(v_data ->> 'lastName'), ''), "initials" = nullif(btrim(v_data ->> 'initials'), ''), "infix" = nullif(btrim(v_data ->> 'infix'), ''), "email" = nullif(lower(btrim(v_data ->> 'email')), ''), "phone" = better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), "lifecycle" = coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), "language" = nullif(btrim(v_data ->> 'language'), ''), "roles" = case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, "archived_at" = nullif(v_data ->> 'archivedAt', '')::timestamptz, "updated_at" = now()
+      where x."id" = import_party.subject_id::uuid and x."tenant_id" = v_tenant
+      returning x."id", x."updated_at" into v_id, v_updated;
+    end if;
+    if v_id is null then
+      insert into "better_supabase"."people" ("tenant_id", "name", "given_name", "last_name", "initials", "infix", "email", "phone", "lifecycle", "language", "roles", "archived_at")
+      values (v_tenant, v_name, nullif(btrim(v_data ->> 'givenName'), ''), nullif(btrim(v_data ->> 'lastName'), ''), nullif(btrim(v_data ->> 'initials'), ''), nullif(btrim(v_data ->> 'infix'), ''), nullif(lower(btrim(v_data ->> 'email')), ''), better_supabase.normalize_phone(v_data ->> 'phone', v_data ->> 'region'), coalesce(nullif(v_data ->> 'lifecycle', ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(btrim(v_data ->> 'language'), ''), case when jsonb_typeof(v_data -> 'roles') = 'array' then (select coalesce(array_agg(r), '{}'::text[]) from jsonb_array_elements_text(v_data -> 'roles') r) else null end, nullif(v_data ->> 'archivedAt', '')::timestamptz)
+      returning "id", "updated_at" into v_id, v_updated;
+    end if;
+  else
+    raise exception 'kind is person, company or auto' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated, 'warnings', v_warnings);
+end;
+$$;
+revoke execute on function "better_supabase"."import_party"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."party_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select x."updated_at" from "better_supabase"."companies" x where x."id"::text = party_updated_at.subject_id),
+    (select x."updated_at" from "better_supabase"."people" x where x."id"::text = party_updated_at.subject_id))
+$$;
+revoke execute on function "better_supabase"."party_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."party_updated_at"(text) to service_role;
+
+create or replace function "better_supabase"."import_party_contact"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_party_contact.item -> 'data';
+  v_company uuid := nullif(coalesce(import_party_contact.item -> 'resolved' ->> 'company', v_data ->> 'companyId'), '')::uuid;
+  v_person uuid := nullif(coalesce(import_party_contact.item -> 'resolved' ->> 'person', v_data ->> 'personId'), '')::uuid;
+  v_primary boolean := coalesce((v_data ->> 'isPrimary')::boolean, false);
+begin
+  if v_company is null or v_person is null then
+    raise exception 'a party contact needs a company and a person' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."company_people" x
+    where x."company_id" = v_company and x."person_id" = v_person
+      and x."is_primary" is not distinct from v_primary
+      and x."role" is not distinct from nullif(btrim(v_data ->> 'role'), '')
+  ) then
+    return jsonb_build_object('subjectId', v_company::text || ':' || v_person::text, 'updatedAt',
+      (select x."created_at" from "better_supabase"."company_people" x where x."company_id" = v_company and x."person_id" = v_person));
+  end if;
+  insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "is_primary", "role")
+  values ((import_party_contact.item ->> 'tenant')::uuid, v_company, v_person, v_primary, nullif(btrim(v_data ->> 'role'), ''))
+  on conflict ("company_id", "person_id") do update
+    set "is_primary" = excluded."is_primary", "role" = nullif(btrim(v_data ->> 'role'), '');
+  return jsonb_build_object('subjectId', v_company::text || ':' || v_person::text, 'updatedAt', now());
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_contact"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_contact"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."party_contact_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."created_at" from "better_supabase"."company_people" x
+  where x."company_id"::text = split_part(party_contact_updated_at.subject_id, ':', 1)
+    and x."person_id"::text = split_part(party_contact_updated_at.subject_id, ':', 2)
+$$;
+revoke execute on function "better_supabase"."party_contact_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."party_contact_updated_at"(text) to service_role;
+
+
+create or replace function "better_supabase"."import_contact_method"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_contact_method.item -> 'data';
+  v_party uuid := nullif(coalesce(import_contact_method.item -> 'resolved' ->> 'party', v_data ->> 'partyId'), '')::uuid;
+  v_kind text := coalesce(nullif(v_data ->> 'partyKind', ''), 'person');
+  v_channel text := nullif(v_data ->> 'channel', '');
+  v_address text := nullif(btrim(v_data ->> 'address'), '');
+  v_id uuid;
+  v_updated timestamptz;
+begin
+  if v_channel in ('email') then
+    v_address := nullif(lower(v_address), '');
+  elsif v_channel in ('phone', 'mobile', 'fax', 'whatsapp') then
+    v_address := nullif(better_supabase.normalize_phone(v_address, v_data ->> 'region'), '');
+  end if;
+  if v_party is null or v_kind not in ('person', 'company') or v_channel not in ('email', 'phone', 'mobile', 'fax', 'whatsapp') or v_address is null then
+    raise exception 'a contact method needs a party, a channel and an address' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  select x."id", x."updated_at" into v_id, v_updated from "better_supabase"."party_channels" x
+  where x."tenant_id" = (import_contact_method.item ->> 'tenant')::uuid
+    and x."party_id" = v_party and x."channel" = v_channel and x."address" = v_address
+    and x."label" is not distinct from nullif(btrim(v_data ->> 'label'), '')
+    and x."is_primary" is not distinct from coalesce((v_data ->> 'isPrimary')::boolean, false);
+  if v_id is not null then
+    return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+  end if;
+  insert into "better_supabase"."party_channels" ("tenant_id", "party_id", "party_kind", "channel", "label", "address", "is_primary")
+  values ((import_contact_method.item ->> 'tenant')::uuid, v_party, v_kind, v_channel, nullif(btrim(v_data ->> 'label'), ''), v_address, coalesce((v_data ->> 'isPrimary')::boolean, false))
+  on conflict ("tenant_id", "party_id", "channel", "address") do update
+    set "label" = excluded."label", "is_primary" = excluded."is_primary", "updated_at" = now()
+  returning "id", "updated_at" into v_id, v_updated;
+  return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_contact_method"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_contact_method"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."contact_method_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."party_channels" x where x."id"::text = contact_method_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."contact_method_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."contact_method_updated_at"(text) to service_role;
+
+
+create or replace function "better_supabase"."import_party_location"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_party_location.item -> 'data';
+  v_party uuid := nullif(coalesce(import_party_location.item -> 'resolved' ->> 'party', v_data ->> 'partyId'), '')::uuid;
+  v_id uuid;
+  v_updated timestamptz;
+  v_same boolean;
+begin
+  if v_party is null then
+    raise exception 'a location needs a party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if import_party_location.subject_id is not null then
+    select x."id", x."updated_at", x."party_id" is not distinct from v_party and x."kind" is not distinct from coalesce(nullif(v_data ->> 'kind', ''), 'other') and x."line1" is not distinct from nullif(btrim(v_data ->> 'line1'), '') and x."line2" is not distinct from nullif(btrim(v_data ->> 'line2'), '') and x."postal_code" is not distinct from nullif(btrim(v_data ->> 'postalCode'), '') and x."city" is not distinct from nullif(btrim(v_data ->> 'city'), '') and x."country" is not distinct from nullif(btrim(v_data ->> 'country'), '') and x."latitude" is not distinct from nullif(v_data ->> 'latitude', '')::double precision and x."longitude" is not distinct from nullif(v_data ->> 'longitude', '')::double precision and x."is_primary" is not distinct from coalesce((v_data ->> 'isPrimary')::boolean, false) into v_id, v_updated, v_same
+    from "better_supabase"."party_locations" x
+    where x."id" = import_party_location.subject_id::uuid and x."tenant_id" = (import_party_location.item ->> 'tenant')::uuid;
+    if v_id is not null and v_same then
+      return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+    end if;
+    update "better_supabase"."party_locations" x set "party_id" = v_party, "kind" = coalesce(nullif(v_data ->> 'kind', ''), 'other'), "line1" = nullif(btrim(v_data ->> 'line1'), ''), "line2" = nullif(btrim(v_data ->> 'line2'), ''), "postal_code" = nullif(btrim(v_data ->> 'postalCode'), ''), "city" = nullif(btrim(v_data ->> 'city'), ''), "country" = nullif(btrim(v_data ->> 'country'), ''), "latitude" = nullif(v_data ->> 'latitude', '')::double precision, "longitude" = nullif(v_data ->> 'longitude', '')::double precision, "is_primary" = coalesce((v_data ->> 'isPrimary')::boolean, false), "updated_at" = now()
+    where x."id" = import_party_location.subject_id::uuid
+    returning x."id", x."updated_at" into v_id, v_updated;
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."party_locations" ("tenant_id", "party_id", "kind", "line1", "line2", "postal_code", "city", "country", "latitude", "longitude", "is_primary")
+    values ((import_party_location.item ->> 'tenant')::uuid, v_party, coalesce(nullif(v_data ->> 'kind', ''), 'other'), nullif(btrim(v_data ->> 'line1'), ''), nullif(btrim(v_data ->> 'line2'), ''), nullif(btrim(v_data ->> 'postalCode'), ''), nullif(btrim(v_data ->> 'city'), ''), nullif(btrim(v_data ->> 'country'), ''), nullif(v_data ->> 'latitude', '')::double precision, nullif(v_data ->> 'longitude', '')::double precision, coalesce((v_data ->> 'isPrimary')::boolean, false))
+    returning "id", "updated_at" into v_id, v_updated;
+  end if;
+  return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_location"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_location"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."party_location_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."party_locations" x where x."id"::text = party_location_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."party_location_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."party_location_updated_at"(text) to service_role;
+
+
+create or replace function "better_supabase"."import_party_bank_account"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_party_bank_account.item -> 'data';
+  v_party uuid := nullif(coalesce(import_party_bank_account.item -> 'resolved' ->> 'party', v_data ->> 'partyId'), '')::uuid;
+  v_iban text := upper(regexp_replace(coalesce(v_data ->> 'iban', ''), '\s', '', 'g'));
+  v_id uuid;
+  v_updated timestamptz;
+begin
+  if v_party is null or not better_supabase.validate_iban(v_iban) then
+    raise exception 'a bank account needs a party and a valid IBAN' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  select x."id", x."updated_at" into v_id, v_updated from "better_supabase"."party_bank_accounts" x
+  where x."tenant_id" = (import_party_bank_account.item ->> 'tenant')::uuid and x."iban" = v_iban
+    and x."bic" is not distinct from nullif(upper(btrim(v_data ->> 'bic')), '')
+    and x."holder" is not distinct from nullif(btrim(v_data ->> 'holder'), '')
+    and x."is_primary" is not distinct from coalesce((v_data ->> 'isPrimary')::boolean, x."is_primary");
+  if v_id is not null then
+    return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+  end if;
+  insert into "better_supabase"."party_bank_accounts" ("tenant_id", "party_id", "iban", "bic", "holder", "is_primary")
+  values ((import_party_bank_account.item ->> 'tenant')::uuid, v_party, v_iban,
+    nullif(upper(btrim(v_data ->> 'bic')), ''), nullif(btrim(v_data ->> 'holder'), ''), coalesce((v_data ->> 'isPrimary')::boolean, false))
+  on conflict ("tenant_id", "iban") do update
+    set "bic" = excluded."bic", "holder" = excluded."holder",
+      "is_primary" = coalesce((v_data ->> 'isPrimary')::boolean, "better_supabase"."party_bank_accounts"."is_primary"),
+      "updated_at" = now()
+  returning "id", "updated_at" into v_id, v_updated;
+  return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_bank_account"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_bank_account"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."party_bank_account_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."party_bank_accounts" x where x."id"::text = party_bank_account_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."party_bank_account_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."party_bank_account_updated_at"(text) to service_role;
+
+create or replace function "better_supabase"."party_bank_account_id"(tenant uuid, item jsonb)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."id"::text from "better_supabase"."party_bank_accounts" x
+  where x."tenant_id" = party_bank_account_id.tenant
+    and x."iban" = upper(regexp_replace(coalesce(party_bank_account_id.item -> 'data' ->> 'iban', ''), '\s', '', 'g'))
+$$;
+revoke execute on function "better_supabase"."party_bank_account_id"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."party_bank_account_id"(uuid, jsonb) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1443,6 +1830,54 @@ create policy bsb_tenant_scope_update on "better_supabase"."person_identities" a
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_select on "better_supabase"."party_locations" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
+  );
+create policy bsb_tenant_scope_insert on "better_supabase"."party_locations" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_update on "better_supabase"."party_locations" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_delete on "better_supabase"."party_locations" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_select on "better_supabase"."party_bank_accounts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
+  );
+create policy bsb_tenant_scope_insert on "better_supabase"."party_bank_accounts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_update on "better_supabase"."party_bank_accounts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_delete on "better_supabase"."party_bank_accounts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_select on "better_supabase"."party_channels" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
+  );
+create policy bsb_tenant_scope_insert on "better_supabase"."party_channels" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_update on "better_supabase"."party_channels" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_delete on "better_supabase"."party_channels" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 

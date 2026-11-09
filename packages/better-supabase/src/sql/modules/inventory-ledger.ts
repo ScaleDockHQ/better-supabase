@@ -332,7 +332,7 @@ begin
 
   v_id := ${ledger.fn("ledger_post")}(move_stock.tenant, 'stock.' || move_stock.reason, v_lines,
     move_stock.reference_type, move_stock.reference_id, move_stock.note, null, null,
-    jsonb_strip_nulls(jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location, 'reason', move_stock.reason,
+    jsonb_strip_nulls(jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location, 'binId', v_bin, 'lotId', v_lot, 'reason', move_stock.reason,
       'quantity', move_stock.quantity::text, 'unit', nullif(v_unit, 'item'))));
 ${
   booksAccounting(ctx)

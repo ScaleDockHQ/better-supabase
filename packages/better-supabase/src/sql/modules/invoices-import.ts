@@ -5,6 +5,7 @@ import type { InvoiceNames } from "./invoices-names.ts";
 import { sqlString } from "../../core/template.ts";
 import { hasLegalEntityColumn } from "../numbering-sql.ts";
 import { fail, serviceGrant } from "../shared.ts";
+import { openItemsEnabled } from "./invoices-open-items.ts";
 import { linked } from "./manufacturing-sql.ts";
 
 /** An import target names its functions as `schema.function`, without quotes. */
@@ -107,6 +108,104 @@ export function invoiceImportFunctions(
     where x.${i("id")} = v_id and x.${i("paidAt")} is not null and jsonb_typeof(v_data -> 'payments') = 'array';`
     : "";
 
+  const line = (column: string): string => n.c("lines", column);
+  const lineTable = n.t("lines");
+  const lineHas = (column: string): boolean => ctx.has("lines", column);
+
+  const lineTax = [
+    ...(lineHas("taxRateBps")
+      ? [
+          `${line("taxRateBps")} = coalesce((e.l ->> 'taxRateBps')::integer, l.${line("taxRateBps")})`,
+        ]
+      : []),
+    ...(lineHas("taxCode")
+      ? [
+          `${line("taxCode")} = coalesce(nullif(e.l ->> 'taxCode', ''), l.${line("taxCode")})`,
+        ]
+      : []),
+  ]
+    .map((assignment) => `,\n          ${assignment}`)
+    .join("");
+
+  const applySets = [
+    `${i("status")} = case when v_row.${i("status")}::text in ('void', 'paid') and coalesce((v_data ->> 'repost')::boolean, false) = false then v_row.${i("status")} else ${ctx.cast("invoices", "status", `coalesce(nullif(v_data ->> 'status', ''), v_row.${i("status")}::text)`)} end`,
+    ...(has("title")
+      ? [
+          `${i("title")} = coalesce(nullif(v_data ->> 'title', ''), x.${i("title")})`,
+        ]
+      : []),
+    ...(has("currency")
+      ? [
+          `${i("currency")} = coalesce(nullif(v_data ->> 'currency', ''), x.${i("currency")})`,
+        ]
+      : []),
+    ...(has("termsDays")
+      ? [
+          `${i("termsDays")} = coalesce((v_data ->> 'termsDays')::integer, x.${i("termsDays")})`,
+        ]
+      : []),
+    ...(has("issuedOn")
+      ? [
+          `${i("issuedOn")} = coalesce(nullif(v_data ->> 'issuedOn', '')::date, x.${i("issuedOn")})`,
+        ]
+      : []),
+    ...(has("dueOn")
+      ? [
+          `${i("dueOn")} = coalesce(nullif(v_data ->> 'dueOn', '')::date, x.${i("dueOn")})`,
+        ]
+      : []),
+    ...(has("companyId")
+      ? [
+          `${i("companyId")} = coalesce(nullif(v_data ->> 'companyId', ''), x.${i("companyId")})`,
+        ]
+      : []),
+    ...(totals
+      ? [
+          `${i("subtotal")} = coalesce((v_data -> 'totals' ->> 'subtotal')::bigint, x.${i("subtotal")})`,
+          `${i("taxTotal")} = coalesce((v_data -> 'totals' ->> 'tax')::bigint, x.${i("taxTotal")})`,
+          `${i("total")} = coalesce((v_data -> 'totals' ->> 'total')::bigint, x.${i("total")})`,
+        ]
+      : []),
+  ];
+
+  const contacts = linked(ctx, "contacts");
+
+  const termSql =
+    contacts?.hasTable("terms") === true && has("paymentTermsId")
+      ? `
+  if nullif(v_data ->> 'paymentTermCode', '') is not null then
+    update ${t("invoices")} x set ${i("paymentTermsId")} = (
+      select z.${contacts.col("terms", "id")} from ${contacts.table("terms")} z
+      where z.${contacts.col("terms", "tenant")} = v_tenant and z.${contacts.col("terms", "code")} = v_data ->> 'paymentTermCode'
+      limit 1
+    )
+    where x.${i("id")} = v_id;
+  end if;`
+      : "";
+
+  const taxResolve =
+    tax === undefined || !lineHas("taxCode") || !lineHas("taxRateBps")
+      ? ""
+      : `
+  update ${lineTable} l set ${line("taxCode")} = (
+    select min(c.${tax.col("codes", "code")}) from ${tax.table("codes")} c
+    join ${tax.table("rates")} r on r.${tax.col("rates", "taxCode")} = c.${tax.col("codes", "id")}
+    where c.${tax.col("codes", "tenant")} = v_tenant and r.${tax.col("rates", "rateBps")} = l.${line("taxRateBps")}
+    having count(distinct c.${tax.col("codes", "id")}) = 1
+  )
+  where l.${line("parent")} = v_id and l.${line("taxCode")} is null;
+  if exists (
+    select 1 from ${lineTable} l
+    where l.${line("parent")} = v_id and l.${line("taxCode")} is null and l.${line("taxRateBps")} is not null
+      and (
+        select count(distinct c.${tax.col("codes", "id")}) from ${tax.table("codes")} c
+        join ${tax.table("rates")} r on r.${tax.col("rates", "taxCode")} = c.${tax.col("codes", "id")}
+        where c.${tax.col("codes", "tenant")} = v_tenant and r.${tax.col("rates", "rateBps")} = l.${line("taxRateBps")}
+      ) > 1
+  ) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TAX_CODE_AMBIGUOUS', 'message', 'a tax rate matches more than one tax code'));
+  end if;`;
+
   return `
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
@@ -144,8 +243,34 @@ begin
     if not found then
       ${fail("IMPORT_ITEM_INVALID", "the invoice no longer exists", "22023")}
     end if;
-    return jsonb_build_object('subjectId', v_row.${i("id")}::text, 'updatedAt', v_row.${i("updatedAt")}, 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source document changed after it was imported; an imported document is kept as imported, so void or credit it and import the correction as a new document')));
+    if coalesce(v_data ->> 'update', 'keep') is distinct from 'apply' then
+      return jsonb_build_object('subjectId', v_row.${i("id")}::text, 'updatedAt', v_row.${i("updatedAt")}, 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source document changed after it was imported; an imported document is kept as imported, so void or credit it and import the correction as a new document')));
+    end if;
+    v_id := v_row.${i("id")};
+    update ${t("invoices")} x set
+      ${applySets.join(",\n      ")}
+    where x.${i("id")} = v_id;
+    if coalesce((v_data ->> 'repost')::boolean, false) or v_row.${i("status")}::text not in ('void', 'paid') then
+      if (select count(*) from ${lineTable} l where l.${line("parent")} = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb)) then
+        update ${lineTable} l set
+          ${line("description")} = coalesce(nullif(e.l ->> 'title', ''), nullif(e.l ->> 'description', ''), l.${line("description")})${lineTax}
+        from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n)
+        where l.${line("parent")} = v_id and l.${line("position")} = e.n::integer;
+      elsif jsonb_typeof(v_data -> 'lines') = 'array' then
+        perform ${fn("set_invoice_lines")}(v_id, v_data -> 'lines');
+      end if;
+    end if;
+    select * into v_row from ${t("invoices")} x where x.${i("id")} = v_id;
+    return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row.${i("updatedAt")}, 'warnings', v_warnings);
   end if;
+  if not v_credit and coalesce((v_data -> 'totals' ->> 'total')::bigint, 0) < 0 then
+    if coalesce(nullif(v_data ->> 'originalId', ''), nullif(import_invoice_document.item -> 'resolved' ->> 'original', '')) is not null then
+      v_credit := true;
+    else
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_CREDIT_WITHOUT_ORIGINAL', 'message', 'a negative total has no original invoice, so it stays an invoice'));
+    end if;
+  end if;
+
   if v_status not in ('draft', 'issued', 'partially_paid', 'paid', 'void', 'uncollectible') then
     ${fail("IMPORT_ITEM_INVALID", "status is draft, issued, partially_paid, paid, void or uncollectible", "22023")}
   end if;
@@ -156,7 +281,7 @@ begin
     ${fail("IMPORT_ITEM_INVALID", "an issued document needs its number", "22023")}
   end if;
   begin
-    v_issued_on := nullif(v_data ->> 'issuedOn', '')::date;
+    v_issued_on := coalesce(nullif(v_data ->> 'issuedOn', '')::date, nullif(v_data ->> 'suppliedOn', '')::date);
     v_due_on := nullif(v_data ->> 'dueOn', '')::date;
   exception when others then
     ${fail("IMPORT_ITEM_INVALID", "issuedOn and dueOn are dates", "22023")}
@@ -176,11 +301,17 @@ begin
   if v_credit then
     v_original := coalesce(
       nullif(v_data ->> 'originalId', '')::uuid,
+      nullif(import_invoice_document.item -> 'resolved' ->> 'original', '')::uuid,
       (select x.${i("id")} from ${t("invoices")} x where x.${i("tenant")} = v_tenant and x.${i("identifier")} = v_data ->> 'original' limit 1)
     );
-    if v_original is null then
+    if v_original is null and coalesce(v_data ->> 'settlement', 'payments') = 'row' then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_CREDIT_WITHOUT_ORIGINAL', 'message', 'a credit note has no original invoice, so no posting was made'));
+      v_credit := false;
+    elsif v_original is null then
       ${fail("IMPORT_ITEM_INVALID", "a credit note names the invoice it credits (originalId or original)", "22023")}
     end if;
+  end if;
+  if v_credit then
     v_made := ${fn("credit_invoice")}(v_original, v_data -> 'lines', nullif(v_data ->> 'note', ''), v_number, v_issued_on);
     v_id := (v_made ->> ${sqlString(plain(i("id")))})::uuid;
   else
@@ -203,11 +334,34 @@ begin
       : `
   update ${t("invoices")} x set ${header.join(",\n    ")}
   where x.${i("id")} = v_id;`
+  }${
+    has("suppliedOn")
+      ? `
+  update ${t("invoices")} x set ${i("suppliedOn")} = coalesce(nullif(v_data ->> 'suppliedOn', '')::date, v_issued_on)
+  where x.${i("id")} = v_id;`
+      : ""
+  }${
+    lineHas("productType") && lineHas("productId")
+      ? `
+  update ${lineTable} l set ${line("productType")} = 'product'
+  where l.${line("parent")} = v_id and l.${line("productId")} is not null and l.${line("productType")} is distinct from 'product';`
+      : ""
   }
   if v_status <> 'draft' and not v_credit then
     perform ${fn("issue_invoice")}(v_id, v_issued_on, v_due_on, null, v_number);
   end if;${taxLines}${totalsSql}
-  if jsonb_typeof(v_data -> 'payments') = 'array' and jsonb_array_length(v_data -> 'payments') > 0 then
+  if coalesce(v_data ->> 'settlement', 'payments') = 'row' then
+    update ${t("invoices")} x set
+      ${i("paidTotal")} = coalesce((v_data -> 'settlement' ->> 'paidCents')::bigint, x.${i("paidTotal")}),
+      ${has("paidAt") ? `${i("paidAt")} = coalesce((v_data -> 'settlement' ->> 'paidOn')::timestamptz, x.${i("paidAt")}),` : ""}
+      ${i("status")} = case v_data -> 'settlement' ->> 'state'
+        when 'paid' then ${ctx.cast("invoices", "status", "'paid'")}
+        when 'partially_paid' then ${ctx.cast("invoices", "status", "'partially_paid'")}
+        when 'open' then ${ctx.cast("invoices", "status", "'issued'")}
+        else x.${i("status")}
+      end
+    where x.${i("id")} = v_id;
+  elsif jsonb_typeof(v_data -> 'payments') = 'array' and jsonb_array_length(v_data -> 'payments') > 0 then
     if v_credit or v_status = 'draft' then
       ${fail("IMPORT_ITEM_INVALID", "only an issued invoice takes payments", "22023")}
     end if;
@@ -220,7 +374,7 @@ begin
         coalesce(nullif(v_pay ->> 'reference', ''), import_invoice_document.item ->> 'key' || ':payment:' || v_index::text),
         nullif(v_pay ->> 'note', ''), null, null);
     end loop;${paidAt}
-  end if;
+  end if;${termSql}${taxResolve}
   if v_status = 'void' then
     perform ${fn("void_invoice")}(v_id, coalesce(nullif(v_data ->> 'voidReason', ''), 'imported as void'));
   elsif v_status = 'uncollectible' then
@@ -333,5 +487,15 @@ export function invoiceImportTargets(
       write: plain(own.fn("import_open_item")),
       updatedAt: plain(own.fn("invoice_updated_at")),
     },
+    ...(openItemsEnabled(own)
+      ? [
+          {
+            entity: "invoice_allocation",
+            subjectType: "invoice",
+            write: plain(own.fn("import_allocation")),
+            updatedAt: plain(own.fn("invoice_updated_at")),
+          },
+        ]
+      : []),
   ];
 }

@@ -255,16 +255,36 @@ describe("column renames and the tenant column", () => {
   it("skips the configured tenant column, and every column without a config", () => {
     const loaded = renameMigrationSql(NAMING_RENAMES, sql, {
       configLoaded: true,
-      tenantColumns: new Set(["organization_id"]),
+      tenantColumns: {
+        global: new Set(["organization_id"]),
+        byTable: new Map(),
+      },
     });
 
     expect(loaded).not.toContain('rename column "organization_id"');
     expect(loaded).toContain('rename column "locked_until"');
 
+    const oneTable = renameMigrationSql(NAMING_RENAMES, sql, {
+      configLoaded: true,
+      tenantColumns: {
+        global: new Set(),
+        byTable: new Map([
+          ["better_supabase.agents", new Set(["organization_id"])],
+        ]),
+      },
+    });
+
+    expect(oneTable).not.toContain(
+      'alter table "better_supabase"."agents" rename column "organization_id"',
+    );
+    expect(oneTable).toContain(
+      'alter table "better_supabase"."agent_installs" rename column "organization_id"',
+    );
+
     expect(
       renameMigrationSql(NAMING_RENAMES, sql, {
         configLoaded: false,
-        tenantColumns: new Set(),
+        tenantColumns: { global: new Set(), byTable: new Map() },
       }) ?? "",
     ).not.toContain("rename column");
   });
@@ -338,6 +358,7 @@ describe("argument renames", () => {
         'import { workItemId } from "./x";',
         "await tasks.assign({ workItemId: id, userId });",
         "await tasks.move({ workItemId });",
+        "call(a, workItemId, b);",
         "const { workItemId } = event.data;",
         "log(event.data.workItemId);",
         'const note = "workItemId";',
@@ -350,6 +371,7 @@ describe("argument renames", () => {
         'import { workItemId } from "./x";',
         "await tasks.assign({ taskId: id, userId });",
         "await tasks.move({ taskId: workItemId });",
+        "call(a, workItemId, b);",
         "const { taskId: workItemId } = event.data;",
         "log(event.data.taskId);",
         'const note = "workItemId";',
@@ -365,6 +387,7 @@ describe("block references", () => {
       namingCodemod(),
       [
         'const a = config.blocks["time-tracking"];',
+        'const a2 = blockConfig["time-tracking"];',
         "const b = db.$blocks.timeTracking.list();",
         "const c = db.$blocks.bulk.run();",
         "const d = other.timeTracking;",
@@ -376,6 +399,7 @@ describe("block references", () => {
     expect(text).toBe(
       [
         'const a = config.blocks["time-entries"];',
+        'const a2 = blockConfig["time-entries"];',
         "const b = db.$blocks.timeEntries.list();",
         "const c = db.$blocks.bulkActions.run();",
         "const d = other.timeTracking;",

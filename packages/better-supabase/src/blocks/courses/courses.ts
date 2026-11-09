@@ -259,6 +259,7 @@ export interface Courses<F extends object = Record<never, never>> {
   /** The organization's courses by title; readers get the published ones. */
   list(options?: {
     readonly status?: CourseStatus;
+    readonly limit?: number;
   }): AsyncResult<readonly Course<F>[]>;
   /** Deletes a course with its enrollments; `false` when it was gone. */
   delete(courseId: string): AsyncResult<boolean>;
@@ -631,10 +632,15 @@ export function createCourses<
         call(
           "list_courses",
           { tenant: organizationId, status: filter.status ?? null },
-          (value) =>
-            recordsOf(value, "list_courses").map((row) =>
+          (value) => {
+            const rows = recordsOf(value, "list_courses").map((row) =>
               courseOf(row, "list_courses"),
-            ),
+            );
+
+            return filter.limit === undefined
+              ? rows
+              : rows.slice(0, filter.limit);
+          },
         ).andThen(fields.rows),
       ),
     delete: (courseId) =>

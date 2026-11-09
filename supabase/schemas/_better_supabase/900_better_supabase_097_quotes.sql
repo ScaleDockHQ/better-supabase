@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:ecbe8441a94d39b83af67da3766076cc82959d32f628a9d022ad71721f8dc6bc
+-- @bsb-hash sha256:eff66c56c46a05f2aee50ddc36cb2dd2d97a01e23bffa5886f02055b560fb0c4
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -658,7 +658,20 @@ begin
   for v_parent in execute case tg_op
     when 'INSERT' then 'select distinct n."parent_id" from new_rows n order by 1'
     when 'DELETE' then 'select distinct o."parent_id" from old_rows o order by 1'
-    else 'select n."parent_id" from new_rows n union select o."parent_id" from old_rows o order by 1'
+    else 'select parent from (
+      select n."parent_id" as parent from new_rows n
+      join old_rows o on o."id" = n."id"
+      where n."quantity" is distinct from o."quantity"
+        or n."unit_amount" is distinct from o."unit_amount"
+        or n."selected" is distinct from o."selected"
+        or n."optional" is distinct from o."optional"
+      union
+      select n."parent_id" from new_rows n
+      where not exists (select 1 from old_rows o where o."id" = n."id")
+      union
+      select o."parent_id" from old_rows o
+      where not exists (select 1 from new_rows n where n."id" = o."id")
+    ) changed order by 1'
   end loop
     perform "better_supabase"."set_quote_lines_recount"(v_parent);
   end loop;
@@ -1715,7 +1728,38 @@ begin
     if not found then
       raise exception 'the quote no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
     end if;
-    return jsonb_build_object('subjectId', v_row."id"::text, 'updatedAt', v_row."updated_at", 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source quote changed after it was imported; an imported quote is kept as imported, so import the correction as a new quote')));
+    if coalesce(v_data ->> 'update', 'keep') is distinct from 'apply' then
+      return jsonb_build_object('subjectId', v_row."id"::text, 'updatedAt', v_row."updated_at", 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source quote changed after it was imported; an imported quote is kept as imported, so import the correction as a new quote')));
+    end if;
+    v_id := v_row."id";
+    update "better_supabase"."quotes" y set
+      "status" = coalesce(v_data ->> 'status', 'draft'),
+      "created_at" = coalesce(nullif(v_data ->> 'createdAt', '')::timestamptz, y."created_at"),
+      "sent_at" = nullif(v_data ->> 'sentAt', '')::timestamptz,
+      "viewed_at" = nullif(v_data ->> 'viewedAt', '')::timestamptz,
+      "decided_at" = nullif(v_data ->> 'decidedAt', '')::timestamptz,
+      "decided_by" = nullif(v_data ->> 'decidedBy', ''),
+      "decision_note" = nullif(v_data ->> 'decisionNote', ''),
+      "buyer" = case when jsonb_typeof(v_data -> 'buyer') = 'object' then v_data -> 'buyer' end,
+      legal_entity_id = nullif(v_data ->> 'legalEntityId', '')::uuid,
+      "updated_at" = now(),
+      "title" = coalesce(nullif(v_data ->> 'title', ''), y."title"),
+      "currency" = coalesce(nullif(v_data ->> 'currency', ''), y."currency"),
+      "valid_until" = coalesce(nullif(v_data ->> 'validUntil', '')::date, y."valid_until"),
+      "company_id" = coalesce(nullif(v_data ->> 'companyId', ''), y."company_id")
+    where y."id" = v_id;
+    if (select count(*) from "better_supabase"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb)) then
+      update "better_supabase"."quote_lines" l set
+        "description" = coalesce(nullif(e.l ->> 'title', ''), nullif(e.l ->> 'description', ''), l."description"),
+        "tax_rate_bps" = coalesce((e.l ->> 'taxRateBps')::integer, l."tax_rate_bps"),
+        "tax_code" = coalesce(nullif(e.l ->> 'taxCode', ''), l."tax_code")
+      from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n)
+      where l."parent_id" = v_id and l."position" = e.n::integer;
+    elsif jsonb_typeof(v_data -> 'lines') = 'array' then
+      perform "better_supabase"."set_quote_lines"(v_id, v_data -> 'lines');
+    end if;
+    select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
+    return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row."updated_at", 'warnings', v_warnings);
   end if;
   if v_number is null then
     raise exception 'a quote needs its number' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';

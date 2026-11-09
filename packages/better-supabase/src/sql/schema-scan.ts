@@ -803,6 +803,8 @@ export interface IndexStatement {
   readonly method: string;
   /** Whether it has a `where`. */
   readonly partial: boolean;
+  /** The `where` clause, including the keyword, when the index is partial. */
+  readonly where?: string;
   /** The plain columns it leads with, up to the first expression or option. */
   readonly columns: readonly string[];
   /** Whether every key is a plain column. */
@@ -839,6 +841,35 @@ function indexKeys(list: string): {
   return { columns, plain: true };
 }
 
+/**
+ * Whether `predicate` is exactly `<column> is not null` for a column of
+ * `columns`. Parentheses and the leading `where` are ignored. A partial unique
+ * index with that predicate answers the same rows as a full key.
+ */
+export function notNullKeyPredicate(
+  predicate: string | undefined,
+  columns: readonly string[],
+): boolean {
+  if (predicate === undefined) {
+    return false;
+  }
+
+  const text = predicate
+    .trim()
+    .replace(/^where\s+/i, "")
+    .replace(/^\(+/, "")
+    .replace(/\)+$/, "")
+    .trim();
+
+  const match = /^(?:"([^"]+)"|([A-Za-z_][\w$]*))\s+is\s+not\s+null$/i.exec(
+    text,
+  );
+
+  const column = match?.[1] ?? match?.[2];
+
+  return column !== undefined && columns.includes(column);
+}
+
 /** Each `create index` in `text`, which has no comments. */
 export function indexStatements(text: string): IndexStatement[] {
   return [...text.matchAll(INDEX_DEF)].flatMap((match): IndexStatement[] => {
@@ -851,6 +882,7 @@ export function indexStatements(text: string): IndexStatement[] {
 
     const end = text.indexOf(";", close);
     const rest = text.slice(close + 1, end === -1 ? text.length : end);
+    const where = /\bwhere\b[\s\S]*$/i.exec(rest)?.[0]?.trim();
 
     return [
       {
@@ -858,7 +890,8 @@ export function indexStatements(text: string): IndexStatement[] {
         table: qualified(match[3]!),
         unique: match[1] !== undefined,
         method: (match[4] ?? "btree").toLowerCase(),
-        partial: /\bwhere\b/i.test(rest),
+        partial: where !== undefined,
+        ...(where === undefined ? {} : { where }),
         ...indexKeys(text.slice(open + 1, close)),
       },
     ];
@@ -876,13 +909,20 @@ export interface OwnIndex {
   readonly columns: readonly string[];
   /** Whether it enforces uniqueness: a unique index, a unique or primary key. */
   readonly unique?: boolean;
+  /**
+   * Whether every key is a plain column. An expression key is false. Omitted
+   * means the caller already knows the keys are columns.
+   */
+  readonly plain?: boolean;
 }
 
 /**
- * The leading columns of every full btree index the files give each table in
+ * The leading columns of every btree index the files give each table in
  * `schemas`: `create index` statements, and the primary keys and unique
- * constraints in `create table`. Partial indexes and other methods are left
- * out, since they don't answer every lookup.
+ * constraints in `create table`. A partial unique index whose `where` is
+ * exactly `<key column> is not null` counts as a full key. Other partial
+ * indexes and other methods are left out. An expression key is recorded with
+ * `plain: false`, so it cannot imply a block key.
  */
 export function declaredIndexes(
   files: readonly { readonly text: string }[],
@@ -895,6 +935,7 @@ export function declaredIndexes(
     columns: readonly string[],
     name?: string,
     unique = false,
+    plain = true,
   ): void => {
     if (
       columns.length > 0 &&
@@ -906,6 +947,7 @@ export function declaredIndexes(
           ...(name === undefined ? {} : { name }),
           columns,
           ...(unique ? { unique } : {}),
+          plain,
         },
       ]);
     }
@@ -915,8 +957,15 @@ export function declaredIndexes(
     const text = withoutComments(file.text);
 
     for (const index of indexStatements(text)) {
-      if (!index.partial && index.method === "btree") {
-        add(index.table, index.columns, index.name, index.unique);
+      const notNull =
+        index.unique && notNullKeyPredicate(index.where, index.columns);
+
+      if (
+        index.method === "btree" &&
+        (!index.partial || notNull) &&
+        index.columns.length > 0
+      ) {
+        add(index.table, index.columns, index.name, index.unique, index.plain);
       }
     }
 
@@ -937,12 +986,9 @@ export function declaredIndexes(
           const keyOpen = key.index + key[0].length - 1;
           const keyClose = closingParen(definition, keyOpen);
 
-          add(
-            table,
-            indexKeys(definition.slice(keyOpen + 1, keyClose)).columns,
-            undefined,
-            true,
-          );
+          const keys = indexKeys(definition.slice(keyOpen + 1, keyClose));
+
+          add(table, keys.columns, undefined, true, keys.plain);
         } else if (
           !TABLE_CONSTRAINT.test(definition) &&
           COLUMN_KEY.test(definition)

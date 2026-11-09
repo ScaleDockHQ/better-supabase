@@ -25,6 +25,11 @@ async function shippedSchemas(): Promise<Map<string, Record<string, unknown>>> {
   const out = new Map<string, Record<string, unknown>>();
 
   for (const file of await readdir(shipped)) {
+    // The raise-code catalog is a JSON array, not a JSON Schema.
+    if (file === "error-codes.json") {
+      continue;
+    }
+
     out.set(
       file,
       JSON.parse(await readFile(new URL(file, shipped), "utf-8")) as Record<

@@ -175,7 +175,10 @@ describe.skipIf(!live)("CRM and work records on CentraKit", () => {
           .list({ organizationId: org, search: "boiler" })
           .orThrow();
 
-        expect(read?.fields).toEqual({ customer_id: Number(customer) });
+        expect(read?.fields).toEqual({
+          customer_id: Number(customer),
+          estimated_minutes: null,
+        });
         expect(read?.state).toBe("triage");
       },
       EXTRA,

@@ -1,0 +1,39 @@
+---
+title: Normalize
+description: Repair and shape imported names, phones, addresses and identifiers.
+---
+
+`better-supabase/normalize` is a set of pure functions for import mappers.
+Locale rules are data: a country is a calling code, a postal shape or a
+national-id length, not a branch inside the function. The same checks exist in
+SQL as `better_supabase.validate_iban` and `better_supabase.normalize_phone`.
+
+```ts
+import {
+  TEXT_PACKS,
+  normalizePhone,
+  sanitizeText,
+  splitPersonName,
+  validateIban,
+} from "better-supabase/normalize";
+
+splitPersonName("A.M. Gerritsen").initials; // "A.M."
+normalizePhone("06 12345678", { defaultRegion: "NL" }); // "+31612345678"
+validateIban("NL91 ABNA 0417 1643 00"); // true
+
+sanitizeText("cafÃ©", {
+  repairs: TEXT_PACKS["utf8-as-latin1"],
+  stripControl: true,
+  csvQuotes: true,
+});
+```
+
+`sanitizeText` applies each repair once, as a literal string. The named packs
+are `utf8-as-latin1`, `windows-1252`, `cp437` and `cp850`. No pattern for one
+source is built in. `detectMojibake` returns a score from 0 to 1, and
+`looksShouted` is true when most longer words are capitals.
+
+`splitPersonName` keeps initials and never expands them, and puts particles
+such as `van der` in `infix`. `classifyParty` uses that split. `auto` treats a
+legal suffix (`bv`, `gmbh`, `ltd`) as a company and stores `legalName`. A
+person keeps initials, so `A. Gerritsen` and `A.M. Gerritsen` stay different.

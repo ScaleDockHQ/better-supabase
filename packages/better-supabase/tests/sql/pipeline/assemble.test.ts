@@ -61,4 +61,18 @@ describe("moduleRow", () => {
 
     expect(sql).toContain("values ('jobs', 'tasks', 3, 'managed')");
   });
+
+  it("deletes the former registry row when the new name already exists", () => {
+    const sql = moduleRow(
+      { name: "time-entries", version: 1 } as never,
+      "managed",
+      "time-entries",
+    );
+
+    expect(sql).toContain("delete from better_supabase.blocks");
+    expect(sql).toContain("where name = 'time-tracking'");
+    expect(sql).toContain(
+      "and exists (select 1 from better_supabase.blocks where name = 'time-entries')",
+    );
+  });
 });

@@ -126,4 +126,69 @@ describe("runImport", () => {
     expect(result.rows).toHaveLength(100);
     expect(result.errors[0]?.message).toContain("imported row 101");
   });
+
+  it("refreshes a rejected token, then resumes a dropped chunk once", async () => {
+    const written: string[] = [];
+    let tokens = 0;
+    let starts = 0;
+    let dropped = false;
+    const rows = Array.from({ length: 150 }, (_, index) => `p${index}@x.test`);
+    const csv = `email\n${rows.join("\n")}\n`;
+
+    const transport = async (input: {
+      token: string;
+      chunk: number;
+      items: readonly { email: string }[];
+    }): Promise<void> => {
+      if (input.token === "old") {
+        throw Object.assign(new Error("unauthorized"), { code: "auth" });
+      }
+
+      if (input.chunk === 1 && !dropped) {
+        dropped = true;
+        throw Object.assign(new Error("socket closed"), { code: "dropped" });
+      }
+
+      written.push(...input.items.map((item) => item.email));
+    };
+
+    const definition = {
+      source: "people",
+      columns,
+      key: (row: Row) => row.email,
+    };
+
+    const hooks = {
+      organizationId: "org-1",
+      accessToken: async () => {
+        tokens += 1;
+
+        return tokens === 1 ? "old" : "new";
+      },
+      start: async () => {
+        starts += 1;
+
+        return "run-4";
+      },
+      finish: async () => undefined,
+      transport,
+    };
+
+    const first = await runImport(definition, csv, { email: "email" }, hooks);
+
+    expect(first.resumeFrom).toEqual({ runId: "run-4", startChunk: 1 });
+    expect(starts).toBe(1);
+    expect(written).toHaveLength(100);
+
+    const second = await runImport(
+      definition,
+      csv,
+      { email: "email" },
+      { ...hooks, resume: first.resumeFrom },
+    );
+
+    expect(second).toMatchObject({ status: "completed", imported: 150 });
+    expect(starts).toBe(1);
+    expect(new Set(written).size).toBe(150);
+  });
 });

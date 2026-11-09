@@ -253,6 +253,12 @@ describe.skipIf(!live)("ERP import: ledger and audit file round trip", () => {
       expect(expected["1200"]).toBe("0/36300/0/36300");
 
       await s.service();
+      // Today's open items are the maintained table. The audit import writes
+      // the documents first; rebuild fills the table once, which is what an
+      // import does at the end of a run.
+      await s.client.query("select better_supabase.rebuild_open_items($1)", [
+        target,
+      ]);
 
       const [items] = await s.rows<{ total: string }>(
         `select coalesce(sum((i ->> 'balance')::bigint), 0)::text as total

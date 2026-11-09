@@ -320,15 +320,17 @@ function build(
   }
 }
 
-/** Supabase's `max_rows`, where PostgREST's estimated count turns to a guess. */
-const ESTIMATED_COUNT_THRESHOLD = 1000;
-
 /**
  * Whether a select's count is the planner's estimate. PostgREST counts an
- * `estimated` request exactly up to its `db-max-rows` (1000 on Supabase) and
- * estimates past it, without saying which; a `planned` count always estimates.
+ * `estimated` request exactly up to `maxRows` (the project's `db-max-rows`,
+ * 1000 on Supabase unless config says otherwise) and estimates past it, without
+ * saying which; a `planned` count always estimates.
  */
-function cappedOf(op: Operation, count: number | null): { capped?: boolean } {
+function cappedOf(
+  op: Operation,
+  count: number | null,
+  maxRows: number,
+): { capped?: boolean } {
   if (op.kind !== "select" || count === null) {
     return {};
   }
@@ -337,9 +339,7 @@ function cappedOf(op: Operation, count: number | null): { capped?: boolean } {
     return { capped: true };
   }
 
-  return op.count === "estimated"
-    ? { capped: count > ESTIMATED_COUNT_THRESHOLD }
-    : {};
+  return op.count === "estimated" ? { capped: count > maxRows } : {};
 }
 
 function rowsOf(data: unknown): readonly Record<string, unknown>[] {
@@ -421,6 +421,11 @@ export interface PostgrestExecutorOptions extends PostgrestCompileOptions {
    * on SQLite).
    */
   readonly rpcUnavailable?: string;
+  /**
+   * PostgREST's `db-max-rows`. An `estimated` count at or below this is exact;
+   * above it, `capped` is true. Defaults to 1000, Supabase's setting.
+   */
+  readonly maxRows?: number;
 }
 
 const DEFAULT_URL_LENGTH_LIMIT = 6000;
@@ -478,6 +483,7 @@ export function postgrestExecutor(
       : { postgrestVersion: options.postgrestVersion };
 
   const timeout = isTimeout(options.timeout) ? options.timeout : undefined;
+  const maxRows = options.maxRows ?? 1000;
 
   const execute = async (
     op: Operation,
@@ -631,7 +637,7 @@ export function postgrestExecutor(
       return ok({
         rows: rowsOf(response.data),
         count: response.count ?? null,
-        ...cappedOf(op, response.count ?? null),
+        ...cappedOf(op, response.count ?? null, maxRows),
       });
     } finally {
       limit.clear();

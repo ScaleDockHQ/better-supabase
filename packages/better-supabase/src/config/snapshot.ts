@@ -364,6 +364,12 @@ export interface CatalogFunction {
   readonly searchPath: string | null;
   /** The function's comment, when it carries a gen tag such as `@notNull`. */
   readonly comment?: string;
+  /**
+   * The function body, when the catalog captured it. Gen infers a not-null
+   * result from a `coalesce` return. A config `notNull` or an `@notNull` tag
+   * still wins.
+   */
+  readonly source?: string;
 }
 
 export interface CatalogFunctionArg {

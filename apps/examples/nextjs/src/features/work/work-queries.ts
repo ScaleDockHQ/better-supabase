@@ -86,7 +86,11 @@ export async function getWorkBoard(
 
   const [pipelineList, itemList] = await Promise.all([
     pipelines
-      .list({ organizationId: tenant, subjectType: WORK_ITEM_SUBJECT })
+      .list({
+        organizationId: tenant,
+        subjectType: WORK_ITEM_SUBJECT,
+        limit: 50,
+      })
       .orThrow(),
     workItems.list({ organizationId: tenant, ...options }).orThrow(),
   ]);
@@ -115,7 +119,7 @@ export async function getTeams(): Promise<readonly TeamOption[] | null> {
     return null;
   }
 
-  const teams = await db.teams.list(tenant).orThrow();
+  const teams = await db.teams.list(tenant, { limit: 100 }).orThrow();
 
   return teams
     .map((team) => ({ id: team.id, name: team.name }))
@@ -208,7 +212,11 @@ export async function getWorkGrid(
 
   const [pipelineList, items] = await Promise.all([
     pipelines
-      .list({ organizationId: tenant, subjectType: WORK_ITEM_SUBJECT })
+      .list({
+        organizationId: tenant,
+        subjectType: WORK_ITEM_SUBJECT,
+        limit: 50,
+      })
       .orThrow(),
     workItems.list({ organizationId: tenant, ...options }).orThrow(),
   ]);
@@ -240,7 +248,7 @@ export async function getWorkViews(): Promise<
   }
 
   const views = await db.$blocks.savedViews
-    .list({ organizationId: tenant, list: WORK_ITEM_LIST })
+    .list({ organizationId: tenant, list: WORK_ITEM_LIST, limit: 50 })
     .orThrow();
 
   return views.map((view) => {

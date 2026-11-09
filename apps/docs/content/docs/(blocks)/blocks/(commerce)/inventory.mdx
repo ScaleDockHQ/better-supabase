@@ -490,7 +490,7 @@ The `stock_count` import target creates an open count from `{ locationId or loca
 
 ## Stock overview
 
-`overview({ organizationId, limit?, expiryDays? })` reads the stock page in one call from the SQL function `inventory_overview`: `levelCount`, the levels at or below their reorder point (`lowStockCount` counts all of them, `lowStock` lists the emptiest `limit`, default 20), and the lots with stock that expire within `expiryDays` (default 30), soonest first. Quantities are text, in each variant's unit. The function runs as the caller, so row security decides which levels are counted, and it reads lots through `expiring_lots`, which checks the `inventory.read` permission.
+`overview({ organizationId, limit?, expiryDays? })` reads the stock page in one call from the SQL function `inventory_overview`: `levelCount`, the levels at or below their reorder point (`lowStockCount` counts all of them, `lowStock` lists the emptiest `limit`, default 20), and the lots with stock that expire within `expiryDays` (default 30), soonest first. Quantities are text, in each variant's unit. The function runs as the caller, so row security decides which levels are counted, and it reads lots through `expiring_lots`, which checks the `inventory.read` permission. `inventory_levels(tenant, variant_ids, location_id)` returns on hand, allocated, available, incoming, the reorder point and a status for those variants only. `inventory_status_counts` counts in-stock, low and out. `list_inventory_movements` pages ledger movements of kind `stock.%`, filtered by variant, location, bin, lot or document. Open purchase orders already add their remaining quantity to `stock_levels.incoming`.
 
 ```ts
 const stock = await db.$blocks.inventory

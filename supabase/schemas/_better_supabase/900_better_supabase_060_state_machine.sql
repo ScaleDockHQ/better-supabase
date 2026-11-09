@@ -1,6 +1,6 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:d98ea2972b51a015dc358aa3cd27853b059816d0ec5ac78550b63624d5c98521
+-- @bsb-hash sha256:713c793deb84fbbfd2a74d69726d7ca57bff4a22ee650d0693d634338370bbfa
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -188,6 +188,11 @@ begin
   if new."state" is not distinct from old."state" then
     return new;
   end if;
+  -- An import may set a status the state machine would refuse. The import
+  -- already checked the row.
+  if better_supabase.import_run() is not null then
+    return new;
+  end if;
   if not (case old."state"::text when 'triage' then new."state"::text = any ('{backlog,unstarted,started,completed,canceled}'::text[]) when 'backlog' then new."state"::text = any ('{triage,unstarted,started,completed,canceled}'::text[]) when 'unstarted' then new."state"::text = any ('{triage,backlog,started,completed,canceled}'::text[]) when 'started' then new."state"::text = any ('{triage,backlog,unstarted,completed,canceled}'::text[]) when 'completed' then new."state"::text = any ('{triage,backlog,unstarted,started,canceled}'::text[]) when 'canceled' then new."state"::text = any ('{triage,backlog,unstarted,started,completed}'::text[]) else false end) then
     raise exception 'that status change is not allowed' using errcode = '22023', hint = 'STATE_TRANSITION_INVALID';
   end if;
@@ -294,6 +299,11 @@ begin
     end if;
     return new;
   end if;
+  -- An import may set a status the state machine would refuse. The import
+  -- already checked the row.
+  if better_supabase.import_run() is not null then
+    return new;
+  end if;
   select "workflow_version_id" into v_version from "better_supabase"."subject_lifecycles"
   where "subject_type" = 'change_request' and "subject_id" = new."id"::text;
   if v_version is null then
@@ -358,6 +368,11 @@ begin
     return new;
   end if;
   if new."document_status" is not distinct from old."document_status" then
+    return new;
+  end if;
+  -- An import may set a status the state machine would refuse. The import
+  -- already checked the row.
+  if better_supabase.import_run() is not null then
     return new;
   end if;
   if new."document_status" is null or not (old."document_status" is null and new."document_status"::text = 'draft') and not (case old."document_status"::text when 'draft' then new."document_status"::text = any ('{in_review}'::text[]) when 'in_review' then new."document_status"::text = any ('{draft,effective}'::text[]) when 'effective' then new."document_status"::text = any ('{obsolete}'::text[]) else false end) then

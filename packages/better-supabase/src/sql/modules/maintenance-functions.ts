@@ -496,12 +496,8 @@ ${userGrant(`${fn("list_calibrations")}(${idType}, jsonb)`)}
 function dispatchFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
   const { fn, p, s, plans, parts } = q;
   const idType = ctx.idType;
-  const dispatch = ctx.of("dispatch");
-  const w = (column: string): string => dispatch.col("workOrders", column);
-  const orders = dispatch.table("workOrders");
-  const trigger = ctx.naming.rename("bsb_maintenance_work_order");
 
-  return `
+  const plansSql = `
 -- Plans of an organization, soonest due first. filters is { status, kind,
 -- assetId, due: true, limit, offset }. Each plan carries its parts and whether
 -- it is due now.
@@ -537,7 +533,18 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_maintenance_plans")}(${idType}, jsonb)`)}
+`;
 
+  if (!ctx.installed("dispatch")) {
+    return plansSql;
+  }
+
+  const dispatch = ctx.of("dispatch");
+  const w = (column: string): string => dispatch.col("workOrders", column);
+  const orders = dispatch.table("workOrders");
+  const trigger = ctx.naming.rename("bsb_maintenance_work_order");
+
+  return `${plansSql}
 -- Opens a dispatch work order for every active plan that is due and has none
 -- open, with the plan's spare parts on it. It returns [{ planId, workOrderId }].
 -- The caller needs maintenance.manage and the dispatch permission to create

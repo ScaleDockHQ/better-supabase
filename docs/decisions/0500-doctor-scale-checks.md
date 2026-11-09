@@ -62,6 +62,16 @@ wider introspection query for every project, so the rule reads the schema files.
 ## Consequences
 
 Each rule has a unit test, a heading on the doctor page and an entry in the
-report schema. The pgTAP `explain` test for policy-index practices (ADR 0460)
-and a pgTAP test for `roles.many` need the stack and a fixture that turns the
-option on, so they stay open.
+report schema. `supabase/tests/database/policy_index_explain.test.sql` checks
+that a policy column uses its index and that `(select auth.uid())` is an
+InitPlan. `null_filter_plan.test.sql` checks the 9.7 shapes: `knowledge_search`
+forces a custom plan, `mark_notifications_read` does not use `is null or`, and
+a generic plan of `param is null or col = any(param)` does not use the column
+index. `list_notifications` still filters `subject_types` with that shape, and
+its `types` filter is `coalesce` after the join, so neither is an index access.
+That index stays with the large-tenant work.
+
+`roles_many.test.sql` checks the shared fixture, which keeps one catalog role
+per membership. The set of roles (`roles.many` on) is
+`tests/sql/modules/membership-roles-db.test.ts`, because turning the option on
+in this fixture rewrites the memberships module.

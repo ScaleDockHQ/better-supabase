@@ -81,10 +81,14 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
 
   const client: AiKeys = {
     keys: {
-      list: (organizationId) =>
-        call("list_ai_provider_keys", { tenant: organizationId }, (value) =>
-          recordsOf(value, "list_ai_provider_keys").map(keyOf),
-        ),
+      list: (organizationId, options) =>
+        call("list_ai_provider_keys", { tenant: organizationId }, (value) => {
+          const rows = recordsOf(value, "list_ai_provider_keys").map(keyOf);
+
+          return options?.limit === undefined
+            ? rows
+            : rows.slice(0, options.limit);
+        }),
       upsert: ({ organizationId, key }) =>
         call(
           "save_ai_provider_key",

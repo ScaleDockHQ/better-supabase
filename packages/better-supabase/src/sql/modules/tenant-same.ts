@@ -18,6 +18,11 @@ interface SameTenant {
   readonly hops: readonly Hop[];
   /** The foreign key is deferrable, so the check runs at commit too. */
   readonly deferrable: boolean;
+  /**
+   * The referenced table may hold a row with no tenant. The default refuses
+   * that row. `shared: true` on the entry or on `references` opts in.
+   */
+  readonly shared: boolean;
 }
 
 interface Hop {
@@ -99,6 +104,7 @@ function autoEntries(
         column,
         references: { table: key.references, column: referenced },
         ...(key.deferrable === true ? { deferrable: true } : {}),
+        shared: false,
       },
     ];
   });
@@ -210,7 +216,7 @@ function parseEntries(
         !isRecord(entry["references"]))
     ) {
       throw new TypeError(
-        `${at} must be { table: "schema.table", column: "<column>", references: "schema.table" | { table, column?, tenant?, where? }, tenant?, match?, through? }`,
+        `${at} must be { table: "schema.table", column: "<column>", references: "schema.table" | { table, column?, tenant?, where?, shared? }, tenant?, shared?, match?, through? }`,
       );
     }
 
@@ -307,6 +313,9 @@ function parseEntries(
       match: pairs,
       hops,
       deferrable: entry["deferrable"] === true,
+      shared:
+        entry["shared"] === true ||
+        (isRecord(references) && references["shared"] === true),
     };
   });
 }
@@ -362,16 +371,18 @@ export function sameTenantSql(
         ? conditions.map((part) => `(${part})`).join(" and ")
         : conditions[0];
 
+    const tail =
+      condition === undefined && entry.match.length === 0
+        ? []
+        : [condition ?? "", ...entry.match.flat()];
+
     const args = [
       entry.column,
       entry.tenant,
       entry.parent,
       entry.key,
       entry.parentTenant,
-      ...(condition === undefined && entry.match.length === 0
-        ? []
-        : [condition ?? ""]),
-      ...entry.match.flat(),
+      ...(entry.shared ? ["shared", ...tail] : tail),
     ].map(sqlString);
 
     const name = triggerName(entry.column);
@@ -415,21 +426,30 @@ as $$
 declare
   matched boolean;
   extra text := '';
-  i integer := 6;
+  shared boolean := tg_nargs > 5 and tg_argv[5] = 'shared';
+  where_at integer := case when shared then 6 else 5 end;
+  i integer;
+  tenant_test text;
 begin
   if pg_catalog.to_jsonb(new) -> tg_argv[0] = 'null'::jsonb then
     return new;
   end if;
-  if tg_nargs > 5 and tg_argv[5] <> '' then
-    extra := ' and (' || tg_argv[5] || ')';
+  if tg_nargs > where_at and tg_argv[where_at] <> '' then
+    extra := ' and (' || tg_argv[where_at] || ')';
   end if;
+  i := where_at + 1;
   while i + 1 < tg_nargs loop
     extra := extra || pg_catalog.format(' and p.%I is not distinct from ($1).%I', tg_argv[i + 1], tg_argv[i]);
     i := i + 2;
   end loop;
+  if shared then
+    tenant_test := pg_catalog.format('p.%I is null or p.%I is not distinct from ($1).%I', tg_argv[4], tg_argv[4], tg_argv[1]);
+  else
+    tenant_test := pg_catalog.format('p.%I is not distinct from ($1).%I', tg_argv[4], tg_argv[1]);
+  end if;
   execute pg_catalog.format(
-    'select exists (select 1 from %s p where p.%I = ($1).%I and (p.%I is null or p.%I is not distinct from ($1).%I)%s)',
-    tg_argv[2], tg_argv[3], tg_argv[0], tg_argv[4], tg_argv[4], tg_argv[1], extra
+    'select exists (select 1 from %s p where p.%I = ($1).%I and (%s)%s)',
+    tg_argv[2], tg_argv[3], tg_argv[0], tenant_test, extra
   ) into matched using new;
   if not matched then
     raise exception '%.% must reference a row of % in the same tenant', tg_table_name, tg_argv[0], tg_argv[2]

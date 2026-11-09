@@ -239,6 +239,13 @@ export interface BlockConfig<
     | string
     | false
     | { readonly schema: string; readonly functions?: readonly string[] };
+  /**
+   * Index names this block should not create, when the app's own index already
+   * covers them. Each name is the `create index` name, such as
+   * `invoices_tenant_status_idx`. A name the module does not create is an
+   * error. Doctor BS390 reports an index that is a prefix of another.
+   */
+  readonly indexes?: { readonly skip?: readonly string[] };
 }
 
 /**

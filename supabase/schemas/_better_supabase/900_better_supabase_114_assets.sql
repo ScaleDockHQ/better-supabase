@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:2fb76ec7c7ac41c0aebde95b66f04dc8bdd53b360afe80ef5bffa4f81aa49f10
+-- @bsb-hash sha256:e33ef1d9d69bcf45af6e6ae2019865ab59a533f68b692da6544c2b6f5baa3447
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,6 +41,11 @@ create table "better_supabase"."assets" (
   -- The asset tag, unique per organization.
   "tag" text constraint bsb_assets_tag_check check ("tag" is null or length("tag") >= 1 and length("tag") <= 100),
   "serial_number" text constraint bsb_assets_serial_number_check check ("serial_number" is null or length("serial_number") <= 200),
+  "make" text,
+  "model" text,
+  "model_year" integer,
+  "ownership" text constraint bsb_assets_ownership_check check ("ownership" is null or "ownership" in ('customer', 'stock', 'trade_in', 'loan', 'rental')),
+  "product_id" uuid,
   "status" text not null default 'active' constraint bsb_assets_status_check check ("status" in ('active', 'maintenance', 'retired')),
   -- member (a user id) or a subject type such as party, with its id.
   "assignee_type" text constraint bsb_assets_assignee_type_check check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -893,6 +898,208 @@ revoke execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) 
 grant execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
 
 
+create table "better_supabase".asset_meter_readings (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
+  "unit" text not null constraint bsb_asset_meter_readings_unit_check check ("unit" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "value" numeric not null,
+  "read_at" timestamptz not null,
+  "reason" text,
+  "created_at" timestamptz not null default now()
+);
+create index asset_meter_readings_asset_idx on "better_supabase".asset_meter_readings ("asset_id");
+create index asset_meter_readings_series_idx
+  on "better_supabase".asset_meter_readings ("tenant_id", "asset_id", "unit", "read_at");
+alter table "better_supabase".asset_meter_readings enable row level security;
+revoke all on "better_supabase".asset_meter_readings from public, anon, authenticated;
+grant all on "better_supabase".asset_meter_readings to service_role;
+
+create or replace function "better_supabase"."guard_asset_meter_reading"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_previous numeric;
+begin
+  select r."value" into v_previous
+  from "better_supabase".asset_meter_readings r
+  where r."tenant_id" = new."tenant_id" and r."asset_id" = new."asset_id" and r."unit" = new."unit"
+    and r."read_at" < new."read_at"
+  order by r."read_at" desc
+  limit 1;
+  if v_previous is not null and new."value" < v_previous and new."reason" is null then
+    raise exception 'a meter reading is below the previous one and has no reason' using errcode = '23514', hint = 'ASSET_METER_DECREASE_REASON';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."guard_asset_meter_reading"() from public, anon, authenticated;
+create trigger "bsb_asset_meter_readings_series"
+  before insert on "better_supabase".asset_meter_readings
+  for each row execute function "better_supabase"."guard_asset_meter_reading"();
+
+create or replace function "better_supabase"."import_meter_reading"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_meter_reading.item ->> 'tenant')::uuid;
+  v_data jsonb := import_meter_reading.item -> 'data';
+  v_asset uuid;
+  v_value numeric;
+  v_at timestamptz;
+  v_previous numeric;
+  v_reason text;
+  v_id uuid;
+  v_warning boolean := false;
+begin
+  begin
+    v_asset := nullif(v_data ->> 'assetId', '')::uuid;
+    v_value := (v_data ->> 'value')::numeric;
+    v_at := coalesce((v_data ->> 'readAt')::timestamptz, (v_data ->> 'orderBy')::timestamptz, now());
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'assetId is a uuid and value is a number' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_asset is null or v_value is null or nullif(v_data ->> 'unit', '') is null then
+    raise exception 'a meter reading needs an assetId, a unit and a value' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."assets" a where a."id" = v_asset and a."tenant_id" = v_tenant) then
+    raise exception 'the asset is not in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  select r."value" into v_previous from "better_supabase".asset_meter_readings r
+  where r."tenant_id" = v_tenant and r."asset_id" = v_asset and r."unit" = v_data ->> 'unit' and r."read_at" < v_at
+  order by r."read_at" desc limit 1;
+  v_reason := nullif(v_data ->> 'reason', '');
+  if v_previous is not null and v_value < v_previous then
+    v_reason := coalesce(v_reason, 'import');
+    v_warning := true;
+  end if;
+  if import_meter_reading.subject_id is null then
+    insert into "better_supabase".asset_meter_readings ("tenant_id", "asset_id", "unit", "value", "read_at", "reason")
+    values (v_tenant, v_asset, v_data ->> 'unit', v_value, v_at, v_reason)
+    returning "id" into v_id;
+  else
+    update "better_supabase".asset_meter_readings r set "value" = v_value, "read_at" = v_at, "reason" = v_reason
+    where r."id" = import_meter_reading.subject_id::uuid and r."tenant_id" = v_tenant
+    returning r."id" into v_id;
+    if v_id is null then
+      raise exception 'the meter reading no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+  end if;
+  return jsonb_build_object(
+    'subjectId', v_id::text,
+    'updatedAt', now(),
+    'warnings', case when v_warning then jsonb_build_array(jsonb_build_object(
+      'code', 'IMPORT_SERIES_DECREASE',
+      'message', 'the reading is below the previous one and was stored with reason import'
+    )) else '[]'::jsonb end
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."import_meter_reading"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_meter_reading"(uuid, jsonb, text) to service_role;
+
+
+create table "better_supabase".asset_due_checks (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
+  "check_type" text not null constraint bsb_asset_due_checks_check_type_check check ("check_type" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "interval_days" integer not null constraint bsb_asset_due_checks_interval_days_check check ("interval_days" > 0),
+  "last_done_at" timestamptz,
+  "next_due_at" timestamptz,
+  "result" text,
+  "updated_at" timestamptz not null default now()
+);
+create unique index asset_due_checks_key on "better_supabase".asset_due_checks ("tenant_id", "asset_id", "check_type");
+create index asset_due_checks_asset_idx on "better_supabase".asset_due_checks ("asset_id");
+create index asset_due_checks_due_idx
+  on "better_supabase".asset_due_checks ("tenant_id", "next_due_at") where "next_due_at" is not null;
+alter table "better_supabase".asset_due_checks enable row level security;
+revoke all on "better_supabase".asset_due_checks from public, anon, authenticated;
+grant select on "better_supabase".asset_due_checks to authenticated;
+grant all on "better_supabase".asset_due_checks to service_role;
+create policy bsb_asset_due_checks_read on "better_supabase".asset_due_checks
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
+
+-- Next due is the last completion plus the service-plan interval.
+create or replace function "better_supabase"."fill_asset_due_check"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new."last_done_at" is not null then
+    new."next_due_at" := new."last_done_at" + make_interval(days => new."interval_days");
+  end if;
+  new."updated_at" := now();
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."fill_asset_due_check"() from public, anon, authenticated;
+create trigger "bsb_asset_due_checks_fill"
+  before insert or update of "last_done_at", "interval_days" on "better_supabase".asset_due_checks
+  for each row execute function "better_supabase"."fill_asset_due_check"();
+
+create or replace function "better_supabase"."import_due_check"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_due_check.item ->> 'tenant')::uuid;
+  v_data jsonb := import_due_check.item -> 'data';
+  v_asset uuid;
+  v_days integer;
+  v_done timestamptz;
+  v_id uuid;
+  v_updated timestamptz;
+begin
+  begin
+    v_asset := nullif(v_data ->> 'assetId', '')::uuid;
+    v_days := (v_data ->> 'intervalDays')::integer;
+    v_done := nullif(v_data ->> 'lastDoneAt', '')::timestamptz;
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'assetId is a uuid, intervalDays is a whole number and lastDoneAt is a timestamp' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_asset is null or nullif(v_data ->> 'checkType', '') is null or v_days is null or v_days < 1 then
+    raise exception 'a due check needs an assetId, a checkType and an intervalDays of 1 or more' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if not exists (select 1 from "better_supabase"."assets" a where a."id" = v_asset and a."tenant_id" = v_tenant) then
+    raise exception 'the asset is not in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "better_supabase".asset_due_checks ("tenant_id", "asset_id", "check_type", "interval_days", "last_done_at", "result")
+  values (v_tenant, v_asset, v_data ->> 'checkType', v_days, v_done, nullif(v_data ->> 'result', ''))
+  on conflict ("tenant_id", "asset_id", "check_type") do update set
+    "interval_days" = excluded."interval_days",
+    "last_done_at" = coalesce(excluded."last_done_at", "better_supabase".asset_due_checks."last_done_at"),
+    "result" = coalesce(excluded."result", "better_supabase".asset_due_checks."result")
+  returning "id", "updated_at" into v_id, v_updated;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_due_check"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_due_check"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."due_check_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase".asset_due_checks x where x."id"::text = due_check_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."due_check_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."due_check_updated_at"(text) to service_role;
+
+
 -- Books an asset's depreciation for every month that ended on or before
 -- until, from the month it was acquired in and stopping at the month it was
 -- disposed of in. Straight line spreads the cost less the residual value over
@@ -1096,6 +1303,100 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_asset_depreciations"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_asset_depreciations"(uuid, integer) to authenticated, service_role;
+
+
+create table "better_supabase".asset_identifiers (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
+  "type" text not null,
+  "value" text not null,
+  "updated_at" timestamptz not null default now()
+);
+create index asset_identifiers_asset_idx on "better_supabase".asset_identifiers ("asset_id");
+alter table "better_supabase".asset_identifiers enable row level security;
+revoke all on "better_supabase".asset_identifiers from public, anon, authenticated;
+grant all on "better_supabase".asset_identifiers to service_role;
+create unique index asset_identifiers_key on "better_supabase".asset_identifiers ("tenant_id", "type", "value");
+
+create or replace function "better_supabase"."import_asset"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_asset.item -> 'data';
+  v_tenant uuid := (import_asset.item ->> 'tenant')::uuid;
+  v_id uuid := nullif(import_asset.subject_id, '')::uuid;
+  v_updated timestamptz;
+begin
+  if jsonb_typeof(v_data) is distinct from 'object' or nullif(btrim(v_data ->> 'name'), '') is null then
+    raise exception 'an asset needs a name' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."assets" ("tenant_id", "kind", "name", "make", "model", "ownership")
+    values (v_tenant, coalesce(nullif(v_data ->> 'kind', ''), 'asset'), btrim(v_data ->> 'name'), nullif(btrim(v_data ->> 'make'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(v_data ->> 'ownership', ''))
+    returning "id", "updated_at" into v_id, v_updated;
+  else
+    update "better_supabase"."assets" x set "name" = btrim(v_data ->> 'name'), "make" = coalesce(nullif(btrim(v_data ->> 'make'), ''), x."make"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "ownership" = coalesce(nullif(v_data ->> 'ownership', ''), x."ownership"), "updated_at" = now()
+    where x."id" = v_id and x."tenant_id" = v_tenant
+    returning x."updated_at" into v_updated;
+  end if;
+  return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_asset"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_asset"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."asset_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."assets" x where x."id"::text = asset_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."asset_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."asset_updated_at"(text) to service_role;
+
+create or replace function "better_supabase"."import_asset_identifier"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_asset_identifier.item -> 'data';
+  v_asset uuid := nullif(coalesce(import_asset_identifier.item -> 'resolved' ->> 'asset', v_data ->> 'assetId'), '')::uuid;
+  v_id uuid;
+  v_updated timestamptz;
+begin
+  if v_asset is null or nullif(btrim(v_data ->> 'type'), '') is null or nullif(btrim(v_data ->> 'value'), '') is null then
+    raise exception 'an identifier needs an asset, a type and a value' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "better_supabase".asset_identifiers ("tenant_id", "asset_id", "type", "value")
+  values ((import_asset_identifier.item ->> 'tenant')::uuid, v_asset, btrim(v_data ->> 'type'), btrim(v_data ->> 'value'))
+  on conflict ("tenant_id", "type", "value") do update set "asset_id" = excluded."asset_id", "updated_at" = now()
+  returning "id", "updated_at" into v_id, v_updated;
+  return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_asset_identifier"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_asset_identifier"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."asset_identifier_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase".asset_identifiers x where x."id"::text = asset_identifier_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."asset_identifier_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."asset_identifier_updated_at"(text) to service_role;
 
 
 -- The entry of a month of an asset's depreciation for accounting:
@@ -1373,6 +1674,34 @@ as $$ select "better_supabase"."set_asset_link"($1, $2, $3) $$;
 revoke execute on function "api"."set_asset_link"(text, uuid, uuid) from public, anon;
 grant execute on function "api"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
 
+create or replace function "api"."import_meter_reading"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_meter_reading"($1, $2, $3) $$;
+revoke execute on function "api"."import_meter_reading"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."import_meter_reading"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."import_due_check"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_due_check"($1, $2, $3) $$;
+revoke execute on function "api"."import_due_check"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."import_due_check"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."due_check_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."due_check_updated_at"($1) $$;
+revoke execute on function "api"."due_check_updated_at"(text) from public, anon, authenticated;
+grant execute on function "api"."due_check_updated_at"(text) to service_role;
+
 create or replace function "api"."run_asset_depreciation"(tenant uuid default null, until date default null)
 returns jsonb
 language sql
@@ -1400,3 +1729,41 @@ set search_path = ''
 as $$ select "better_supabase"."list_asset_depreciations"($1, $2) $$;
 revoke execute on function "api"."list_asset_depreciations"(uuid, integer) from public, anon;
 grant execute on function "api"."list_asset_depreciations"(uuid, integer) to authenticated, service_role;
+
+create or replace function "api"."import_asset"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_asset"($1, $2, $3) $$;
+revoke execute on function "api"."import_asset"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."import_asset"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."asset_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."asset_updated_at"($1) $$;
+revoke execute on function "api"."asset_updated_at"(text) from public, anon, authenticated;
+grant execute on function "api"."asset_updated_at"(text) to service_role;
+
+create or replace function "api"."import_asset_identifier"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_asset_identifier"($1, $2, $3) $$;
+revoke execute on function "api"."import_asset_identifier"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."import_asset_identifier"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."asset_identifier_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."asset_identifier_updated_at"($1) $$;
+revoke execute on function "api"."asset_identifier_updated_at"(text) from public, anon, authenticated;
+grant execute on function "api"."asset_identifier_updated_at"(text) to service_role;

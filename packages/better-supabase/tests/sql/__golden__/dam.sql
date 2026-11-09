@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_161_dam.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
 -- @bsb-hash sha256:ab3e591353f2a6fada34d30fb3e648629417a7505e685795c8b1bdb04d84e97a
@@ -346,7 +346,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_161_dam.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block-data dam
 -- @bsb-hash sha256:0918b26d3a424244b1f29164f093513009377a70fd55b9a20e20010069ace602
@@ -360,7 +360,7 @@ values ('dam', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_161_dam.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
 -- @bsb-hash sha256:07e0a9e583c3836760dc5a5264be193eee4b8d18fbb7183edc2d1126d3888eb3
@@ -781,7 +781,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as r
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.dam_usage_rights deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dam_usage_right","event_prefix":"dam_usage_right"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.dam_renditions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dam_rendition","event_prefix":"dam_rendition"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_161_dam.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block-data dam
 -- @bsb-hash sha256:0918b26d3a424244b1f29164f093513009377a70fd55b9a20e20010069ace602
@@ -795,7 +795,7 @@ values ('dam', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_161_dam.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
 -- @bsb-hash sha256:298257cc14a40b3bd766eeaca41a5729d8ffb375964f1b32566874c2702d7f64
@@ -1148,7 +1148,7 @@ create policy bsb_tenant_scope_delete on "app_private"."dam_renditions" as restr
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_161_dam.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block-data dam
 -- @bsb-hash sha256:0918b26d3a424244b1f29164f093513009377a70fd55b9a20e20010069ace602
@@ -1162,7 +1162,7 @@ values ('dam', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_161_dam.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
 -- @bsb-hash sha256:4b401885a4161fd9b632f5b3bc14e0bec87488f6932c31a69e835113e0fd10c7
@@ -1580,7 +1580,7 @@ as $$ select "better_supabase"."notify_expiring_usage_rights"($1) $$;
 revoke execute on function "api"."notify_expiring_usage_rights"(integer) from public, anon, authenticated;
 grant execute on function "api"."notify_expiring_usage_rights"(integer) to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_161_dam.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block-data dam
 -- @bsb-hash sha256:0918b26d3a424244b1f29164f093513009377a70fd55b9a20e20010069ace602
@@ -1594,7 +1594,7 @@ values ('dam', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_161_dam.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
 -- @bsb-hash sha256:63ff1317fd5d3c54ce1df5d746c7b7f32bd2576d2dde4bc33f3f587308fd7d14
@@ -1937,7 +1937,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_161_dam.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block-data dam
 -- @bsb-hash sha256:0918b26d3a424244b1f29164f093513009377a70fd55b9a20e20010069ace602
@@ -1951,7 +1951,7 @@ values ('dam', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_161_dam.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
 -- @bsb-hash sha256:1c581b73abef43ebddd1b9d6f32534453d5ee0ab3b34d8289ab379d951a4faa4
@@ -2299,7 +2299,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as r
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_161_dam.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block-data dam
 -- @bsb-hash sha256:0918b26d3a424244b1f29164f093513009377a70fd55b9a20e20010069ace602

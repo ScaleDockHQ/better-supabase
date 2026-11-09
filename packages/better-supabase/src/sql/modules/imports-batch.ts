@@ -43,7 +43,7 @@ export function batchSql(input: {
     if jsonb_typeof(v_subject -> 'warnings') = 'array' then
       v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
     end if;
-    insert into ${records} (${x("tenant")}, ${x("source")}, ${x("scope")}, ${x("entity")}, ${x("externalKey")}, ${x("role")}, ${x("subjectType")}, ${x("subjectId")}, ${x("contentHash")}, ${x("firstRun")}, ${x("lastRun")}, ${x("subjectUpdatedAt")}, ${x("missingSince")})
+    insert into ${records} (${x("tenant")}, ${x("source")}, ${x("scope")}, ${x("entity")}, ${x("externalKey")}, ${x("role")}, ${x("subjectType")}, ${x("subjectId")}, ${x("contentHash")}, ${x("firstRun")}, ${x("lastRun")}, ${x("subjectUpdatedAt")}, ${x("sourceUpdatedAt")}, ${x("missingSince")})
     values (
       v_run.${r("tenant")}, v_run.${r("source")}, v_scope, v_entity, v_key,
       coalesce(v_subject ->> 'role', 'primary'),
@@ -51,6 +51,7 @@ export function batchSql(input: {
       v_subject ->> 'subjectId',
       v_hash, v_run_id, v_run_id,
       coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
+      v_source_at,
       null
     )
     on conflict ${unique} do update set
@@ -59,6 +60,7 @@ export function batchSql(input: {
       ${x("contentHash")} = excluded.${x("contentHash")},
       ${x("lastRun")} = excluded.${x("lastRun")},
       ${x("subjectUpdatedAt")} = excluded.${x("subjectUpdatedAt")},
+      ${x("sourceUpdatedAt")} = coalesce(excluded.${x("sourceUpdatedAt")}, ${records}.${x("sourceUpdatedAt")}),
       ${x("missingSince")} = null;
   end loop;
 

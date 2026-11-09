@@ -184,28 +184,22 @@ describe("relation names", () => {
         .toSorted();
   };
 
-  it("names a tenant key and a plain key to one table by every key column", async () => {
+  it("keeps one name when a composite key starts with the single-column key", async () => {
     const names = await withSimpleKeys(["locations_customer_only_fkey"]);
-    expect(names("locations")).toEqual([
-      "customerByCustomer",
-      "customerByCustomerOrganization",
-    ]);
-    expect(names("customers")).toEqual(
-      expect.arrayContaining([
-        "locationsByCustomer",
-        "locationsByCustomerOrganization",
-      ]),
+
+    expect(names("locations")).toEqual(["customer"]);
+    expect(names("customers")).not.toEqual(
+      expect.arrayContaining(["locationsByCustomerOrganization"]),
     );
   });
 
-  it("falls back to the constraint name when the columns are the same", async () => {
+  it("falls back to the constraint name when two single-column keys match", async () => {
     const names = await withSimpleKeys([
       "locations_customer_only_fkey",
       "locations_customer_again_fkey",
     ]);
 
     expect(names("locations")).toEqual([
-      "customerByCustomerOrganization",
       "customerByLocationsCustomerAgainFkey",
       "customerByLocationsCustomerOnlyFkey",
     ]);

@@ -100,7 +100,7 @@ async function loadCourses(): Promise<readonly CourseCard[] | null> {
     return null;
   }
 
-  const courses = await db.courses.list().orThrow();
+  const courses = await db.courses.list({ limit: 100 }).orThrow();
 
   return courses.map((course) => ({
     id: course.id,

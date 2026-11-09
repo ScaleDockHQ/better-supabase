@@ -43,6 +43,74 @@ function transport(results: Record<string, unknown>) {
 }
 
 describe("saved views client", () => {
+  it("limits a list, moves a view and rejects a rank it cannot place", async () => {
+    const fake = transport({
+      list_views: [
+        {
+          id: "v1",
+          list: "tasks",
+          scope: "user",
+          name: "All",
+          kind: "table",
+          state: {},
+          rank: "a",
+          isDefault: false,
+        },
+        {
+          id: "v2",
+          list: "tasks",
+          scope: "user",
+          name: "Open",
+          kind: "table",
+          state: {},
+          rank: "b",
+          isDefault: false,
+        },
+      ],
+      rank_view: true,
+    });
+
+    const views = createSavedViews({
+      transport: fake,
+      schema: "app",
+      logger: {
+        debug: () => undefined,
+        info: () => undefined,
+        warn: () => undefined,
+        error: () => undefined,
+      },
+    });
+
+    expect(
+      await views
+        .list({ organizationId: "org", list: "tasks", limit: 1 })
+        .orThrow(),
+    ).toHaveLength(1);
+    expect(
+      (
+        await views.move({
+          id: "missing",
+          organizationId: "org",
+          list: "tasks",
+          toIndex: 0,
+        })
+      ).ok,
+    ).toBe(false);
+    expect(
+      await views
+        .move({ id: "v1", organizationId: "org", list: "tasks", toIndex: 1 })
+        .orThrow(),
+    ).toBeTruthy();
+    expect(
+      (
+        await views.reorder({
+          id: "v1",
+          neighbors: { previous: "z", next: "a" },
+        })
+      ).ok,
+    ).toBe(false);
+  });
+
   it("keeps the SQL module's kinds and scopes", () => {
     expect(SAVED_VIEW_KINDS).toEqual(SQL_KINDS);
     expect(SAVED_VIEW_SCOPES).toEqual(SQL_SCOPES);
@@ -204,6 +272,9 @@ describe("saved views client", () => {
       fn: "set_view_preference",
       args: { view_id: "v1", make_default: true, hide: null, pin: null },
     });
+    await views
+      .setPreference({ id: "v1", preference: { hidden: true, pinned: false } })
+      .orThrow();
   });
 
   it("duplicates a view as a personal copy by default", async () => {
@@ -255,6 +326,26 @@ describe("saved view state", () => {
   it("prefixes the list's issues with query", () => {
     const issues = savedViewIssues({ query: { sort: "nope" } }, tasks);
     expect(issues[0]?.path?.[0]).toBe("query");
+    expect(
+      savedViewIssues(
+        {
+          columns: {
+            visible: ["name"],
+            order: ["name"],
+            sizes: { name: 120 },
+            pinned: { left: ["name"], right: ["status"] },
+          },
+          collectionId: "col",
+          query: { sort: "newest" },
+        },
+        tasks,
+      ),
+    ).toEqual([]);
+    expect(
+      savedViewIssues({ collectionId: 4, query: { sort: "newest" } }).some(
+        (issue) => issue.path?.[0] === "collectionId",
+      ),
+    ).toBe(true);
   });
 
   it("puts the list's schema under query", () => {

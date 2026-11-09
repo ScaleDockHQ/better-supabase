@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:5db915ac66a7b8c291295718eec59b5ecc81c74fe293b995cd5663251d021a00
+-- @bsb-hash sha256:c3b783597d567f5f443e5fceb2b46ce71eac6582119af27a4fa31d5687d042b0
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -153,7 +153,8 @@ grant execute on function better_supabase.has_organization_role(uuid, text[]) to
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
--- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }. When an
+-- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }; `'summary'`
+-- is { form, roles, tenants } with a role index per tenant. When an
 -- authorization provider's hook writes this claim, use its hook instead.
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
@@ -217,7 +218,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:3e787b5daf84c533f62d2b73b621f41f8f751ef7996e88657f262b8a5617e552
+-- @bsb-hash sha256:8eec596ac1db9a0e8060cfe80d03d4d81f23fdd3675c96a987cf4528af21b7dc
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -343,7 +344,8 @@ grant execute on function better_supabase.has_organization_role(uuid, text[]) to
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
--- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }. When an
+-- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }; `'summary'`
+-- is { form, roles, tenants } with a role index per tenant. When an
 -- authorization provider's hook writes this claim, use its hook instead.
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
@@ -408,7 +410,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:f3ebedb0a04fe9be230a5c82dfc17fa27504c6ae9fbe51c70fbce0c1894e2f07
+-- @bsb-hash sha256:5f8f9b0f06bb3a1d86a96e2e4db93efeae010ec3df30853978322bb8b333b329
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -565,7 +567,8 @@ grant execute on function better_supabase.has_organization_role(uuid, text[]) to
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
--- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }. When an
+-- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }; `'summary'`
+-- is { form, roles, tenants } with a role index per tenant. When an
 -- authorization provider's hook writes this claim, use its hook instead.
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
@@ -629,7 +632,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:0d69bdefe9790935e6fbd45871c1e00e4cc1b8526ff259418c6ba79c5ce0a00b
+-- @bsb-hash sha256:c46c9a2f1654817ac98cacbe1bcf694659269fa9402bf35ca4979d41f46a6c04
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -781,7 +784,8 @@ grant execute on function better_supabase.has_organization_role(uuid, text[]) to
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
--- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }. When an
+-- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }; `'summary'`
+-- is { form, roles, tenants } with a role index per tenant. When an
 -- authorization provider's hook writes this claim, use its hook instead.
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
@@ -929,7 +933,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:30ab843cb667ee7acc4faf03455a47e2d71affac8269a6c6a195cf7e1ddc0341
+-- @bsb-hash sha256:60bdaf6e8833929ef021ef5298c7bb1eb382982b1591369751c98dc8794855d5
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1076,7 +1080,8 @@ grant execute on function better_supabase.has_organization_role(uuid, text[]) to
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
--- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }. When an
+-- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }; `'summary'`
+-- is { form, roles, tenants } with a role index per tenant. When an
 -- authorization provider's hook writes this claim, use its hook instead.
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
@@ -1140,7 +1145,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_004_memberships.sql
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:f6b7df028430efcb1315da0441a9018e87c75cca8f15f609455383397462df26
+-- @bsb-hash sha256:8f0f7a8143277d07edd8bfe671c5ca2398ed62c33728d9c497eb81f81c19631e
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1266,7 +1271,8 @@ grant execute on function better_supabase.has_organization_role(uuid, text[]) to
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
--- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }. When an
+-- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }; `'summary'`
+-- is { form, roles, tenants } with a role index per tenant. When an
 -- authorization provider's hook writes this claim, use its hook instead.
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',

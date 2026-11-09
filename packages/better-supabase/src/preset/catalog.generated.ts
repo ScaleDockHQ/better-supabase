@@ -272,11 +272,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "data-lifecycle",
         "entitlements",
         "invitations",
-        "reserved-slugs"
+        "reserved-slugs",
+        "imports"
       ],
       "manifest": "organizations",
       "scopes": [
         "tenant"
+      ],
+      "contributes": [
+        "imports"
       ],
       "reads": [
         {
@@ -484,7 +488,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Session revocation",
       "category": "identity",
       "requires": [],
-      "integrates": [],
+      "integrates": [
+        "permissions",
+        "memberships"
+      ],
       "manifest": "sessions",
       "reads": [
         {
@@ -2092,6 +2099,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "attachments",
+        "contacts",
+        "invoices",
+        "ledger",
         "outbox",
         "search"
       ],
@@ -2935,7 +2945,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "updatedAt": "updated_at",
               "price": "price",
               "currency": "currency",
-              "trackInventory": "track_inventory"
+              "trackInventory": "track_inventory",
+              "manufacturer": "manufacturer",
+              "model": "model",
+              "taxCode": "tax_code"
             }
           },
           "variants": {
@@ -3091,6 +3104,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "supplierId": "supplier_id",
               "status": "status",
               "currency": "currency",
+              "exchangeRate": "exchange_rate",
+              "number": "number",
               "expectedAt": "expected_at",
               "note": "note",
               "createdAt": "created_at",
@@ -3949,6 +3964,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "legalName": "legal_name",
               "registrationId": "registration_id",
               "phone": "phone",
+              "billingEmail": "billing_email",
+              "billTo": "bill_to_id",
               "lifecycle": "lifecycle",
               "owner": "owner_id",
               "address": "address",
@@ -3973,6 +3990,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "id": "id",
               "tenant": "tenant_id",
               "name": "name",
+              "givenName": "given_name",
+              "lastName": "last_name",
+              "initials": "initials",
+              "infix": "infix",
               "email": "email",
               "phone": "phone",
               "title": "title",
@@ -4302,6 +4323,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "option-sets",
         "templates",
         "tags",
+        "catalog",
         "pipelines",
         "subjects"
       ],
@@ -4380,6 +4402,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "iteration": "iteration_id",
               "priority": "priority",
               "estimate": "estimate",
+              "estimatedMinutes": "estimated_minutes",
               "progress": "progress",
               "startAt": "start_at",
               "endAt": "end_at",
@@ -4672,6 +4695,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "termsDays": "terms_days",
               "issuedOn": "issued_on",
+              "suppliedOn": "supplied_on",
               "dueOn": "due_on",
               "paidTotal": "paid_total",
               "creditedTotal": "credited_total",
@@ -5542,14 +5566,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "bookings",
         "tasks",
         "outbox",
-        "audit"
+        "audit",
+        "imports"
       ],
       "manifest": "assets",
       "scopes": [
         "tenant"
       ],
       "contributes": [
-        "accounting"
+        "accounting",
+        "imports"
       ],
       "entities": {
         "specs": {
@@ -5588,6 +5614,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "name": "name",
               "tag": "tag",
               "serial": "serial_number",
+              "make": "make",
+              "model": "model",
+              "modelYear": "model_year",
+              "ownership": "ownership",
+              "product": "product_id",
               "status": "status",
               "assigneeType": "assignee_type",
               "assigneeId": "assignee_id",
@@ -10184,11 +10215,11 @@ export const PRESET_CATALOG: PresetCatalog = {
         "memberships",
         "permissions",
         "subjects",
-        "dispatch",
         "recurrence"
       ],
       "integrates": [
         "assets",
+        "dispatch",
         "inventory",
         "outbox",
         "audit",
@@ -10311,6 +10342,84 @@ export const PRESET_CATALOG: PresetCatalog = {
           "read": "maintenance.read",
           "record": "maintenance.record",
           "manage": "maintenance.manage"
+        }
+      }
+    },
+    {
+      "name": "warranty",
+      "title": "Warranty",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "state-machine",
+        "approvals",
+        "attachments"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "approvals",
+        "state-machine"
+      ],
+      "manifest": "warranty",
+      "scopes": [
+        "tenant"
+      ],
+      "contributes": [
+        "approvals",
+        "state-machine"
+      ],
+      "entities": {
+        "specs": {
+          "warranty_claim": {
+            "table": "claims",
+            "singular": "warranty_claim",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write",
+                "upload": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "manufacturer",
+                  "decision"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "claims": {
+            "name": "warranty_claims",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "title": "title",
+              "supplier": "supplier_id",
+              "manufacturer": "manufacturer",
+              "asset": "asset_id",
+              "amount": "amount",
+              "currency": "currency",
+              "status": "status",
+              "decision": "decision",
+              "decidedAt": "decided_at",
+              "decidedBy": "decided_by",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "warranty.read",
+          "write": "warranty.write",
+          "decide": "warranty.decide"
         }
       }
     },
@@ -24410,6 +24519,45 @@ export const PRESET_CATALOG: PresetCatalog = {
           "pick_list.picked",
           "count_plan.created",
           "count_plan.executed"
+        ]
+      }
+    },
+    {
+      "name": "warranty",
+      "sql": [
+        "warranty"
+      ],
+      "category": "work",
+      "client": {
+        "export": "warrantyBlock",
+        "subpath": "better-supabase/blocks/warranty"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "WarrantyClaim"
+        },
+        {
+          "name": "WarrantyClaimDecidedEventData"
+        },
+        {
+          "name": "WarrantyClaimEventData"
+        },
+        {
+          "name": "WarrantyClaimInput"
+        },
+        {
+          "name": "WarrantyClaimListOptions"
+        }
+      ],
+      "events": {
+        "type": "WarrantyEvents",
+        "types": [
+          "warranty_claim.created",
+          "warranty_claim.submitted",
+          "warranty_claim.decided",
+          "warranty_claim.closed"
         ]
       }
     },

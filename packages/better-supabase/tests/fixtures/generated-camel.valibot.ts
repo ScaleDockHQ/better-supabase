@@ -577,6 +577,13 @@ export const islandCountsArgs: v.GenericSchema<{ args: Json }> = v.pipe(v.object
   args: json,
 }), v.title("island_counts arguments"));
 
+export const myOrganizationsArgs: v.GenericSchema<{ after_id?: string; after_last_used_at?: string; after_name?: string; page_size?: number }> = v.pipe(v.object({
+  after_id: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  after_last_used_at: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  after_name: v.exactOptional(v.string()),
+  page_size: v.exactOptional(v.pipe(v.number(), v.integer())),
+}), v.title("my_organizations arguments"));
+
 export const organizationInvitationsArgs: v.GenericSchema<{ organization: string }> = v.pipe(v.object({
   organization: v.pipe(v.string(), v.uuid()),
 }), v.title("organization_invitations arguments"));

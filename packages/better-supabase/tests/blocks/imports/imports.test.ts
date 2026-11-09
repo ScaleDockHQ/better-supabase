@@ -387,6 +387,61 @@ describe("imports SQL", () => {
     expect(sql).toContain("IMPORT_RUN_ACTIVE");
   });
 
+  it("replaces a built-in invoice target and keeps the batch hash", () => {
+    const sql = renderBlocks(["imports", "invoices"], {
+      modules: {
+        imports: {
+          options: {
+            targets: {
+              invoice: {
+                subjectType: "invoice",
+                write: "public.import_invoice",
+                replaces: true,
+                before: "public.import_invoice_before",
+                refs: { customer: "customer" },
+              },
+            },
+          },
+        },
+      },
+    })
+      .filter((file) => file.module === "imports")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      '"public"."import_invoice"(v_run_id, v_call, v_subject_id)',
+    );
+    expect(sql).toContain('"public"."import_invoice_before"');
+    expect(sql).not.toContain('"better_supabase"."import_invoice"');
+    expect(sql).toContain("content_hash");
+    expect(sql).toContain("IMPORT_REF_MISSING");
+  });
+
+  it("adopts a row a natural key already finds", () => {
+    const sql = renderBlocks(["imports"], {
+      modules: {
+        imports: {
+          options: {
+            targets: {
+              product_identifier: {
+                subjectType: "product_identifier",
+                write: "public.import_product_identifier",
+                naturalKey: "public.product_identifier_id",
+              },
+            },
+          },
+        },
+      },
+    })
+      .filter((file) => file.module === "imports")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain('"public"."product_identifier_id"');
+    expect(sql).toContain("v_natural");
+  });
+
   it("refuses a target that is not a qualified function", () => {
     expect(() =>
       renderBlocks(["imports"], {

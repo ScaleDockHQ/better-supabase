@@ -5,6 +5,7 @@ import type { Names } from "./catalog-names.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, lockTable, serviceGrant, userGrant } from "../shared.ts";
 import { guard } from "./catalog-functions.ts";
+import { productImportTargets } from "./catalog-product-import.ts";
 import { supplyImportTargets } from "./catalog-supply.ts";
 
 /** What a discount group groups: customers or products. */
@@ -661,6 +662,41 @@ as $$
   select x.${r("updatedAt")} from ${rules} x where x.${r("id")} = $1::uuid
 $$;
 ${serviceGrant(`${fn("discount_rule_updated_at")}(text)`)}
+
+-- Puts a party in a customer group from an import. item.data is { party,
+-- groupId? , groupCode? }. A missing group removes the party from its group.
+create or replace function ${fn("import_party_discount_group")}(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType} := (import_party_discount_group.item ->> 'tenant')::${ctx.idType};
+  v_data jsonb := import_party_discount_group.item -> 'data';
+  v_party text := btrim(coalesce(nullif(v_data ->> 'party', ''), import_party_discount_group.subject_id));
+  v_group uuid := nullif(v_data ->> 'groupId', '')::uuid;
+  v_code text := nullif(btrim(v_data ->> 'groupCode'), '');
+begin
+  if v_party is null or length(v_party) not between 1 and 200 then
+    ${fail("IMPORT_ITEM_INVALID", "a party discount group names the party", "22023")}
+  end if;
+  if v_group is null and v_code is not null then
+    select x.${g("id")} into v_group
+    from ${groups} x
+    where x.${g("tenant")} = v_tenant and x.${g("kind")} = 'customer' and x.${g("code")} = v_code;
+  end if;
+  if v_group is null and v_code is not null then
+    ${fail("IMPORT_ITEM_INVALID", "no customer discount group has this code", "22023")}
+  end if;
+  perform ${fn("set_party_discount_group")}(v_tenant, v_party, v_group);
+  return jsonb_build_object(
+    'subjectId', v_party,
+    'updatedAt', (select x.${m("createdAt")} from ${members} x where x.${m("tenant")} = v_tenant and x.${m("party")} = v_party)
+  );
+end;
+$$;
+${serviceGrant(`${fn("import_party_discount_group")}(uuid, jsonb, text)`)}
 `;
 }
 
@@ -691,6 +727,11 @@ export function discountContract(
       name: "set_party_discount_group",
       args: ["{id}", "text", "uuid"],
       returns: "boolean",
+    },
+    {
+      name: "import_party_discount_group",
+      args: ["uuid", "jsonb", "text"],
+      returns: "jsonb",
     },
     {
       name: "save_discount_rule",
@@ -739,6 +780,11 @@ function discountImportTargets(
       write: plain(own.fn("import_discount_rule")),
       updatedAt: plain(own.fn("discount_rule_updated_at")),
     },
+    {
+      entity: "party_discount_group",
+      subjectType: "party",
+      write: plain(own.fn("import_party_discount_group")),
+    },
   ];
 }
 
@@ -746,5 +792,9 @@ function discountImportTargets(
 export function catalogImportTargets(
   own: BlockSqlContext,
 ): readonly ImportTargetContribution[] {
-  return [...supplyImportTargets(own), ...discountImportTargets(own)];
+  return [
+    ...supplyImportTargets(own),
+    ...discountImportTargets(own),
+    ...productImportTargets(own),
+  ];
 }

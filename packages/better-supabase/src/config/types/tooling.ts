@@ -137,6 +137,13 @@ export interface GenConfig {
    * and as `better-supabase powersync streams`.
    */
   readonly powersync?: PowerSyncGenConfig;
+  /**
+   * Which relations `database.types.ts` includes. `tables.only` lists table,
+   * view and foreign-table names (`customers` or `public.customers`). Anything
+   * else is left out, so an app that never reads block-internal tables does not
+   * type them.
+   */
+  readonly types?: { readonly tables?: { readonly only?: readonly string[] } };
 }
 
 export interface PowerSyncGenConfig {

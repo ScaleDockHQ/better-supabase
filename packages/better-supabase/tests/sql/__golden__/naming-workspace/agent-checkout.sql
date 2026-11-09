@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
+-- ==== schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
 -- @bsb-hash sha256:a02034833cf99c6baabc0c69abb8cebefebdb9b940a9935f9eccd7f2d891049a
@@ -488,7 +488,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."agent_mandates" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_178_agent_checkout.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block-data agent-checkout
 -- @bsb-hash sha256:f2ff7f54e754107be5e7c58c415111abecc80d24eacb7640b39ab53ea8c96238

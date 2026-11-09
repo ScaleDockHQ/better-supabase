@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:af1e1e17fb47da70cea618077eb0a8bb87381812a2e8fa05c0907f8ebe41a15d
+-- @bsb-hash sha256:784a5d22b2025271ca9ee05062ba246d9685f3157b9146b76c172b31115f4407
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -67,6 +67,7 @@ create table "better_supabase"."tasks" (
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
   "priority" smallint not null default 0 constraint bsb_tasks_priority_check check ("priority" >= 0 and "priority" <= 4),
   "estimate" numeric(10, 2) constraint bsb_tasks_estimate_check check ("estimate" >= 0),
+  "estimated_minutes" integer constraint bsb_tasks_estimated_minutes_check check ("estimated_minutes" >= 0),
   "progress" smallint constraint bsb_tasks_progress_check check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
@@ -138,6 +139,181 @@ grant all on "better_supabase"."task_checklist_items" to service_role;
 create policy bsb_task_checklist_items_read on "better_supabase"."task_checklist_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
+
+
+create table "better_supabase"."task_specification_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "task_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
+  "description" text not null constraint bsb_task_specification_lines_description_check check (char_length("description") >= 1 and char_length("description") <= 500),
+  "quantity" numeric(12, 3) constraint bsb_task_specification_lines_quantity_check check ("quantity" >= 0),
+  "unit" text constraint bsb_task_specification_lines_unit_check check (char_length("unit") >= 1 and char_length("unit") <= 30),
+  "estimate" numeric(10, 2) constraint bsb_task_specification_lines_estimate_check check ("estimate" >= 0),
+  "rank" text collate "C" not null constraint bsb_task_specification_lines_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "created_at" timestamptz not null default now()
+);
+create index "bsb_task_specification_lines_item_idx" on "better_supabase"."task_specification_lines" ("task_id", "rank");
+alter table "better_supabase"."task_specification_lines" enable row level security;
+revoke all on "better_supabase"."task_specification_lines" from public, anon, authenticated;
+grant select on "better_supabase"."task_specification_lines" to authenticated;
+grant all on "better_supabase"."task_specification_lines" to service_role;
+create policy bsb_task_specification_lines_read on "better_supabase"."task_specification_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
+
+create table "better_supabase"."task_material_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "task_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
+  "variant_id" uuid,
+  "quantity" numeric(12, 3) not null constraint bsb_task_material_lines_quantity_check check ("quantity" >= 0),
+  "unit" text constraint bsb_task_material_lines_unit_check check (char_length("unit") >= 1 and char_length("unit") <= 30),
+  "rank" text collate "C" not null constraint bsb_task_material_lines_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "created_at" timestamptz not null default now()
+);
+create index "bsb_task_material_lines_item_idx" on "better_supabase"."task_material_lines" ("task_id", "rank");
+create index "bsb_task_material_lines_variant_idx" on "better_supabase"."task_material_lines" ("variant_id") where "variant_id" is not null;
+alter table "better_supabase"."task_material_lines" enable row level security;
+revoke all on "better_supabase"."task_material_lines" from public, anon, authenticated;
+grant select on "better_supabase"."task_material_lines" to authenticated;
+grant all on "better_supabase"."task_material_lines" to service_role;
+create policy bsb_task_material_lines_read on "better_supabase"."task_material_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
+
+
+-- Adds a specification line (the line id null) or changes one. A new line
+-- without a rank goes after the last one. Needs tasks.write.
+create or replace function "better_supabase"."save_task_specification_line"(task uuid, line_id uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."tasks";
+  v_id uuid := save_task_specification_line.line_id;
+  v_last text;
+  v_line "better_supabase"."task_specification_lines";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(save_task_specification_line.attrs) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'TASK_LINE_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."tasks" x
+  where x."id" = save_task_specification_line.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  if v_row."id" is null then
+    raise exception 'work item not found' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  if v_id is null then
+    select max(y."rank") into v_last from "better_supabase"."task_specification_lines" y where y."task_id" = v_row."id";
+    insert into "better_supabase"."task_specification_lines" ("tenant_id", "task_id", "description", "quantity", "unit", "estimate", "rank")
+    values (v_row."tenant_id", v_row."id", nullif(btrim(save_task_specification_line.attrs ->> 'description'), ''), nullif(save_task_specification_line.attrs ->> 'quantity', '')::numeric, nullif(btrim(save_task_specification_line.attrs ->> 'unit'), ''), nullif(save_task_specification_line.attrs ->> 'estimate', '')::numeric, coalesce(nullif(save_task_specification_line.attrs ->> 'rank', ''), case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end))
+    returning * into v_line;
+  else
+    update "better_supabase"."task_specification_lines" y set "description" = coalesce(nullif(btrim(save_task_specification_line.attrs ->> 'description'), ''), "description"), "quantity" = coalesce(nullif(save_task_specification_line.attrs ->> 'quantity', '')::numeric, "quantity"), "unit" = case when save_task_specification_line.attrs ? 'unit' then nullif(btrim(save_task_specification_line.attrs ->> 'unit'), '') else "unit" end, "estimate" = case when save_task_specification_line.attrs ? 'estimate' then nullif(save_task_specification_line.attrs ->> 'estimate', '')::numeric else "estimate" end, "rank" = coalesce(nullif(save_task_specification_line.attrs ->> 'rank', ''), "rank")
+    where y."id" = v_id and y."task_id" = v_row."id"
+    returning * into v_line;
+    if v_line."id" is null then
+      raise exception 'no such line on this work item' using errcode = '22023', hint = 'TASK_LINE_INVALID';
+    end if;
+  end if;
+  return jsonb_build_object('id', v_line."id", 'taskId', v_line."task_id", 'rank', v_line."rank");
+end;
+$$;
+revoke execute on function "better_supabase"."save_task_specification_line"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_task_specification_line"(uuid, uuid, jsonb) to authenticated, service_role;
+
+
+-- The specification lines of one work item, in rank order. Needs tasks.read.
+create or replace function "better_supabase"."list_task_specification"(task uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'taskId', y."task_id", 'description', y."description", 'quantity', y."quantity", 'unit', y."unit", 'estimate', y."estimate", 'rank', y."rank") order by y."rank", y."id"), '[]'::jsonb)
+  from "better_supabase"."tasks" x
+  join "better_supabase"."task_specification_lines" y on y."task_id" = x."id"
+  where x."id" = list_task_specification.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false))
+$$;
+revoke execute on function "better_supabase"."list_task_specification"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_task_specification"(uuid) to authenticated, service_role;
+
+
+-- Adds a materials line (the line id null) or changes one. A new line
+-- without a rank goes after the last one. Needs tasks.write.
+create or replace function "better_supabase"."save_task_material_line"(task uuid, line_id uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."tasks";
+  v_id uuid := save_task_material_line.line_id;
+  v_last text;
+  v_line "better_supabase"."task_material_lines";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if jsonb_typeof(save_task_material_line.attrs) is distinct from 'object' then
+    raise exception 'input must be an object' using errcode = '22023', hint = 'TASK_LINE_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."tasks" x
+  where x."id" = save_task_material_line.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  if v_row."id" is null then
+    raise exception 'work item not found' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  if v_id is null then
+    select max(y."rank") into v_last from "better_supabase"."task_material_lines" y where y."task_id" = v_row."id";
+    insert into "better_supabase"."task_material_lines" ("tenant_id", "task_id", "variant_id", "quantity", "unit", "rank")
+    values (v_row."tenant_id", v_row."id", nullif(save_task_material_line.attrs ->> 'variantId', '')::uuid, nullif(save_task_material_line.attrs ->> 'quantity', '')::numeric, nullif(btrim(save_task_material_line.attrs ->> 'unit'), ''), coalesce(nullif(save_task_material_line.attrs ->> 'rank', ''), case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end))
+    returning * into v_line;
+  else
+    update "better_supabase"."task_material_lines" y set "variant_id" = coalesce(nullif(save_task_material_line.attrs ->> 'variantId', '')::uuid, "variant_id"), "quantity" = coalesce(nullif(save_task_material_line.attrs ->> 'quantity', '')::numeric, "quantity"), "unit" = case when save_task_material_line.attrs ? 'unit' then nullif(btrim(save_task_material_line.attrs ->> 'unit'), '') else "unit" end, "rank" = coalesce(nullif(save_task_material_line.attrs ->> 'rank', ''), "rank")
+    where y."id" = v_id and y."task_id" = v_row."id"
+    returning * into v_line;
+    if v_line."id" is null then
+      raise exception 'no such line on this work item' using errcode = '22023', hint = 'TASK_LINE_INVALID';
+    end if;
+  end if;
+  return jsonb_build_object('id', v_line."id", 'taskId', v_line."task_id", 'rank', v_line."rank");
+end;
+$$;
+revoke execute on function "better_supabase"."save_task_material_line"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_task_material_line"(uuid, uuid, jsonb) to authenticated, service_role;
+
+
+-- The materials lines of one work item, in rank order. Needs tasks.read.
+create or replace function "better_supabase"."list_task_materials"(task uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'taskId', y."task_id", 'variantId', y."variant_id", 'quantity', y."quantity", 'unit', y."unit", 'rank', y."rank") order by y."rank", y."id"), '[]'::jsonb)
+  from "better_supabase"."tasks" x
+  join "better_supabase"."task_material_lines" y on y."task_id" = x."id"
+  where x."id" = list_task_materials.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false))
+$$;
+revoke execute on function "better_supabase"."list_task_materials"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_task_materials"(uuid) to authenticated, service_role;
 
 create or replace function better_supabase.bsb_task_guard()
 returns trigger
@@ -920,6 +1096,38 @@ create policy bsb_tenant_scope_update on "better_supabase"."tasks" as restrictiv
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."tasks" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_select on "better_supabase"."task_specification_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
+  );
+create policy bsb_tenant_scope_insert on "better_supabase"."task_specification_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_update on "better_supabase"."task_specification_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_delete on "better_supabase"."task_specification_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_select on "better_supabase"."task_material_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
+  );
+create policy bsb_tenant_scope_insert on "better_supabase"."task_material_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_update on "better_supabase"."task_material_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_delete on "better_supabase"."task_material_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."task_checklist_items" as restrictive

@@ -39,6 +39,8 @@ describe("the block names registry", () => {
     const names = moduleNameSet(module);
     expect(Object.keys(names.tables)).toEqual([
       "items",
+      "specification",
+      "materials",
       "checklist",
       "assignees",
       "projects",

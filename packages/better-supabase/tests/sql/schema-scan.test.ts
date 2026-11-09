@@ -4,6 +4,7 @@ import {
   declaredColumnTypes,
   declaredEnums,
   declaredIndexes,
+  indexStatements,
   declaredTableColumns,
   declaredTables,
   declaredViews,
@@ -192,6 +193,21 @@ drop view public.gone;`),
       views("create view public.everything as select * from public.t;"),
     ).toEqual({ "public.everything": { columns: undefined, updatable: true } });
   });
+
+  it("skips a view whose select, column list or distinct list does not close", () => {
+    const found = views(`create view public.bare;
+create view public.open (id as select 1 as id;
+create view public.cut as select distinct on (id from public.t;
+create view public.labeled as select 'from' as label from public.t;
+create view public.nosel as notify;`);
+
+    expect(found["public.labeled"]).toEqual({
+      columns: ["label"],
+      updatable: true,
+    });
+    expect(found["public.cut"]?.columns).toBeUndefined();
+    expect(found["public.nosel"]?.columns).toBeUndefined();
+  });
 });
 
 describe("extensionSchema", () => {
@@ -265,6 +281,8 @@ describe("declaredIndexes", () => {
 create index members_org_idx on public.members (organization_id, "user_id" desc nulls last);
 create index if not exists on public.members (lower(email), user_id);
 create unique index concurrently members_one on only members using btree (user_id);
+create unique index members_expr on public.members (organization_id, lower(email));
+create unique index members_present on public.members (team_id) where team_id is not null;
 create index members_partial on public.members (team_id) where team_id is not null;
 create index members_gin on public.members using gin (email);
 create index other_idx on private.things (id);`,
@@ -274,12 +292,45 @@ create index other_idx on private.things (id);`,
     );
 
     expect(indexes.get("public.members")).toEqual([
-      { name: "members_org_idx", columns: ["organization_id", "user_id"] },
-      { name: "members_one", columns: ["user_id"], unique: true },
-      { columns: ["id"], unique: true },
-      { columns: ["email"], unique: true },
-      { columns: ["team_id", "user_id"], unique: true },
+      {
+        name: "members_org_idx",
+        columns: ["organization_id", "user_id"],
+        plain: true,
+      },
+      { name: "members_one", columns: ["user_id"], unique: true, plain: true },
+      {
+        name: "members_expr",
+        columns: ["organization_id"],
+        unique: true,
+        plain: false,
+      },
+      {
+        name: "members_present",
+        columns: ["team_id"],
+        unique: true,
+        plain: true,
+      },
+      { columns: ["id"], unique: true, plain: true },
+      { columns: ["email"], unique: true, plain: true },
+      { columns: ["team_id", "user_id"], unique: true, plain: true },
     ]);
     expect(indexes.has("private.things")).toBe(false);
+  });
+
+  it("skips an index or a table whose parentheses do not close", () => {
+    expect(
+      declaredIndexes(
+        [
+          {
+            text: `create index broken on public.members (id;
+create table public.open (id uuid`,
+          },
+        ],
+        ["public"],
+      ).size,
+    ).toBe(0);
+    expect(
+      indexStatements("create index broken on public.members (id"),
+    ).toEqual([]);
   });
 });

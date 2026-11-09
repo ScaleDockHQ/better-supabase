@@ -122,6 +122,7 @@ volatile
 set search_path = ''
 as $$
   select case when field_seal.value is null then null
+    when left(field_seal.value, ${String(FIELD_CIPHER_PREFIX.length)}) = '${FIELD_CIPHER_PREFIX}' then field_seal.value
     else '${FIELD_CIPHER_PREFIX}' || translate(encode(extensions.pgp_sym_encrypt(field_seal.value, field_seal.key, '${CIPHER_OPTIONS}'), 'base64'), E'\\n', '')
   end
 $$;

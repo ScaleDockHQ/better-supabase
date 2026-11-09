@@ -428,7 +428,6 @@ function trigger(ctx: BlockSqlContext, item: Machine): string {
     )
     .join(" ");
 
-  const target = quotedTable(item.table);
   const tenant = `new.${sqlIdent(item.tenantColumn)}::text`;
   const subjectId = `new.${sqlIdent(item.idColumn)}::text`;
   const write = historyWrite(ctx, item);
@@ -496,6 +495,11 @@ ${declare}begin
   if new.${sqlIdent(item.column)} is not distinct from old.${sqlIdent(item.column)} then${lifecycleOps(ctx, item)}
     return new;
   end if;
+  -- An import may set a status the state machine would refuse. The import
+  -- already checked the row.
+  if ${ctx.importing()} then
+    return new;
+  end if;
   ${check}${approvalGate(ctx, item)}${pauseGate(ctx, item)}
   ${write}
   ${stageWrite(ctx, item, "advance")}
@@ -509,7 +513,21 @@ ${declare}begin
   return new;
 end;
 $$;
-drop trigger if exists bsb_transition_${item.name} on ${target};
+${item.contributed === true ? "" : transitionTrigger(item)}`;
+}
+
+/**
+ * Attaches the transition trigger. A contributed machine does this after its
+ * table exists.
+ */
+export function transitionTrigger(item: {
+  readonly name: string;
+  readonly table: string;
+  readonly column: string;
+}): string {
+  const target = quotedTable(item.table);
+
+  return `drop trigger if exists bsb_transition_${item.name} on ${target};
 create trigger bsb_transition_${item.name} before insert or update of ${sqlIdent(item.column)} on ${target}
 for each row execute function better_supabase.bsb_transition_${item.name}();`;
 }
@@ -540,6 +558,47 @@ const NOT_FOUND = fail(
 );
 
 /**
+ * Whether the caller sees the record a history row belongs to. A machine
+ * contributed by a block that installs later reads its table through a helper,
+ * because a policy can't name a table that doesn't exist yet.
+ */
+function visibleRow(item: Machine, subjectId: string): string {
+  if (item.contributed !== true) {
+    return `exists (select 1 from ${quotedTable(item.table)} s where ${idMatches(item, "s", subjectId)})`;
+  }
+
+  return `better_supabase.bsb_record_visible(${sqlString(quotedTable(item.table))}, ${sqlString(item.idColumn)}, ${subjectId})`;
+}
+
+/**
+ * The helper `visibleRow` calls, created once when a contributed machine
+ * exists.
+ */
+function recordVisibleFunction(list: readonly Machine[]): string {
+  if (!list.some((item) => item.contributed === true)) {
+    return "";
+  }
+
+  return `create or replace function better_supabase.bsb_record_visible(p_table text, p_column text, p_id text)
+returns boolean
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  v_found boolean;
+begin
+  execute format('select exists (select 1 from %s s where s.%I::text = $1)', p_table::regclass, p_column)
+    into v_found using p_id;
+  return coalesce(v_found, false);
+end;
+$$;
+revoke execute on function better_supabase.bsb_record_visible(text, text, text) from public, anon;
+grant execute on function better_supabase.bsb_record_visible(text, text, text) to authenticated, service_role;
+`;
+}
+
+/**
  * The read policy of a module table: the caller sees a row when they can see
  * the record it belongs to, through the record table's own policies.
  */
@@ -554,7 +613,7 @@ function readPolicy(
     list.length === 0
       ? "false"
       : `case ${table}.${subjectType}
-${list.map((item) => `      when ${sqlString(item.name)} then exists (select 1 from ${quotedTable(item.table)} s where ${idMatches(item, "s", `${table}.${subjectId}`)})`).join("\n")}
+${list.map((item) => `      when ${sqlString(item.name)} then ${visibleRow(item, `${table}.${subjectId}`)}`).join("\n")}
       else false
     end`;
 
@@ -641,7 +700,7 @@ ${readPolicy(ctx.table("lifecycles"), "subject_lifecycles_read", l("subjectType"
   ${h("reason")} text,
   ${h("createdAt")} timestamptz not null default now()
 );
-create index if not exists status_history_subject_idx on ${history} (${h("subjectType")}, ${h("subjectId")}, ${h("createdAt")} desc);
+${recordVisibleFunction(list)}create index if not exists status_history_subject_idx on ${history} (${h("subjectType")}, ${h("subjectId")}, ${h("createdAt")} desc);
 ${lockTable(history, { read: true })}
 ${readPolicy(history, "status_history_read", h("subjectType"), h("subjectId"), list)}
 ${stages}${lifecycles}`;

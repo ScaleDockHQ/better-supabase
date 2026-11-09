@@ -520,16 +520,26 @@ async function databaseTables(
       );
 
       indexes[name] = table.indexes
-        .filter(
-          (index) =>
-            !index.partial &&
-            [undefined, "btree"].includes(index.method) &&
-            !blockIndexes.has(index.name),
-        )
+        .filter((index) => {
+          const method = index.method === undefined || index.method === "btree";
+
+          if (!method || blockIndexes.has(index.name)) {
+            return false;
+          }
+
+          return (
+            !index.partial ||
+            (index.unique &&
+              notNullKeyPredicate(index.predicate ?? undefined, index.columns))
+          );
+        })
         .map((index) => ({
           name: index.name,
           columns: index.columns,
           ...(index.unique ? { unique: true } : {}),
+          plain: index.columns.every((column) =>
+            /^[A-Za-z_][\w$]*$/.test(column),
+          ),
         }));
     }
   }
@@ -643,6 +653,35 @@ export function sqlPlan(
         }
       : {}),
   };
+}
+
+/**
+ * Whether `predicate` is exactly `<column> is not null` for a column of
+ * `columns`. The CLI keeps its own copy: it reaches the library only through
+ * entry files, and this check is not part of that surface.
+ */
+function notNullKeyPredicate(
+  predicate: string | undefined,
+  columns: readonly string[],
+): boolean {
+  if (predicate === undefined) {
+    return false;
+  }
+
+  const text = predicate
+    .trim()
+    .replace(/^where\s+/i, "")
+    .replace(/^\(+/, "")
+    .replace(/\)+$/, "")
+    .trim();
+
+  const match = /^(?:"([^"]+)"|([A-Za-z_][\w$]*))\s+is\s+not\s+null$/i.exec(
+    text,
+  );
+
+  const column = match?.[1] ?? match?.[2];
+
+  return column !== undefined && columns.includes(column);
 }
 
 /**

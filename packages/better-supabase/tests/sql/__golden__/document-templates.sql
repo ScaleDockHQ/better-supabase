@@ -1,7 +1,7 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_163_document_templates.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:a483eae094f4450b8769375e74288d81fb8d257db99eed94cb1d7c47c923d6c9
+-- @bsb-hash sha256:f950c92d0feaf7fa4068c5f9e34a53447cdeddefe50b41941b489f8dabfe0801
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1072,6 +1072,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  if p_locale = any (array['en']) then
+    insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
+    select p_tenant, 'letterhead', 'en', '{{entity.name}} · Company no. {{entity.cocNumber}} · VAT {{entity.vatNumber}} · IBAN {{entity.iban}}'
+    where not exists (select 1 from "better_supabase"."document_text_blocks" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'letterhead' and x."language" is not distinct from 'en');
+  end if;
   if p_locale = any (array['nl']) then
     insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
     select p_tenant, 'letterhead', 'nl', '{{entity.name}} · KvK {{entity.cocNumber}} · BTW {{entity.vatNumber}} · IBAN {{entity.iban}}'
@@ -1144,7 +1149,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_163_document_templates.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block-data document-templates
 -- @bsb-hash sha256:78c1630b141d582941b9c29d483d8b522b90759b462aa33a62301aff19a8ff53
@@ -1158,10 +1163,10 @@ values ('document-templates', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_163_document_templates.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:7ad485235e079185a710f196f095cacb40237e5c0c727840d36f00858f54eb03
+-- @bsb-hash sha256:9f20c0d6c5086bfe571b110b6d09f28473d96e8132586cc152043c1a0e57709f
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2766,6 +2771,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  if p_locale = any (array['en']) then
+    insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
+    select p_tenant, 'letterhead', 'en', '{{entity.name}} · Company no. {{entity.cocNumber}} · VAT {{entity.vatNumber}} · IBAN {{entity.iban}}'
+    where not exists (select 1 from "better_supabase"."document_text_blocks" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'letterhead' and x."language" is not distinct from 'en');
+  end if;
   if p_locale = any (array['nl']) then
     insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
     select p_tenant, 'letterhead', 'nl', '{{entity.name}} · KvK {{entity.cocNumber}} · BTW {{entity.vatNumber}} · IBAN {{entity.iban}}'
@@ -2843,7 +2853,7 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.document_text_blocks deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document_text_block","event_prefix":"document_text_block"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.rendered_documents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document_snapshot","event_prefix":"document_snapshot"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_163_document_templates.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block-data document-templates
 -- @bsb-hash sha256:78c1630b141d582941b9c29d483d8b522b90759b462aa33a62301aff19a8ff53
@@ -2857,10 +2867,10 @@ values ('document-templates', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_163_document_templates.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:61363a4ae029172d7410100ffc7bb0691bab649407f5a17e4330121d584d3c15
+-- @bsb-hash sha256:7705c7fc9de41e3e35dd37ba93560ea139e4b4ee4c45fc8d2e76fe7b7389abb7
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3936,6 +3946,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  if p_locale = any (array['en']) then
+    insert into "app_private"."document_text_blocks" ("tenant_id", "key", "language", "body")
+    select p_tenant, 'letterhead', 'en', '{{entity.name}} · Company no. {{entity.cocNumber}} · VAT {{entity.vatNumber}} · IBAN {{entity.iban}}'
+    where not exists (select 1 from "app_private"."document_text_blocks" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'letterhead' and x."language" is not distinct from 'en');
+  end if;
   if p_locale = any (array['nl']) then
     insert into "app_private"."document_text_blocks" ("tenant_id", "key", "language", "body")
     select p_tenant, 'letterhead', 'nl', '{{entity.name}} · KvK {{entity.cocNumber}} · BTW {{entity.vatNumber}} · IBAN {{entity.iban}}'
@@ -4008,7 +4023,7 @@ create policy bsb_tenant_scope_delete on "app_private"."rendered_documents" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_163_document_templates.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block-data document-templates
 -- @bsb-hash sha256:78c1630b141d582941b9c29d483d8b522b90759b462aa33a62301aff19a8ff53
@@ -4022,10 +4037,10 @@ values ('document-templates', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_163_document_templates.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:1096e1535917ca82485c71ad35a1fc8bbe673b35b862cd27be0dd9e7de29ae0c
+-- @bsb-hash sha256:e97c1f22f77799559c4fd34ebba907cf2f0e598f4b3cf22d61e045b7d0da4300
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5096,6 +5111,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  if p_locale = any (array['en']) then
+    insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
+    select p_tenant, 'letterhead', 'en', '{{entity.name}} · Company no. {{entity.cocNumber}} · VAT {{entity.vatNumber}} · IBAN {{entity.iban}}'
+    where not exists (select 1 from "better_supabase"."document_text_blocks" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'letterhead' and x."language" is not distinct from 'en');
+  end if;
   if p_locale = any (array['nl']) then
     insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
     select p_tenant, 'letterhead', 'nl', '{{entity.name}} · KvK {{entity.cocNumber}} · BTW {{entity.vatNumber}} · IBAN {{entity.iban}}'
@@ -5415,7 +5435,7 @@ as $$ select "better_supabase"."seed_document_templates_defaults"($1, $2, $3) $$
 revoke execute on function "api"."seed_document_templates_defaults"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "api"."seed_document_templates_defaults"(uuid, text, text) to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_163_document_templates.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block-data document-templates
 -- @bsb-hash sha256:78c1630b141d582941b9c29d483d8b522b90759b462aa33a62301aff19a8ff53
@@ -5429,10 +5449,10 @@ values ('document-templates', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_163_document_templates.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:69c900055e90b29e82f573c7abcd71abb406fe9cd327b12be1b3bfddef40af62
+-- @bsb-hash sha256:e40ba7dcdfd393b358ebf5f80e978c10ac180e8104d616b553dd5b57dc38449b
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6491,6 +6511,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  if p_locale = any (array['en']) then
+    insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
+    select p_tenant, 'letterhead', 'en', '{{entity.name}} · Company no. {{entity.cocNumber}} · VAT {{entity.vatNumber}} · IBAN {{entity.iban}}'
+    where not exists (select 1 from "better_supabase"."document_text_blocks" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'letterhead' and x."language" is not distinct from 'en');
+  end if;
   if p_locale = any (array['nl']) then
     insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
     select p_tenant, 'letterhead', 'nl', '{{entity.name}} · KvK {{entity.cocNumber}} · BTW {{entity.vatNumber}} · IBAN {{entity.iban}}'
@@ -6563,7 +6588,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_163_document_templates.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block-data document-templates
 -- @bsb-hash sha256:78c1630b141d582941b9c29d483d8b522b90759b462aa33a62301aff19a8ff53
@@ -6577,10 +6602,10 @@ values ('document-templates', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_163_document_templates.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:0c4af04223ac9adcf6235167582a0c38bcf37c4b8cbf550883784c7a647c4a61
+-- @bsb-hash sha256:03b5177131b326afb83cb7ff34b62850768fd9adf2dbe8bbeaeb9d7beeab7975
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7651,6 +7676,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  if p_locale = any (array['en']) then
+    insert into "better_supabase"."document_text_blocks" ("org_id", "key", "language", "body")
+    select p_tenant, 'letterhead', 'en', '{{entity.name}} · Company no. {{entity.cocNumber}} · VAT {{entity.vatNumber}} · IBAN {{entity.iban}}'
+    where not exists (select 1 from "better_supabase"."document_text_blocks" x where x."org_id" = p_tenant and x."key" is not distinct from 'letterhead' and x."language" is not distinct from 'en');
+  end if;
   if p_locale = any (array['nl']) then
     insert into "better_supabase"."document_text_blocks" ("org_id", "key", "language", "body")
     select p_tenant, 'letterhead', 'nl', '{{entity.name}} · KvK {{entity.cocNumber}} · BTW {{entity.vatNumber}} · IBAN {{entity.iban}}'
@@ -7723,7 +7753,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" 
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_163_document_templates.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block-data document-templates
 -- @bsb-hash sha256:78c1630b141d582941b9c29d483d8b522b90759b462aa33a62301aff19a8ff53

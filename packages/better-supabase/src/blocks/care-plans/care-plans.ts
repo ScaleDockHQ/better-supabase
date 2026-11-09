@@ -308,6 +308,7 @@ export interface CarePlans<F extends object = Record<never, never>> {
   list(
     input: { subjectType: string; subjectId: string } & {
       readonly includeArchived?: boolean;
+      readonly limit?: number;
     },
   ): AsyncResult<readonly CarePlanSummary<F>[]>;
   /** Evaluates a goal of an active plan; needs `care_plans.evaluate`. */
@@ -675,7 +676,7 @@ export function createCarePlans<
       call("get_care_plan", { plan_id: planId }, plan("get_care_plan")).andThen(
         fields.row,
       ),
-    list: ({ subjectType, subjectId, ...list }) =>
+    list: ({ subjectType, subjectId, limit, ...list }) =>
       call(
         "list_care_plans",
         {
@@ -683,7 +684,11 @@ export function createCarePlans<
           subject_id: subjectId,
           include_archived: list.includeArchived ?? false,
         },
-        (value) => recordsOf(value, "list_care_plans").map(summaryOf),
+        (value) => {
+          const rows = recordsOf(value, "list_care_plans").map(summaryOf);
+
+          return limit === undefined ? rows : rows.slice(0, limit);
+        },
       ).andThen(fields.rows),
     evaluate: ({ goalId, input }) =>
       call(

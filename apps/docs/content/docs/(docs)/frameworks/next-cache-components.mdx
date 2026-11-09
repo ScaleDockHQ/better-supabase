@@ -577,9 +577,22 @@ none. Outside the root layout's segment they return `undefined`.
 
 ### Permission snapshots
 
-Cache what the UI needs to know about the caller's permissions the same way.
-The snapshot needs the session, so read it first, then let `bsb.cached()` set
-the tags and the lifetime:
+Read the caller's permissions once, in the compact form, and pass that one
+promise across the server/client boundary. `better_supabase.bootstrap_permissions()`
+returns `{ apiVersion, form: "compact", keys, tenants }` where each tenant is
+a bitset over `keys`. A page that called `my_permissions` per tenant now makes
+one call. On the built-in role tables the function is already there.
+
+Keep the JWT payload off client props with `toSession(auth, { claims: false })`.
+The client reads keys from `PermissionsProvider` and `useCan` in
+`better-supabase/react`, which accepts the compact form or the expanded lists.
+At 300 keys and one tenant the full list is about 7 KB and the bitset is a
+few hundred bytes. At 150 memberships, `claimFormat: "summary"` stores a role
+index per tenant instead of a `{ scope, id, roles }` object each, which is
+what drops a 9-chunk cookie.
+
+Cache what the UI needs the same way. The snapshot needs the session, so read
+it first, then let `bsb.cached()` set the tags and the lifetime:
 
 ```ts title="src/lib/access.ts"
 import { bsb } from "@/lib/supabase";

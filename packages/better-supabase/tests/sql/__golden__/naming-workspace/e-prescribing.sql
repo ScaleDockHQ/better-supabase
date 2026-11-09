@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
+-- ==== schema supabase/schemas/900_better_supabase_178_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
 -- @bsb-hash sha256:692628c17c43ef1e76e2fee688e822eaebafedd4bd0b968b9767d70c862ad512
@@ -402,7 +402,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."prescriptions" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_177_e_prescribing.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_178_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block-data e-prescribing
 -- @bsb-hash sha256:ee8e0a6f8aee44c28fe5af663969a83d12a0783824592651edb998fa04f281fe

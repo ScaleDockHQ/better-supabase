@@ -19,6 +19,7 @@ type Read<A extends readonly unknown[], T> = (
  */
 export interface DataSource {
   readonly list?: Read<never[], unknown>;
+  readonly page?: Read<never[], unknown>;
   readonly get?: Read<never[], unknown>;
   readonly create?: Read<never[], unknown>;
   readonly update?: Read<never[], unknown>;
@@ -51,6 +52,11 @@ export type DataRow<S extends DataSource> = DataOf<S["get"]>;
 
 /** What `source.list` takes. */
 export type DataListOptions<S extends DataSource> = FirstArg<S["list"]>;
+
+/** The argument of `source.page`. */
+export type DataPageOptions<S extends DataSource> = FirstArg<
+  NonNullable<S["page"]>
+>;
 
 /** The id `source.get`, `update` and `delete` take. */
 export type DataId<S extends DataSource> = FirstArg<S["get"]>;
@@ -391,6 +397,22 @@ export function createDataList<S extends DataSource>(
     target,
     [...target.scope, "list", args ?? null],
     () => unwrap(args === undefined ? list() : list(args)),
+    options,
+  );
+}
+
+/** `source.page(args)` through the engine, with the writes. */
+export function createDataPage<S extends DataSource>(
+  target: DataTarget<S>,
+  args: DataPageOptions<S> | undefined,
+  options?: DataOfflineOptions,
+): Controller<DataState<unknown>, DataWrites<S>> {
+  const page = verb(target.source, "page");
+
+  return readController(
+    target,
+    [...target.scope, "page", args ?? null],
+    () => unwrap(args === undefined ? page() : page(args)),
     options,
   );
 }

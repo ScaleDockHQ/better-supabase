@@ -18,12 +18,16 @@ export function moduleRow(
   const version = String(blockSqlVersion(module));
   const former = FORMER_BLOCK_NAMES.get(instance);
 
-  // A block renamed since it was installed keeps its row: rename it, so the
-  // insert below updates it and no second row appears.
+  // A block renamed since it was installed keeps one row. Rename the old row
+  // when the new name is free, and delete the old row when the new one is
+  // already there.
   const rename =
     former === undefined
       ? ""
-      : `update better_supabase.blocks set name = ${sqlString(instance)}
+      : `delete from better_supabase.blocks
+  where name = ${sqlString(former)}
+    and exists (select 1 from better_supabase.blocks where name = ${sqlString(instance)});
+update better_supabase.blocks set name = ${sqlString(instance)}
   where name = ${sqlString(former)}
     and not exists (select 1 from better_supabase.blocks where name = ${sqlString(instance)});
 `;

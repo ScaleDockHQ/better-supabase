@@ -32,6 +32,7 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
   ],
   ["gen", () => import("./commands/gen.ts").then((m) => m.genCommand)],
   ["doctor", () => import("./commands/doctor.ts").then((m) => m.doctorCommand)],
+  ["codes", () => import("./commands/codes.ts").then((m) => m.codesCommand)],
   ["db query", () => import("./commands/db.ts").then((m) => m.dbQueryCommand)],
   ["db diff", () => import("./commands/db.ts").then((m) => m.dbDiffCommand)],
   ["db seed", () => import("./commands/seed.ts").then((m) => m.seedCommand)],

@@ -106,6 +106,7 @@ export interface SavedViews<F extends object = Record<never, never>> {
   list(input: {
     organizationId: string;
     list: string;
+    limit?: number;
   }): AsyncResult<SavedView<ListQueryInput<string, string>, F>[]>;
   /** Moves a view between its neighbours' rank keys. Resolves to its new key. */
   reorder(input: { id: string; neighbors: RankNeighbors }): AsyncResult<string>;
@@ -367,10 +368,12 @@ export function createSavedViews<
         ),
       ).andThen((saved) => readFields(fields, saved));
     },
-    list: ({ organizationId, list }) =>
-      call("list_views", { tenant: organizationId, list }, (value) =>
-        recordsOf(value, "list_views").map(viewOf),
-      ).andThen((views) => readAllFields(fields, views)),
+    list: ({ organizationId, list, limit }) =>
+      call("list_views", { tenant: organizationId, list }, (value) => {
+        const rows = recordsOf(value, "list_views").map(viewOf);
+
+        return limit === undefined ? rows : rows.slice(0, limit);
+      }).andThen((views) => readAllFields(fields, views)),
     move: ({ id, organizationId, list, toIndex }) =>
       hooked.list({ organizationId, list }).andThen((views) => {
         const neighbors = neighborsForIndex(views, id, toIndex);

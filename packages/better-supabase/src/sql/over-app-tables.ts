@@ -4,6 +4,7 @@ import {
   closingParen,
   indexStatements,
   NAME,
+  notNullKeyPredicate,
   qualified,
   splitTopLevel,
   TABLE,
@@ -480,10 +481,11 @@ export const IMPLIED_UNIQUE_MARK = "-- @bsb-implied-unique";
  * `sql` without the unique indexes it creates on the app's tables in
  * `appTables` that a unique key of the app's already implies. An index over the
  * same columns is left out; so is one the module marks with
- * `IMPLIED_UNIQUE_MARK` when the app's key covers a subset of its columns. The
- * mark is removed from the rest. An index named like one `sql` creates doesn't
- * count, since the block made it, and a `nulls not distinct` or partial index
- * stays.
+ * `IMPLIED_UNIQUE_MARK` when the app's key covers a subset of its columns. A
+ * partial unique index whose `where` is exactly `<key column> is not null`
+ * counts as that full key. The mark is removed from the rest. An index named
+ * like one `sql` creates doesn't count, since the block made it. A `nulls not
+ * distinct` index, any other partial index, and an expression key stay.
  */
 export function withoutImpliedUniqueIndexes(
   sql: string,
@@ -516,11 +518,14 @@ export function withoutImpliedUniqueIndexes(
       const masked = maskComments(statement);
       const [index] = indexStatements(masked);
 
+      const notNull =
+        index !== undefined && notNullKeyPredicate(index.where, index.columns);
+
       if (
         index === undefined ||
         !appTables.has(index.table) ||
         !index.unique ||
-        index.partial ||
+        (index.partial && !notNull) ||
         !index.plain ||
         index.method !== "btree" ||
         /\bnulls\s+not\s+distinct\b/i.test(masked)
@@ -533,6 +538,7 @@ export function withoutImpliedUniqueIndexes(
       const covering = (ownIndexes[index.table] ?? []).find(
         (own) =>
           own.unique === true &&
+          own.plain !== false &&
           !blockIndexes.has(own.name) &&
           own.columns.every((column) => index.columns.includes(column)) &&
           (marked || own.columns.length === index.columns.length),

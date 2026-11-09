@@ -214,8 +214,8 @@ begin
   values (ledger_post.tenant, ledger_post.kind, ledger_post.reference_type, ledger_post.reference_id${hasMemo ? ", nullif(trim(ledger_post.memo), '')" : ""},
     ledger_post.idempotency_key, ledger_post.reverses, coalesce(ledger_post.metadata, '{}'::jsonb), coalesce(ledger_post.effective_at, now()), auth.uid())
   returning * into v_row;
-  insert into ${entries} (${e("tenant")}, ${e("transaction")}, ${e("account")}, ${e("amount")}, ${e("unit")})
-  select ledger_post.tenant, v_row.${t("id")}, x.${a("id")}, (l.value ->> 'amount')::bigint, x.${a("unit")}
+  insert into ${entries} (${e("tenant")}, ${e("transaction")}, ${e("account")}, ${e("amount")}, ${e("unit")}, ${e("effectiveAt")})
+  select ledger_post.tenant, v_row.${t("id")}, x.${a("id")}, (l.value ->> 'amount')::bigint, x.${a("unit")}, v_row.${t("effectiveAt")}
   from jsonb_array_elements(ledger_post.lines) with ordinality as l(value, n)
   join ${accounts} x on x.${a("id")} = (l.value ->> 'account')::uuid
   order by l.n;
@@ -231,6 +231,27 @@ begin
 end;
 $$;
 revoke execute on function ${fn("ledger_post")}(${postArgs}) from public, anon, authenticated;
+
+-- The entries of this organization whose ids are in the list.
+create or replace function ${fn("get_many")}(tenant ${idType}, ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', e.${e("id")},
+    'transactionId', e.${e("transaction")},
+    'accountId', e.${e("account")},
+    'amount', e.${e("amount")}::text,
+    'unit', e.${e("unit")},
+    'effectiveAt', e.${e("effectiveAt")}
+  ) order by e.${e("effectiveAt")}, e.${e("id")}), '[]'::jsonb)
+  from ${entries} e
+  where e.${e("tenant")} = get_many.tenant and e.${e("id")} = any (get_many.ids)
+$$;
+${userGrant(`${fn("get_many")}(${idType}, uuid[])`)}
 
 -- Opens an account for the app's own use (credits, loyalty points, gift
 -- cards, trust balances). code is unique per organization.

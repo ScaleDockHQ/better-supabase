@@ -60,4 +60,14 @@ describe("ownedColumns", () => {
       ),
     ).toEqual([]);
   });
+
+  it("leaves a declaration that is already on disk", () => {
+    expect(
+      ownedColumnFiles(
+        ownedColumns(RENDERED, APP, ["public"]),
+        "supabase/schemas",
+        () => true,
+      ),
+    ).toEqual([]);
+  });
 });

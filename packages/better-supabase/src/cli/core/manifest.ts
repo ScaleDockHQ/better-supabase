@@ -660,6 +660,20 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
   },
   {
+    name: "codes",
+    description:
+      "Prints the stable error and import-warning codes. --json prints the catalog.",
+    group: "inspect",
+    docs: "/docs/cli/codes",
+    examples: [
+      {
+        command: "better-supabase codes --json",
+        description: "Prints every code and its English message",
+      },
+    ],
+    effects: [],
+  },
+  {
     name: "config",
     description:
       "Prints the resolved config: the file it came from, the active environment and every option with its default, or the preset it names with --preset",

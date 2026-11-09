@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:c7f54a992e373ec8e421a11e05bfa164ba3cff4c6356db7bd6d1186b9a20b873
+-- @bsb-hash sha256:c80d36d55c0869a47cdea962656273bbc9cd33fd830a4fb74832350cf0e244ed
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,6 +129,8 @@ create table "better_supabase"."purchase_orders" (
   "supplier_id" text,
   "status" text not null default 'draft' constraint bsb_purchase_orders_status_check check ("status" in ('draft', 'ordered', 'partially_received', 'received', 'cancelled')),
   "currency" char(3) not null constraint bsb_purchase_orders_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "exchange_rate" numeric constraint bsb_purchase_orders_exchange_rate_check check ("exchange_rate" is null or "exchange_rate" > 0),
+  "number" text,
   "expected_at" timestamptz,
   "note" text,
   "created_at" timestamptz not null default now(),
@@ -142,6 +144,7 @@ create table "better_supabase"."purchase_orders" (
 );
 create index purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
 create index purchase_orders_status_idx on "better_supabase"."purchase_orders" ("tenant_id", "status");
+create unique index purchase_orders_number_idx on "better_supabase"."purchase_orders" ("tenant_id", "number") where "number" is not null;
 alter table "better_supabase"."purchase_orders" enable row level security;
 revoke all on "better_supabase"."purchase_orders" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
@@ -156,7 +159,9 @@ create table "better_supabase"."purchase_order_lines" (
   "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "quantity_ordered" numeric(20, 6) not null constraint bsb_purchase_order_lines_quantity_ordered_check check ("quantity_ordered" > 0),
-  "quantity_received" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered"),
+  "quantity_received" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered" - "quantity_canceled"),
+  "quantity_canceled" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check1 check ("quantity_canceled" >= 0 and "quantity_canceled" <= "quantity_ordered"),
+  "tax_code" text,
   "unit_cost" bigint not null constraint bsb_purchase_order_lines_unit_cost_check check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
@@ -666,7 +671,7 @@ begin
 
   v_id := "better_supabase"."ledger_post"(move_stock.tenant, 'stock.' || move_stock.reason, v_lines,
     move_stock.reference_type, move_stock.reference_id, move_stock.note, null, null,
-    jsonb_strip_nulls(jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location, 'reason', move_stock.reason,
+    jsonb_strip_nulls(jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location, 'binId', v_bin, 'lotId', v_lot, 'reason', move_stock.reason,
       'quantity', move_stock.quantity::text, 'unit', nullif(v_unit, 'item'))));
   if v_serials is not null then
     update "better_supabase"."stock_serials" x set "movement_id" = v_id
@@ -3055,6 +3060,93 @@ end;
 $$;
 revoke execute on function "better_supabase"."inventory_overview"(uuid, integer, integer) from public, anon;
 grant execute on function "better_supabase"."inventory_overview"(uuid, integer, integer) to authenticated, service_role;
+
+-- Levels for the requested variants. A null variant list reads every level of
+-- the organization; a list uses the level primary key and does not scan the rest.
+create or replace function "better_supabase"."inventory_levels"(tenant uuid, variant_ids uuid[] default null, location_id uuid default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'variantId', y."variant_id",
+    'locationId', y."location_id",
+    'onHand', y."on_hand"::text,
+    'allocated', y."reserved"::text,
+    'available', y."available"::text,
+    'incoming', y."incoming"::text,
+    'reorderPoint', y."reorder_point"::text,
+    'status', case
+      when y."available" <= 0 then 'out'
+      when y."reorder_point" is not null and y."available" <= y."reorder_point" then 'low'
+      else 'in_stock'
+    end
+  )), '[]'::jsonb)
+  from "better_supabase"."stock_levels" y
+  where y."tenant_id" = inventory_levels.tenant
+    and (inventory_levels.variant_ids is null or y."variant_id" = any (inventory_levels.variant_ids))
+    and (inventory_levels.location_id is null or y."location_id" = inventory_levels.location_id)
+$$;
+revoke execute on function "better_supabase"."inventory_levels"(uuid, uuid[], uuid) from public, anon;
+grant execute on function "better_supabase"."inventory_levels"(uuid, uuid[], uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."inventory_status_counts"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'inStock', count(*) filter (where y."available" > 0 and (y."reorder_point" is null or y."available" > y."reorder_point")),
+    'low', count(*) filter (where y."reorder_point" is not null and y."available" <= y."reorder_point" and y."available" > 0),
+    'out', count(*) filter (where y."available" <= 0)
+  )
+  from "better_supabase"."stock_levels" y
+  where y."tenant_id" = inventory_status_counts.tenant
+$$;
+revoke execute on function "better_supabase"."inventory_status_counts"(uuid) from public, anon;
+grant execute on function "better_supabase"."inventory_status_counts"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_inventory_movements"(tenant uuid, variant uuid default null, location uuid default null, bin uuid default null, lot uuid default null, document_type text default null, document_id text default null, row_limit integer default 50, row_offset integer default 0)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'kind', x."kind",
+    'variantId', x."metadata" ->> 'variantId',
+    'locationId', x."metadata" ->> 'locationId',
+    'binId', x."metadata" ->> 'binId',
+    'lotId', x."metadata" ->> 'lotId',
+    'quantity', x."metadata" ->> 'quantity',
+    'documentType', x."reference_type",
+    'documentId', x."reference_id",
+    'effectiveAt', x."effective_at"
+  )), '[]'::jsonb)
+  from (
+    select *
+    from "better_supabase"."ledger_transactions" y
+    where y."tenant_id" = list_inventory_movements.tenant
+      and y."kind" like 'stock.%'
+      and (list_inventory_movements.variant is null or y."metadata" ->> 'variantId' = list_inventory_movements.variant::text)
+      and (list_inventory_movements.location is null or y."metadata" ->> 'locationId' = list_inventory_movements.location::text)
+      and (list_inventory_movements.bin is null or y."metadata" ->> 'binId' = list_inventory_movements.bin::text)
+      and (list_inventory_movements.lot is null or y."metadata" ->> 'lotId' = list_inventory_movements.lot::text)
+      and (list_inventory_movements.document_type is null or y."reference_type" = list_inventory_movements.document_type)
+      and (list_inventory_movements.document_id is null or y."reference_id" = list_inventory_movements.document_id)
+    order by y."effective_at" desc, y."id"
+    limit least(greatest(coalesce(list_inventory_movements.row_limit, 50), 0), 200)
+    offset greatest(coalesce(list_inventory_movements.row_offset, 0), 0)
+  ) x
+$$;
+revoke execute on function "better_supabase"."list_inventory_movements"(uuid, uuid, uuid, uuid, uuid, text, text, integer, integer) from public, anon;
+grant execute on function "better_supabase"."list_inventory_movements"(uuid, uuid, uuid, uuid, uuid, text, text, integer, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

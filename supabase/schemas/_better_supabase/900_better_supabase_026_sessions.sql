@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:ab958b41960f0ebfca3d29e54c5d69d1bf255c9153ac9c048c51ba1f58856f04
+-- @bsb-hash sha256:7aa40e40b10f5a9ed7478cef83aea7c28b1b156b2417fbe5ba400e8cd0ed788d
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -354,6 +354,143 @@ create policy bsb_authz_versions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'authz:' || (select auth.uid())::text);
 
+create or replace function better_supabase.bump_inserted_role_members()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform better_supabase.bump_authz_versions(array(
+    select m."user_id"
+    from "public"."memberships" m
+    where m."role" in (select "role_id" from changed)
+  ));
+  return null;
+end;
+$$;
+
+revoke execute on function better_supabase.bump_inserted_role_members() from public, anon, authenticated;
+create trigger bsb_bump_inserted_role_members
+  after insert on "better_supabase"."role_permissions"
+  referencing new table as changed
+  for each statement execute function better_supabase.bump_inserted_role_members();
+
+create or replace function better_supabase.bump_deleted_role_members()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform better_supabase.bump_authz_versions(array(
+    select m."user_id"
+    from "public"."memberships" m
+    where m."role" in (select "role_id" from changed)
+  ));
+  return null;
+end;
+$$;
+
+revoke execute on function better_supabase.bump_deleted_role_members() from public, anon, authenticated;
+create trigger bsb_bump_deleted_role_members
+  after delete on "better_supabase"."role_permissions"
+  referencing old table as changed
+  for each statement execute function better_supabase.bump_deleted_role_members();
+
+create or replace function better_supabase.bump_updated_role_members()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform better_supabase.bump_authz_versions(array(
+    select m."user_id"
+    from "public"."memberships" m
+    where m."role" in (
+      select "role_id" from changed
+      union
+      select "role_id" from previous
+    )
+  ));
+  return null;
+end;
+$$;
+
+revoke execute on function better_supabase.bump_updated_role_members() from public, anon, authenticated;
+create trigger bsb_bump_updated_role_members
+  after update on "better_supabase"."role_permissions"
+  referencing new table as changed old table as previous
+  for each statement execute function better_supabase.bump_updated_role_members();
+
+create or replace function better_supabase.bump_inserted_platform_roles()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform better_supabase.bump_authz_versions(array(select "user_id" from changed));
+  return null;
+end;
+$$;
+
+revoke execute on function better_supabase.bump_inserted_platform_roles() from public, anon, authenticated;
+create trigger bsb_bump_inserted_platform_roles
+  after insert on "better_supabase"."platform_roles"
+  referencing new table as changed
+  for each statement execute function better_supabase.bump_inserted_platform_roles();
+
+create or replace function better_supabase.bump_deleted_platform_roles()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform better_supabase.bump_authz_versions(array(select "user_id" from changed));
+  return null;
+end;
+$$;
+
+revoke execute on function better_supabase.bump_deleted_platform_roles() from public, anon, authenticated;
+create trigger bsb_bump_deleted_platform_roles
+  after delete on "better_supabase"."platform_roles"
+  referencing old table as changed
+  for each statement execute function better_supabase.bump_deleted_platform_roles();
+create or replace function better_supabase.bump_override_members()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform better_supabase.bump_authz_versions(array(
+    select m."user_id"
+    from "public"."memberships" m
+    where (m."organization_id", m."role") in (
+      select "tenant_id", "role_id" from changed
+    )
+  ));
+  return null;
+end;
+$$;
+
+revoke execute on function better_supabase.bump_override_members() from public, anon, authenticated;
+create trigger bsb_bump_override_members_insert
+  after insert on "better_supabase"."permission_overrides"
+  referencing new table as changed
+  for each statement execute function better_supabase.bump_override_members();
+create trigger bsb_bump_override_members_update
+  after update on "better_supabase"."permission_overrides"
+  referencing new table as changed
+  for each statement execute function better_supabase.bump_override_members();
+create trigger bsb_bump_override_members_delete
+  after delete on "better_supabase"."permission_overrides"
+  referencing old table as changed
+  for each statement execute function better_supabase.bump_override_members();
+
 -- blocks['sessions'].options.hook: how much the access token hook reads for
 -- this event, as 'slim' (an OAuth client token: leave out memberships,
 -- permissions, team_ids and authz_ver), 'reuse' (a refresh whose authz_ver is
@@ -373,6 +510,16 @@ declare
 begin
   if coalesce(v_claims ->> 'client_id', '') <> '' then
     return 'slim';
+  end if;
+
+  -- A refresh whose permission claim was built for another tenant than
+  -- app_metadata.tenant_id must read again. reuse would keep the old keys.
+  if coalesce(v_claims -> 'app_metadata' ->> 'tenant_id', '') <> ''
+    and jsonb_typeof(v_claims -> 'permissions') = 'object'
+    and v_claims -> 'permissions' <> '{}'::jsonb
+    and not (v_claims -> 'permissions' ? (v_claims -> 'app_metadata' ->> 'tenant_id'))
+  then
+    return 'full';
   end if;
 
   if event ->> 'authentication_method' = 'token_refresh'

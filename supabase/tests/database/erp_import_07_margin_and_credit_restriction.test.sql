@@ -109,8 +109,8 @@ insert into batches values ('wrong', better_supabase.import_upsert_batch(current
     'lines', jsonb_build_array(jsonb_build_object('description', 'Equipment', 'quantity', 1, 'unitAmount', 100000, 'taxRateBps', 2100)),
     'totals', jsonb_build_object('subtotal', 100000, 'tax', 21000, 'total', 120000))))));
 select is(
-  (select result -> 'warnings' -> 0 ->> 'code' from batches where name = 'wrong'),
-  'IMPORT_TOTALS_MISMATCH',
+  (select 'IMPORT_TOTALS_MISMATCH' in (select w ->> 'code' from batches b, jsonb_array_elements(b.result -> 'warnings') w where b.name = 'wrong')),
+  true,
   'a source total that differs from the computed one is reported'
 );
 

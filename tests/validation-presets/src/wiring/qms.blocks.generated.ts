@@ -15,7 +15,6 @@ import type { LedgerEvents } from "better-supabase/blocks/ledger";
 import type { AssetsEvents } from "better-supabase/blocks/assets";
 import type { ModerationEvents } from "better-supabase/blocks/moderation";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
-import type { DispatchEvents } from "better-supabase/blocks/dispatch";
 import type { ComplianceEvents } from "better-supabase/blocks/compliance";
 import type { AcknowledgementsEvents } from "better-supabase/blocks/acknowledgements";
 import type { CoursesEvents } from "better-supabase/blocks/courses";
@@ -63,7 +62,6 @@ import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledge
 import { assetsBlock as assetsBlockInstance } from "better-supabase/blocks/assets";
 import { moderationBlock as moderationBlockInstance } from "better-supabase/blocks/moderation";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
-import { dispatchBlock as dispatchBlockInstance } from "better-supabase/blocks/dispatch";
 import { complianceBlock as complianceBlockInstance } from "better-supabase/blocks/compliance";
 import { acknowledgementsBlock as acknowledgementsBlockInstance } from "better-supabase/blocks/acknowledgements";
 import { coursesBlock as coursesBlockInstance } from "better-supabase/blocks/courses";
@@ -130,7 +128,6 @@ export const blocks = {
   assets: assetsBlockInstance,
   moderation: moderationBlockInstance,
   enrollments: enrollmentsBlockInstance,
-  dispatch: dispatchBlockInstance,
   compliance: complianceBlockInstance,
   acknowledgements: acknowledgementsBlockInstance,
   courses: coursesBlockInstance,
@@ -176,7 +173,7 @@ export const blocks = {
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & CatalogEvents & LedgerEvents & AssetsEvents & ModerationEvents & EnrollmentsEvents & DispatchEvents & ComplianceEvents & AcknowledgementsEvents & CoursesEvents & PostsEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & DriveEvents & EmployeesEvents & FormsEvents & SignaturesEvents & InventoryEvents & MessagingEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & VersionsEvents & TasksEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & CatalogEvents & LedgerEvents & AssetsEvents & ModerationEvents & EnrollmentsEvents & ComplianceEvents & AcknowledgementsEvents & CoursesEvents & PostsEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & DriveEvents & EmployeesEvents & FormsEvents & SignaturesEvents & InventoryEvents & MessagingEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & VersionsEvents & TasksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -276,7 +273,6 @@ export const blockEvents: Events<BlockEvents> = {
     "course_certificate.issued",
     "course_certificate.revoked",
     "course_lesson.completed",
-    "dispatch_route.planned",
     "drive.connection_created",
     "drive.connection_removed",
     "drive.created",
@@ -515,12 +511,6 @@ export const blockEvents: Events<BlockEvents> = {
     "version.created",
     "version.deleted",
     "version.restored",
-    "work_order.created",
-    "work_order.part_used",
-    "work_order.scheduled",
-    "work_order.status_changed",
-    "work_order.unscheduled",
-    "work_order.updated",
   ],
 };
 
@@ -620,7 +610,6 @@ export const blockEventSchemas = {
   "course_certificate.issued": true,
   "course_certificate.revoked": true,
   "course_lesson.completed": true,
-  "dispatch_route.planned": true,
   "drive.connection_created": true,
   "drive.connection_removed": true,
   "drive.created": true,
@@ -859,12 +848,6 @@ export const blockEventSchemas = {
   "version.created": true,
   "version.deleted": true,
   "version.restored": true,
-  "work_order.created": true,
-  "work_order.part_used": true,
-  "work_order.scheduled": true,
-  "work_order.status_changed": true,
-  "work_order.unscheduled": true,
-  "work_order.updated": true,
 } as const;
 
 /**

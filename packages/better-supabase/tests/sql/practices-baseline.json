@@ -3,7 +3,7 @@
     "security-definer-functions": 41
   },
   "accounting": {
-    "security-definer-functions": 234,
+    "security-definer-functions": 240,
     "row-triggers": 24
   },
   "acknowledgements": {
@@ -57,8 +57,8 @@
     "security-definer-functions": 145
   },
   "assets": {
-    "security-definer-functions": 122,
-    "row-triggers": 6
+    "security-definer-functions": 164,
+    "row-triggers": 18
   },
   "assignment": {
     "security-definer-functions": 36
@@ -103,7 +103,7 @@
     "row-triggers": 6
   },
   "catalog": {
-    "security-definer-functions": 340
+    "security-definer-functions": 370
   },
   "channels": {
     "security-definer-functions": 36
@@ -130,7 +130,7 @@
     "security-definer-functions": 84
   },
   "contacts": {
-    "security-definer-functions": 140
+    "security-definer-functions": 206
   },
   "content": {
     "security-definer-functions": 72
@@ -247,7 +247,7 @@
     "security-definer-functions": 68
   },
   "imports": {
-    "security-definer-functions": 72
+    "security-definer-functions": 150
   },
   "inbox": {
     "security-definer-functions": 246,
@@ -268,7 +268,8 @@
     "row-triggers": 6
   },
   "invoices": {
-    "security-definer-functions": 315
+    "security-definer-functions": 345,
+    "row-triggers": 6
   },
   "knowledge": {
     "security-definer-functions": 85
@@ -298,8 +299,8 @@
     "security-definer-functions": 80
   },
   "maintenance": {
-    "security-definer-functions": 67,
-    "row-triggers": 7
+    "security-definer-functions": 57,
+    "row-triggers": 2
   },
   "manufacturing": {
     "security-definer-functions": 151
@@ -312,7 +313,7 @@
     "row-triggers": 1
   },
   "memberships-many-roles": {
-    "security-definer-functions": 54,
+    "security-definer-functions": 57,
     "row-triggers": 6
   },
   "memberships": {
@@ -360,8 +361,8 @@
     "security-definer-functions": 223
   },
   "organizations": {
-    "security-definer-functions": 81,
-    "row-triggers": 10
+    "security-definer-functions": 109,
+    "row-triggers": 12
   },
   "outbox": {
     "security-definer-functions": 60
@@ -376,7 +377,7 @@
     "security-definer-functions": 42
   },
   "permissions": {
-    "security-definer-functions": 90
+    "security-definer-functions": 96
   },
   "pgtap": {
     "security-definer-functions": 9
@@ -508,6 +509,9 @@
   "sso": {
     "security-definer-functions": 66
   },
+  "state-machine": {
+    "security-definer-functions": 1
+  },
   "streams": {
     "security-definer-functions": 6
   },
@@ -518,7 +522,7 @@
     "security-definer-functions": 54
   },
   "tasks": {
-    "security-definer-functions": 82,
+    "security-definer-functions": 106,
     "row-triggers": 6
   },
   "tax": {
@@ -557,6 +561,10 @@
   },
   "warehouse": {
     "security-definer-functions": 180
+  },
+  "warranty": {
+    "security-definer-functions": 24,
+    "row-triggers": 6
   },
   "webhooks-in": {
     "security-definer-functions": 50,

@@ -55,6 +55,7 @@ export async function getAiTasks(): Promise<AiTasksRead> {
   const result = await aiTasks(supabase).list({
     organizationId,
     all: can(permissions, "ai_schedules.manage"),
+    limit: 100,
   });
 
   if (!result.ok) {

@@ -196,6 +196,8 @@ export interface ApprovalContribution {
 export interface ImportTargetContribution {
   /** The entity name callers pass to \`import_upsert_batch\`, such as \`party\`. */
   readonly entity: string;
+  /** Entities that must finish before this one. A cycle fails at render. */
+  readonly dependsOn?: readonly string[];
   /** The subject type of the primary row the write creates. */
   readonly subjectType: string;
   /**
@@ -225,6 +227,33 @@ export interface ImportTargetContribution {
    * it, a row changed after the last import is \`conflicted\` and left alone.
    */
   readonly updatedAt?: string;
+  /** `(subject_id text) returns text` over the columns the importer writes. */
+  readonly ownedHash?: string;
+  /**
+   * `(tenant, item jsonb) returns text`. The subject to adopt when no import
+   * record exists.
+   */
+  readonly naturalKey?: string;
+  /**
+   * Ref field to the entity it points at, resolved in one query before the
+   * write.
+   */
+  readonly refs?: Readonly<Record<string, string>>;
+  /**
+   * When true, this target replaces a block contribution of the same entity
+   * instead of being refused as a duplicate.
+   */
+  readonly replaces?: boolean;
+  /**
+   * `(run uuid, item jsonb, subject_id text) returns jsonb`, merged into the
+   * item before `write`.
+   */
+  readonly before?: string;
+  /**
+   * `(run uuid, result jsonb, subject_id text) returns jsonb`, replacing the
+   * `write` result.
+   */
+  readonly after?: string;
 }
 
 /** A bulk action the contributing block runs on one row. */

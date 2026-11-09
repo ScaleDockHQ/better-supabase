@@ -1,7 +1,7 @@
 -- ==== alone: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:81e8ac9e54cdd7fb549433bfab9d0d825e75beed3731b7b8882546d13c83ff4e
+-- @bsb-hash sha256:116db14fe8dccbd20e1a1913aa7f169627bed4c2059ffa87e0fb0505bfa9d4ee
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -263,6 +263,99 @@ as $$
     '{}'::text[],
     format('every partition in %I has row level security enabled', schema_name)
   )
+$$;
+
+create or replace function tests.expect_import_warning(result jsonb, code text)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from jsonb_array_elements(coalesce(result -> 'warnings', '[]'::jsonb)) w
+    where w.value ->> 'code' = code
+  )
+$$;
+
+-- A run in pending, running, stale or canceled, for lifecycle tests.
+create or replace function tests.import_run_fixture(source text, entities jsonb default '{}'::jsonb, state text default 'running')
+returns uuid
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_id uuid := gen_random_uuid();
+  v_status text := case tests.import_run_fixture.state when 'stale' then 'running' else tests.import_run_fixture.state end;
+begin
+  if v_status not in ('pending', 'running', 'canceled', 'failed', 'completed') then
+    raise exception 'state must be pending, running, stale, canceled, failed or completed' using errcode = '22023';
+  end if;
+  insert into better_supabase.import_runs (id, tenant_id, source, status, plan, lease_expires_at, heartbeat_at)
+  values (
+    v_id,
+    gen_random_uuid(),
+    source,
+    v_status,
+    entities,
+    case when tests.import_run_fixture.state = 'stale' then now() - interval '1 minute' else now() + interval '30 seconds' end,
+    case when tests.import_run_fixture.state = 'stale' then now() - interval '1 minute' else now() end
+  );
+  return v_id;
+end;
+$$;
+
+create or replace function tests.age_import_run(run uuid, age interval)
+returns void
+language sql
+set search_path = ''
+as $$
+  update better_supabase.import_runs
+  set lease_expires_at = now() - age, heartbeat_at = now() - age
+  where id = run
+$$;
+
+-- Moves the stored import stamp into the past so a current subject looks edited.
+create or replace function tests.bulk_touch_subjects(entity text, n integer)
+returns integer
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  with touched as (
+    select id from better_supabase.import_records
+    where entity = bulk_touch_subjects.entity
+    limit greatest(n, 0)
+  )
+  update better_supabase.import_records r
+  set subject_imported_updated_at = now() - interval '1 day'
+  from touched
+  where r.id = touched.id;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- Fails when a function body is missing a when-arm for an import entity.
+create or replace function tests.assert_override_dispatches_all(signature text)
+returns boolean
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_body text;
+  v_missing text;
+begin
+  select pg_catalog.pg_get_functiondef(signature::regprocedure) into v_body;
+  select string_agg(entity, ', ' order by entity) into v_missing
+  from unnest(better_supabase.import_entities()) entity
+  where position(('when ' || quote_literal(entity) || ' then') in v_body) = 0;
+  if v_missing is not null then
+    raise exception 'missing dispatch arms: %', v_missing using errcode = 'P0001';
+  end if;
+  return true;
+end;
 $$;
 
 grant execute on all functions in schema tests to anon, authenticated, service_role;
@@ -278,7 +371,7 @@ select * from extensions.finish();
 -- ==== schema app_private: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:81e8ac9e54cdd7fb549433bfab9d0d825e75beed3731b7b8882546d13c83ff4e
+-- @bsb-hash sha256:116db14fe8dccbd20e1a1913aa7f169627bed4c2059ffa87e0fb0505bfa9d4ee
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -540,6 +633,99 @@ as $$
     '{}'::text[],
     format('every partition in %I has row level security enabled', schema_name)
   )
+$$;
+
+create or replace function tests.expect_import_warning(result jsonb, code text)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from jsonb_array_elements(coalesce(result -> 'warnings', '[]'::jsonb)) w
+    where w.value ->> 'code' = code
+  )
+$$;
+
+-- A run in pending, running, stale or canceled, for lifecycle tests.
+create or replace function tests.import_run_fixture(source text, entities jsonb default '{}'::jsonb, state text default 'running')
+returns uuid
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_id uuid := gen_random_uuid();
+  v_status text := case tests.import_run_fixture.state when 'stale' then 'running' else tests.import_run_fixture.state end;
+begin
+  if v_status not in ('pending', 'running', 'canceled', 'failed', 'completed') then
+    raise exception 'state must be pending, running, stale, canceled, failed or completed' using errcode = '22023';
+  end if;
+  insert into better_supabase.import_runs (id, tenant_id, source, status, plan, lease_expires_at, heartbeat_at)
+  values (
+    v_id,
+    gen_random_uuid(),
+    source,
+    v_status,
+    entities,
+    case when tests.import_run_fixture.state = 'stale' then now() - interval '1 minute' else now() + interval '30 seconds' end,
+    case when tests.import_run_fixture.state = 'stale' then now() - interval '1 minute' else now() end
+  );
+  return v_id;
+end;
+$$;
+
+create or replace function tests.age_import_run(run uuid, age interval)
+returns void
+language sql
+set search_path = ''
+as $$
+  update better_supabase.import_runs
+  set lease_expires_at = now() - age, heartbeat_at = now() - age
+  where id = run
+$$;
+
+-- Moves the stored import stamp into the past so a current subject looks edited.
+create or replace function tests.bulk_touch_subjects(entity text, n integer)
+returns integer
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  with touched as (
+    select id from better_supabase.import_records
+    where entity = bulk_touch_subjects.entity
+    limit greatest(n, 0)
+  )
+  update better_supabase.import_records r
+  set subject_imported_updated_at = now() - interval '1 day'
+  from touched
+  where r.id = touched.id;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- Fails when a function body is missing a when-arm for an import entity.
+create or replace function tests.assert_override_dispatches_all(signature text)
+returns boolean
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_body text;
+  v_missing text;
+begin
+  select pg_catalog.pg_get_functiondef(signature::regprocedure) into v_body;
+  select string_agg(entity, ', ' order by entity) into v_missing
+  from unnest(better_supabase.import_entities()) entity
+  where position(('when ' || quote_literal(entity) || ' then') in v_body) = 0;
+  if v_missing is not null then
+    raise exception 'missing dispatch arms: %', v_missing using errcode = 'P0001';
+  end if;
+  return true;
+end;
 $$;
 
 grant execute on all functions in schema tests to anon, authenticated, service_role;
@@ -555,7 +741,7 @@ select * from extensions.finish();
 -- ==== api schema: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:81e8ac9e54cdd7fb549433bfab9d0d825e75beed3731b7b8882546d13c83ff4e
+-- @bsb-hash sha256:116db14fe8dccbd20e1a1913aa7f169627bed4c2059ffa87e0fb0505bfa9d4ee
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -817,6 +1003,99 @@ as $$
     '{}'::text[],
     format('every partition in %I has row level security enabled', schema_name)
   )
+$$;
+
+create or replace function tests.expect_import_warning(result jsonb, code text)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from jsonb_array_elements(coalesce(result -> 'warnings', '[]'::jsonb)) w
+    where w.value ->> 'code' = code
+  )
+$$;
+
+-- A run in pending, running, stale or canceled, for lifecycle tests.
+create or replace function tests.import_run_fixture(source text, entities jsonb default '{}'::jsonb, state text default 'running')
+returns uuid
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_id uuid := gen_random_uuid();
+  v_status text := case tests.import_run_fixture.state when 'stale' then 'running' else tests.import_run_fixture.state end;
+begin
+  if v_status not in ('pending', 'running', 'canceled', 'failed', 'completed') then
+    raise exception 'state must be pending, running, stale, canceled, failed or completed' using errcode = '22023';
+  end if;
+  insert into better_supabase.import_runs (id, tenant_id, source, status, plan, lease_expires_at, heartbeat_at)
+  values (
+    v_id,
+    gen_random_uuid(),
+    source,
+    v_status,
+    entities,
+    case when tests.import_run_fixture.state = 'stale' then now() - interval '1 minute' else now() + interval '30 seconds' end,
+    case when tests.import_run_fixture.state = 'stale' then now() - interval '1 minute' else now() end
+  );
+  return v_id;
+end;
+$$;
+
+create or replace function tests.age_import_run(run uuid, age interval)
+returns void
+language sql
+set search_path = ''
+as $$
+  update better_supabase.import_runs
+  set lease_expires_at = now() - age, heartbeat_at = now() - age
+  where id = run
+$$;
+
+-- Moves the stored import stamp into the past so a current subject looks edited.
+create or replace function tests.bulk_touch_subjects(entity text, n integer)
+returns integer
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  with touched as (
+    select id from better_supabase.import_records
+    where entity = bulk_touch_subjects.entity
+    limit greatest(n, 0)
+  )
+  update better_supabase.import_records r
+  set subject_imported_updated_at = now() - interval '1 day'
+  from touched
+  where r.id = touched.id;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- Fails when a function body is missing a when-arm for an import entity.
+create or replace function tests.assert_override_dispatches_all(signature text)
+returns boolean
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_body text;
+  v_missing text;
+begin
+  select pg_catalog.pg_get_functiondef(signature::regprocedure) into v_body;
+  select string_agg(entity, ', ' order by entity) into v_missing
+  from unnest(better_supabase.import_entities()) entity
+  where position(('when ' || quote_literal(entity) || ' then') in v_body) = 0;
+  if v_missing is not null then
+    raise exception 'missing dispatch arms: %', v_missing using errcode = 'P0001';
+  end if;
+  return true;
+end;
 $$;
 
 grant execute on all functions in schema tests to anon, authenticated, service_role;

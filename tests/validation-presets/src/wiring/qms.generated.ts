@@ -16,7 +16,6 @@ import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { assetsBlock } from "better-supabase/blocks/assets";
 import { moderationBlock } from "better-supabase/blocks/moderation";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
-import { dispatchBlock } from "better-supabase/blocks/dispatch";
 import { complianceBlock } from "better-supabase/blocks/compliance";
 import { acknowledgementsBlock } from "better-supabase/blocks/acknowledgements";
 import { coursesBlock } from "better-supabase/blocks/courses";
@@ -74,7 +73,6 @@ export const blockSet = defineBlocks(blockConfig, {
   assets: assetsBlock,
   moderation: moderationBlock,
   enrollments: enrollmentsBlock,
-  dispatch: dispatchBlock,
   compliance: complianceBlock,
   acknowledgements: acknowledgementsBlock,
   courses: coursesBlock,

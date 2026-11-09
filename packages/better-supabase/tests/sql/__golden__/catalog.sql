@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:cf812ed4118ee479af215164a4ddb3e398403f2da13837b0ec5a0fc3f15b6cdb
+-- @bsb-hash sha256:0930172c99acf6a080f5eea436f379bb4e2f9d1a56074ed381b84bbc24236c77
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,6 +28,9 @@ create table "better_supabase"."products" (
   "description" text,
   "kind" text not null default 'physical' constraint bsb_products_kind_check check ("kind" in ('physical', 'digital', 'service')),
   "status" text not null default 'draft',
+  "manufacturer" text,
+  "model" text,
+  "tax_code" text,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "slug")
@@ -841,6 +844,133 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
+
+-- One product and its default variant. The price is data.price, then
+-- data.listPrice, then the last purchase price times the markup when
+-- options.priceFallback is set. A name that is mostly control characters is
+-- refused. A sku already used by another product is refused. A taken slug
+-- gains the item key.
+create or replace function "better_supabase"."import_product"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_product.item -> 'data';
+  v_tenant uuid := (import_product.item ->> 'tenant')::uuid;
+  v_raw text := coalesce(v_data ->> 'name', v_data ->> 'title', '');
+  v_name text;
+  v_slug text;
+  v_sku text := nullif(btrim(v_data ->> 'sku'), '');
+  v_price bigint;
+  v_id uuid := nullif(import_product.subject_id, '')::uuid;
+  v_updated timestamptz;
+  v_fallback boolean := coalesce((import_product.item -> 'options' ->> 'priceFallback')::boolean, false);
+begin
+  if length(regexp_replace(v_raw, '[[:cntrl:][:space:]]', '', 'g')) * 2 < length(regexp_replace(coalesce(v_raw, ''), '[[:space:]]', '', 'g')) then
+    raise exception 'a product name is mostly control characters' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_name := btrim(regexp_replace(regexp_replace(v_raw, '[[:cntrl:]]', '', 'g'), U&'[\+00E000-\+00F8FF]', '', 'g'));
+  if v_name is null or length(v_name) = 0 then
+    raise exception 'a product needs a name' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_price := coalesce(
+    nullif(v_data ->> 'price', '')::bigint,
+    nullif(v_data ->> 'listPrice', '')::bigint,
+    case when v_fallback then round(nullif(v_data ->> 'lastPurchasePrice', '')::numeric * coalesce(nullif(v_data ->> 'markup', '')::numeric, 1))::bigint end);
+  v_slug := trim(both '-' from lower(regexp_replace(coalesce(nullif(v_data ->> 'slug', ''), v_name), '[^a-zA-Z0-9]+', '-', 'g')));
+  if v_id is not null and exists (
+    select 1 from "better_supabase"."products" x
+    where x."id" = v_id and x."tenant_id" = v_tenant and x."title" is not distinct from v_name
+      and x."slug" is not distinct from v_slug
+      and x."price" is not distinct from coalesce(v_price, x."price")
+  ) and (v_sku is null or exists (
+    select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id and y."sku" is not distinct from v_sku
+  )) then
+    return jsonb_build_object('subjectId', v_id, 'updatedAt', (select x."updated_at" from "better_supabase"."products" x where x."id" = v_id));
+  end if;
+  if v_sku is not null and exists (
+    select 1 from "better_supabase"."product_variants" y where y."tenant_id" = v_tenant and y."sku" = v_sku and y."product_id" is distinct from v_id
+  ) then
+    raise exception 'a sku is already used by another product' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if exists (select 1 from "better_supabase"."products" x where x."tenant_id" = v_tenant and x."slug" = v_slug and x."id" is distinct from v_id) then
+    v_slug := left(v_slug, 40) || '-' || left(coalesce(import_product.item ->> 'key', 'item'), 8);
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."products" ("tenant_id", "title", "slug", "price", "manufacturer", "model", "tax_code")
+    values (v_tenant, v_name, v_slug, v_price, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
+    returning "id", "updated_at" into v_id, v_updated;
+  else
+    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "price" = coalesce(v_price, x."price"), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
+    where x."id" = v_id and x."tenant_id" = v_tenant
+    returning x."updated_at" into v_updated;
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id) then
+    insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "barcode", "price")
+    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''), v_price);
+  elsif v_sku is not null then
+    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode"), "price" = coalesce(v_price, y."price")
+    where y."id" = (select y2."id" from "better_supabase"."product_variants" y2 where y2."product_id" = v_id order by y2."created_at" limit 1);
+  end if;
+  return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_product"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_product"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."product_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."products" x where x."id"::text = product_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."product_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."product_updated_at"(text) to service_role;
+
+create or replace function "better_supabase"."import_product_category"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_product_category.item -> 'data';
+  v_product uuid := nullif(coalesce(import_product_category.item -> 'resolved' ->> 'product', v_data ->> 'productId'), '')::uuid;
+  v_category uuid := nullif(coalesce(import_product_category.item -> 'resolved' ->> 'category', v_data ->> 'categoryId'), '')::uuid;
+begin
+  if v_category is null and nullif(btrim(v_data ->> 'name'), '') is not null then
+    select x."id" into v_category from "better_supabase"."catalog_categories" x
+    where x."tenant_id" = (import_product_category.item ->> 'tenant')::uuid and x."name" = btrim(v_data ->> 'name');
+  end if;
+  if v_product is null or v_category is null then
+    raise exception 'a product category needs a product and a category' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "better_supabase"."product_categories" ("tenant_id", "product_id", "category_id")
+  values ((import_product_category.item ->> 'tenant')::uuid, v_product, v_category)
+  on conflict do nothing;
+  return jsonb_build_object('subjectId', v_product::text || ':' || v_category::text, 'updatedAt', now());
+end;
+$$;
+revoke execute on function "better_supabase"."import_product_category"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_product_category"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."product_category_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select now()
+$$;
+revoke execute on function "better_supabase"."product_category_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."product_category_updated_at"(text) to service_role;
+
 
 -- Variants have no status column (columns.variants.status), so this refuses.
 create or replace function "better_supabase"."set_variant_status"(variant uuid, status text)
@@ -3282,6 +3412,42 @@ $$;
 revoke execute on function "better_supabase"."discount_rule_updated_at"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."discount_rule_updated_at"(text) to service_role;
 
+-- Puts a party in a customer group from an import. item.data is { party,
+-- groupId? , groupCode? }. A missing group removes the party from its group.
+create or replace function "better_supabase"."import_party_discount_group"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_party_discount_group.item ->> 'tenant')::uuid;
+  v_data jsonb := import_party_discount_group.item -> 'data';
+  v_party text := btrim(coalesce(nullif(v_data ->> 'party', ''), import_party_discount_group.subject_id));
+  v_group uuid := nullif(v_data ->> 'groupId', '')::uuid;
+  v_code text := nullif(btrim(v_data ->> 'groupCode'), '');
+begin
+  if v_party is null or length(v_party) not between 1 and 200 then
+    raise exception 'a party discount group names the party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_group is null and v_code is not null then
+    select x."id" into v_group
+    from "better_supabase"."discount_groups" x
+    where x."tenant_id" = v_tenant and x."kind" = 'customer' and x."code" = v_code;
+  end if;
+  if v_group is null and v_code is not null then
+    raise exception 'no customer discount group has this code' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  perform "better_supabase"."set_party_discount_group"(v_tenant, v_party, v_group);
+  return jsonb_build_object(
+    'subjectId', v_party,
+    'updatedAt', (select x."created_at" from "better_supabase"."discount_group_parties" x where x."tenant_id" = v_tenant and x."party_id" = v_party)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_discount_group"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_discount_group"(uuid, jsonb, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3671,7 +3837,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:85830d49842a5ac2d1c5bb4a44dcd6deff7c49324b6e116da5fcff84e4fa729a
+-- @bsb-hash sha256:7a1e9ba079c167e3bce68464ae73ef115a22dd6272fed67aab77e1e8d5426710
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3698,6 +3864,9 @@ create table "better_supabase"."products" (
   "description" text,
   "kind" text not null default 'physical' constraint bsb_products_kind_check check ("kind" in ('physical', 'digital', 'service')),
   "status" text not null default 'draft',
+  "manufacturer" text,
+  "model" text,
+  "tax_code" text,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "slug")
@@ -4539,6 +4708,133 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
+
+-- One product and its default variant. The price is data.price, then
+-- data.listPrice, then the last purchase price times the markup when
+-- options.priceFallback is set. A name that is mostly control characters is
+-- refused. A sku already used by another product is refused. A taken slug
+-- gains the item key.
+create or replace function "better_supabase"."import_product"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_product.item -> 'data';
+  v_tenant uuid := (import_product.item ->> 'tenant')::uuid;
+  v_raw text := coalesce(v_data ->> 'name', v_data ->> 'title', '');
+  v_name text;
+  v_slug text;
+  v_sku text := nullif(btrim(v_data ->> 'sku'), '');
+  v_price bigint;
+  v_id uuid := nullif(import_product.subject_id, '')::uuid;
+  v_updated timestamptz;
+  v_fallback boolean := coalesce((import_product.item -> 'options' ->> 'priceFallback')::boolean, false);
+begin
+  if length(regexp_replace(v_raw, '[[:cntrl:][:space:]]', '', 'g')) * 2 < length(regexp_replace(coalesce(v_raw, ''), '[[:space:]]', '', 'g')) then
+    raise exception 'a product name is mostly control characters' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_name := btrim(regexp_replace(regexp_replace(v_raw, '[[:cntrl:]]', '', 'g'), U&'[\+00E000-\+00F8FF]', '', 'g'));
+  if v_name is null or length(v_name) = 0 then
+    raise exception 'a product needs a name' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_price := coalesce(
+    nullif(v_data ->> 'price', '')::bigint,
+    nullif(v_data ->> 'listPrice', '')::bigint,
+    case when v_fallback then round(nullif(v_data ->> 'lastPurchasePrice', '')::numeric * coalesce(nullif(v_data ->> 'markup', '')::numeric, 1))::bigint end);
+  v_slug := trim(both '-' from lower(regexp_replace(coalesce(nullif(v_data ->> 'slug', ''), v_name), '[^a-zA-Z0-9]+', '-', 'g')));
+  if v_id is not null and exists (
+    select 1 from "better_supabase"."products" x
+    where x."id" = v_id and x."tenant_id" = v_tenant and x."title" is not distinct from v_name
+      and x."slug" is not distinct from v_slug
+      and x."price" is not distinct from coalesce(v_price, x."price")
+  ) and (v_sku is null or exists (
+    select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id and y."sku" is not distinct from v_sku
+  )) then
+    return jsonb_build_object('subjectId', v_id, 'updatedAt', (select x."updated_at" from "better_supabase"."products" x where x."id" = v_id));
+  end if;
+  if v_sku is not null and exists (
+    select 1 from "better_supabase"."product_variants" y where y."tenant_id" = v_tenant and y."sku" = v_sku and y."product_id" is distinct from v_id
+  ) then
+    raise exception 'a sku is already used by another product' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if exists (select 1 from "better_supabase"."products" x where x."tenant_id" = v_tenant and x."slug" = v_slug and x."id" is distinct from v_id) then
+    v_slug := left(v_slug, 40) || '-' || left(coalesce(import_product.item ->> 'key', 'item'), 8);
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."products" ("tenant_id", "title", "slug", "price", "manufacturer", "model", "tax_code")
+    values (v_tenant, v_name, v_slug, v_price, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
+    returning "id", "updated_at" into v_id, v_updated;
+  else
+    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "price" = coalesce(v_price, x."price"), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
+    where x."id" = v_id and x."tenant_id" = v_tenant
+    returning x."updated_at" into v_updated;
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id) then
+    insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "barcode", "price")
+    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''), v_price);
+  elsif v_sku is not null then
+    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode"), "price" = coalesce(v_price, y."price")
+    where y."id" = (select y2."id" from "better_supabase"."product_variants" y2 where y2."product_id" = v_id order by y2."created_at" limit 1);
+  end if;
+  return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_product"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_product"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."product_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."products" x where x."id"::text = product_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."product_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."product_updated_at"(text) to service_role;
+
+create or replace function "better_supabase"."import_product_category"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_product_category.item -> 'data';
+  v_product uuid := nullif(coalesce(import_product_category.item -> 'resolved' ->> 'product', v_data ->> 'productId'), '')::uuid;
+  v_category uuid := nullif(coalesce(import_product_category.item -> 'resolved' ->> 'category', v_data ->> 'categoryId'), '')::uuid;
+begin
+  if v_category is null and nullif(btrim(v_data ->> 'name'), '') is not null then
+    select x."id" into v_category from "better_supabase"."catalog_categories" x
+    where x."tenant_id" = (import_product_category.item ->> 'tenant')::uuid and x."name" = btrim(v_data ->> 'name');
+  end if;
+  if v_product is null or v_category is null then
+    raise exception 'a product category needs a product and a category' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "better_supabase"."product_categories" ("tenant_id", "product_id", "category_id")
+  values ((import_product_category.item ->> 'tenant')::uuid, v_product, v_category)
+  on conflict do nothing;
+  return jsonb_build_object('subjectId', v_product::text || ':' || v_category::text, 'updatedAt', now());
+end;
+$$;
+revoke execute on function "better_supabase"."import_product_category"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_product_category"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."product_category_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select now()
+$$;
+revoke execute on function "better_supabase"."product_category_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."product_category_updated_at"(text) to service_role;
+
 
 -- Variants have no status column (columns.variants.status), so this refuses.
 create or replace function "better_supabase"."set_variant_status"(variant uuid, status text)
@@ -7174,6 +7470,42 @@ $$;
 revoke execute on function "better_supabase"."discount_rule_updated_at"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."discount_rule_updated_at"(text) to service_role;
 
+-- Puts a party in a customer group from an import. item.data is { party,
+-- groupId? , groupCode? }. A missing group removes the party from its group.
+create or replace function "better_supabase"."import_party_discount_group"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_party_discount_group.item ->> 'tenant')::uuid;
+  v_data jsonb := import_party_discount_group.item -> 'data';
+  v_party text := btrim(coalesce(nullif(v_data ->> 'party', ''), import_party_discount_group.subject_id));
+  v_group uuid := nullif(v_data ->> 'groupId', '')::uuid;
+  v_code text := nullif(btrim(v_data ->> 'groupCode'), '');
+begin
+  if v_party is null or length(v_party) not between 1 and 200 then
+    raise exception 'a party discount group names the party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_group is null and v_code is not null then
+    select x."id" into v_group
+    from "better_supabase"."discount_groups" x
+    where x."tenant_id" = v_tenant and x."kind" = 'customer' and x."code" = v_code;
+  end if;
+  if v_group is null and v_code is not null then
+    raise exception 'no customer discount group has this code' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  perform "better_supabase"."set_party_discount_group"(v_tenant, v_party, v_group);
+  return jsonb_build_object(
+    'subjectId', v_party,
+    'updatedAt', (select x."created_at" from "better_supabase"."discount_group_parties" x where x."tenant_id" = v_tenant and x."party_id" = v_party)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_discount_group"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_discount_group"(uuid, jsonb, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -7583,7 +7915,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:4b7dd998e7bfbac81d2ae7b116debb1ea9cc1f3e7b3c36ef6ee023d5632788c2
+-- @bsb-hash sha256:00574faef711bc81eff1ee80f967bc5e0b65c322569fa546a449479505515846
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7615,6 +7947,9 @@ create table "app_private"."products" (
   "description" text,
   "kind" text not null default 'physical' constraint bsb_products_kind_check check ("kind" in ('physical', 'digital', 'service')),
   "status" text not null default 'draft',
+  "manufacturer" text,
+  "model" text,
+  "tax_code" text,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "slug")
@@ -8428,6 +8763,133 @@ end;
 $$;
 revoke execute on function "app_private"."delete_variant"(uuid) from public, anon;
 grant execute on function "app_private"."delete_variant"(uuid) to authenticated, service_role;
+
+-- One product and its default variant. The price is data.price, then
+-- data.listPrice, then the last purchase price times the markup when
+-- options.priceFallback is set. A name that is mostly control characters is
+-- refused. A sku already used by another product is refused. A taken slug
+-- gains the item key.
+create or replace function "app_private"."import_product"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_product.item -> 'data';
+  v_tenant uuid := (import_product.item ->> 'tenant')::uuid;
+  v_raw text := coalesce(v_data ->> 'name', v_data ->> 'title', '');
+  v_name text;
+  v_slug text;
+  v_sku text := nullif(btrim(v_data ->> 'sku'), '');
+  v_price bigint;
+  v_id uuid := nullif(import_product.subject_id, '')::uuid;
+  v_updated timestamptz;
+  v_fallback boolean := coalesce((import_product.item -> 'options' ->> 'priceFallback')::boolean, false);
+begin
+  if length(regexp_replace(v_raw, '[[:cntrl:][:space:]]', '', 'g')) * 2 < length(regexp_replace(coalesce(v_raw, ''), '[[:space:]]', '', 'g')) then
+    raise exception 'a product name is mostly control characters' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_name := btrim(regexp_replace(regexp_replace(v_raw, '[[:cntrl:]]', '', 'g'), U&'[\+00E000-\+00F8FF]', '', 'g'));
+  if v_name is null or length(v_name) = 0 then
+    raise exception 'a product needs a name' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_price := coalesce(
+    nullif(v_data ->> 'price', '')::bigint,
+    nullif(v_data ->> 'listPrice', '')::bigint,
+    case when v_fallback then round(nullif(v_data ->> 'lastPurchasePrice', '')::numeric * coalesce(nullif(v_data ->> 'markup', '')::numeric, 1))::bigint end);
+  v_slug := trim(both '-' from lower(regexp_replace(coalesce(nullif(v_data ->> 'slug', ''), v_name), '[^a-zA-Z0-9]+', '-', 'g')));
+  if v_id is not null and exists (
+    select 1 from "app_private"."products" x
+    where x."id" = v_id and x."tenant_id" = v_tenant and x."title" is not distinct from v_name
+      and x."slug" is not distinct from v_slug
+      and x."price" is not distinct from coalesce(v_price, x."price")
+  ) and (v_sku is null or exists (
+    select 1 from "app_private"."product_variants" y where y."product_id" = v_id and y."sku" is not distinct from v_sku
+  )) then
+    return jsonb_build_object('subjectId', v_id, 'updatedAt', (select x."updated_at" from "app_private"."products" x where x."id" = v_id));
+  end if;
+  if v_sku is not null and exists (
+    select 1 from "app_private"."product_variants" y where y."tenant_id" = v_tenant and y."sku" = v_sku and y."product_id" is distinct from v_id
+  ) then
+    raise exception 'a sku is already used by another product' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if exists (select 1 from "app_private"."products" x where x."tenant_id" = v_tenant and x."slug" = v_slug and x."id" is distinct from v_id) then
+    v_slug := left(v_slug, 40) || '-' || left(coalesce(import_product.item ->> 'key', 'item'), 8);
+  end if;
+  if v_id is null then
+    insert into "app_private"."products" ("tenant_id", "title", "slug", "price", "manufacturer", "model", "tax_code")
+    values (v_tenant, v_name, v_slug, v_price, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
+    returning "id", "updated_at" into v_id, v_updated;
+  else
+    update "app_private"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "price" = coalesce(v_price, x."price"), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
+    where x."id" = v_id and x."tenant_id" = v_tenant
+    returning x."updated_at" into v_updated;
+  end if;
+  if not exists (select 1 from "app_private"."product_variants" y where y."product_id" = v_id) then
+    insert into "app_private"."product_variants" ("tenant_id", "product_id", "sku", "barcode", "price")
+    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''), v_price);
+  elsif v_sku is not null then
+    update "app_private"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode"), "price" = coalesce(v_price, y."price")
+    where y."id" = (select y2."id" from "app_private"."product_variants" y2 where y2."product_id" = v_id order by y2."created_at" limit 1);
+  end if;
+  return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "app_private"."import_product"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "app_private"."import_product"(uuid, jsonb, text) to service_role;
+
+create or replace function "app_private"."product_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "app_private"."products" x where x."id"::text = product_updated_at.subject_id
+$$;
+revoke execute on function "app_private"."product_updated_at"(text) from public, anon, authenticated;
+grant execute on function "app_private"."product_updated_at"(text) to service_role;
+
+create or replace function "app_private"."import_product_category"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_product_category.item -> 'data';
+  v_product uuid := nullif(coalesce(import_product_category.item -> 'resolved' ->> 'product', v_data ->> 'productId'), '')::uuid;
+  v_category uuid := nullif(coalesce(import_product_category.item -> 'resolved' ->> 'category', v_data ->> 'categoryId'), '')::uuid;
+begin
+  if v_category is null and nullif(btrim(v_data ->> 'name'), '') is not null then
+    select x."id" into v_category from "app_private"."catalog_categories" x
+    where x."tenant_id" = (import_product_category.item ->> 'tenant')::uuid and x."name" = btrim(v_data ->> 'name');
+  end if;
+  if v_product is null or v_category is null then
+    raise exception 'a product category needs a product and a category' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "app_private"."product_categories" ("tenant_id", "product_id", "category_id")
+  values ((import_product_category.item ->> 'tenant')::uuid, v_product, v_category)
+  on conflict do nothing;
+  return jsonb_build_object('subjectId', v_product::text || ':' || v_category::text, 'updatedAt', now());
+end;
+$$;
+revoke execute on function "app_private"."import_product_category"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "app_private"."import_product_category"(uuid, jsonb, text) to service_role;
+
+create or replace function "app_private"."product_category_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select now()
+$$;
+revoke execute on function "app_private"."product_category_updated_at"(text) from public, anon, authenticated;
+grant execute on function "app_private"."product_category_updated_at"(text) to service_role;
+
 
 -- Variants have no status column (columns.variants.status), so this refuses.
 create or replace function "app_private"."set_variant_status"(variant uuid, status text)
@@ -10869,6 +11331,42 @@ $$;
 revoke execute on function "app_private"."discount_rule_updated_at"(text) from public, anon, authenticated;
 grant execute on function "app_private"."discount_rule_updated_at"(text) to service_role;
 
+-- Puts a party in a customer group from an import. item.data is { party,
+-- groupId? , groupCode? }. A missing group removes the party from its group.
+create or replace function "app_private"."import_party_discount_group"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_party_discount_group.item ->> 'tenant')::uuid;
+  v_data jsonb := import_party_discount_group.item -> 'data';
+  v_party text := btrim(coalesce(nullif(v_data ->> 'party', ''), import_party_discount_group.subject_id));
+  v_group uuid := nullif(v_data ->> 'groupId', '')::uuid;
+  v_code text := nullif(btrim(v_data ->> 'groupCode'), '');
+begin
+  if v_party is null or length(v_party) not between 1 and 200 then
+    raise exception 'a party discount group names the party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_group is null and v_code is not null then
+    select x."id" into v_group
+    from "app_private"."discount_groups" x
+    where x."tenant_id" = v_tenant and x."kind" = 'customer' and x."code" = v_code;
+  end if;
+  if v_group is null and v_code is not null then
+    raise exception 'no customer discount group has this code' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  perform "app_private"."set_party_discount_group"(v_tenant, v_party, v_group);
+  return jsonb_build_object(
+    'subjectId', v_party,
+    'updatedAt', (select x."created_at" from "app_private"."discount_group_parties" x where x."tenant_id" = v_tenant and x."party_id" = v_party)
+  );
+end;
+$$;
+revoke execute on function "app_private"."import_party_discount_group"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "app_private"."import_party_discount_group"(uuid, jsonb, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -11258,7 +11756,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:154232dc5108ecf83bfa3650c8883f6559443d1ea652cfc760662a8df8cee6c1
+-- @bsb-hash sha256:b89e4829a5018593ec1e5f097145664ec83311e518ecdc8da4b13c9d3cc73f69
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11285,6 +11783,9 @@ create table "better_supabase"."products" (
   "description" text,
   "kind" text not null default 'physical' constraint bsb_products_kind_check check ("kind" in ('physical', 'digital', 'service')),
   "status" text not null default 'draft',
+  "manufacturer" text,
+  "model" text,
+  "tax_code" text,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "slug")
@@ -12099,6 +12600,133 @@ $$;
 revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
 
+-- One product and its default variant. The price is data.price, then
+-- data.listPrice, then the last purchase price times the markup when
+-- options.priceFallback is set. A name that is mostly control characters is
+-- refused. A sku already used by another product is refused. A taken slug
+-- gains the item key.
+create or replace function "better_supabase"."import_product"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_product.item -> 'data';
+  v_tenant uuid := (import_product.item ->> 'tenant')::uuid;
+  v_raw text := coalesce(v_data ->> 'name', v_data ->> 'title', '');
+  v_name text;
+  v_slug text;
+  v_sku text := nullif(btrim(v_data ->> 'sku'), '');
+  v_price bigint;
+  v_id uuid := nullif(import_product.subject_id, '')::uuid;
+  v_updated timestamptz;
+  v_fallback boolean := coalesce((import_product.item -> 'options' ->> 'priceFallback')::boolean, false);
+begin
+  if length(regexp_replace(v_raw, '[[:cntrl:][:space:]]', '', 'g')) * 2 < length(regexp_replace(coalesce(v_raw, ''), '[[:space:]]', '', 'g')) then
+    raise exception 'a product name is mostly control characters' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_name := btrim(regexp_replace(regexp_replace(v_raw, '[[:cntrl:]]', '', 'g'), U&'[\+00E000-\+00F8FF]', '', 'g'));
+  if v_name is null or length(v_name) = 0 then
+    raise exception 'a product needs a name' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_price := coalesce(
+    nullif(v_data ->> 'price', '')::bigint,
+    nullif(v_data ->> 'listPrice', '')::bigint,
+    case when v_fallback then round(nullif(v_data ->> 'lastPurchasePrice', '')::numeric * coalesce(nullif(v_data ->> 'markup', '')::numeric, 1))::bigint end);
+  v_slug := trim(both '-' from lower(regexp_replace(coalesce(nullif(v_data ->> 'slug', ''), v_name), '[^a-zA-Z0-9]+', '-', 'g')));
+  if v_id is not null and exists (
+    select 1 from "better_supabase"."products" x
+    where x."id" = v_id and x."tenant_id" = v_tenant and x."title" is not distinct from v_name
+      and x."slug" is not distinct from v_slug
+      and x."price" is not distinct from coalesce(v_price, x."price")
+  ) and (v_sku is null or exists (
+    select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id and y."sku" is not distinct from v_sku
+  )) then
+    return jsonb_build_object('subjectId', v_id, 'updatedAt', (select x."updated_at" from "better_supabase"."products" x where x."id" = v_id));
+  end if;
+  if v_sku is not null and exists (
+    select 1 from "better_supabase"."product_variants" y where y."tenant_id" = v_tenant and y."sku" = v_sku and y."product_id" is distinct from v_id
+  ) then
+    raise exception 'a sku is already used by another product' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if exists (select 1 from "better_supabase"."products" x where x."tenant_id" = v_tenant and x."slug" = v_slug and x."id" is distinct from v_id) then
+    v_slug := left(v_slug, 40) || '-' || left(coalesce(import_product.item ->> 'key', 'item'), 8);
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."products" ("tenant_id", "title", "slug", "price", "manufacturer", "model", "tax_code")
+    values (v_tenant, v_name, v_slug, v_price, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
+    returning "id", "updated_at" into v_id, v_updated;
+  else
+    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "price" = coalesce(v_price, x."price"), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
+    where x."id" = v_id and x."tenant_id" = v_tenant
+    returning x."updated_at" into v_updated;
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id) then
+    insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "barcode", "price")
+    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''), v_price);
+  elsif v_sku is not null then
+    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode"), "price" = coalesce(v_price, y."price")
+    where y."id" = (select y2."id" from "better_supabase"."product_variants" y2 where y2."product_id" = v_id order by y2."created_at" limit 1);
+  end if;
+  return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_product"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_product"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."product_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."products" x where x."id"::text = product_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."product_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."product_updated_at"(text) to service_role;
+
+create or replace function "better_supabase"."import_product_category"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_product_category.item -> 'data';
+  v_product uuid := nullif(coalesce(import_product_category.item -> 'resolved' ->> 'product', v_data ->> 'productId'), '')::uuid;
+  v_category uuid := nullif(coalesce(import_product_category.item -> 'resolved' ->> 'category', v_data ->> 'categoryId'), '')::uuid;
+begin
+  if v_category is null and nullif(btrim(v_data ->> 'name'), '') is not null then
+    select x."id" into v_category from "better_supabase"."catalog_categories" x
+    where x."tenant_id" = (import_product_category.item ->> 'tenant')::uuid and x."name" = btrim(v_data ->> 'name');
+  end if;
+  if v_product is null or v_category is null then
+    raise exception 'a product category needs a product and a category' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "better_supabase"."product_categories" ("tenant_id", "product_id", "category_id")
+  values ((import_product_category.item ->> 'tenant')::uuid, v_product, v_category)
+  on conflict do nothing;
+  return jsonb_build_object('subjectId', v_product::text || ':' || v_category::text, 'updatedAt', now());
+end;
+$$;
+revoke execute on function "better_supabase"."import_product_category"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_product_category"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."product_category_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select now()
+$$;
+revoke execute on function "better_supabase"."product_category_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."product_category_updated_at"(text) to service_role;
+
+
 -- Variants have no status column (columns.variants.status), so this refuses.
 create or replace function "better_supabase"."set_variant_status"(variant uuid, status text)
 returns jsonb
@@ -14539,6 +15167,42 @@ $$;
 revoke execute on function "better_supabase"."discount_rule_updated_at"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."discount_rule_updated_at"(text) to service_role;
 
+-- Puts a party in a customer group from an import. item.data is { party,
+-- groupId? , groupCode? }. A missing group removes the party from its group.
+create or replace function "better_supabase"."import_party_discount_group"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_party_discount_group.item ->> 'tenant')::uuid;
+  v_data jsonb := import_party_discount_group.item -> 'data';
+  v_party text := btrim(coalesce(nullif(v_data ->> 'party', ''), import_party_discount_group.subject_id));
+  v_group uuid := nullif(v_data ->> 'groupId', '')::uuid;
+  v_code text := nullif(btrim(v_data ->> 'groupCode'), '');
+begin
+  if v_party is null or length(v_party) not between 1 and 200 then
+    raise exception 'a party discount group names the party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_group is null and v_code is not null then
+    select x."id" into v_group
+    from "better_supabase"."discount_groups" x
+    where x."tenant_id" = v_tenant and x."kind" = 'customer' and x."code" = v_code;
+  end if;
+  if v_group is null and v_code is not null then
+    raise exception 'no customer discount group has this code' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  perform "better_supabase"."set_party_discount_group"(v_tenant, v_party, v_group);
+  return jsonb_build_object(
+    'subjectId', v_party,
+    'updatedAt', (select x."created_at" from "better_supabase"."discount_group_parties" x where x."tenant_id" = v_tenant and x."party_id" = v_party)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_discount_group"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_discount_group"(uuid, jsonb, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -14978,6 +15642,44 @@ set search_path = ''
 as $$ select "better_supabase"."delete_variant"($1) $$;
 revoke execute on function "api"."delete_variant"(uuid) from public, anon;
 grant execute on function "api"."delete_variant"(uuid) to authenticated, service_role;
+
+create or replace function "api"."import_product"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_product"($1, $2, $3) $$;
+revoke execute on function "api"."import_product"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."import_product"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."product_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."product_updated_at"($1) $$;
+revoke execute on function "api"."product_updated_at"(text) from public, anon, authenticated;
+grant execute on function "api"."product_updated_at"(text) to service_role;
+
+create or replace function "api"."import_product_category"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_product_category"($1, $2, $3) $$;
+revoke execute on function "api"."import_product_category"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."import_product_category"(uuid, jsonb, text) to service_role;
+
+create or replace function "api"."product_category_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."product_category_updated_at"($1) $$;
+revoke execute on function "api"."product_category_updated_at"(text) from public, anon, authenticated;
+grant execute on function "api"."product_category_updated_at"(text) to service_role;
 
 create or replace function "api"."set_variant_status"(variant uuid, status text)
 returns jsonb
@@ -15546,6 +16248,15 @@ as $$ select "better_supabase"."discount_rule_updated_at"($1) $$;
 revoke execute on function "api"."discount_rule_updated_at"(text) from public, anon, authenticated;
 grant execute on function "api"."discount_rule_updated_at"(text) to service_role;
 
+create or replace function "api"."import_party_discount_group"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_party_discount_group"($1, $2, $3) $$;
+revoke execute on function "api"."import_party_discount_group"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."import_party_discount_group"(uuid, jsonb, text) to service_role;
+
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block-data catalog
@@ -15563,7 +16274,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:d732284dbdb0332c1eaf54e5d326d8b8afb81b0e48d46e8a9f32ca945d4e467d
+-- @bsb-hash sha256:ba81b176ce7e73ef69a1833dd2168036c0dcb5adf1a3437f6a3ba7e43d2d134c
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15590,6 +16301,9 @@ alter table "better_supabase"."products" add column if not exists "title" text c
 alter table "better_supabase"."products" add column if not exists "description" text;
 alter table "better_supabase"."products" add column if not exists "kind" text not null default 'physical' constraint bsb_products_kind_check check ("kind" in ('physical', 'digital', 'service'));
 alter table "better_supabase"."products" add column if not exists "status" text not null default 'draft';
+alter table "better_supabase"."products" add column if not exists "manufacturer" text;
+alter table "better_supabase"."products" add column if not exists "model" text;
+alter table "better_supabase"."products" add column if not exists "tax_code" text;
 alter table "better_supabase"."products" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."products" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists products_status_idx on "better_supabase"."products" ("tenant_id", "status");
@@ -16368,6 +17082,133 @@ $$;
 revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
 
+-- One product and its default variant. The price is data.price, then
+-- data.listPrice, then the last purchase price times the markup when
+-- options.priceFallback is set. A name that is mostly control characters is
+-- refused. A sku already used by another product is refused. A taken slug
+-- gains the item key.
+create or replace function "better_supabase"."import_product"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_product.item -> 'data';
+  v_tenant uuid := (import_product.item ->> 'tenant')::uuid;
+  v_raw text := coalesce(v_data ->> 'name', v_data ->> 'title', '');
+  v_name text;
+  v_slug text;
+  v_sku text := nullif(btrim(v_data ->> 'sku'), '');
+  v_price bigint;
+  v_id uuid := nullif(import_product.subject_id, '')::uuid;
+  v_updated timestamptz;
+  v_fallback boolean := coalesce((import_product.item -> 'options' ->> 'priceFallback')::boolean, false);
+begin
+  if length(regexp_replace(v_raw, '[[:cntrl:][:space:]]', '', 'g')) * 2 < length(regexp_replace(coalesce(v_raw, ''), '[[:space:]]', '', 'g')) then
+    raise exception 'a product name is mostly control characters' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_name := btrim(regexp_replace(regexp_replace(v_raw, '[[:cntrl:]]', '', 'g'), U&'[\+00E000-\+00F8FF]', '', 'g'));
+  if v_name is null or length(v_name) = 0 then
+    raise exception 'a product needs a name' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_price := coalesce(
+    nullif(v_data ->> 'price', '')::bigint,
+    nullif(v_data ->> 'listPrice', '')::bigint,
+    case when v_fallback then round(nullif(v_data ->> 'lastPurchasePrice', '')::numeric * coalesce(nullif(v_data ->> 'markup', '')::numeric, 1))::bigint end);
+  v_slug := trim(both '-' from lower(regexp_replace(coalesce(nullif(v_data ->> 'slug', ''), v_name), '[^a-zA-Z0-9]+', '-', 'g')));
+  if v_id is not null and exists (
+    select 1 from "better_supabase"."products" x
+    where x."id" = v_id and x."tenant_id" = v_tenant and x."title" is not distinct from v_name
+      and x."slug" is not distinct from v_slug
+      and x."price" is not distinct from coalesce(v_price, x."price")
+  ) and (v_sku is null or exists (
+    select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id and y."sku" is not distinct from v_sku
+  )) then
+    return jsonb_build_object('subjectId', v_id, 'updatedAt', (select x."updated_at" from "better_supabase"."products" x where x."id" = v_id));
+  end if;
+  if v_sku is not null and exists (
+    select 1 from "better_supabase"."product_variants" y where y."tenant_id" = v_tenant and y."sku" = v_sku and y."product_id" is distinct from v_id
+  ) then
+    raise exception 'a sku is already used by another product' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if exists (select 1 from "better_supabase"."products" x where x."tenant_id" = v_tenant and x."slug" = v_slug and x."id" is distinct from v_id) then
+    v_slug := left(v_slug, 40) || '-' || left(coalesce(import_product.item ->> 'key', 'item'), 8);
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."products" ("tenant_id", "title", "slug", "price", "manufacturer", "model", "tax_code")
+    values (v_tenant, v_name, v_slug, v_price, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
+    returning "id", "updated_at" into v_id, v_updated;
+  else
+    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "price" = coalesce(v_price, x."price"), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
+    where x."id" = v_id and x."tenant_id" = v_tenant
+    returning x."updated_at" into v_updated;
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id) then
+    insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "barcode", "price")
+    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''), v_price);
+  elsif v_sku is not null then
+    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode"), "price" = coalesce(v_price, y."price")
+    where y."id" = (select y2."id" from "better_supabase"."product_variants" y2 where y2."product_id" = v_id order by y2."created_at" limit 1);
+  end if;
+  return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_product"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_product"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."product_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."products" x where x."id"::text = product_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."product_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."product_updated_at"(text) to service_role;
+
+create or replace function "better_supabase"."import_product_category"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_product_category.item -> 'data';
+  v_product uuid := nullif(coalesce(import_product_category.item -> 'resolved' ->> 'product', v_data ->> 'productId'), '')::uuid;
+  v_category uuid := nullif(coalesce(import_product_category.item -> 'resolved' ->> 'category', v_data ->> 'categoryId'), '')::uuid;
+begin
+  if v_category is null and nullif(btrim(v_data ->> 'name'), '') is not null then
+    select x."id" into v_category from "better_supabase"."catalog_categories" x
+    where x."tenant_id" = (import_product_category.item ->> 'tenant')::uuid and x."name" = btrim(v_data ->> 'name');
+  end if;
+  if v_product is null or v_category is null then
+    raise exception 'a product category needs a product and a category' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "better_supabase"."product_categories" ("tenant_id", "product_id", "category_id")
+  values ((import_product_category.item ->> 'tenant')::uuid, v_product, v_category)
+  on conflict do nothing;
+  return jsonb_build_object('subjectId', v_product::text || ':' || v_category::text, 'updatedAt', now());
+end;
+$$;
+revoke execute on function "better_supabase"."import_product_category"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_product_category"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."product_category_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select now()
+$$;
+revoke execute on function "better_supabase"."product_category_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."product_category_updated_at"(text) to service_role;
+
+
 -- Variants have no status column (columns.variants.status), so this refuses.
 create or replace function "better_supabase"."set_variant_status"(variant uuid, status text)
 returns jsonb
@@ -18808,6 +19649,42 @@ $$;
 revoke execute on function "better_supabase"."discount_rule_updated_at"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."discount_rule_updated_at"(text) to service_role;
 
+-- Puts a party in a customer group from an import. item.data is { party,
+-- groupId? , groupCode? }. A missing group removes the party from its group.
+create or replace function "better_supabase"."import_party_discount_group"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_party_discount_group.item ->> 'tenant')::uuid;
+  v_data jsonb := import_party_discount_group.item -> 'data';
+  v_party text := btrim(coalesce(nullif(v_data ->> 'party', ''), import_party_discount_group.subject_id));
+  v_group uuid := nullif(v_data ->> 'groupId', '')::uuid;
+  v_code text := nullif(btrim(v_data ->> 'groupCode'), '');
+begin
+  if v_party is null or length(v_party) not between 1 and 200 then
+    raise exception 'a party discount group names the party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_group is null and v_code is not null then
+    select x."id" into v_group
+    from "better_supabase"."discount_groups" x
+    where x."tenant_id" = v_tenant and x."kind" = 'customer' and x."code" = v_code;
+  end if;
+  if v_group is null and v_code is not null then
+    raise exception 'no customer discount group has this code' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  perform "better_supabase"."set_party_discount_group"(v_tenant, v_party, v_group);
+  return jsonb_build_object(
+    'subjectId', v_party,
+    'updatedAt', (select x."created_at" from "better_supabase"."discount_group_parties" x where x."tenant_id" = v_tenant and x."party_id" = v_party)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_discount_group"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_discount_group"(uuid, jsonb, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -19197,7 +20074,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:7d4163da344541dc33f7b3e17ebcc57ed770b4b1f69667b605ab6884916ec79c
+-- @bsb-hash sha256:089fecc7c40aea217fb64b2afae274ee0117e8bcb0fd6fcc3b7ef2ac694ab155
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19224,6 +20101,9 @@ create table "better_supabase"."products" (
   "description" text,
   "kind" text not null default 'physical' constraint bsb_products_kind_check check ("kind" in ('physical', 'digital', 'service')),
   "status" text not null default 'draft',
+  "manufacturer" text,
+  "model" text,
+  "tax_code" text,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "slug")
@@ -20037,6 +20917,133 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
+
+-- One product and its default variant. The price is data.price, then
+-- data.listPrice, then the last purchase price times the markup when
+-- options.priceFallback is set. A name that is mostly control characters is
+-- refused. A sku already used by another product is refused. A taken slug
+-- gains the item key.
+create or replace function "better_supabase"."import_product"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_product.item -> 'data';
+  v_tenant uuid := (import_product.item ->> 'tenant')::uuid;
+  v_raw text := coalesce(v_data ->> 'name', v_data ->> 'title', '');
+  v_name text;
+  v_slug text;
+  v_sku text := nullif(btrim(v_data ->> 'sku'), '');
+  v_price bigint;
+  v_id uuid := nullif(import_product.subject_id, '')::uuid;
+  v_updated timestamptz;
+  v_fallback boolean := coalesce((import_product.item -> 'options' ->> 'priceFallback')::boolean, false);
+begin
+  if length(regexp_replace(v_raw, '[[:cntrl:][:space:]]', '', 'g')) * 2 < length(regexp_replace(coalesce(v_raw, ''), '[[:space:]]', '', 'g')) then
+    raise exception 'a product name is mostly control characters' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_name := btrim(regexp_replace(regexp_replace(v_raw, '[[:cntrl:]]', '', 'g'), U&'[\+00E000-\+00F8FF]', '', 'g'));
+  if v_name is null or length(v_name) = 0 then
+    raise exception 'a product needs a name' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  v_price := coalesce(
+    nullif(v_data ->> 'price', '')::bigint,
+    nullif(v_data ->> 'listPrice', '')::bigint,
+    case when v_fallback then round(nullif(v_data ->> 'lastPurchasePrice', '')::numeric * coalesce(nullif(v_data ->> 'markup', '')::numeric, 1))::bigint end);
+  v_slug := trim(both '-' from lower(regexp_replace(coalesce(nullif(v_data ->> 'slug', ''), v_name), '[^a-zA-Z0-9]+', '-', 'g')));
+  if v_id is not null and exists (
+    select 1 from "better_supabase"."products" x
+    where x."id" = v_id and x."org_id" = v_tenant and x."title" is not distinct from v_name
+      and x."slug" is not distinct from v_slug
+      and x."price" is not distinct from coalesce(v_price, x."price")
+  ) and (v_sku is null or exists (
+    select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id and y."sku" is not distinct from v_sku
+  )) then
+    return jsonb_build_object('subjectId', v_id, 'updatedAt', (select x."updated_at" from "better_supabase"."products" x where x."id" = v_id));
+  end if;
+  if v_sku is not null and exists (
+    select 1 from "better_supabase"."product_variants" y where y."org_id" = v_tenant and y."sku" = v_sku and y."product_id" is distinct from v_id
+  ) then
+    raise exception 'a sku is already used by another product' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if exists (select 1 from "better_supabase"."products" x where x."org_id" = v_tenant and x."slug" = v_slug and x."id" is distinct from v_id) then
+    v_slug := left(v_slug, 40) || '-' || left(coalesce(import_product.item ->> 'key', 'item'), 8);
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."products" ("org_id", "title", "slug", "price", "manufacturer", "model", "tax_code")
+    values (v_tenant, v_name, v_slug, v_price, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
+    returning "id", "updated_at" into v_id, v_updated;
+  else
+    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "price" = coalesce(v_price, x."price"), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
+    where x."id" = v_id and x."org_id" = v_tenant
+    returning x."updated_at" into v_updated;
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id) then
+    insert into "better_supabase"."product_variants" ("org_id", "product_id", "sku", "barcode", "price")
+    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''), v_price);
+  elsif v_sku is not null then
+    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode"), "price" = coalesce(v_price, y."price")
+    where y."id" = (select y2."id" from "better_supabase"."product_variants" y2 where y2."product_id" = v_id order by y2."created_at" limit 1);
+  end if;
+  return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_product"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_product"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."product_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."products" x where x."id"::text = product_updated_at.subject_id
+$$;
+revoke execute on function "better_supabase"."product_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."product_updated_at"(text) to service_role;
+
+create or replace function "better_supabase"."import_product_category"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_data jsonb := import_product_category.item -> 'data';
+  v_product uuid := nullif(coalesce(import_product_category.item -> 'resolved' ->> 'product', v_data ->> 'productId'), '')::uuid;
+  v_category uuid := nullif(coalesce(import_product_category.item -> 'resolved' ->> 'category', v_data ->> 'categoryId'), '')::uuid;
+begin
+  if v_category is null and nullif(btrim(v_data ->> 'name'), '') is not null then
+    select x."id" into v_category from "better_supabase"."catalog_categories" x
+    where x."org_id" = (import_product_category.item ->> 'tenant')::uuid and x."name" = btrim(v_data ->> 'name');
+  end if;
+  if v_product is null or v_category is null then
+    raise exception 'a product category needs a product and a category' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "better_supabase"."product_categories" ("org_id", "product_id", "category_id")
+  values ((import_product_category.item ->> 'tenant')::uuid, v_product, v_category)
+  on conflict do nothing;
+  return jsonb_build_object('subjectId', v_product::text || ':' || v_category::text, 'updatedAt', now());
+end;
+$$;
+revoke execute on function "better_supabase"."import_product_category"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_product_category"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."product_category_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select now()
+$$;
+revoke execute on function "better_supabase"."product_category_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."product_category_updated_at"(text) to service_role;
+
 
 -- Variants have no status column (columns.variants.status), so this refuses.
 create or replace function "better_supabase"."set_variant_status"(variant uuid, status text)
@@ -22477,6 +23484,42 @@ as $$
 $$;
 revoke execute on function "better_supabase"."discount_rule_updated_at"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."discount_rule_updated_at"(text) to service_role;
+
+-- Puts a party in a customer group from an import. item.data is { party,
+-- groupId? , groupCode? }. A missing group removes the party from its group.
+create or replace function "better_supabase"."import_party_discount_group"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_party_discount_group.item ->> 'tenant')::uuid;
+  v_data jsonb := import_party_discount_group.item -> 'data';
+  v_party text := btrim(coalesce(nullif(v_data ->> 'party', ''), import_party_discount_group.subject_id));
+  v_group uuid := nullif(v_data ->> 'groupId', '')::uuid;
+  v_code text := nullif(btrim(v_data ->> 'groupCode'), '');
+begin
+  if v_party is null or length(v_party) not between 1 and 200 then
+    raise exception 'a party discount group names the party' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_group is null and v_code is not null then
+    select x."id" into v_group
+    from "better_supabase"."discount_groups" x
+    where x."org_id" = v_tenant and x."kind" = 'customer' and x."code" = v_code;
+  end if;
+  if v_group is null and v_code is not null then
+    raise exception 'no customer discount group has this code' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  perform "better_supabase"."set_party_discount_group"(v_tenant, v_party, v_group);
+  return jsonb_build_object(
+    'subjectId', v_party,
+    'updatedAt', (select x."created_at" from "better_supabase"."discount_group_parties" x where x."org_id" = v_tenant and x."party_id" = v_party)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."import_party_discount_group"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_party_discount_group"(uuid, jsonb, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

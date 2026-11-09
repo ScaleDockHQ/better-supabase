@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:edfd0780199410c1dc1d6a3c0a3657d5a58af20e5352fd113765285b5166c53c
+-- @bsb-hash sha256:b36436fbdcfc59afa32d95924ca644966554ffac945fe47618a2a368dd485ea4
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -652,7 +652,18 @@ begin
   for v_parent in execute case tg_op
     when 'INSERT' then 'select distinct n."parent_id" from new_rows n order by 1'
     when 'DELETE' then 'select distinct o."parent_id" from old_rows o order by 1'
-    else 'select n."parent_id" from new_rows n union select o."parent_id" from old_rows o order by 1'
+    else 'select parent from (
+      select n."parent_id" as parent from new_rows n
+      join old_rows o on o."id" = n."id"
+      where n."quantity" is distinct from o."quantity"
+        or n."unit_amount" is distinct from o."unit_amount"
+      union
+      select n."parent_id" from new_rows n
+      where not exists (select 1 from old_rows o where o."id" = n."id")
+      union
+      select o."parent_id" from old_rows o
+      where not exists (select 1 from new_rows n where n."id" = o."id")
+    ) changed order by 1'
   end loop
     perform "better_supabase"."set_deal_lines_recount"(v_parent);
   end loop;
@@ -1019,7 +1030,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:9b8e879c7f283aaeb2bef3ed42c47cd7e435c485c0ec409f596f870bbd95bb80
+-- @bsb-hash sha256:f6ee6a4f08a12d4645b8255b6fe6229bf95137da8047d927da941d91d01b97b6
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1699,7 +1710,18 @@ begin
   for v_parent in execute case tg_op
     when 'INSERT' then 'select distinct n."parent_id" from new_rows n order by 1'
     when 'DELETE' then 'select distinct o."parent_id" from old_rows o order by 1'
-    else 'select n."parent_id" from new_rows n union select o."parent_id" from old_rows o order by 1'
+    else 'select parent from (
+      select n."parent_id" as parent from new_rows n
+      join old_rows o on o."id" = n."id"
+      where n."quantity" is distinct from o."quantity"
+        or n."unit_amount" is distinct from o."unit_amount"
+      union
+      select n."parent_id" from new_rows n
+      where not exists (select 1 from old_rows o where o."id" = n."id")
+      union
+      select o."parent_id" from old_rows o
+      where not exists (select 1 from new_rows n where n."id" = o."id")
+    ) changed order by 1'
   end loop
     perform "better_supabase"."set_deal_lines_recount"(v_parent);
   end loop;
@@ -2070,7 +2092,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:7e9e69decad1bfdf11b7ec6279cdf785d944f86a4e8ff52af8a4c943704bf3f5
+-- @bsb-hash sha256:f0051bfb2a472dea92cfb201dc0ba14c913c81d83eeb8e03f134a5de787ef267
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2726,7 +2748,18 @@ begin
   for v_parent in execute case tg_op
     when 'INSERT' then 'select distinct n."parent_id" from new_rows n order by 1'
     when 'DELETE' then 'select distinct o."parent_id" from old_rows o order by 1'
-    else 'select n."parent_id" from new_rows n union select o."parent_id" from old_rows o order by 1'
+    else 'select parent from (
+      select n."parent_id" as parent from new_rows n
+      join old_rows o on o."id" = n."id"
+      where n."quantity" is distinct from o."quantity"
+        or n."unit_amount" is distinct from o."unit_amount"
+      union
+      select n."parent_id" from new_rows n
+      where not exists (select 1 from old_rows o where o."id" = n."id")
+      union
+      select o."parent_id" from old_rows o
+      where not exists (select 1 from new_rows n where n."id" = o."id")
+    ) changed order by 1'
   end loop
     perform "app_private"."set_deal_lines_recount"(v_parent);
   end loop;
@@ -3093,7 +3126,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:2a02359403449fcf59a910fc21e2bb4d6f26463c799c12a8f66c1ed087c5d104
+-- @bsb-hash sha256:6cd6fa94156cc8b0b514151f50b42c43e0fff0dcb7443f5b98ba2e1c86177a50
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3744,7 +3777,18 @@ begin
   for v_parent in execute case tg_op
     when 'INSERT' then 'select distinct n."parent_id" from new_rows n order by 1'
     when 'DELETE' then 'select distinct o."parent_id" from old_rows o order by 1'
-    else 'select n."parent_id" from new_rows n union select o."parent_id" from old_rows o order by 1'
+    else 'select parent from (
+      select n."parent_id" as parent from new_rows n
+      join old_rows o on o."id" = n."id"
+      where n."quantity" is distinct from o."quantity"
+        or n."unit_amount" is distinct from o."unit_amount"
+      union
+      select n."parent_id" from new_rows n
+      where not exists (select 1 from old_rows o where o."id" = n."id")
+      union
+      select o."parent_id" from old_rows o
+      where not exists (select 1 from new_rows n where n."id" = o."id")
+    ) changed order by 1'
   end loop
     perform "better_supabase"."set_deal_lines_recount"(v_parent);
   end loop;
@@ -4226,7 +4270,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:83b37b8de200ef38aafcbdeb1b9726bd3c841afb00bc1c5a477f2b2d9fe220f0
+-- @bsb-hash sha256:ea6b1052bf0541f4645dbadbc940345bb5e20f6254631c029cc6f1d3efbc8738
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4867,7 +4911,18 @@ begin
   for v_parent in execute case tg_op
     when 'INSERT' then 'select distinct n."parent_id" from new_rows n order by 1'
     when 'DELETE' then 'select distinct o."parent_id" from old_rows o order by 1'
-    else 'select n."parent_id" from new_rows n union select o."parent_id" from old_rows o order by 1'
+    else 'select parent from (
+      select n."parent_id" as parent from new_rows n
+      join old_rows o on o."id" = n."id"
+      where n."quantity" is distinct from o."quantity"
+        or n."unit_amount" is distinct from o."unit_amount"
+      union
+      select n."parent_id" from new_rows n
+      where not exists (select 1 from old_rows o where o."id" = n."id")
+      union
+      select o."parent_id" from old_rows o
+      where not exists (select 1 from new_rows n where n."id" = o."id")
+    ) changed order by 1'
   end loop
     perform "better_supabase"."set_deal_lines_recount"(v_parent);
   end loop;
@@ -5235,7 +5290,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:c89c0f230318ed8248c7a794603874a1c6df99bb62ab5c0847800b79a09dd8c8
+-- @bsb-hash sha256:f6af980d498b681e2c58859ddaf88514d9dfeb9cad8b134914c633edc1299149
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5886,7 +5941,18 @@ begin
   for v_parent in execute case tg_op
     when 'INSERT' then 'select distinct n."parent_id" from new_rows n order by 1'
     when 'DELETE' then 'select distinct o."parent_id" from old_rows o order by 1'
-    else 'select n."parent_id" from new_rows n union select o."parent_id" from old_rows o order by 1'
+    else 'select parent from (
+      select n."parent_id" as parent from new_rows n
+      join old_rows o on o."id" = n."id"
+      where n."quantity" is distinct from o."quantity"
+        or n."unit_amount" is distinct from o."unit_amount"
+      union
+      select n."parent_id" from new_rows n
+      where not exists (select 1 from old_rows o where o."id" = n."id")
+      union
+      select o."parent_id" from old_rows o
+      where not exists (select 1 from new_rows n where n."id" = o."id")
+    ) changed order by 1'
   end loop
     perform "better_supabase"."set_deal_lines_recount"(v_parent);
   end loop;

@@ -40,7 +40,7 @@ import { contextClaims, narrowCap } from "../auth/delegation.ts";
 import { actClaim, userContext } from "../auth/impersonation.ts";
 import { prefetchJwks, resolveAuth } from "../auth/resolve.ts";
 import { sessionCookieName } from "../auth/session.ts";
-import { sessionMemo } from "../auth/snapshot.ts";
+import { processSessionMemo } from "../auth/snapshot.ts";
 import { bindAuthorizer, requestMemo } from "../core/authorizer.ts";
 import { hooksApiProblem } from "../core/contracts/authorization-hooks.ts";
 import { dbError } from "../core/errors.ts";
@@ -721,7 +721,10 @@ export function createServer<
   const verifiedTokens =
     options.sessions === false
       ? undefined
-      : sessionMemo<VerifiedUser>((user) => user.expiresAt, options.sessions);
+      : processSessionMemo<VerifiedUser>(
+          (user) => user.expiresAt,
+          options.sessions,
+        );
 
   const resolve = async (
     request: Request,

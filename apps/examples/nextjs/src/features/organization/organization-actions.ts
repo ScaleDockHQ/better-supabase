@@ -37,9 +37,15 @@ function slugify(name: string): string {
  * The caller's organizations with their plans, loaded by `useOrganizations` in
  * the switcher after each switch.
  */
-export const loadMyOrganizations = bsb.action({}, async (_input, { db }) =>
-  db.$rpc("my_organizations").map((rows) => toOrganizationSummaries(rows)),
-);
+export const loadMyOrganizations = bsb.action({}, async (_input, { db }) => {
+  // SAFETY: the function arguments are page_size, after_last_used_at,
+  // after_name and after_id. Generated Args are still empty.
+  const page = { page_size: 50 } as never;
+
+  return db
+    .$rpc("my_organizations", page)
+    .map((rows) => toOrganizationSummaries(rows));
+});
 
 /** Creates an organization owned by the caller, then switches to it. */
 export const createOrganization = bsb.action(

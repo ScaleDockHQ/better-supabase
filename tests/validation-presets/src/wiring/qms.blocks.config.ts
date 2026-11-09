@@ -71,12 +71,6 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  dispatch: {
-    schema: "better_supabase",
-    options: {
-      timeZone: "UTC",
-    },
-  },
   compliance: {
     schema: "better_supabase",
     options: {},
@@ -363,11 +357,6 @@ export const permissions = {
     enroll: "courses.enroll",
     manage: "courses.manage",
   },
-  dispatch: {
-    read: "dispatch.read",
-    manage: "dispatch.manage",
-    work: "dispatch.work",
-  },
   drive: {
     read: "drive.read",
     create: "drive.create",
@@ -596,10 +585,6 @@ export const permissions = {
     pick: "warehouse.pick",
     manage: "warehouse.manage",
   },
-  work_order: {
-    read: "dispatch.read",
-    write: "dispatch.manage",
-  },
 } as const;
 
 /**
@@ -607,4 +592,4 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "appraisals.manage" | "appraisals.read" | "appraisals.review" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "catalog.manage" | "catalog.read" | "compliance.collect" | "compliance.manage" | "compliance.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "lims.manage" | "lims.read" | "lims.write" | "maintenance.manage" | "maintenance.read" | "maintenance.record" | "meetings.manage" | "meetings.read" | "meetings.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "warehouse.manage" | "warehouse.pick" | "warehouse.read";
+export type PermissionKey = "acknowledgements.acknowledge" | "acknowledgements.manage" | "acknowledgements.read" | "api_keys.manage" | "api_keys.own" | "appraisals.manage" | "appraisals.read" | "appraisals.review" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "cases.close" | "cases.create" | "cases.manage" | "cases.read" | "cases.write" | "catalog.manage" | "catalog.read" | "compliance.collect" | "compliance.manage" | "compliance.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "courses.enroll" | "courses.manage" | "courses.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "inspections.manage" | "inspections.read" | "inspections.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "lims.manage" | "lims.read" | "lims.write" | "maintenance.manage" | "maintenance.read" | "maintenance.record" | "meetings.manage" | "meetings.read" | "meetings.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "qualifications.grant" | "qualifications.manage" | "qualifications.read" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "risks.assess" | "risks.manage" | "risks.read" | "risks.write" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "warehouse.manage" | "warehouse.pick" | "warehouse.read";

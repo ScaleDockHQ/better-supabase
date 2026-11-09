@@ -141,6 +141,7 @@ const NAMES: BlockSqlNames = {
         account: "account_id",
         amount: "amount",
         unit: "unit",
+        effectiveAt: "effective_at",
         createdAt: "created_at",
       },
     },
@@ -276,10 +277,12 @@ create table if not exists ${entries} (
   -- Signed, in the account's unit: the entries of a transaction sum to zero per unit.
   ${e("amount")} bigint not null check (${e("amount")} <> 0),
   ${e("unit")} text not null,
+  ${e("effectiveAt")} timestamptz not null default now(),
   ${e("createdAt")} timestamptz not null default now()
 );
 create index if not exists ${name("entries", "account_idx")} on ${entries} (${e("account")}, ${e("createdAt")} desc);
 create index if not exists ${name("entries", "transaction_idx")} on ${entries} (${e("transaction")});
+create index if not exists ${name("entries", "tenant_idx")} on ${entries} (${e("tenant")}, ${e("effectiveAt")} desc);
 
 create table if not exists ${balances} (
   ${b("account")} uuid primary key references ${accounts} (${a("id")}) on delete cascade,
@@ -523,6 +526,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       ],
       returns: "uuid",
     },
+    { name: "get_many", args: [id, "uuid[]"], returns: "jsonb" },
     {
       name: "ledger_post",
       args: [

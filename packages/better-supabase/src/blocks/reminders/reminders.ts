@@ -218,7 +218,10 @@ export interface Reminders<F extends object = Record<never, never>> {
    * The caller's reminders on `subject`, the earliest before the occurrence
    * first.
    */
-  list(subject: RecordRef): AsyncResult<readonly ReminderEntry[]>;
+  list(
+    subject: RecordRef,
+    options?: { readonly limit?: number },
+  ): AsyncResult<readonly ReminderEntry[]>;
   /** Removes one of the caller's reminders; `false` when there was none. */
   remove(reminderId: string): AsyncResult<boolean>;
   /**
@@ -553,7 +556,7 @@ export function createReminders<
           ),
         ).andThen((saved) => readFields(fields, saved)),
       ),
-    list: (subject) =>
+    list: (subject, options) =>
       tenant().andThen((organizationId) =>
         call(
           "list_my_reminders",
@@ -571,6 +574,8 @@ export function createReminders<
                 ? {}
                 : { remindAt: instantOf(row["remindAt"]) }),
             })),
+        ).map((rows) =>
+          options?.limit === undefined ? rows : rows.slice(0, options.limit),
         ),
       ),
     remove: (reminderId) =>

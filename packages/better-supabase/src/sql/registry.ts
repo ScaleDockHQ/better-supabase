@@ -187,6 +187,7 @@ import { VERCEL_MARKETPLACE } from "./modules/vercel-marketplace.ts";
 import { VERSIONS } from "./modules/versions.ts";
 import { WAITLIST } from "./modules/waitlist.ts";
 import { WAREHOUSE } from "./modules/warehouse.ts";
+import { WARRANTY } from "./modules/warranty.ts";
 import { WEBHOOK_INBOX } from "./modules/webhook-inbox.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
 import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
@@ -451,6 +452,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(FUNDING),
       built(PAYROLL_EXPORT),
       built(MAINTENANCE),
+      built(WARRANTY),
       built(DAM),
       built(TAX),
       built(DOCUMENT_TEMPLATES),

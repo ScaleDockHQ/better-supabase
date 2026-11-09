@@ -422,7 +422,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "data-lifecycle",
         "entitlements",
         "invitations",
-        "reserved-slugs"
+        "reserved-slugs",
+        "imports"
       ],
       "modes": [
         "managed",
@@ -553,7 +554,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "category": "Identity & access",
       "description": "session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.",
       "requires": [],
-      "integrates": [],
+      "integrates": [
+        "permissions",
+        "memberships"
+      ],
       "modes": [
         "managed"
       ],
@@ -1570,6 +1574,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "integrates": [
         "attachments",
+        "contacts",
+        "invoices",
+        "ledger",
         "outbox",
         "search"
       ],
@@ -2588,6 +2595,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "option-sets",
         "templates",
         "tags",
+        "catalog",
         "pipelines",
         "subjects"
       ],
@@ -3160,7 +3168,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "bookings",
         "tasks",
         "outbox",
-        "audit"
+        "audit",
+        "imports"
       ],
       "modes": [
         "managed",
@@ -4665,11 +4674,11 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "memberships",
         "permissions",
         "subjects",
-        "dispatch",
         "recurrence"
       ],
       "integrates": [
         "assets",
+        "dispatch",
         "inventory",
         "outbox",
         "audit",
@@ -4682,15 +4691,46 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "events": [
         "maintenance_calibration.recorded",
         "maintenance_meter_reading.recorded",
-        "maintenance_plan.completed",
         "maintenance_plan.created",
         "maintenance_plan.deleted",
-        "maintenance_plan.triggered",
         "maintenance_plan.updated"
       ],
       "subpath": "better-supabase/blocks/maintenance",
       "react": null,
       "docs": "/docs/blocks/maintenance"
+    },
+    {
+      "name": "warranty",
+      "title": "Warranty",
+      "category": "Work management",
+      "description": "Warranty claims for an asset: the supplier or manufacturer, the covered amount, a status, a decision and attachments on the claim.",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "state-machine",
+        "approvals",
+        "attachments"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "approvals",
+        "state-machine"
+      ],
+      "modes": [
+        "managed",
+        "custom"
+      ],
+      "events": [
+        "warranty_claim.closed",
+        "warranty_claim.created",
+        "warranty_claim.decided",
+        "warranty_claim.submitted"
+      ],
+      "subpath": "better-supabase/blocks/warranty",
+      "react": null,
+      "docs": "/docs/blocks/warranty"
     },
     {
       "name": "dam",
@@ -6884,7 +6924,6 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "ledger",
         "assets",
         "enrollments",
-        "dispatch",
         "compliance",
         "courses",
         "messaging",
@@ -6948,7 +6987,6 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "ledger",
         "assets",
         "enrollments",
-        "dispatch",
         "compliance",
         "courses",
         "qualifications",
@@ -7564,6 +7602,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "funding",
         "payroll-export",
         "maintenance",
+        "warranty",
         "dam",
         "tax",
         "document-templates",

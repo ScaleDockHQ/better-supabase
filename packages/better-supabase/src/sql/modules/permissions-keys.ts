@@ -11,6 +11,87 @@ import { accessModel } from "./permissions-model.ts";
  * `my_permissions`: the caller's permission keys in a tenant, for client checks
  * such as `usePermissions` and `<Can>`.
  */
+/**
+ * `bootstrap_permissions`: one compact payload for every tenant the caller
+ * belongs to, instead of `my_permissions` once per tenant. The bitset matches
+ * `compactBootstrapPermissions` (least significant bit first, base64url).
+ */
+export function bootstrapPermissionsSql(memberIds: string): string {
+  return `-- Compact permissions for the caller: keys once, then a bitset per tenant.
+create or replace function better_supabase.permission_bitset(all_keys text[], held text[])
+returns text
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  width integer := ceil(coalesce(cardinality(all_keys), 0) / 8.0);
+  bytes bytea;
+  i integer;
+  slot integer;
+  value integer;
+begin
+  if width < 1 then
+    return '';
+  end if;
+  bytes := decode(repeat('00', width), 'hex');
+  if held is null then
+    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  end if;
+  for i in 1 .. coalesce(cardinality(all_keys), 0) loop
+    if all_keys[i] = any (held) then
+      slot := (i - 1) / 8;
+      value := get_byte(bytes, slot) | (1 << ((i - 1) % 8));
+      bytes := set_byte(bytes, slot, value);
+    end if;
+  end loop;
+  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+end;
+$$;
+
+revoke execute on function better_supabase.permission_bitset(text[], text[]) from public, anon, authenticated;
+
+create or replace function better_supabase.bootstrap_permissions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with keys as (
+    select coalesce(array_agg(distinct key order by key), '{}'::text[]) as keys
+    from ${memberIds}(null) as tenant(id),
+      lateral unnest(better_supabase.member_permissions(auth.uid(), tenant.id)) as key
+    where auth.uid() is not null
+  )
+  select case
+    when auth.uid() is null then jsonb_build_object(
+      'apiVersion', 1, 'form', 'compact', 'keys', '[]'::jsonb, 'tenants', '{}'::jsonb
+    )
+    else jsonb_build_object(
+      'apiVersion', 1,
+      'form', 'compact',
+      'keys', to_jsonb(keys.keys),
+      'tenants', coalesce((
+        select jsonb_object_agg(
+          tenant.id::text,
+          better_supabase.permission_bitset(
+            keys.keys,
+            better_supabase.member_permissions(auth.uid(), tenant.id)
+          )
+        )
+        from ${memberIds}(null) as tenant(id)
+      ), '{}'::jsonb)
+    )
+  end
+  from keys
+$$;
+
+revoke execute on function better_supabase.bootstrap_permissions() from public, anon;
+grant execute on function better_supabase.bootstrap_permissions() to authenticated;
+`;
+}
+
 export function myPermissionsSql(id: string): string {
   return `-- The caller's permission keys in a tenant, for client checks. With keys,
 -- the ones can() grants: every model answers, including a provider and

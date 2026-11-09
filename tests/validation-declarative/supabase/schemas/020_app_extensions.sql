@@ -43,7 +43,8 @@ set search_path = ''
 as $$
 begin
   if old.archived_at is not null and new.name <> old.name then
-    raise exception 'an archived project cannot be renamed';
+    raise exception 'an archived project cannot be renamed'
+      using hint = 'PROJECT_ARCHIVED';
   end if;
   return new;
 end;

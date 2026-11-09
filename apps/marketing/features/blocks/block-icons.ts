@@ -134,6 +134,7 @@ import {
   ShieldAlertIcon,
   ShieldCheckIcon,
   ShieldIcon,
+  ShieldPlusIcon,
   ShoppingCartIcon,
   SignatureIcon,
   SirenIcon,
@@ -247,6 +248,7 @@ export const BLOCK_ICONS = {
   "option-sets": ListPlusIcon,
   pipelines: KanbanIcon,
   tasks: SquareCheckBigIcon,
+  warranty: ShieldPlusIcon,
   sla: TimerIcon,
   collections: LibraryIcon,
   // People

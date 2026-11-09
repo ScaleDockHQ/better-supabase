@@ -130,6 +130,7 @@ export interface RuleListOptions {
   readonly subjectType?: string;
   readonly trigger?: string;
   readonly enabled?: boolean;
+  readonly limit?: number;
 }
 
 /** What `matching` and `run` test: one subject, as the trigger event saw it. */
@@ -421,7 +422,7 @@ export function createAutomations(options: AutomationsOptions): Automations {
 
   const client: Automations = {
     fields,
-    list: ({ organizationId, ...filter }) =>
+    list: ({ organizationId, limit, ...filter }) =>
       call(
         "rules_list",
         {
@@ -430,7 +431,11 @@ export function createAutomations(options: AutomationsOptions): Automations {
           trigger: filter.trigger ?? null,
           enabled: filter.enabled ?? null,
         },
-        (value) => recordsOf(value, "rules_list").map(ruleOf),
+        (value) => {
+          const rows = recordsOf(value, "rules_list").map(ruleOf);
+
+          return limit === undefined ? rows : rows.slice(0, limit);
+        },
       ),
     get: (id) =>
       call("rule_get", { id }, (value) =>

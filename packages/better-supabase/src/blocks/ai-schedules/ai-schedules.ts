@@ -182,7 +182,10 @@ export interface AiSchedules<F extends object = Record<never, never>> {
    * `ai_schedules.manage`.
    */
   list(
-    input: { organizationId: string } & { readonly all?: boolean },
+    input: { organizationId: string } & {
+      readonly all?: boolean;
+      readonly limit?: number;
+    },
   ): AsyncResult<readonly (AiTask & F)[]>;
   runs(
     input: { taskId: string } & { readonly limit?: number },
@@ -545,7 +548,7 @@ export function createAiSchedules<
       save(organizationId, taskId, { enabled: true }, undefined),
     remove: (taskId) =>
       call("delete_ai_task", { id: taskId }, (value) => value === true),
-    list: ({ organizationId, ...listOptions }) =>
+    list: ({ organizationId, limit, ...listOptions }) =>
       call(
         "list_ai_tasks",
         { tenant: organizationId, mine: listOptions.all !== true },
@@ -553,7 +556,9 @@ export function createAiSchedules<
           recordsOf(value, "list_ai_tasks").map(
             (raw) => [raw, taskOf(raw)] as const,
           ),
-      ).andThen((rows) => allWithFields(fields, rows)),
+      )
+        .andThen((rows) => allWithFields(fields, rows))
+        .map((rows) => (limit === undefined ? rows : rows.slice(0, limit))),
     runs: ({ taskId, ...runsOptions }) =>
       call(
         "list_ai_task_runs",

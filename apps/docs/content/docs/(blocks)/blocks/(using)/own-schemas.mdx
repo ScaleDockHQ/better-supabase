@@ -159,6 +159,9 @@ may be your own enum or domain.
   - `better_supabase.asset_locations`: `id`, `tenant_id`, `parent_id`, `kind`, `name`, `archived_at`, `created_at`, `updated_at`
   - `better_supabase.assets`: `id`, `tenant_id`, `location_id`, `kind`, `name`, `status`, `assignee_type`, `assignee_id`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.asset_assignments`: `id`, `tenant_id`, `asset_id`, `assignee_type`, `assignee_id`, `assigned_at`, `released_at`
+  - `better_supabase.asset_meter_readings`: `id`, `tenant_id`, `asset_id`, `unit`, `value`, `read_at`, `reason`, `created_at`
+  - `better_supabase.asset_due_checks`: `id`, `tenant_id`, `asset_id`, `check_type`, `interval_days`, `last_done_at`, `next_due_at`, `result`, `updated_at`
+  - `better_supabase.asset_identifiers`: `id`, `tenant_id`, `asset_id`, `type`, `value`, `updated_at`
   - `better_supabase.asset_depreciations`: `id`, `tenant_id`, `asset_id`, `period_start`, `amount`, `entry_id`, `created_at`
 - `assignment`
   - `better_supabase.assignment_queues`: `id`, `tenant_id`, `name`, `subject_type`, `strategy`, `enabled`, `created_at`, `updated_at`; typed: `strategy`
@@ -296,6 +299,9 @@ may be your own enum or domain.
   - `better_supabase.payment_terms`: `id`, `tenant_id`, `code`, `name`, `days`, `discount_bps`, `discount_days`, `credit_restriction_bps`, `created_at`, `updated_at`
   - `better_supabase.document_delivery_preferences`: `id`, `tenant_id`, `party_id`, `document_type`, `channel`, `copies`, `email`, `created_at`, `updated_at`
   - `better_supabase.person_identities`: `id`, `tenant_id`, `person_id`, `channel`, `address`
+  - `better_supabase.party_locations`: `id`, `tenant_id`, `party_id`, `kind`, `line1`, `line2`, `postal_code`, `city`, `country`, `latitude`, `longitude`, `is_primary`, `created_at`, `updated_at`
+  - `better_supabase.party_bank_accounts`: `id`, `tenant_id`, `party_id`, `iban`, `bic`, `holder`, `is_primary`, `created_at`, `updated_at`
+  - `better_supabase.party_channels`: `id`, `tenant_id`, `party_id`, `party_kind`, `channel`, `label`, `address`, `is_primary`, `created_at`, `updated_at`
 - `content`
   - `better_supabase.content_entries`: `id`, `tenant_id`, `type`, `locale`, `slug`, `title`, `body`, `status`, `publish_at`, `published_at`, `author_id`, `translation_group_id`, `created_at`, `updated_at`; typed: `type`, `locale`, `status`
 - `contracts`
@@ -422,9 +428,12 @@ may be your own enum or domain.
   - `better_supabase.support_sessions`: `id`, `admin_id`, `target_user_id`, `reason`, `started_at`, `expires_at`, `ended_at`
   - `better_supabase.support_requests`: `id`, `admin_id`, `target_user_id`, `reason`, `tenant_id`, `read_only`, `metadata`, `requested_at`, `expires_at`, `approved_by`, `approved_at`, `session_id`
 - `imports`
-  - `better_supabase.import_runs`: `id`, `tenant_id`, `source`, `status`, `mapping`, `counts`, `errors`, `dry_run`, `full`, `input_checksum`, `correlation_id`, `mapper_version`, `scope_aliases`, `created_by`, `created_at`, `started_at`, `finished_at`; typed: `status`
-  - `better_supabase.import_records`: `id`, `tenant_id`, `source`, `scope`, `entity`, `external_key`, `role`, `subject_type`, `subject_id`, `content_hash`, `first_run_id`, `last_run_id`, `subject_imported_updated_at`, `went_missing_at`
+  - `better_supabase.import_runs`: `id`, `tenant_id`, `source`, `status`, `mapping`, `counts`, `errors`, `diff`, `dry_run`, `full`, `input_checksum`, `correlation_id`, `mapper_version`, `scope_aliases`, `plan`, `outcome`, `lease_expires_at`, `heartbeat_at`, `created_by`, `created_at`, `started_at`, `finished_at`; typed: `status`
+  - `better_supabase.import_records`: `id`, `tenant_id`, `source`, `scope`, `entity`, `external_key`, `role`, `subject_type`, `subject_id`, `content_hash`, `first_run_id`, `last_run_id`, `subject_imported_updated_at`, `source_updated_at`, `owned_hash`, `went_missing_at`
   - `better_supabase.import_chunks`: `run_id`, `tenant_id`, `entity`, `chunk`, `items`, `status`, `result`, `claimed_at`, `done_at`, `created_at`
+  - `better_supabase.import_refs`: `id`, `tenant_id`, `kind`, `key`, `payload`, `created_at`
+  - `better_supabase.import_run_issues`: `id`, `run_id`, `tenant_id`, `source`, `entity`, `key`, `kind`, `code`, `message`, `created_at`
+  - `better_supabase.import_sources`: `id`, `label_key`, `description_key`, `file_types`, `entities`
 - `inbox`
   - `better_supabase.inboxes`: `id`, `tenant_id`, `name`, `channel`, `bot_mode`, `updated_at`; typed: `channel`, `bot_mode`
   - `better_supabase.inbox_members`: `inbox_id`, `user_id`, `role`; typed: `role`
@@ -486,6 +495,7 @@ may be your own enum or domain.
   - `better_supabase.invoice_dunning_run_items`: `id`, `tenant_id`, `run_id`, `invoice_id`, `level`, `template_key`, `fee`, `balance`, `due_on`, `created_at`
   - `better_supabase.invoice_dunning_history`: `id`, `tenant_id`, `invoice_id`, `kind`, `level`, `fee`, `balance`, `created_at`
   - `better_supabase.invoice_allocations`: `id`, `tenant_id`, `reference`, `party_id`, `invoice_id`, `source`, `amount`, `discount`, `payment_id`, `discount_payment_id`, `allocated_on`, `unallocated_at`, `created_by`, `created_at`
+  - `better_supabase.invoice_open_items`: `tenant_id`, `party_id`, `side`, `document_type`, `document_id`, `currency`, `due_on`, `issued_on`, `gross`, `balance`
   - `better_supabase.invoice_line_sources`: `id`, `tenant_id`, `invoice_id`, `position`, `source`, `source_id`, `quantity`, `created_at`
   - `better_supabase.invoice_approval_levels`: `id`, `tenant_id`, `legal_entity_id`, `level`, `min_amount`, `currency`, `approver_id`, `created_at`
   - `better_supabase.invoice_approvals`: `id`, `tenant_id`, `invoice_id`, `level`, `approver_id`, `comment`, `decided_at`
@@ -508,7 +518,7 @@ may be your own enum or domain.
 - `ledger`
   - `better_supabase.ledger_accounts`: `id`, `tenant_id`, `kind`, `code`, `name`, `unit`, `scale`, `holder_type`, `holder_id`, `owner_id`, `allow_negative`, `read_permission`, `managed_by`, `metadata`, `closed_at`, `created_at`, `updated_at`; typed: `kind`
   - `better_supabase.ledger_transactions`: `id`, `tenant_id`, `kind`, `reference_type`, `reference_id`, `idempotency_key`, `reverses`, `metadata`, `effective_at`, `actor_id`, `created_at`
-  - `better_supabase.ledger_entries`: `id`, `tenant_id`, `transaction_id`, `account_id`, `amount`, `unit`, `created_at`
+  - `better_supabase.ledger_entries`: `id`, `tenant_id`, `transaction_id`, `account_id`, `amount`, `unit`, `effective_at`, `created_at`
   - `better_supabase.ledger_balances`: `account_id`, `tenant_id`, `balance`, `held`
   - `better_supabase.ledger_holds`: `id`, `tenant_id`, `account_id`, `amount`, `status`, `transaction_id`, `created_at`; typed: `status`
 - `legal-entities`
@@ -615,6 +625,8 @@ may be your own enum or domain.
   - `better_supabase.order_line_preparations`: `order_line_id`, `tenant_id`, `order_id`, `station_id`, `state`, `queued_at`, `started_at`, `ready_at`, `served_at`, `updated_at`; typed: `state`
 - `organizations`
   - `better_supabase.organizations`: `id`, `name`
+  - `better_supabase.organization_profiles`: `tenant_id`, `vat_id`, `registration_id`, `default_rate`, `currency`, `updated_at`
+  - `better_supabase.organization_payment_accounts`: `id`, `tenant_id`, `iban`, `bic`, `holder`, `label`, `is_primary`, `updated_at`
 - `outbox`
   - `better_supabase.outbox_events`: `id`, `position`, `type`, `payload`, `created_at`
   - `better_supabase.outbox_consumers`: `name`, `cursor_xid`, `cursor_position`, `types`, `lease_owner`, `lease_expires_at`, `attempts`, `last_error`, `retry_at`, `updated_at`
@@ -770,6 +782,8 @@ may be your own enum or domain.
   - `better_supabase.taggings`: `tenant_id`, `tag_id`, `subject_type`, `subject_id`, `created_at`; typed: `subject_type`
 - `tasks`
   - `better_supabase.tasks`: `id`, `tenant_id`, `number`, `identifier`, `title`, `parent_id`, `team_id`, `priority`, `due_at`, `pipeline_id`, `stage_id`, `stage_entered_at`, `state`, `close_reason`, `closed_at`, `rank`, `archived_at`, `created_at`, `updated_at`; typed: `state`, `close_reason`; typed with values: `priority`
+  - `better_supabase.task_specification_lines`: `id`, `tenant_id`, `task_id`, `description`, `quantity`, `unit`, `estimate`, `rank`, `created_at`
+  - `better_supabase.task_material_lines`: `id`, `tenant_id`, `task_id`, `variant_id`, `quantity`, `unit`, `rank`, `created_at`
   - `better_supabase.task_checklist_items`: `id`, `tenant_id`, `task_id`, `title`, `done`, `rank`, `created_at`
   - `better_supabase.task_assignees`: `tenant_id`, `task_id`, `user_id`
   - `better_supabase.projects`: `id`, `tenant_id`, `key`, `name`, `status`, `archived_at`, `created_at`, `updated_at`; typed: `status`
@@ -831,6 +845,8 @@ may be your own enum or domain.
   - `better_supabase.putaway_rules`: `id`, `tenant_id`, `location_id`, `bin_id`, `variant_id`, `priority`, `max_quantity`, `active`, `created_at`
   - `better_supabase.bin_slots`: `id`, `tenant_id`, `bin_id`, `walk_rank`, `capacity`, `updated_at`
   - `better_supabase.variant_sizes`: `id`, `tenant_id`, `variant_id`, `size`, `updated_at`
+- `warranty`
+  - `better_supabase.warranty_claims`: `id`, `tenant_id`, `title`, `supplier_id`, `manufacturer`, `asset_id`, `amount`, `currency`, `status`, `decision`, `decided_at`, `decided_by`, `created_by`, `created_at`, `updated_at`
 - `webhook-inbox`
   - `better_supabase.webhook_inbox`: `id`, `source`, `message_id`, `payload`, `status`, `attempts`, `available_at`, `locked_by`, `lock_expires_at`, `received_at`
 - `webhooks-in`

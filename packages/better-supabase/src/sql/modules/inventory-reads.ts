@@ -84,6 +84,9 @@ export const INVENTORY_READS: readonly BlockSqlRead[] = [
 export function inventoryReads(ctx: BlockSqlContext): string {
   const fn = ctx.fn("inventory_overview");
   const lv = columns(ctx, "levels");
+  const ledger = ctx.of("ledger");
+  const transactions = ledger.table("transactions");
+  const tx = (column: string): string => ledger.col("transactions", column);
 
   return `
 -- The stock page in one call: the level count, the levels at or below their
@@ -139,5 +142,89 @@ begin
 end;
 $$;
 ${userGrant(`${fn}(${ctx.idType}, integer, integer)`)}
+
+-- Levels for the requested variants. A null variant list reads every level of
+-- the organization; a list uses the level primary key and does not scan the rest.
+create or replace function ${ctx.fn("inventory_levels")}(tenant ${ctx.idType}, variant_ids uuid[] default null, location_id uuid default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'variantId', y.${lv("variant")},
+    'locationId', y.${lv("location")},
+    'onHand', y.${lv("onHand")}::text,
+    'allocated', y.${lv("reserved")}::text,
+    'available', y.${lv("available")}::text,
+    'incoming', y.${lv("incoming")}::text,
+    'reorderPoint', y.${lv("reorderPoint")}::text,
+    'status', case
+      when y.${lv("available")} <= 0 then 'out'
+      when y.${lv("reorderPoint")} is not null and y.${lv("available")} <= y.${lv("reorderPoint")} then 'low'
+      else 'in_stock'
+    end
+  )), '[]'::jsonb)
+  from ${ctx.table("levels")} y
+  where y.${lv("tenant")} = inventory_levels.tenant
+    and (inventory_levels.variant_ids is null or y.${lv("variant")} = any (inventory_levels.variant_ids))
+    and (inventory_levels.location_id is null or y.${lv("location")} = inventory_levels.location_id)
+$$;
+${userGrant(`${ctx.fn("inventory_levels")}(${ctx.idType}, uuid[], uuid)`)}
+
+create or replace function ${ctx.fn("inventory_status_counts")}(tenant ${ctx.idType})
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'inStock', count(*) filter (where y.${lv("available")} > 0 and (y.${lv("reorderPoint")} is null or y.${lv("available")} > y.${lv("reorderPoint")})),
+    'low', count(*) filter (where y.${lv("reorderPoint")} is not null and y.${lv("available")} <= y.${lv("reorderPoint")} and y.${lv("available")} > 0),
+    'out', count(*) filter (where y.${lv("available")} <= 0)
+  )
+  from ${ctx.table("levels")} y
+  where y.${lv("tenant")} = inventory_status_counts.tenant
+$$;
+${userGrant(`${ctx.fn("inventory_status_counts")}(${ctx.idType})`)}
+
+create or replace function ${ctx.fn("list_inventory_movements")}(tenant ${ctx.idType}, variant uuid default null, location uuid default null, bin uuid default null, lot uuid default null, document_type text default null, document_id text default null, row_limit integer default 50, row_offset integer default 0)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x.${tx("id")},
+    'kind', x.${tx("kind")},
+    'variantId', x.${tx("metadata")} ->> 'variantId',
+    'locationId', x.${tx("metadata")} ->> 'locationId',
+    'binId', x.${tx("metadata")} ->> 'binId',
+    'lotId', x.${tx("metadata")} ->> 'lotId',
+    'quantity', x.${tx("metadata")} ->> 'quantity',
+    'documentType', x.${tx("referenceType")},
+    'documentId', x.${tx("referenceId")},
+    'effectiveAt', x.${tx("effectiveAt")}
+  )), '[]'::jsonb)
+  from (
+    select *
+    from ${transactions} y
+    where y.${tx("tenant")} = list_inventory_movements.tenant
+      and y.${tx("kind")} like 'stock.%'
+      and (list_inventory_movements.variant is null or y.${tx("metadata")} ->> 'variantId' = list_inventory_movements.variant::text)
+      and (list_inventory_movements.location is null or y.${tx("metadata")} ->> 'locationId' = list_inventory_movements.location::text)
+      and (list_inventory_movements.bin is null or y.${tx("metadata")} ->> 'binId' = list_inventory_movements.bin::text)
+      and (list_inventory_movements.lot is null or y.${tx("metadata")} ->> 'lotId' = list_inventory_movements.lot::text)
+      and (list_inventory_movements.document_type is null or y.${tx("referenceType")} = list_inventory_movements.document_type)
+      and (list_inventory_movements.document_id is null or y.${tx("referenceId")} = list_inventory_movements.document_id)
+    order by y.${tx("effectiveAt")} desc, y.${tx("id")}
+    limit least(greatest(coalesce(list_inventory_movements.row_limit, 50), 0), 200)
+    offset greatest(coalesce(list_inventory_movements.row_offset, 0), 0)
+  ) x
+$$;
+${userGrant(`${ctx.fn("list_inventory_movements")}(${ctx.idType}, uuid, uuid, uuid, uuid, text, text, integer, integer)`)}
 `;
 }

@@ -55,7 +55,7 @@ describe("CRM latency ports", () => {
         select: ["id", "companyName", "status"],
         include: {
           _count: { customerContacts: true },
-          _max: { customerLocationsByCustomer: { updatedAt: true } },
+          _max: { customerLocations: { updatedAt: true } },
         },
       })
       .orThrow();
