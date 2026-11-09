@@ -3104,6 +3104,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "supplierId": "supplier_id",
               "status": "status",
               "currency": "currency",
+              "exchangeRate": "exchange_rate",
+              "number": "number",
               "expectedAt": "expected_at",
               "note": "note",
               "createdAt": "created_at",
