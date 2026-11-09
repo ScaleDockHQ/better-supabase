@@ -23,7 +23,11 @@ export interface DeclaredForeignKey {
    * declared primary key, or `id` when the files don't declare one.
    */
   readonly referencedColumns: readonly string[];
+  /** The key is `deferrable`, so it is checked at commit, not per statement. */
+  readonly deferrable?: boolean;
 }
+
+const DEFERRABLE = /\b(?<!not\s+)deferrable\b/i;
 
 const TABLE_NAME = String.raw`${NAME}(?:\s*\.\s*${NAME})?`;
 
@@ -62,9 +66,14 @@ interface Pending {
   readonly columns: readonly string[];
   readonly references: string;
   readonly referencedColumns: readonly string[];
+  readonly deferrable: boolean;
 }
 
-function constraintOf(table: string, text: string): Pending | undefined {
+function constraintOf(
+  table: string,
+  text: string,
+  rest: string = text,
+): Pending | undefined {
   const match = CONSTRAINT.exec(text);
 
   if (match === null) {
@@ -76,6 +85,7 @@ function constraintOf(table: string, text: string): Pending | undefined {
     columns: names(match[1]),
     references: qualified(match[2]!),
     referencedColumns: names(match[3]),
+    deferrable: DEFERRABLE.test(rest),
   };
 }
 
@@ -145,6 +155,7 @@ function declaredForeignKeys(
               columns: [unquote(column)],
               references: qualified(inline[1]!),
               referencedColumns: names(inline[2]),
+              deferrable: DEFERRABLE.test(part),
             },
           });
         }
@@ -152,7 +163,13 @@ function declaredForeignKeys(
     }
 
     for (const match of text.matchAll(ALTER)) {
-      const key = constraintOf(qualified(match[1]!), match[2]!);
+      const end = text.indexOf(";", match.index);
+
+      const key = constraintOf(
+        qualified(match[1]!),
+        match[2]!,
+        text.slice(match.index, end === -1 ? text.length : end),
+      );
 
       if (key !== undefined) {
         found.push({ index: match.index, key });
@@ -166,8 +183,9 @@ function declaredForeignKeys(
 
   return pending
     .filter((key) => inSchemas(key.table))
-    .map((key) => ({
+    .map(({ deferrable, ...key }) => ({
       ...key,
+      ...(deferrable ? { deferrable } : {}),
       referencedColumns:
         key.referencedColumns.length > 0
           ? key.referencedColumns
