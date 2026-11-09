@@ -31,6 +31,11 @@ const ARGS = {
     type: "boolean",
     description: "Print what would change and write nothing",
   },
+  offline: {
+    type: "boolean",
+    description:
+      "Never connect: read the saved snapshot (--snapshot or source.snapshot) and fail without one",
+  },
   force: {
     type: "boolean",
     description:
@@ -114,6 +119,26 @@ export const genCommand: AnyCommand = defineCliCommand({
 
     if (tasks.length === 0) {
       throw new CliError("usage", "--only names no task.");
+    }
+
+    if (args.offline === true) {
+      const live = sourceFlags(args).find((flag) => flag !== "--snapshot");
+
+      if (live !== undefined) {
+        throw new CliError(
+          "usage",
+          `--offline never connects, so it takes no ${live}.`,
+          { flag: live },
+        );
+      }
+
+      if (args.snapshot === undefined && !context.config.source.snapshot) {
+        throw new CliError(
+          "usage",
+          "--offline needs a saved snapshot: pass --snapshot <file> or set source.snapshot in the config.",
+          { flag: "--offline" },
+        );
+      }
     }
 
     const options: GenOptions = {

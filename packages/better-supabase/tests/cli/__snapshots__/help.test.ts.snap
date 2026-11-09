@@ -1072,6 +1072,7 @@ Options
   --only <list,...>                     Tasks to run: types, sql, powersync, spec, seed, env. Defaults to gen.tasks, or every task the config sets up. With --metadata, the one file to print: schema, types, zod, valibot, json-schema, standard-schema
   --check                               Fail when a generated file is out of date
   --dry-run                             Print what would change and write nothing
+  --offline                             Never connect: read the saved snapshot (--snapshot or source.snapshot) and fail without one
   --force                               Overwrite a file at a generated path that the CLI did not write
   --save-snapshot                       Read the database and save the schema as a snapshot file instead of generating
   --out <file>                          With --save-snapshot: the snapshot file, defaulting to database.source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json. With --metadata: the directory to write every generated file into
