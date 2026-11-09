@@ -24,10 +24,31 @@ export function laterTables(
   module: string,
 ): ReadonlySet<string> {
   const installed = ctx.installedModules;
-  const later = installed.slice(installed.indexOf(module) + 1);
+
+  return tablesOfModules(
+    ctx,
+    layout,
+    installed.slice(installed.indexOf(module) + 1),
+  );
+}
+
+/** The quoted tables the installed blocks create, in any render order. */
+export function installedTables(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): ReadonlySet<string> {
+  return tablesOfModules(ctx, layout, ctx.installedModules);
+}
+
+function tablesOfModules(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+  modules: readonly string[],
+): ReadonlySet<string> {
+  const installed = ctx.installedModules;
 
   return new Set(
-    later
+    modules
       .flatMap((block) => [
         ...(rendersOwnInstance(block, layout)
           ? [moduleContext(block, layout, installed)]

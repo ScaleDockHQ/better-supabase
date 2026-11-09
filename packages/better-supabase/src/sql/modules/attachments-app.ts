@@ -3,7 +3,7 @@ import type { BlockSqlLayout } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { laterTables } from "../later-tables.ts";
+import { installedTables, laterTables } from "../later-tables.ts";
 import { quotedTable, SERVICE_CALLER } from "../shared.ts";
 import { subjectReadable } from "../subjects.ts";
 
@@ -197,9 +197,17 @@ export function inlineSubjectReadable(
 
   const later = laterTables(ctx, layout, "attachments");
 
-  const early = subjects.filter(
-    ([, entry]) => !later.has(quotedTable(entry.table)),
-  );
+  const known = installedTables(ctx, layout);
+  const own = `"${ctx.schemaName}".`;
+
+  // A block-schema table no installed block creates, such as `tasks` when the
+  // block is only installed as a renamed instance, would fail an early-bound
+  // policy, so its type goes through the fallback too.
+  const early = subjects.filter(([, entry]) => {
+    const table = quotedTable(entry.table);
+
+    return !later.has(table) && (!table.startsWith(own) || known.has(table));
+  });
 
   const { fallback, ...args } = columns;
 

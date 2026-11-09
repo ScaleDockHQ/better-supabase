@@ -8,3 +8,4 @@ alter table "centrakit"."import_runs" add column if not exists "correlation_id" 
 alter table "centrakit"."import_runs" add column if not exists "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "centrakit"."import_runs" add column if not exists "started_at" timestamptz;
 alter table "centrakit"."import_runs" add column if not exists "finished_at" timestamptz;
+alter table "centrakit"."import_runs" add column if not exists "mapper_version" text;

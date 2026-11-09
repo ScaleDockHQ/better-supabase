@@ -86,6 +86,9 @@ describe("an app's own declarative schema with blocks over it", () => {
         "issued_on",
         "due_on",
         "note",
+        "subtotal",
+        "tax_total",
+        "total",
         "created_at",
       ],
       "public.contacts": [

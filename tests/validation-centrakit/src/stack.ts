@@ -164,6 +164,22 @@ async function generated(dir: string): Promise<string[]> {
   );
 }
 
+/**
+ * The columns the blocks add to the app's own tables, which `upgrade` leaves in
+ * `<table>.block-columns.sql` files next to the module files.
+ */
+async function blockColumns(dir: string): Promise<string[]> {
+  const url = new URL(`${dir}/`, SUPABASE);
+
+  const names = (await readdir(url))
+    .filter((name) => name.endsWith(".block-columns.sql"))
+    .toSorted();
+
+  return Promise.all(
+    names.map((name) => readFile(new URL(name, url), "utf-8")),
+  );
+}
+
 /** A connection inside one transaction, acting as a user per call. */
 export class Session {
   readonly client: PoolClient;
@@ -362,6 +378,7 @@ export async function withCentraKit(
     );
 
     await applyInDependencyOrder(client, [
+      ...(await blockColumns("schemas")),
       ...(await generated("schemas")),
       ...(await generated("better-supabase-data")),
     ]);
