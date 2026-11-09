@@ -21,6 +21,7 @@ import {
   depreciationFunctions,
   depreciationTables,
 } from "./assets-depreciation.ts";
+import { dueCheckImportTargets, dueChecksSql } from "./assets-due-checks.ts";
 import {
   assetsFunctions,
   assetsPostgis,
@@ -409,6 +410,7 @@ ${links}
 ${tables}
 ${assetsFunctions(ctx)}
 ${meterReadingsSql(ctx)}
+${dueChecksSql(ctx)}
 ${depreciationFunctions(ctx)}
 ${assetImportSql(ctx)}
 ${accountingSourcesSql(ctx, assetAccountingSources(ctx))}`;
@@ -474,6 +476,10 @@ export const ASSETS: BlockSqlDefinition = {
   contributes: {
     accounting: (own) =>
       accountingContributions(own, assetAccountingSources(own)),
-    imports: (own) => [...meterImportTargets(own), ...assetImportTargets(own)],
+    imports: (own) => [
+      ...meterImportTargets(own),
+      ...dueCheckImportTargets(own),
+      ...assetImportTargets(own),
+    ],
   },
 };

@@ -305,7 +305,7 @@ export interface BlockNameRegistry {
       readonly "assignments": "id" | "tenant" | "asset" | "assigneeType" | "assigneeId" | "note" | "assignedBy" | "assignedAt" | "releasedAt";
       readonly "depreciations": "id" | "tenant" | "asset" | "periodStart" | "amount" | "entry" | "createdAt";
     };
-    readonly functions: "archive_asset_location" | "asset_assignment_history" | "asset_depreciate" | "asset_identifier_updated_at" | "asset_location_check_parent" | "asset_locations_at" | "asset_updated_at" | "assets_near" | "assign_asset" | "create_asset" | "create_asset_location" | "dispose_asset" | "get_asset" | "get_asset_location" | "guard_asset_meter_reading" | "import_asset" | "import_asset_identifier" | "import_meter_reading" | "list_asset_depreciations" | "list_asset_locations" | "list_assets" | "release_asset" | "run_asset_depreciation" | "set_asset_link" | "update_asset" | "update_asset_location";
+    readonly functions: "archive_asset_location" | "asset_assignment_history" | "asset_depreciate" | "asset_identifier_updated_at" | "asset_location_check_parent" | "asset_locations_at" | "asset_updated_at" | "assets_near" | "assign_asset" | "create_asset" | "create_asset_location" | "dispose_asset" | "due_check_updated_at" | "fill_asset_due_check" | "get_asset" | "get_asset_location" | "guard_asset_meter_reading" | "import_asset" | "import_asset_identifier" | "import_due_check" | "import_meter_reading" | "list_asset_depreciations" | "list_asset_locations" | "list_assets" | "release_asset" | "run_asset_depreciation" | "set_asset_link" | "update_asset" | "update_asset_location";
     readonly actions: "read" | "manage" | "assign";
     readonly hooks: "before_asset_assign" | "after_asset_assign";
     readonly entities: {

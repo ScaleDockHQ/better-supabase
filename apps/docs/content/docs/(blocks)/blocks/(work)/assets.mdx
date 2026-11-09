@@ -262,6 +262,13 @@ await assets
   .orThrow();
 ```
 
+## Due checks
+
+A due check is one row per asset and check type. `interval_days` is the
+service-plan interval. When the check is completed, the next due date is that
+completion plus the interval. Import the row as `due_check`. The meter reading
+decrease warning is unchanged: a lower reading still needs a reason.
+
 ## A related table, such as a trade-in
 
 A trade-in is one row about an asset, a customer, a value and a status, plus
