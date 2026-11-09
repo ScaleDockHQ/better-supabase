@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:9cd84321d2d03345af5c37d005bc4bac81d89bc280ad6c30fbb91bb49332d52f
+-- @bsb-hash sha256:131cfd707e6028dee8560464470bccac9853f4d4548f38b7724c8d6e91b41fa2
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,8 +72,8 @@ begin
     i := i + 2;
   end loop;
   execute pg_catalog.format(
-    'select exists (select 1 from %s p where p.%I = ($1).%I and p.%I is not distinct from ($1).%I%s)',
-    tg_argv[2], tg_argv[3], tg_argv[0], tg_argv[4], tg_argv[1], extra
+    'select exists (select 1 from %s p where p.%I = ($1).%I and (p.%I is null or p.%I is not distinct from ($1).%I)%s)',
+    tg_argv[2], tg_argv[3], tg_argv[0], tg_argv[4], tg_argv[4], tg_argv[1], extra
   ) into matched using new;
   if not matched then
     raise exception '%.% must reference a row of % in the same tenant', tg_table_name, tg_argv[0], tg_argv[2]
