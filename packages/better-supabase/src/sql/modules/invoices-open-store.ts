@@ -74,6 +74,7 @@ create table if not exists ${table} (
   ${o("balance")} bigint not null,
   primary key (${o("tenant")}, ${o("documentType")}, ${o("document")})
 );
+create index if not exists ${ctx.naming.rename("invoice_open_items_document_idx")} on ${table} (${o("document")});
 create index if not exists ${ctx.naming.rename("invoice_open_items_party_idx")} on ${table} (${o("tenant")}, ${o("party")}, ${o("side")});
 create index if not exists ${ctx.naming.rename("invoice_open_items_due_idx")} on ${table} (${o("tenant")}, ${o("dueOn")});
 ${lockModuleTable(ctx, "openItems", { read: true })}

@@ -29,6 +29,7 @@ create table if not exists ${readings} (
   "reason" text,
   "created_at" timestamptz not null default now()
 );
+create index if not exists ${ctx.naming.rename("asset_meter_readings_asset_idx")} on ${readings} (${r("asset")});
 create index if not exists ${ctx.naming.rename("asset_meter_readings_series_idx")}
   on ${readings} (${r("tenant")}, ${r("asset")}, ${r("unit")}, ${r("readAt")});
 

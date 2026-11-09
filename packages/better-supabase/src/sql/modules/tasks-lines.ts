@@ -54,7 +54,7 @@ create table if not exists ${t(logical)} (
   ${k("createdAt")} timestamptz not null default now()
 );
 create index if not exists ${sqlIdent(`bsb_${name}_item_idx`)} on ${t(logical)} (${k("item")}, ${k("rank")});
-${lockModuleTable(ctx, logical, { read: true })}
+${logical === "materials" && ctx.has("materials", "variant") ? `create index if not exists ${sqlIdent(`bsb_${name}_variant_idx`)} on ${t(logical)} (${k("variant")}) where ${k("variant")} is not null;\n` : ""}${lockModuleTable(ctx, logical, { read: true })}
 ${renderPolicy(
   makePolicy({
     table: t(logical),

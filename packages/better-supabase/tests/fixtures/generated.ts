@@ -858,7 +858,12 @@ export type Functions = {
     Returns: Json;
   };
   my_organizations: {
-    Args: Record<never, never>;
+    Args: {
+      after_id?: string | null | undefined;
+      after_last_used_at?: string | null | undefined;
+      after_name?: string | null | undefined;
+      page_size?: number | null | undefined;
+    };
     Returns: { "id": string | null; "last_used_at": string | null; "name": string | null; "plan": string | null; "role": string | null; "slug": string | null }[];
   };
   my_profile: {

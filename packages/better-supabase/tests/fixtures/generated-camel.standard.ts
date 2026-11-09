@@ -800,6 +800,16 @@ export const islandCountsArgs: TableSchema<{ args: Json }> = tableSchema({
   },
 });
 
+export const myOrganizationsArgs: TableSchema<{ after_id?: string; after_last_used_at?: string; after_name?: string; page_size?: number }> = tableSchema({
+  title: "my_organizations arguments",
+  fields: {
+    after_id: {"kind":"uuid","optional":true},
+    after_last_used_at: {"kind":"datetime","optional":true},
+    after_name: {"kind":"string","optional":true},
+    page_size: {"kind":"integer","optional":true},
+  },
+});
+
 export const organizationInvitationsArgs: TableSchema<{ organization: string }> = tableSchema({
   title: "organization_invitations arguments",
   fields: {

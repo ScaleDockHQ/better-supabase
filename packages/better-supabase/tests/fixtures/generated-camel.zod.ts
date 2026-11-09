@@ -573,6 +573,13 @@ export const islandCountsArgs: z.ZodType<{ args: Json }> = z.object({
   args: z.json(),
 }).meta({ title: "island_counts arguments" });
 
+export const myOrganizationsArgs: z.ZodType<{ after_id?: string; after_last_used_at?: string; after_name?: string; page_size?: number }> = z.object({
+  after_id: z.guid().exactOptional(),
+  after_last_used_at: z.iso.datetime({ offset: true }).exactOptional(),
+  after_name: z.string().exactOptional(),
+  page_size: z.int().exactOptional(),
+}).meta({ title: "my_organizations arguments" });
+
 export const organizationInvitationsArgs: z.ZodType<{ organization: string }> = z.object({
   organization: z.guid(),
 }).meta({ title: "organization_invitations arguments" });

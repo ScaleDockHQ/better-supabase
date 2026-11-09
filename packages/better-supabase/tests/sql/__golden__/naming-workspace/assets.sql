@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:d772ca56ca9c4c819cf6ff22522f22f1366fe31604b2a8305d5ba211e6149f95
+-- @bsb-hash sha256:b62348ea80f192735bc1ce90046930240f8bac5b6258dd8353e7e6cc23ee0633
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -800,6 +800,7 @@ create table "better_supabase".asset_meter_readings (
   "reason" text,
   "created_at" timestamptz not null default now()
 );
+create index asset_meter_readings_asset_idx on "better_supabase".asset_meter_readings ("asset_id");
 create index asset_meter_readings_series_idx
   on "better_supabase".asset_meter_readings ("tenant_id", "asset_id", "unit", "read_at");
 
@@ -904,6 +905,7 @@ create table "better_supabase".asset_due_checks (
   "updated_at" timestamptz not null default now()
 );
 create unique index asset_due_checks_key on "better_supabase".asset_due_checks ("tenant_id", "asset_id", "check_type");
+create index asset_due_checks_asset_idx on "better_supabase".asset_due_checks ("asset_id");
 create index asset_due_checks_due_idx
   on "better_supabase".asset_due_checks ("tenant_id", "next_due_at") where "next_due_at" is not null;
 alter table "better_supabase".asset_due_checks enable row level security;
@@ -1182,6 +1184,7 @@ create table "better_supabase".asset_identifiers (
   "value" text not null,
   "updated_at" timestamptz not null default now()
 );
+create index asset_identifiers_asset_idx on "better_supabase".asset_identifiers ("asset_id");
 create unique index asset_identifiers_key on "better_supabase".asset_identifiers ("tenant_id", "type", "value");
 
 create or replace function "better_supabase"."import_asset"(run uuid, item jsonb, subject_id text)

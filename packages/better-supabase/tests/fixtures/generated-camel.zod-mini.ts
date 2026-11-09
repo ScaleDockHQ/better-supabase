@@ -573,6 +573,13 @@ export const islandCountsArgs: z.ZodMiniType<{ args: Json }> = z.object({
   args: z.json(),
 }).check(z.meta({ title: "island_counts arguments" }));
 
+export const myOrganizationsArgs: z.ZodMiniType<{ after_id?: string; after_last_used_at?: string; after_name?: string; page_size?: number }> = z.object({
+  after_id: z.exactOptional(z.guid()),
+  after_last_used_at: z.exactOptional(z.iso.datetime({ offset: true })),
+  after_name: z.exactOptional(z.string()),
+  page_size: z.exactOptional(z.int()),
+}).check(z.meta({ title: "my_organizations arguments" }));
+
 export const organizationInvitationsArgs: z.ZodMiniType<{ organization: string }> = z.object({
   organization: z.guid(),
 }).check(z.meta({ title: "organization_invitations arguments" }));

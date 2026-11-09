@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:f83d20884455568ae2d8da79dfb5657b47b7e9f867a96f60100f99186a0491d9
+-- @bsb-hash sha256:784a5d22b2025271ca9ee05062ba246d9685f3157b9146b76c172b31115f4407
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -172,6 +172,7 @@ create table "better_supabase"."task_material_lines" (
   "created_at" timestamptz not null default now()
 );
 create index "bsb_task_material_lines_item_idx" on "better_supabase"."task_material_lines" ("task_id", "rank");
+create index "bsb_task_material_lines_variant_idx" on "better_supabase"."task_material_lines" ("variant_id") where "variant_id" is not null;
 alter table "better_supabase"."task_material_lines" enable row level security;
 revoke all on "better_supabase"."task_material_lines" from public, anon, authenticated;
 grant select on "better_supabase"."task_material_lines" to authenticated;

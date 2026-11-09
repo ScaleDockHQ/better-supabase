@@ -2546,6 +2546,27 @@
       ],
       "additionalProperties": false
     },
+    "myOrganizationsArgs": {
+      "title": "my_organizations arguments",
+      "type": "object",
+      "properties": {
+        "after_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "after_last_used_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "after_name": {
+          "type": "string"
+        },
+        "page_size": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
     "organizationInvitationsArgs": {
       "title": "organization_invitations arguments",
       "type": "object",

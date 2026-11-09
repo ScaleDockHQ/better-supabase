@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:1bad7f7e1b17a2a1409dc5ee4083a8c0e6ec9a6c4d03d5eb700c709a07664504
+-- @bsb-hash sha256:46dc482f73822499b546f6638276d78ec879701c7951fc2e9244eb80cf462434
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2576,6 +2576,7 @@ create table "better_supabase"."invoice_open_items" (
   "balance" bigint not null,
   primary key ("tenant_id", "document_type", "document_id")
 );
+create index invoice_open_items_document_idx on "better_supabase"."invoice_open_items" ("document_id");
 create index invoice_open_items_party_idx on "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side");
 create index invoice_open_items_due_idx on "better_supabase"."invoice_open_items" ("tenant_id", "due_on");
 alter table "better_supabase"."invoice_open_items" enable row level security;
@@ -3990,7 +3991,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:82933b1e0d9261d61bc53ab61d0c1a69c4d99e0101eedcc59e838e67c70be312
+-- @bsb-hash sha256:6ef9f9043bd2b47802a0d9916cbb66667c9931fbce394a744b42b341f1bfd35d
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6951,6 +6952,7 @@ create table "better_supabase"."invoice_open_items" (
   "balance" bigint not null,
   primary key ("tenant_id", "document_type", "document_id")
 );
+create index invoice_open_items_document_idx on "better_supabase"."invoice_open_items" ("document_id");
 create index invoice_open_items_party_idx on "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side");
 create index invoice_open_items_due_idx on "better_supabase"."invoice_open_items" ("tenant_id", "due_on");
 alter table "better_supabase"."invoice_open_items" enable row level security;
@@ -8992,7 +8994,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:6a3760e6a7e4c89d7acdc94b53aadc792bd0e06fe45cc80f0599b8223d645f33
+-- @bsb-hash sha256:885981fa48d2306c84cd7ea990127b3ea9404482533bc51a89a1336b28bfafac
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11572,6 +11574,7 @@ create table "app_private"."invoice_open_items" (
   "balance" bigint not null,
   primary key ("tenant_id", "document_type", "document_id")
 );
+create index invoice_open_items_document_idx on "app_private"."invoice_open_items" ("document_id");
 create index invoice_open_items_party_idx on "app_private"."invoice_open_items" ("tenant_id", "party_id", "side");
 create index invoice_open_items_due_idx on "app_private"."invoice_open_items" ("tenant_id", "due_on");
 alter table "app_private"."invoice_open_items" enable row level security;
@@ -12986,7 +12989,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:c35e7359a1f79882202dbac2f8886ecb7aa4d69eae045da973e8e806a6ded170
+-- @bsb-hash sha256:19c977ddd8c19925fc8ba1a23aef9ad50ae03022e02292ebd9663d6a9b1081a4
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15561,6 +15564,7 @@ create table "better_supabase"."invoice_open_items" (
   "balance" bigint not null,
   primary key ("tenant_id", "document_type", "document_id")
 );
+create index invoice_open_items_document_idx on "better_supabase"."invoice_open_items" ("document_id");
 create index invoice_open_items_party_idx on "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side");
 create index invoice_open_items_due_idx on "better_supabase"."invoice_open_items" ("tenant_id", "due_on");
 alter table "better_supabase"."invoice_open_items" enable row level security;
@@ -17494,7 +17498,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:cf2da1b3e87b0d0d93ddc3237140bf84fd6d010f74a05b7d1567880f0ab58e50
+-- @bsb-hash sha256:609e147e9cf95e1fc1b79726da5c60355816269a619afedd0dfdb76ad03976df
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20034,6 +20038,7 @@ alter table "better_supabase"."invoice_open_items" add column if not exists "due
 alter table "better_supabase"."invoice_open_items" add column if not exists "issued_on" date;
 alter table "better_supabase"."invoice_open_items" add column if not exists "gross" bigint;
 alter table "better_supabase"."invoice_open_items" add column if not exists "balance" bigint;
+create index if not exists invoice_open_items_document_idx on "better_supabase"."invoice_open_items" ("document_id");
 create index if not exists invoice_open_items_party_idx on "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side");
 create index if not exists invoice_open_items_due_idx on "better_supabase"."invoice_open_items" ("tenant_id", "due_on");
 alter table "better_supabase"."invoice_open_items" enable row level security;
@@ -21447,7 +21452,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:919e361937c6ed430588b27e3c9ca660dfce65b3485b80d912f6db70bed6ea99
+-- @bsb-hash sha256:fe9fbcacfa09bc90f2bcef7aff35895b10068b2006b72fb0cd87e97704a4c2eb
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -24022,6 +24027,7 @@ create table "better_supabase"."invoice_open_items" (
   "balance" bigint not null,
   primary key ("org_id", "document_type", "document_id")
 );
+create index invoice_open_items_document_idx on "better_supabase"."invoice_open_items" ("document_id");
 create index invoice_open_items_party_idx on "better_supabase"."invoice_open_items" ("org_id", "party_id", "side");
 create index invoice_open_items_due_idx on "better_supabase"."invoice_open_items" ("org_id", "due_on");
 alter table "better_supabase"."invoice_open_items" enable row level security;

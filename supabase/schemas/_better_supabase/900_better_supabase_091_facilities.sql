@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@5 managed tasks
--- @bsb-hash sha256:e1073eb289576b18a4a83e2152b4390dad72403cbe2432f1dabc671ad9d5b411
+-- @bsb-hash sha256:afbc4aa1f5cb597198f68c637a27a52034e919b465927d0fe1d0d9fc81890ff8
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -127,6 +127,7 @@ create table "better_supabase"."maintenance_request_material_lines" (
   "created_at" timestamptz not null default now()
 );
 create index "bsb_maintenance_request_material_lines_item_idx" on "better_supabase"."maintenance_request_material_lines" ("maintenance_request_id", "rank");
+create index "bsb_maintenance_request_material_lines_variant_idx" on "better_supabase"."maintenance_request_material_lines" ("variant_id") where "variant_id" is not null;
 alter table "better_supabase"."maintenance_request_material_lines" enable row level security;
 revoke all on "better_supabase"."maintenance_request_material_lines" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_request_material_lines" to authenticated;
