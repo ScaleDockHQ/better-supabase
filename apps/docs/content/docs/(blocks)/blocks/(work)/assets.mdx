@@ -261,3 +261,43 @@ await assets
   .assign(laptop.id, { type: "member", id: userId }, { note: "New hire" })
   .orThrow();
 ```
+
+## A related table, such as a trade-in
+
+A trade-in is one row about an asset, a customer, a value and a status, plus
+the order it became. Keep it in the app's schema and point it at the asset.
+Register an import target so a rerun updates the same row, and an `updatedAt`
+reader so a later edit in the app is a conflict instead of an overwrite.
+
+```sql
+create table trade_ins (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  asset_id uuid not null references better_supabase.assets (id),
+  customer_id uuid not null,
+  value bigint not null,
+  status text not null default 'open',
+  order_id uuid,
+  updated_at timestamptz not null default now()
+);
+```
+
+```ts
+blocks: {
+  imports: {
+    options: {
+      targets: [{
+        entity: "trade_in",
+        subjectType: "trade_in",
+        write: "public.import_trade_in",
+        updatedAt: "public.trade_in_updated_at",
+        dependsOn: ["asset", "party"],
+      }],
+    },
+  },
+}
+```
+
+`import_trade_in(run, item, subject_id)` writes the row and returns
+`{ subjectId, updatedAt }`. `trade_in_updated_at(subject_id)` returns the
+row's `updated_at`.
