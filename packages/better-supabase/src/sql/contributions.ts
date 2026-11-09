@@ -209,6 +209,17 @@ export interface ImportTargetContribution {
    */
   readonly write: string;
   /**
+   * The qualified function \`(run uuid, items jsonb) returns jsonb\` that
+   * writes the items of one batch that need a write in one set-based statement.
+   * \`items\` is an array of what \`write\` receives as \`item\`, plus
+   * \`subjectId\` (\`null\` for an insert); it returns an array with one answer
+   * per item, in order: what \`write\` returns, or \`{ "error": { code, message
+   * } }\` for an item it refused and did not write. When it raises, each item
+   * runs through \`write\` on its own, so one bad row costs only its own
+   * error.
+   */
+  readonly batch?: string;
+  /**
    * The qualified function \`(subject_id text) returns timestamptz\` that reads
    * the row's last change. Without it a changed hash always overwrites. With
    * it, a row changed after the last import is \`conflicted\` and left alone.

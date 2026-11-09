@@ -21,6 +21,7 @@ import {
   sha256HexSql,
   userGrant,
 } from "../shared.ts";
+import { batchSql } from "./imports-batch.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** The SQLSTATE a dry run raises to roll its writes back. */
@@ -177,6 +178,7 @@ function targetsOf(ctx: BlockSqlContext): readonly ImportTargetContribution[] {
     const subjectType = entry.get("subjectType");
     const write = entry.get("write");
     const updatedAt = entry.get("updatedAt");
+    const batch = entry.get("batch");
 
     if (typeof subjectType !== "string" || subjectType === "") {
       throw new TypeError(`${where}.${entity}.subjectType must be a string`);
@@ -197,10 +199,20 @@ function targetsOf(ctx: BlockSqlContext): readonly ImportTargetContribution[] {
       );
     }
 
+    if (
+      batch !== undefined &&
+      (typeof batch !== "string" || !FUNCTION_NAME.test(batch))
+    ) {
+      throw new TypeError(
+        `${where}.${entity}.batch must be a "schema.function" name in lowercase`,
+      );
+    }
+
     own.push({
       entity,
       subjectType,
       write,
+      ...(batch === undefined ? {} : { batch }),
       ...(updatedAt === undefined ? {} : { updatedAt }),
     });
   }
@@ -313,6 +325,15 @@ ${writeArms}
       else
         ${fail("IMPORT_TARGET_UNKNOWN", "no import target for this entity", "22023")}
     end case;`;
+
+  const { batched, batchCondition, writeBlock, flushPending } = batchSql({
+    targets,
+    dispatch,
+    records,
+    unique,
+    x,
+    r,
+  });
 
   const currentUpdated =
     updatedArms === ""
@@ -571,7 +592,7 @@ declare
   v_warnings jsonb := '[]'::jsonb;
   v_message text;
   v_hint text;
-begin
+${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] := '{}';\n  v_pending_keys text[] := '{}';\n  v_raw jsonb;\n  v_results jsonb[];\n  v_p jsonb;\n  v_i integer;\n"}begin
   select * into v_run from ${runs} r where r.${r("id")} = v_run_id;
   if v_entity <> all (${known}) then
     ${fail("IMPORT_TARGET_UNKNOWN", "no import target for this entity", "22023")}
@@ -589,6 +610,14 @@ begin
       v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', 'IMPORT_ITEM_INVALID', 'message', 'an item needs a key and a data object'));
       continue;
     end if;
+
+    ${
+      batchCondition === "false"
+        ? ""
+        : `if v_scope || chr(31) || v_key = any (v_pending_keys) then
+      ${flushPending}
+    end if;`
+    }
 
     -- jsonb text is key-ordered, so equal content hashes equally.
     v_hash := ${sha256HexSql("v_data::text")};
@@ -646,50 +675,15 @@ begin
       if not v_done then
         v_subject_id := case when v_found then v_rec.${x("subjectId")} else null end;
         v_call := v_item || jsonb_build_object('tenant', v_run.${r("tenant")}, 'scope', v_scope);
-        ${dispatch}
-
-        v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
-        if not exists (
-          select 1 from jsonb_array_elements(v_subjects) s
-          where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
-        ) then
-          ${fail("IMPORT_ITEM_INVALID", "the import target returned no primary subject", "22023")}
-        end if;
-
-        for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
-          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
-            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
-          end if;
-          insert into ${records} (${x("tenant")}, ${x("source")}, ${x("scope")}, ${x("entity")}, ${x("externalKey")}, ${x("role")}, ${x("subjectType")}, ${x("subjectId")}, ${x("contentHash")}, ${x("firstRun")}, ${x("lastRun")}, ${x("subjectUpdatedAt")}, ${x("missingSince")})
-          values (
-            v_run.${r("tenant")}, v_run.${r("source")}, v_scope, v_entity, v_key,
-            coalesce(v_subject ->> 'role', 'primary'),
-            coalesce(v_subject ->> 'subjectType', v_subject_type),
-            v_subject ->> 'subjectId',
-            v_hash, v_run_id, v_run_id,
-            coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
-            null
-          )
-          on conflict ${unique} do update set
-            ${x("subjectType")} = excluded.${x("subjectType")},
-            ${x("subjectId")} = excluded.${x("subjectId")},
-            ${x("contentHash")} = excluded.${x("contentHash")},
-            ${x("lastRun")} = excluded.${x("lastRun")},
-            ${x("subjectUpdatedAt")} = excluded.${x("subjectUpdatedAt")},
-            ${x("missingSince")} = null;
-        end loop;
-
-        if v_found then
-          v_updated := v_updated + 1;
-        else
-          v_inserted := v_inserted + 1;
-        end if;
+        ${writeBlock}
       end if;
     exception when others then
       get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
       v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
     end;
   end loop;
+
+  ${flushPending}
 
   return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;

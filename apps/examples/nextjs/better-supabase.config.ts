@@ -618,6 +618,14 @@ export default defineConfig({
           customer: {
             subjectType: "customer",
             write: "public.import_customer",
+            batch: "public.import_customer_batch",
+            updatedAt: "public.import_customer_updated_at",
+          },
+          // The same table through the one-row target, so the pgTAP parity test
+          // can compare the two write paths.
+          customer_row: {
+            subjectType: "customer",
+            write: "public.import_customer",
             updatedAt: "public.import_customer_updated_at",
           },
         },

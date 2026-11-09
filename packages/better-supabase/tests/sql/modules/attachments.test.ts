@@ -108,7 +108,7 @@ describe("attachments module", () => {
       `when 'note' then exists (select 1 from "public"."notes" s where s."id"::text = attachment_subject_readable.subject_id)`,
     );
     expect(sql).toContain(
-      `("tenant_id" is null or coalesce(better_supabase.can(`,
+      `("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload')))`,
     );
     expect(sqlOf(["attachments"])).not.toContain("drop not null");
     expect(() =>
@@ -134,7 +134,7 @@ describe("attachments module", () => {
       `("subject_type" = 'contract' and ("tenant_id" in (select better_supabase.tenant_ids_with('contracts.read'))))`,
     );
     expect(sql).toContain(
-      `case "subject_type" when 'contract' then 'contracts.edit' else 'attachments.upload' end`,
+      `("subject_type" = 'contract' and ("tenant_id" in (select better_supabase.tenant_ids_with('contracts.edit'))))`,
     );
     expect(sql).toContain(
       `case a."subject_type" when 'contract' then 'contracts.read' else 'attachments.read' end`,
@@ -206,7 +206,7 @@ describe("attachments module", () => {
     const sql = render();
 
     expect(sql).toContain(
-      `case "subject_type" when 'contract' then 'contracts.edit' else 'attachments.upload' end`,
+      `("subject_type" = 'contract' and ("tenant_id" in (select better_supabase.tenant_ids_with('contracts.edit'))))`,
     );
     expect(sql).toContain("'contracts.admin'");
     expect(sql).not.toContain(
@@ -223,7 +223,7 @@ describe("attachments module", () => {
     });
 
     expect(overridden).toContain(
-      `case "subject_type" when 'contract' then 'contracts.upload' else 'attachments.upload' end`,
+      `("subject_type" = 'contract' and ("tenant_id" in (select better_supabase.tenant_ids_with('contracts.upload'))))`,
     );
     expect(overridden).toContain("'contracts.admin'");
   });
@@ -238,9 +238,7 @@ describe("attachments module", () => {
       .map((file) => file.contents)
       .join("\n");
 
-    expect(sql).toContain(
-      `case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' else 'attachments.upload' end`,
-    );
+    expect(sql).toContain(`tenant_ids_with('messages.send')`);
   });
 
   it("accepts any valid bucket id, short ones included", () => {

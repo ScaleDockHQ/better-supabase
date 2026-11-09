@@ -462,6 +462,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0433: Counts report whether the planner answered.
 - 0434: No block policy calls can() per row, and the provider set helper is the template that serves.
 - 0435: Keep the row trigger as the audit default for import targets.
+- 0436: Import targets may write a batch in set-based statements.
 - 0500: Check scale practices in doctor from the catalog and the schema files.
 - 0501: Keep the legal entity number key swaps as `do` blocks until the owning modules render the key.
 - 0520: Accept the 0.26 provider fields as optional additions.
