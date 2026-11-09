@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:421297f72fd3e6b71f960b889319d8c0e5246e959d6d3fefd027955635929f5c
+-- @bsb-hash sha256:eff66c56c46a05f2aee50ddc36cb2dd2d97a01e23bffa5886f02055b560fb0c4
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -663,6 +663,8 @@ begin
       join old_rows o on o."id" = n."id"
       where n."quantity" is distinct from o."quantity"
         or n."unit_amount" is distinct from o."unit_amount"
+        or n."selected" is distinct from o."selected"
+        or n."optional" is distinct from o."optional"
       union
       select n."parent_id" from new_rows n
       where not exists (select 1 from old_rows o where o."id" = n."id")

@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:9857bcaf31312b7ef55efcbf595ae9bb9a9585e035055bfa55f48ec8867616ba
+-- @bsb-hash sha256:1bde77988dacd15691a70d4c48a29172e4c77f7b10a1b6415f96745e866e98a1
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -384,6 +384,7 @@ create or replace function better_supabase.permission_bitset(all_keys text[], he
 returns text
 language plpgsql
 immutable
+set search_path = ''
 as $$
 declare
   width integer := ceil(coalesce(cardinality(all_keys), 0) / 8.0);
