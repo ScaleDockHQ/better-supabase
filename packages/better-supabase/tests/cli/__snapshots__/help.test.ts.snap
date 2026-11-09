@@ -1622,6 +1622,7 @@ Options
   --tests-dir <dir>  Where the pgtap module goes. Defaults to database.sql.testsDir
   --dry-run          Show what would be written
   --force            Overwrite or remove block files that were edited by hand
+  --preserve <file>  Leave this hand-edited block file in place and write the new render beside it as .new
   --no-cache         Render every module again instead of reading the render cache
 
 Global options

@@ -18,6 +18,12 @@ export const SQL_ARGS = {
     type: "boolean",
     description: "Overwrite or remove block files that were edited by hand",
   },
+  preserve: {
+    type: "string",
+    description:
+      "Leave this hand-edited block file in place and write the new render beside it as .new",
+    valueHint: "file",
+  },
   "no-cache": {
     type: "boolean",
     description:

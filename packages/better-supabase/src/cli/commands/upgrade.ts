@@ -25,6 +25,7 @@ const UPGRADE_ARGS = {
   "tests-dir": SQL_ARGS["tests-dir"],
   "dry-run": SQL_ARGS["dry-run"],
   force: SQL_ARGS.force,
+  preserve: SQL_ARGS.preserve,
   "no-cache": SQL_ARGS["no-cache"],
 } as const;
 

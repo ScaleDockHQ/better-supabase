@@ -171,19 +171,53 @@ describe("applyPlan", () => {
     const applied = await applyPlan(plan(root, files), {});
 
     expect(changeLines(applied)).toEqual([
-      "Updated clean.sql",
-      "Updated old.sql",
+      "Skipped clean.sql (not written, because another file was left alone)",
+      "Skipped old.sql (not written, because another file was left alone)",
       "Skipped edited.sql (edited by hand; move the change to an override file or SQL hook, or pass --force)",
     ]);
+    expect(await readIfExists(join(root, "clean.sql"))).toBe(block);
 
     const result = planResult(plan(root, files), applied);
 
     expect(result.code).toBe(1);
+    expect(result.errorCode).toBe("file_conflict");
     expect(result.error).toContain("edited.sql was edited by hand");
+    expect(result.output).toContain("edited.sql");
 
     const forced = await applyPlan(plan(root, files), { force: true });
 
     expect(changeLines(forced)).toContain("Updated edited.sql");
+    expect(await readFile(join(root, "edited.sql.bak"), "utf-8")).toContain(
+      "select 2",
+    );
+
+    const kept = await project({
+      "clean.sql": block,
+      "edited.sql": block.replace("select 1", "select 2"),
+    });
+
+    const preserved = await applyPlan(
+      plan(
+        kept,
+        ["clean.sql", "edited.sql"].map((path) => ({
+          path,
+          contents: withBlockHash(
+            "-- @bsb-block tags@2 managed\n\nselect 3;\n",
+          ),
+          policy: "block" as const,
+        })),
+      ),
+      { preserve: ["edited.sql"] },
+    );
+
+    expect(changeLines(preserved)).toContain(
+      "Skipped edited.sql (left in place; the new render is beside it as .new)",
+    );
+    expect(await readFile(join(kept, "edited.sql.new"), "utf-8")).toContain(
+      "select 3",
+    );
+    expect(await readIfExists(join(kept, "edited.sql"))).toContain("select 2");
+    expect(await readIfExists(join(kept, "clean.sql"))).toContain("select 3");
   });
 
   it("keeps a removal whose guard gives a reason, unless --force is set", async () => {
@@ -203,10 +237,11 @@ describe("applyPlan", () => {
 
     expect(applied.changes.map(({ file, outcome }) => [file, outcome])).toEqual(
       [
-        ["clean.sql", "remove"],
+        ["clean.sql", "skip"],
         ["edited.sql", "skip"],
       ],
     );
+    expect(await readIfExists(join(root, "clean.sql"))).toBe(block);
     expect(await readIfExists(join(root, "edited.sql"))).toBeDefined();
 
     await applyPlan({ ...plan(root, []), remove }, { force: true });
