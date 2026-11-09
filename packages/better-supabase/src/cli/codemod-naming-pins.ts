@@ -1,9 +1,7 @@
 import type { ResolvedConfig } from "../config/index.ts";
-import type { BlockSqlNames } from "../sql/context.ts";
 import type { NamingRename } from "./codemod-naming.ts";
 
-import { createModuleContext } from "../sql/context.ts";
-import { SQL_MODULES } from "../sql/index.ts";
+import { moduleContext, SQL_MODULES } from "../sql/index.ts";
 import { codeRanges } from "./code-ranges.ts";
 import { closing as closingBrace } from "./codemod-config.ts";
 
@@ -31,20 +29,17 @@ export function columnPins(
   const pins: ColumnPin[] = [];
   const modules = config.blocks;
 
-  const namesOf = (module: string): BlockSqlNames | undefined =>
-    SQL_MODULES[module]?.names;
-
   for (const block of Object.keys(modules)) {
-    const names = namesOf(block);
+    const names = SQL_MODULES[block]?.names;
 
     if (names === undefined) {
       continue;
     }
 
-    let ctx: ReturnType<typeof createModuleContext>;
+    let ctx: ReturnType<typeof moduleContext>;
 
     try {
-      ctx = createModuleContext(block, namesOf, { modules, ownTables });
+      ctx = moduleContext(block, { modules, ownTables }, Object.keys(modules));
     } catch {
       // A config this context can't validate alone is refused by the render.
       continue;

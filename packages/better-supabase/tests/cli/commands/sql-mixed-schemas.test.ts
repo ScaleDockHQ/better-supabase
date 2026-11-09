@@ -102,6 +102,7 @@ describe("an app's own declarative schema with blocks over it", () => {
     });
     expect(layout.ownIndexes?.["public.contacts"]).toContainEqual({
       columns: ["id"],
+      unique: true,
     });
   });
 
@@ -147,6 +148,7 @@ create index if not exists customers_block_idx on public.customers (organization
     );
     expect(layout.ownIndexes?.["public.contacts"]).toContainEqual({
       columns: ["id"],
+      unique: true,
     });
   });
 
