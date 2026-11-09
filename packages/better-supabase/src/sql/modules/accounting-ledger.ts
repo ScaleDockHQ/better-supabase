@@ -353,8 +353,10 @@ ${userGrant(`${fn("accounting_journal_listing")}(${idType}, date, date, uuid)`)}
 export function accountingImportFunctions(ctx: BlockSqlContext): string {
   const accounts = ctx.table("accounts");
   const journals = ctx.table("journals");
+  const periods = ctx.table("periods");
   const a = (column: string): string => ctx.col("accounts", column);
   const j = (column: string): string => ctx.col("journals", column);
+  const p = (column: string): string => ctx.col("periods", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
 
@@ -441,6 +443,39 @@ end;
 $$;
 ${serviceGrant(`${fn("import_accounting_journal")}(uuid, jsonb, text)`)}
 
+-- Opens the fiscal year of an imported entry: twelve monthly periods from the
+-- start month, and closes earlier open years when closeHistorical is set.
+create or replace function ${fn("ensure_import_periods")}(tenant ${idType}, entry_date date, start_month integer, close_historical boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_month integer := least(greatest(coalesce(ensure_import_periods.start_month, 1), 1), 12);
+  v_year integer := extract(year from ensure_import_periods.entry_date)::integer;
+  v_start date;
+  v_index integer;
+begin
+  if extract(month from ensure_import_periods.entry_date) < v_month then
+    v_year := v_year - 1;
+  end if;
+  v_start := make_date(v_year, v_month, 1);
+  if not exists (select 1 from ${periods} y where y.${p("tenant")} = ensure_import_periods.tenant and y.${p("fiscalYear")} = v_year) then
+    for v_index in 0..11 loop
+      insert into ${periods} (${p("tenant")}, ${p("fiscalYear")}, ${p("number")}, ${p("startsOn")}, ${p("endsOn")})
+      values (ensure_import_periods.tenant, v_year, v_index + 1, (v_start + make_interval(months => v_index))::date,
+        ((v_start + make_interval(months => v_index + 1)) - 1)::date);
+    end loop;
+  end if;
+  if ensure_import_periods.close_historical then
+    update ${periods} y set ${p("status")} = 'closed', ${p("closedAt")} = now()
+    where y.${p("tenant")} = ensure_import_periods.tenant and y.${p("fiscalYear")} < v_year and y.${p("status")} = 'open';
+  end if;
+end;
+$$;
+${serviceGrant(`${fn("ensure_import_periods")}(${idType}, date, integer, boolean)`)}
+
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
 -- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
@@ -487,6 +522,9 @@ begin${dataCheck("import_accounting_entry", "an entry")}
   if v_debit <> v_credit then
     ${fail("IMPORT_ITEM_INVALID", "the lines don't balance: debits and credits differ", "22023")}
   end if;
+  perform ${fn("ensure_import_periods")}(v_tenant, (v_data ->> 'entryDate')::date,
+    coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
+    coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
   v_row := ${fn("save_accounting_entry")}(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
