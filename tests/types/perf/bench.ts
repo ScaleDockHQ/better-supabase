@@ -1,13 +1,3 @@
-import type {
-  CatalogColumn,
-  CatalogForeignKey,
-  CatalogFunction,
-  CatalogTable,
-  CatalogUnique,
-  Snapshot,
-} from "better-supabase/cli";
-
-import { fromCatalog } from "better-supabase/cli";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   cpSync,
@@ -21,8 +11,17 @@ import {
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
+import type { Profile } from "./programs.ts";
 import type { RuntimeTimes } from "./runtime.ts";
 
+import {
+  calibrationProgram,
+  configProgram,
+  consumer,
+  name,
+  serverProgram,
+  snapshot,
+} from "./programs.ts";
 import { benchRuntime, checkRuntime } from "./runtime.ts";
 
 interface Measurement {
@@ -41,19 +40,6 @@ type Compiler = "ts6" | "ts7" | "ts71";
 type Mode = Compiler | "ts71Mapper";
 
 const MODES = ["ts6", "ts7", "ts71", "ts71Mapper"] as const;
-
-interface Profile {
-  readonly tables: number;
-  readonly queried: number;
-  /**
-   * CentraKit's shape: uuid keys, `unique (id, organization_id)` on every
-   * table, composite foreign keys that repeat `organization_id`, and the
-   * `graphql_public` schema next to `public`, plus one each of an enum column,
-   * a CHECK union, two foreign keys to one table, a view, a JSON override and a
-   * function the consumer calls.
-   */
-  readonly composite: boolean;
-}
 
 interface BaselineEntry extends Profile {
   readonly measurement: Readonly<Record<Mode, Measurement>>;
@@ -98,6 +84,20 @@ interface UpgradeTimes {
   readonly edit: UpgradeRun;
   /** After the app file registers one more audited table (ADR 0362). */
   readonly audit: UpgradeRun;
+  /** After one column is added to a table a block owns (ADR 0591). */
+  readonly ownedColumn: UpgradeRun;
+  /** `upgrade --check`, which renders like `upgrade` and writes nothing. */
+  readonly check: CheckTimes;
+}
+
+/** Seconds for `upgrade --check` on the CentraKit fixture. */
+interface CheckTimes {
+  /** With the render caches purged. */
+  readonly cold: number;
+  /** Again with nothing changed. */
+  readonly warm: number;
+  /** After one column is added to a table a block owns. */
+  readonly ownedColumn: number;
 }
 
 const PROFILES = {
@@ -107,6 +107,9 @@ const PROFILES = {
 
 const TOLERANCE = 0.1;
 
+/** Runs per tsc measurement; the check time is the smallest. */
+const CHECK_RUNS = 3;
+
 /**
  * Check time fails only past twice the baseline and at least half a second
  * more, after scaling the baseline by how much slower this machine checks the
@@ -114,6 +117,13 @@ const TOLERANCE = 0.1;
  */
 const TIME_FACTOR = 2;
 const TIME_SLACK = 0.5;
+
+/**
+ * A program whose check time is not above this many times the calibration
+ * program's is too small to gate on time. The native compilers check the
+ * calibration program in about 20 ms, so a factor above 1 fails under load.
+ */
+const FLOOR_FACTOR = 1;
 
 const here = import.meta.dirname;
 const work = join(here, "tmp");
@@ -133,326 +143,6 @@ const cli = join(
   "bin",
   "better-supabase.js",
 );
-
-const name = (i: number): string => `t${String(i).padStart(3, "0")}`;
-
-function column(
-  columnName: string,
-  udt: string,
-  options: { nullable?: boolean; default?: string; enum?: boolean } = {},
-): CatalogColumn {
-  return {
-    name: columnName,
-    udt,
-    format: udt,
-    typeSchema: options.enum ? "public" : "pg_catalog",
-    isArray: false,
-    isEnum: options.enum ?? false,
-    nullable: options.nullable ?? false,
-    hasDefault: options.default !== undefined,
-    default: options.default ?? null,
-    identity: null,
-    generated: false,
-    updatable: true,
-    comment: null,
-  };
-}
-
-function foreignKey(
-  table: string,
-  cols: readonly string[],
-  ref: string,
-  refCols: readonly string[] = ["id"],
-): CatalogForeignKey {
-  return {
-    name: `${table}_${cols.join("_")}_fkey`,
-    columns: cols,
-    refSchema: "public",
-    refTable: ref,
-    refColumns: refCols,
-    oneToOne: false,
-    onDelete: "cascade",
-    onUpdate: "no action",
-  };
-}
-
-function table(
-  tableName: string,
-  columns: CatalogColumn[],
-  foreignKeys: CatalogForeignKey[],
-  uniques: CatalogUnique[] = [],
-  options: { view?: boolean; checks?: CatalogTable["checks"] } = {},
-): CatalogTable {
-  return {
-    id: 0,
-    schema: "public",
-    name: tableName,
-    kind: options.view ? "view" : "table",
-    rls: !options.view,
-    forceRls: false,
-    replicaIdentity: options.view ? null : "DEFAULT",
-    insertable: !options.view,
-    updatable: !options.view,
-    comment: null,
-    columns,
-    primaryKey: options.view ? [] : ["id"],
-    uniques,
-    foreignKeys,
-    checks: options.checks ?? [],
-    indexes: [],
-    policies: [],
-    triggers: [],
-    grants: [],
-  };
-}
-
-/** The function `graphql_public` holds on every Supabase project. */
-const GRAPHQL: CatalogFunction = {
-  schema: "graphql_public",
-  name: "graphql",
-  signature:
-    '"operationName" text, query text, variables jsonb, extensions jsonb',
-  args: ["operationName", "query", "variables", "extensions"].map(
-    (arg, index) => ({
-      name: arg,
-      udt: index < 2 ? "text" : "jsonb",
-      isArray: false,
-      hasDefault: true,
-    }),
-  ),
-  returnsTable: null,
-  returns: "jsonb",
-  returnsRelation: null,
-  returnsSet: false,
-  volatility: "volatile",
-  securityDefiner: false,
-  language: "sql",
-  searchPath: null,
-};
-
-const COUNT_ITEMS: CatalogFunction = {
-  schema: "public",
-  name: "count_items",
-  signature: "p_organization_id uuid",
-  args: [
-    {
-      name: "p_organization_id",
-      udt: "uuid",
-      isArray: false,
-      hasDefault: false,
-    },
-  ],
-  returnsTable: null,
-  returns: "int4",
-  returnsRelation: null,
-  returnsSet: false,
-  volatility: "stable",
-  securityDefiner: false,
-  language: "sql",
-  searchPath: "",
-};
-
-const KIND_CHECK = {
-  name: "kind_check",
-  definition:
-    "CHECK ((kind = ANY (ARRAY['task'::text, 'note'::text, 'call'::text])))",
-};
-
-/** `extraColumnOn` names a table that gets one more column, for incremental gen. */
-function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
-  const tables = [
-    table(
-      "organizations",
-      [
-        column("id", "uuid", { default: "gen_random_uuid()" }),
-        column("name", "text"),
-      ],
-      [],
-    ),
-  ];
-
-  for (let i = 0; i < profile.tables - (profile.composite ? 1 : 0); i += 1) {
-    const tableName = name(i);
-
-    const columns = [
-      column("id", "uuid", { default: "gen_random_uuid()" }),
-      column("organization_id", "uuid"),
-      column("parent_id", "uuid", { nullable: true }),
-      column("name", "text"),
-      column("description", "text", { nullable: true }),
-      column("amount", "numeric", { nullable: true }),
-      column("quantity", "int4", { default: "0" }),
-      column("active", "bool", { default: "true" }),
-      column("metadata", "jsonb", { nullable: true }),
-      column("created_at", "timestamptz", { default: "now()" }),
-      column("updated_at", "timestamptz", { default: "now()" }),
-      column("archived_at", "timestamptz", { nullable: true }),
-    ];
-
-    for (let c = 0; c < 8; c += 1) {
-      columns.push(column(`field_${String(c)}`, "text", { nullable: true }));
-    }
-
-    if (profile.composite) {
-      columns.push(
-        column("priority", "priority", { default: "'normal'", enum: true }),
-        column("kind", "text", { default: "'task'" }),
-      );
-    }
-
-    if (tableName === extraColumnOn) {
-      columns.push(column("extra", "text", { nullable: true }));
-    }
-
-    const keys = [foreignKey(tableName, ["organization_id"], "organizations")];
-
-    if (i > 0) {
-      keys.push(
-        profile.composite
-          ? foreignKey(
-              tableName,
-              ["parent_id", "organization_id"],
-              name(i - 1),
-              ["id", "organization_id"],
-            )
-          : foreignKey(tableName, ["parent_id"], name(i - 1)),
-      );
-    }
-
-    const uniques = profile.composite
-      ? [
-          {
-            name: `${tableName}_id_organization_id_key`,
-            columns: ["id", "organization_id"],
-          },
-        ]
-      : [];
-
-    tables.push(
-      table(tableName, columns, keys, uniques, {
-        checks: profile.composite ? [KIND_CHECK] : [],
-      }),
-    );
-  }
-
-  if (profile.composite) {
-    tables.push(
-      table(
-        "transfers",
-        [
-          column("id", "uuid", { default: "gen_random_uuid()" }),
-          column("from_organization_id", "uuid"),
-          column("to_organization_id", "uuid"),
-          column("amount", "numeric"),
-        ],
-        [
-          foreignKey("transfers", ["from_organization_id"], "organizations"),
-          foreignKey("transfers", ["to_organization_id"], "organizations"),
-        ],
-      ),
-      table(
-        "item_summaries",
-        [
-          column("id", "uuid", { nullable: true }),
-          column("organization_id", "uuid", { nullable: true }),
-          column("name", "text", { nullable: true }),
-          column("priority", "priority", { nullable: true, enum: true }),
-        ],
-        [],
-        [],
-        { view: true },
-      ),
-    );
-  }
-
-  return fromCatalog({
-    schemas: profile.composite ? ["public", "graphql_public"] : ["public"],
-    tables,
-    enums: profile.composite
-      ? [
-          {
-            schema: "public",
-            name: "priority",
-            values: ["low", "normal", "high"],
-          },
-        ]
-      : [],
-    functions: profile.composite ? [GRAPHQL, COUNT_ITEMS] : [],
-    buckets: [],
-    realtime: [],
-  });
-}
-
-/**
- * Mapper mode writes no database.types.ts, so `Database` comes from
- * generated.ts: the enriched type, which costs the composite profile about four
- * times the instantiations in either mode.
- */
-function consumer(profile: Profile, database = "./database.types.ts"): string {
-  const lines = [
-    "import { createClient, type SupabaseClient } from '@supabase/supabase-js';",
-    ...(profile.composite
-      ? [`import type { Database } from '${database}';`]
-      : []),
-    "import { createSupabase } from 'better-supabase';",
-    "import { membershipsExtension } from 'better-supabase/blocks/memberships';",
-    "import { schema } from './generated.ts';",
-    "declare const client: SupabaseClient;",
-    "const db = createSupabase(schema).use(membershipsExtension()).connect(client);",
-    "export async function run(): Promise<void> {",
-  ];
-
-  if (profile.composite) {
-    lines.push(
-      "  const typed = createClient<Database>('https://x.supabase.co', 'key');",
-      "  await typed.from('item_summaries').select('id, priority');",
-      "  await db.$rpc('count_items', { p_organization_id: 'o' }).orThrow();",
-      "  await db.transfers.list({ include: { fromOrganization: { select: ['name'] }, toOrganization: { select: ['name'] } } }).orThrow();",
-      "  await db.itemSummaries.list({ where: { priority: 'high' } }).orThrow();",
-      `  await db.${name(1)}.update('id', { kind: 'note', priority: 'low', metadata: { tags: ['a'] } }).orThrow();`,
-    );
-  }
-
-  for (let i = 1; i <= profile.queried; i += 1) {
-    const key = name(i);
-    const child = name(i + 1);
-    lines.push(
-      `  await db.${key}.list({ select: ['id', 'name', 'createdAt'], where: { active: true, quantity: { gt: 1 } }, orderBy: { createdAt: 'desc' }, include: { parent: { select: ['id', 'name'] }, ${child}: { select: ['id'] } } }).orThrow();`,
-      `  await db.${key}.create({ organizationId: 'o', name: 'n' }, { select: ['id'] }).orThrow();`,
-      `  await db.${key}.update('id', { name: 'x' }).orThrow();`,
-    );
-  }
-
-  lines.push("}", "");
-
-  return lines.join("\n");
-}
-
-/**
- * Plain TypeScript with no better-supabase types, so its check time tracks the
- * machine only.
- */
-function calibrationProgram(): string {
-  const lines = [
-    "type Deep<T> = { readonly [K in keyof T]: T[K] extends object ? Deep<T[K]> : T[K] };",
-    "type Pick2<T, K extends keyof T> = { [P in K]: T[P] };",
-  ];
-
-  for (let i = 0; i < 400; i += 1) {
-    const fields = Array.from(
-      { length: 20 },
-      (_, f) =>
-        `f${String(f)}: ${f % 2 ? "string" : `{ n: number; s: string[] }`};`,
-    ).join(" ");
-
-    lines.push(
-      `interface I${String(i)} { ${fields} }`,
-      `export const v${String(i)}: Pick2<Deep<I${String(i)}>, "f0" | "f1" | "f2"> = { f0: { n: 1, s: [] }, f1: "", f2: { n: 2, s: ["a"] } };`,
-    );
-  }
-
-  return `${lines.join("\n")}\n`;
-}
 
 function calibrate() {
   rmSync(work, { recursive: true, force: true });
@@ -478,38 +168,55 @@ function calibrate() {
   } satisfies Readonly<Record<Compiler, number>>;
 }
 
+/**
+ * One tsc run. The counts are exact. The check time is the smallest of `runs`
+ * runs: a program this small checks in tens of milliseconds, so a single run is
+ * mostly noise.
+ */
 function measure(
   tsc: string,
   flags: readonly string[] = [],
   project = join(work, "tsconfig.json"),
+  runs = CHECK_RUNS,
 ): Measurement {
-  const result = spawnSync(
-    process.execPath,
-    [tsc, "-p", project, "--extendedDiagnostics", ...flags],
-    { encoding: "utf-8" },
-  );
+  const once = (): Measurement => {
+    const result = spawnSync(
+      process.execPath,
+      [tsc, "-p", project, "--extendedDiagnostics", ...flags],
+      { encoding: "utf-8" },
+    );
 
-  const output = `${result.stdout}${result.stderr}`;
+    const output = `${result.stdout}${result.stderr}`;
 
-  if (result.status !== 0) {
-    throw new Error(`tsc failed on the benchmark schema:\n${output}`);
-  }
-
-  const read = (label: string): string => {
-    const match = new RegExp(`^${label}:\\s+(\\S+)`, "m").exec(output);
-
-    if (!match?.[1]) {
-      throw new Error(`tsc output has no "${label}" line`);
+    if (result.status !== 0) {
+      throw new Error(`tsc failed on the benchmark schema:\n${output}`);
     }
 
-    return match[1];
+    const read = (label: string): string => {
+      const match = new RegExp(`^${label}:\\s+(\\S+)`, "m").exec(output);
+
+      if (!match?.[1]) {
+        throw new Error(`tsc output has no "${label}" line`);
+      }
+
+      return match[1];
+    };
+
+    return {
+      types: Number(read("Types")),
+      instantiations: Number(read("Instantiations")),
+      checkTime: Number(read("Check time").replace(/s$/, "")),
+    };
   };
 
-  return {
-    types: Number(read("Types")),
-    instantiations: Number(read("Instantiations")),
-    checkTime: Number(read("Check time").replace(/s$/, "")),
-  };
+  const first = once();
+  let best = first.checkTime;
+
+  for (let run = 1; run < runs; run += 1) {
+    best = Math.min(best, once().checkTime);
+  }
+
+  return { ...first, checkTime: best };
 }
 
 /** Seconds for `better-supabase gen`; machine-dependent, so gated loosely. */
@@ -621,33 +328,6 @@ function writeTsconfig(contentMapper: boolean): void {
   );
 }
 
-/**
- * The server's program: `createServer` over the generated schema, a context per
- * request and reads through `ctx.db`. It has its own gate so a change to the
- * server types (ADR 0450) cannot hide in the client program's numbers.
- */
-function serverProgram(profile: Profile): string {
-  const lines = [
-    "import { createSupabase } from 'better-supabase';",
-    "import { createServer } from 'better-supabase/server';",
-    "import { schema } from './generated.ts';",
-    "const server = createServer(createSupabase(schema), { env: { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'key' } });",
-    "export async function run(request: Request): Promise<void> {",
-    "  const ctx = await server.context(request);",
-  ];
-
-  for (let i = 1; i <= profile.queried; i += 1) {
-    lines.push(
-      `  await ctx.db.${name(i)}.list({ select: ['id', 'name'], where: { active: true } }).orThrow();`,
-      `  await ctx.db.${name(i)}.create({ organizationId: 'o', name: 'n' }, { select: ['id'] }).orThrow();`,
-    );
-  }
-
-  lines.push("}", "");
-
-  return lines.join("\n");
-}
-
 function benchServer(
   profile: Profile,
 ): Readonly<Record<Compiler, Measurement>> {
@@ -663,11 +343,22 @@ function benchServer(
 
   const project = join(work, "tsconfig.server.json");
 
-  return {
+  const measured = {
     ts6: measure(compilers.ts6, [], project),
     ts7: measure(compilers.ts7, [], project),
     ts71: measure(compilers.ts71, [], project),
-  };
+  } satisfies Readonly<Record<Compiler, Measurement>>;
+
+  for (const compiler of ["ts6", "ts7", "ts71"] as const) {
+    if (measured[compiler].checkTime <= calibration[compiler] * FLOOR_FACTOR) {
+      console.error(
+        `server program (${compiler}): check time ${measured[compiler].checkTime.toFixed(3)}s is not above the calibration program's ${calibration[compiler].toFixed(3)}s, so a time gate on it measures noise. Add queries to serverProgram.`,
+      );
+      process.exitCode = 1;
+    }
+  }
+
+  return measured;
 }
 
 function run(profile: Profile): Run {
@@ -679,12 +370,12 @@ function run(profile: Profile): Run {
   writeTsconfig(false);
   const cold = gen();
 
-  const ts71 = timed(() => measure(compilers.ts71));
+  const ts71 = timed(() => measure(compilers.ts71, [], undefined, 1));
 
   const measurement = {
     ts6: measure(compilers.ts6),
     ts7: measure(compilers.ts7),
-    ts71: ts71.value,
+    ts71: measure(compilers.ts71),
   };
 
   const server = benchServer(profile);
@@ -704,7 +395,7 @@ function run(profile: Profile): Run {
   rmSync(join(work, "node_modules/.cache"), { recursive: true, force: true });
 
   const mapped = (): Measurement =>
-    measure(compilers.ts71, ["--runExternalCode"]);
+    measure(compilers.ts71, ["--runExternalCode"], undefined, 1);
 
   const mapperCold = timed(mapped);
   const mapperWarm = timed(mapped);
@@ -768,7 +459,7 @@ for (const [profileName, profile] of Object.entries(
   }
 
   console.log(
-    `  server program: ${(["ts6", "ts7", "ts71"] as const).map((compiler) => `${compiler} ${String(current.server[compiler].instantiations)} instantiations, ${String(current.server[compiler].types)} types`).join("; ")}`,
+    `  server program: ${(["ts6", "ts7", "ts71"] as const).map((compiler) => `${compiler} ${String(current.server[compiler].instantiations)} instantiations, ${String(current.server[compiler].types)} types, check ${current.server[compiler].checkTime.toFixed(3)}s`).join("; ")}`,
   );
 
   console.log(
@@ -884,6 +575,21 @@ function checkServer(
         );
         process.exitCode = 1;
       }
+    }
+
+    const speed = Math.max(
+      1,
+      calibration[compiler] / baseline.calibration[compiler],
+    );
+
+    const expected = before[compiler].checkTime * speed;
+    const limit = Math.max(expected * TIME_FACTOR, expected + TIME_SLACK);
+
+    if (now[compiler].checkTime > limit) {
+      console.error(
+        `${profileName} server (${compiler}): check time grew from ${expected.toFixed(2)}s to ${now[compiler].checkTime.toFixed(2)}s (limit ${limit.toFixed(2)}s).`,
+      );
+      process.exitCode = 1;
     }
   }
 }
@@ -1009,11 +715,58 @@ function benchUpgrade(): UpgradeTimes {
   );
   const audit = upgradeRun(directory);
 
+  // A column on a table a block owns changes `layout.ownColumns`. `ctx.has`
+  // reads the column list of each owned table a module asks about, and
+  // data-lifecycle asks about all of them, so this case re-renders more than
+  // the one module that owns the table (ADR 0591).
+  const addOwnedColumn = (column: string): void => {
+    writeFileSync(
+      app,
+      `${readFileSync(app, "utf-8")}\nalter table centrakit.teams add column ${column} text;\n`,
+    );
+  };
+
+  addOwnedColumn("bench_first");
+  const ownedColumn = upgradeRun(directory);
+
+  const check = (): number => {
+    const started = performance.now();
+
+    const result = spawnSync(
+      process.execPath,
+      [cli, "upgrade", "--check", "--cwd", directory, "--agent", "no"],
+      { encoding: "utf-8" },
+    );
+
+    // 1 means the check found pending changes, which is what a stale tree gives.
+    if (result.status !== 0 && result.status !== 1) {
+      throw new Error(`upgrade --check failed: ${result.stderr}`);
+    }
+
+    return Number(((performance.now() - started) / 1000).toFixed(2));
+  };
+
+  execFileSync(process.execPath, [cli, "cache", "purge", "--cwd", directory], {
+    stdio: "pipe",
+  });
+
+  const checkCold = check();
+  const checkWarm = check();
+  addOwnedColumn("bench_second");
+  const checkOwnedColumn = check();
+
   if (process.env["BENCH_KEEP"] !== "1") {
     rmSync(directory, { recursive: true, force: true });
   }
 
-  return { cold, warm, edit, audit };
+  return {
+    cold,
+    warm,
+    edit,
+    audit,
+    ownedColumn,
+    check: { cold: checkCold, warm: checkWarm, ownedColumn: checkOwnedColumn },
+  };
 }
 
 function checkUpgrade(
@@ -1031,7 +784,13 @@ function checkUpgrade(
 
   const speed = Math.max(1, calibration.ts6 / baseline.calibration.ts6);
 
-  for (const phase of ["cold", "warm", "edit", "audit"] as const) {
+  for (const phase of [
+    "cold",
+    "warm",
+    "edit",
+    "audit",
+    "ownedColumn",
+  ] as const) {
     const expected = before[phase].seconds * speed;
     const limit = Math.max(expected * TIME_FACTOR, expected + TIME_SLACK);
 
@@ -1052,57 +811,20 @@ function checkUpgrade(
       }
     }
   }
-}
 
-/**
- * A `defineConfig` call typed against a provider with a large key union: 300
- * keys, 40 subjects that name keys, 20 roles that list them and 5 blocks that
- * rename an action. The permission typing is the one change that can grow the
- * config's check time, so it has its own gate (ADR 0323).
- */
-function configProgram(): string {
-  const keys = Array.from(
-    { length: 300 },
-    (_, i) => `"res${String(i % 40)}.act${String(i)}"`,
-  );
+  const checkBefore = before.check;
 
-  const key = (i: number): string => keys[i % keys.length]!;
+  for (const phase of ["cold", "warm", "ownedColumn"] as const) {
+    const expected = checkBefore[phase] * speed;
+    const limit = Math.max(expected * TIME_FACTOR, expected + TIME_SLACK);
 
-  const roles = Array.from(
-    { length: 20 },
-    (_, r) =>
-      `      r${String(r)}: [${Array.from({ length: 15 }, (_, k) => key(r * 15 + k)).join(", ")}],`,
-  );
-
-  const subjects = Array.from(
-    { length: 40 },
-    (_, i) =>
-      `    s${String(i)}: { table: "public.s${String(i)}", permissions: { read: ${key(i)}, write: { key: ${key(i + 40)}, also: ${key(i + 80)} } } },`,
-  );
-
-  return `import type { AuthorizationProvider } from "better-supabase/config";
-
-import { defineConfig } from "better-supabase/config";
-
-type Key = ${keys.join(" | ")};
-
-declare const provider: AuthorizationProvider<Key>;
-
-export default defineConfig({
-  auth: { authorization: provider },
-  blocks: {
-    permissions: {
-      roles: {
-${roles.join("\n")}
-      },
-    },
-    tasks: { permissions: { read: ${key(1)} } },
-  },
-  recordTypes: {
-${subjects.join("\n")}
-  },
-});
-`;
+    if (now.check[phase] > limit) {
+      console.error(
+        `upgrade --check ${phase} grew from ${expected.toFixed(2)}s to ${now.check[phase].toFixed(2)}s (limit ${limit.toFixed(2)}s).`,
+      );
+      process.exitCode = 1;
+    }
+  }
 }
 
 function benchConfig(): Readonly<Record<Compiler, Measurement>> {
@@ -1166,7 +888,11 @@ function checkConfig(
 const upgradeNow = benchUpgrade();
 
 console.log(
-  `upgrade (centrakit): cold ${upgradeNow.cold.seconds.toFixed(2)}s (${String(upgradeNow.cold.rendered)} rendered, ${String(upgradeNow.cold.written)} written), warm ${upgradeNow.warm.seconds.toFixed(2)}s (${String(upgradeNow.warm.rendered)} rendered, ${String(upgradeNow.warm.written)} written), edit ${upgradeNow.edit.seconds.toFixed(2)}s (${String(upgradeNow.edit.rendered)} rendered, ${String(upgradeNow.edit.written)} written), audit ${upgradeNow.audit.seconds.toFixed(2)}s (${String(upgradeNow.audit.rendered)} rendered, ${String(upgradeNow.audit.written)} written)`,
+  `upgrade (centrakit): cold ${upgradeNow.cold.seconds.toFixed(2)}s (${String(upgradeNow.cold.rendered)} rendered, ${String(upgradeNow.cold.written)} written), warm ${upgradeNow.warm.seconds.toFixed(2)}s (${String(upgradeNow.warm.rendered)} rendered, ${String(upgradeNow.warm.written)} written), edit ${upgradeNow.edit.seconds.toFixed(2)}s (${String(upgradeNow.edit.rendered)} rendered, ${String(upgradeNow.edit.written)} written), audit ${upgradeNow.audit.seconds.toFixed(2)}s (${String(upgradeNow.audit.rendered)} rendered, ${String(upgradeNow.audit.written)} written), owned column ${upgradeNow.ownedColumn.seconds.toFixed(2)}s (${String(upgradeNow.ownedColumn.rendered)} rendered, ${String(upgradeNow.ownedColumn.written)} written)`,
+);
+
+console.log(
+  `upgrade --check (centrakit): cold ${upgradeNow.check.cold.toFixed(2)}s, warm ${upgradeNow.check.warm.toFixed(2)}s, owned column ${upgradeNow.check.ownedColumn.toFixed(2)}s`,
 );
 
 const configNow = benchConfig();
