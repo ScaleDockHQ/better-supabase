@@ -1189,7 +1189,7 @@ export interface BlockNameRegistry {
   readonly "imports": {
     readonly tables: {
       readonly "runs": "id" | "tenant" | "source" | "status" | "mapping" | "counts" | "errors" | "dryRun" | "full" | "inputChecksum" | "correlationId" | "mapperVersion" | "scopeAliases" | "plan" | "outcome" | "leaseUntil" | "heartbeatAt" | "createdBy" | "createdAt" | "startedAt" | "finishedAt";
-      readonly "records": "id" | "tenant" | "source" | "scope" | "entity" | "externalKey" | "role" | "subjectType" | "subjectId" | "contentHash" | "firstRun" | "lastRun" | "subjectUpdatedAt" | "ownedHash" | "missingSince";
+      readonly "records": "id" | "tenant" | "source" | "scope" | "entity" | "externalKey" | "role" | "subjectType" | "subjectId" | "contentHash" | "firstRun" | "lastRun" | "subjectUpdatedAt" | "sourceUpdatedAt" | "ownedHash" | "missingSince";
       readonly "chunks": "run" | "tenant" | "entity" | "chunk" | "items" | "status" | "result" | "claimedAt" | "doneAt" | "createdAt";
     };
     readonly functions: "begin_import_session" | "cancel_import_run" | "claim_import_chunk" | "complete_import_chunk" | "enqueue_import_chunks" | "export_import_hashes" | "finish_import" | "finish_import_run" | "get_import_run" | "heartbeat_import_run" | "import_apply_batch" | "import_chunk_progress" | "import_clear_issues" | "import_ensure_ref" | "import_entities" | "import_note_issue" | "import_note_warnings" | "import_resolve" | "import_upsert_batch" | "list_import_issues" | "list_import_runs" | "mark_import_running" | "process_import_chunk" | "reapply_import_records" | "rebase_import_records" | "resolve_import_conflict" | "start_import" | "start_import_run" | "store_import_chunk";

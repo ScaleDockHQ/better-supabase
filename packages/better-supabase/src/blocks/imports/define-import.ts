@@ -21,6 +21,8 @@ export interface ImportItem {
   readonly data: Readonly<Record<string, unknown>>;
   /** Keys of other imported records this one points at, by entity. */
   readonly refs?: Readonly<Record<string, string>>;
+  /** When the source last changed this row. An older time skips the write. */
+  readonly sourceUpdatedAt?: string;
 }
 
 /** The outcome counts of one batch or one entity of a run. */

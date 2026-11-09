@@ -115,6 +115,7 @@ const NAMES: BlockSqlNames = {
         firstRun: "first_run_id",
         lastRun: "last_run_id",
         subjectUpdatedAt: "subject_imported_updated_at",
+        sourceUpdatedAt: "source_updated_at",
         ownedHash: "owned_hash",
         missingSince: "went_missing_at",
       },
@@ -234,12 +235,14 @@ create table if not exists ${records} (
   ${x("firstRun")} uuid not null,
   ${x("lastRun")} uuid not null,
   ${x("subjectUpdatedAt")} timestamptz,
+  ${x("sourceUpdatedAt")} timestamptz,
   ${x("ownedHash")} text,
   ${x("missingSince")} timestamptz,
   constraint ${sqlIdent(`${recordsName}_key`)} unique ${unique}
 );
 create index if not exists ${sqlIdent(`${recordsName}_subject_idx`)} on ${records} (${x("tenant")}, ${x("subjectType")}, ${x("subjectId")});
 alter table ${records} add column if not exists ${x("ownedHash")} text;
+alter table ${records} add column if not exists ${x("sourceUpdatedAt")} timestamptz;
 ${lockTable(records, { read: true })}
 create table if not exists ${ctx.schema}.import_refs (
   "id" uuid primary key default gen_random_uuid(),
@@ -567,6 +570,7 @@ declare
   v_scope text;
   v_data jsonb;
   v_hash text;
+  v_source_at timestamptz;
   v_rec ${records};
   v_other text;
   v_found boolean;
@@ -624,17 +628,25 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
     end if;`
     }
 
-    -- jsonb text is key-ordered, so equal content hashes equally.
-    v_hash := ${sha256HexSql("v_data::text")};
-
     begin
       v_done := false;
       select * into v_rec from ${records} x
       where x.${x("tenant")} = v_run.${r("tenant")} and x.${x("source")} = v_run.${r("source")} and x.${x("scope")} = v_scope
         and x.${x("entity")} = v_entity and x.${x("externalKey")} = v_key and x.${x("role")} = 'primary';
       v_found := found;
+      v_source_at := nullif(v_item ->> 'sourceUpdatedAt', '')::timestamptz;
+      -- A source time that is not newer than the stored one skips the row
+      -- before the content is hashed.
+      if v_found and v_source_at is not null and v_rec.${x("sourceUpdatedAt")} is not null and v_source_at <= v_rec.${x("sourceUpdatedAt")} then
+        v_unchanged := v_unchanged + 1;
+        v_done := true;
+      else
+        v_hash := ${sha256HexSql("v_data::text")};
+      end if;
 
-      if not v_found then
+      if v_done then
+        null;
+      elsif not v_found then
         v_natural := null;
         ${naturalLookup}
         if v_natural is not null then
@@ -644,7 +656,9 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
         end if;
       end if;
 
-      if not v_found then
+      if v_done then
+        null;
+      elsif not v_found then
         -- A cloned administration reuses the subjects of the scope it aliases
         -- when the content is equal there.
         for v_other in

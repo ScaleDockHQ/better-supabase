@@ -426,7 +426,7 @@ may be your own enum or domain.
   - `better_supabase.support_requests`: `id`, `admin_id`, `target_user_id`, `reason`, `tenant_id`, `read_only`, `metadata`, `requested_at`, `expires_at`, `approved_by`, `approved_at`, `session_id`
 - `imports`
   - `better_supabase.import_runs`: `id`, `tenant_id`, `source`, `status`, `mapping`, `counts`, `errors`, `dry_run`, `full`, `input_checksum`, `correlation_id`, `mapper_version`, `scope_aliases`, `plan`, `outcome`, `lease_until`, `heartbeat_at`, `created_by`, `created_at`, `started_at`, `finished_at`; typed: `status`
-  - `better_supabase.import_records`: `id`, `tenant_id`, `source`, `scope`, `entity`, `external_key`, `role`, `subject_type`, `subject_id`, `content_hash`, `first_run_id`, `last_run_id`, `subject_imported_updated_at`, `owned_hash`, `went_missing_at`
+  - `better_supabase.import_records`: `id`, `tenant_id`, `source`, `scope`, `entity`, `external_key`, `role`, `subject_type`, `subject_id`, `content_hash`, `first_run_id`, `last_run_id`, `subject_imported_updated_at`, `source_updated_at`, `owned_hash`, `went_missing_at`
   - `better_supabase.import_chunks`: `run_id`, `tenant_id`, `entity`, `chunk`, `items`, `status`, `result`, `claimed_at`, `done_at`, `created_at`
 - `inbox`
   - `better_supabase.inboxes`: `id`, `tenant_id`, `name`, `channel`, `bot_mode`, `updated_at`; typed: `channel`, `bot_mode`

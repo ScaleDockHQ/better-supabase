@@ -7347,6 +7347,7 @@
       "appTableImport",
       "createImports",
       "defineImport",
+      "diffItems",
       "dryRun",
       "importChunkHandler",
       "importChunkSchema",
@@ -7357,6 +7358,7 @@
       "previewImport",
       "runImport",
       "runImportWorker",
+      "stableJson",
       "suggestMapping"
     ],
     "types": [
@@ -7364,6 +7366,8 @@
       "AppTableImportOptions",
       "AppTableImportRepository",
       "AppTableImportUpdate",
+      "DiffItem",
+      "DiffState",
       "DryRunResult",
       "ImportBatchCounts",
       "ImportBatchReply",
@@ -7389,6 +7393,7 @@
       "ImportsOptions",
       "ImportsSqlOptions",
       "ImportWorkerQueue",
+      "ItemDiff",
       "ListImportRunsOptions",
       "PreviewImportResult",
       "ResolvedImportKey",

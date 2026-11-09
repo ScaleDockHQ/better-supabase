@@ -60,6 +60,14 @@ export { importsSqlOptions, type ImportsSqlOptions } from "./options.ts";
 
 export { importsBlock } from "./manifest.ts";
 
+export {
+  diffItems,
+  stableJson,
+  type DiffItem,
+  type DiffState,
+  type ItemDiff,
+} from "./diff-items.ts";
+
 export { importsEvents } from "./events.ts";
 
 export type { ImportsEvents } from "./events.ts";
