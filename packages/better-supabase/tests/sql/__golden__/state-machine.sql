@@ -332,7 +332,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:fd9d250740166f83b228a1f5c7873994643edf681c5913f384afb6c83df15418
+-- @bsb-hash sha256:2759d8771ed0c7f2d66fae85f8ab002bdf318f5cf10ae7b8bb3dc2051d44a54e
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -452,8 +452,6 @@ begin
   return new;
 end;
 $$;
-create trigger bsb_transition_warranty_claim before insert or update of "status" on "better_supabase"."warranty_claims"
-for each row execute function better_supabase.bsb_transition_warranty_claim();
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor

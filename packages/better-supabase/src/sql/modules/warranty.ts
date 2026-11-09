@@ -19,6 +19,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { OPERATIONS } from "./permissions-model.ts";
+import { transitionTrigger } from "./state-machine.ts";
 import { WARRANTY_STATUSES } from "./warranty-values.ts";
 
 const CLAIM = ["organizationId", "id", "title", "assetId", "status"] as const;
@@ -465,7 +466,12 @@ function build(ctx: BlockSqlContext): string {
 -- Warranty claims: a supplier or manufacturer, an asset, a covered amount and
 -- a decision. Status moves draft, submitted, approved or denied, then closed.
 ${tables(ctx)}
-${functions(ctx)}`;
+${functions(ctx)}
+${transitionTrigger({
+  name: ctx.naming.rename("warranty_claim"),
+  table: `${ctx.tableName("claims").schema}.${ctx.tableName("claims").name}`,
+  column: ctx.colName("claims", "status"),
+})}`;
 }
 
 export const WARRANTY: BlockSqlDefinition = {

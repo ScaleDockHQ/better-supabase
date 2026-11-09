@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_161_warranty.sql
 -- better-supabase module: warranty
 -- @bsb-block warranty@1 managed
--- @bsb-hash sha256:6eaab79cad6c7bd8508537d769183caabf8e791d6ec4e00b163c5d0fb3e77f8b
+-- @bsb-hash sha256:ce594a3b5d7c78761a9e24f6ae64c5d80c84de6288bb2e22e1d93a711975d078
 -- Warranty claims for an asset: the supplier or manufacturer, the covered amount, a status, a decision and attachments on the claim.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -279,6 +279,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_warranty_claims"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_warranty_claims"(uuid, jsonb) to authenticated, service_role;
+create trigger bsb_transition_warranty_claim before insert or update of "status" on "better_supabase"."warranty_claims"
+for each row execute function better_supabase.bsb_transition_warranty_claim();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

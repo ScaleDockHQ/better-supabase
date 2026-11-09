@@ -5433,7 +5433,7 @@
   },
   {
     "code": "TEAM_MEMBER_INVALID",
-    "message": "user is not a member of the tenant"
+    "message": "pass either a user or an employee"
   },
   {
     "code": "TEAM_NOT_FOUND",

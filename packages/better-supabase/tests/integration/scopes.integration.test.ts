@@ -269,7 +269,11 @@ describe.skipIf(!live)("a workspace-named app", () => {
       "select table_name from information_schema.tables where table_schema = 'ws_it' and table_name like '%workspace%' order by 1",
     );
 
-    expect(tables.map((row) => row.table_name)).toEqual(["workspaces"]);
+    expect(tables.map((row) => row.table_name)).toEqual([
+      "workspace_payment_accounts",
+      "workspace_profiles",
+      "workspaces",
+    ]);
 
     const columns = await s.rows<{ table_name: string }>(
       "select table_name from information_schema.columns where table_schema = 'ws_it' and column_name = 'workspace_id' order by 1",

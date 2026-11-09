@@ -510,8 +510,7 @@
     "security-definer-functions": 66
   },
   "state-machine": {
-    "security-definer-functions": 1,
-    "row-triggers": 1
+    "security-definer-functions": 1
   },
   "streams": {
     "security-definer-functions": 6
@@ -564,7 +563,8 @@
     "security-definer-functions": 180
   },
   "warranty": {
-    "security-definer-functions": 24
+    "security-definer-functions": 24,
+    "row-triggers": 6
   },
   "webhooks-in": {
     "security-definer-functions": 50,

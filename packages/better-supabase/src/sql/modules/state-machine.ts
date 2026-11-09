@@ -428,7 +428,6 @@ function trigger(ctx: BlockSqlContext, item: Machine): string {
     )
     .join(" ");
 
-  const target = quotedTable(item.table);
   const tenant = `new.${sqlIdent(item.tenantColumn)}::text`;
   const subjectId = `new.${sqlIdent(item.idColumn)}::text`;
   const write = historyWrite(ctx, item);
@@ -514,7 +513,21 @@ ${declare}begin
   return new;
 end;
 $$;
-drop trigger if exists bsb_transition_${item.name} on ${target};
+${item.contributed === true ? "" : transitionTrigger(item)}`;
+}
+
+/**
+ * Attaches the transition trigger. A contributed machine does this after its
+ * table exists.
+ */
+export function transitionTrigger(item: {
+  readonly name: string;
+  readonly table: string;
+  readonly column: string;
+}): string {
+  const target = quotedTable(item.table);
+
+  return `drop trigger if exists bsb_transition_${item.name} on ${target};
 create trigger bsb_transition_${item.name} before insert or update of ${sqlIdent(item.column)} on ${target}
 for each row execute function better_supabase.bsb_transition_${item.name}();`;
 }
