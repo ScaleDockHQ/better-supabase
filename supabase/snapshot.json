@@ -166907,8 +166907,8 @@
         "schema": "better_supabase",
         "name": "bump_authz_versions",
         "language": "sql",
-        "definition": "\n  insert into better_supabase.user_authz_versions as v (user_id)\n  select distinct u from unnest(p_users) u where u is not null\n  on conflict (user_id) do update\n    set version = v.version + 1, updated_at = now()\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.bump_authz_versions(p_users uuid[])\n RETURNS void\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  insert into better_supabase.user_authz_versions as v (user_id)\n  select distinct u from unnest(p_users) u where u is not null\n  on conflict (user_id) do update\n    set version = v.version + 1, updated_at = now()\n$function$\n",
+        "definition": "\n  insert into better_supabase.user_authz_versions as v (user_id)\n  select distinct u from unnest(p_users) u\n  where u is not null and exists (select 1 from auth.users x where x.id = u)\n  on conflict (user_id) do update\n    set version = v.version + 1, updated_at = now()\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.bump_authz_versions(p_users uuid[])\n RETURNS void\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  insert into better_supabase.user_authz_versions as v (user_id)\n  select distinct u from unnest(p_users) u\n  where u is not null and exists (select 1 from auth.users x where x.id = u)\n  on conflict (user_id) do update\n    set version = v.version + 1, updated_at = now()\n$function$\n",
         "args": [
           {
             "mode": "in",
