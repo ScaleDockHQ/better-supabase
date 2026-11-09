@@ -1,0 +1,27 @@
+name: RLS plan cost
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Plan cost gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup
+        with:
+          cache: "false"
+
+      - name: Fail when a plan cost grows by more than 20 percent
+        working-directory: packages/better-supabase
+        run: pnpm exec vitest run --project unit tests/sql/rls-cost.test.ts
