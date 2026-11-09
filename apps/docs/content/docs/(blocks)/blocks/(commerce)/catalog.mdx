@@ -670,7 +670,7 @@ A rule leaves a group out to apply to every customer or every product. It can ca
 
 ### Importing groups and rules
 
-The catalog contributes `discount_group` and `discount_rule` import targets. A group takes `{ kind, code, name, parties? }`, where `parties` lists party ids to put in a customer group. A rule takes `customerGroup` and `productGroup` as group codes (or `customerGroupId` and `productGroupId`), `validFrom`, `validTo`, `minQuantity`, `discountBps`, `fixedPrice` and `currency`. Import the groups first.
+The catalog contributes `discount_group`, `discount_rule` and `party_discount_group` import targets. A group takes `{ kind, code, name, parties? }`, where `parties` lists party ids to put in a customer group. A rule takes `customerGroup` and `productGroup` as group codes (or `customerGroupId` and `productGroupId`), `validFrom`, `validTo`, `minQuantity`, `discountBps`, `fixedPrice` and `currency`. `party_discount_group` takes `{ party, groupId? }` or `{ party, groupCode? }`. An empty group removes the party. Import the groups first. Quote and invoice line setters pass the party id as text when `discountMatrix` is on.
 
 ## Locales and translations
 

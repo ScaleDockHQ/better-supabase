@@ -121,14 +121,15 @@ table: on the local fixture, 3,000 customers took 356 ms through `batch` and
 
 These blocks contribute targets:
 
-| Block           | Entity               | Writes                                                                                |
-| --------------- | -------------------- | ------------------------------------------------------------------------------------- |
-| `catalog`       | `supplier_item`      | A supplier's price list row, by supplier and code                                     |
-| `catalog`       | `product_identifier` | An EAN or a supplier or manufacturer code on a variant                                |
-| `catalog`       | `discount_group`     | A customer or product discount group, with the customers of a customer group          |
-| `catalog`       | `discount_rule`      | A rule of the discount matrix, by group codes                                         |
-| `inventory`     | `stock_count`        | An open stock count with its lines, by location                                       |
-| `custom-fields` | `field_value`        | A custom field value of a record the record map knows, checked against its field type |
+| Block           | Entity                 | Writes                                                                                |
+| --------------- | ---------------------- | ------------------------------------------------------------------------------------- |
+| `catalog`       | `supplier_item`        | A supplier's price list row, by supplier and code                                     |
+| `catalog`       | `product_identifier`   | An EAN or a supplier or manufacturer code on a variant                                |
+| `catalog`       | `discount_group`       | A customer or product discount group, with the customers of a customer group          |
+| `catalog`       | `party_discount_group` | One party in one customer discount group, or out of it when the group is empty        |
+| `catalog`       | `discount_rule`        | A rule of the discount matrix, by group codes                                         |
+| `inventory`     | `stock_count`          | An open stock count with its lines, by location                                       |
+| `custom-fields` | `field_value`          | A custom field value of a record the record map knows, checked against its field type |
 
 The [catalog page](/docs/blocks/catalog#importing-price-lists-and-codes) lists
 the `data` each one takes.
