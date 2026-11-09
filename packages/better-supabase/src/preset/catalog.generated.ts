@@ -4323,6 +4323,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "option-sets",
         "templates",
         "tags",
+        "catalog",
         "pipelines",
         "subjects"
       ],
@@ -4401,6 +4402,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "iteration": "iteration_id",
               "priority": "priority",
               "estimate": "estimate",
+              "estimatedMinutes": "estimated_minutes",
               "progress": "progress",
               "startAt": "start_at",
               "endAt": "end_at",

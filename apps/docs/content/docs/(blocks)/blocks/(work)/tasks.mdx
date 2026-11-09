@@ -265,6 +265,24 @@ await tasks.complete({ taskId, stageId: doneStageId }).orThrow();
 await tasks.reopen({ taskId, stageId: todoStageId }).orThrow();
 ```
 
+## Specification lines and materials
+
+A work item can carry ordered specification lines and material lines. A
+specification line has a description, a quantity, a unit and an estimate. A
+material line points at a [catalog](/docs/blocks/catalog) variant, with its
+quantity and unit. Both are ordered by `rank`. Map a table to `null` to leave
+it out, and map a column to rename it:
+
+```ts title="better-supabase.config.ts"
+tasks: {
+  tables: { specification: null },
+  columns: { items: { estimatedMinutes: "minutes" } },
+},
+```
+
+`estimated_minutes` is optional, the same way `estimate` is. Mapping it to
+`null` leaves the column out. It stores a whole number of minutes.
+
 ## Assign to yourself
 
 `tasks.assignToMe({ taskId, userId })` adds a user to the item's assignees and keeps the others, where

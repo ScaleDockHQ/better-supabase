@@ -5364,6 +5364,10 @@
     "message": "iteration not found"
   },
   {
+    "code": "TASK_LINE_INVALID",
+    "message": "input must be an object"
+  },
+  {
     "code": "TASK_LOCKED",
     "message": "the item is locked; its dates can"
   },

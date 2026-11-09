@@ -287,7 +287,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "add_subject_member can_subject can_subject_for end_subject_member list_subject_members my_subjects my_work record_summary subject_titles subject_types",
   tags: "create_tag delete_tag list_tags rank_tag subject_tags tag untag update_tag",
   tasks:
-    "archive_task archive_tasks clone_task create_task delete_task delete_task_checklist_item delete_tasks get_task list_task_checklist list_tasks save_iteration save_project save_task_checklist_item set_task_assignees task_tree update_tasks",
+    "archive_task archive_tasks clone_task create_task delete_task delete_task_checklist_item delete_tasks get_task list_task_checklist list_task_materials list_task_specification list_tasks save_iteration save_project save_task_checklist_item save_task_material_line save_task_specification_line set_task_assignees task_tree update_tasks",
   teams:
     "add_team_member archive_team create_team delete_team list_teams remove_team_member update_team",
   templates:

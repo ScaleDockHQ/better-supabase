@@ -2362,17 +2362,19 @@ export interface BlockNameRegistry {
   };
   readonly "tasks": {
     readonly tables: {
-      readonly "items": "id" | "tenant" | "number" | "identifier" | "title" | "body" | "parent" | "team" | "project" | "iteration" | "priority" | "estimate" | "progress" | "startAt" | "endAt" | "dueAt" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "closeReason" | "closedAt" | "locked" | "rank" | "archivedAt" | "template" | "sourceTemplate" | "recursFrom" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "items": "id" | "tenant" | "number" | "identifier" | "title" | "body" | "parent" | "team" | "project" | "iteration" | "priority" | "estimate" | "estimatedMinutes" | "progress" | "startAt" | "endAt" | "dueAt" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "closeReason" | "closedAt" | "locked" | "rank" | "archivedAt" | "template" | "sourceTemplate" | "recursFrom" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "specification": "id" | "tenant" | "item" | "description" | "quantity" | "unit" | "estimate" | "rank" | "createdAt";
+      readonly "materials": "id" | "tenant" | "item" | "variant" | "quantity" | "unit" | "rank" | "createdAt";
       readonly "checklist": "id" | "tenant" | "item" | "title" | "done" | "doneAt" | "doneBy" | "rank" | "createdBy" | "createdAt";
       readonly "assignees": "tenant" | "item" | "user" | "createdAt";
       readonly "projects": "id" | "tenant" | "key" | "name" | "owner" | "status" | "startOn" | "targetOn" | "budgetAmount" | "budgetCurrency" | "budgetHours" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "iterations": "id" | "tenant" | "team" | "name" | "startsOn" | "endsOn" | "createdAt";
     };
-    readonly functions: "archive_task" | "archive_tasks" | "clone_task" | "create_task" | "delete_task" | "delete_task_checklist_item" | "delete_tasks" | "get_task" | "list_task_checklist" | "list_tasks" | "save_iteration" | "save_project" | "save_task_checklist_item" | "set_task_assignees" | "task_tree" | "update_tasks";
+    readonly functions: "archive_task" | "archive_tasks" | "clone_task" | "create_task" | "delete_task" | "delete_task_checklist_item" | "delete_tasks" | "get_task" | "list_task_checklist" | "list_task_materials" | "list_task_specification" | "list_tasks" | "save_iteration" | "save_project" | "save_task_checklist_item" | "save_task_material_line" | "save_task_specification_line" | "set_task_assignees" | "task_tree" | "update_tasks";
     readonly actions: "read" | "write" | "manage" | "create" | "delete";
     readonly hooks: "before_task_create" | "after_task_create" | "before_task_update" | "after_task_update" | "before_task_clone" | "after_task_clone";
     readonly entities: {
-      readonly "task": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "template_id" | "source_template_id" | "recurs_from" | "created_by" | "created_at" | "updated_at";
+      readonly "task": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "estimated_minutes" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "template_id" | "source_template_id" | "recurs_from" | "created_by" | "created_at" | "updated_at";
       readonly "project": "id" | "tenant_id" | "key" | "name" | "owner_id" | "status" | "start_on" | "target_on" | "budget_amount" | "budget_currency" | "budget_hours" | "archived_at" | "created_at" | "updated_at";
       readonly "iteration": "id" | "tenant_id" | "team_id" | "name" | "starts_on" | "ends_on" | "created_at";
       readonly "checklist_item": "id" | "tenant_id" | "task_id" | "title" | "done" | "done_at" | "done_by" | "rank" | "created_by" | "created_at";

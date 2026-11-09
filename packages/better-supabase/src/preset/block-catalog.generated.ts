@@ -2595,6 +2595,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "option-sets",
         "templates",
         "tags",
+        "catalog",
         "pipelines",
         "subjects"
       ],
