@@ -250,6 +250,7 @@ const entries = [
   "verifiable-credentials/index",
   "better-result/index",
   "fhir/index",
+  "normalize/index",
   "blocks/inbox/index",
   "chat-sdk/index",
   "blocks/onboarding/index",

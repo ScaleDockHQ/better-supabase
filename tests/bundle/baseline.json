@@ -113,6 +113,7 @@
   "./e-invoicing": 32798,
   "./better-result": 7738,
   "./fhir": 35063,
+  "./normalize": 8000,
   "./blocks/inbox": 36398,
   "./chat-sdk": 41858,
   "./blocks/ai-chat": 41156,

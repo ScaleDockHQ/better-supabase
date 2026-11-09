@@ -37,6 +37,8 @@ describe("prelude", () => {
       "memo_get",
       "memo_set",
       "replace_equivalent_triggers",
+      "validate_iban",
+      "normalize_phone",
     ]) {
       expect(
         sql.match(

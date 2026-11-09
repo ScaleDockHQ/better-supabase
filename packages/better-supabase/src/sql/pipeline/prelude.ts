@@ -7,6 +7,7 @@ import { grantTable } from "../emit/grant.ts";
 import { createTable, enableRowSecurity } from "../emit/table.ts";
 import { MEMO_FUNCTIONS } from "../memo.ts";
 import { moduleContext } from "../module-context.ts";
+import { NORMALIZE_SQL } from "../normalize-sql.ts";
 import { EQUIVALENT_TRIGGERS } from "../shared.ts";
 import { subjectMergeDispatcher } from "../subject-merge-sql.ts";
 import { moduleHeader } from "./assemble.ts";
@@ -28,8 +29,10 @@ export const PRELUDE_FUNCTIONS: ReadonlySet<string> = new Set([
   "memo_set",
   "merge_subject_refs",
   "raise_actor_readonly",
+  "normalize_phone",
   "replace_equivalent_triggers",
   "try_column_type",
+  "validate_iban",
   "value_unsupported",
 ]);
 
@@ -105,6 +108,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;`,
     subjectMergeDispatcher(),
     MEMO_FUNCTIONS.trim(),
     EQUIVALENT_TRIGGERS.trim(),
+    NORMALIZE_SQL.trim(),
   ];
 
   if (!installed.includes("memberships")) {

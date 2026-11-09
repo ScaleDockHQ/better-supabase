@@ -609,6 +609,11 @@
       "types": "./dist/fhir/index.d.ts",
       "default": "./dist/fhir/index.js"
     },
+    "./normalize": {
+      "@better-supabase/source": "./src/normalize/index.ts",
+      "types": "./dist/normalize/index.d.ts",
+      "default": "./dist/normalize/index.js"
+    },
     "./blocks/inbox": {
       "@better-supabase/source": "./src/blocks/inbox/index.ts",
       "types": "./dist/blocks/inbox/index.d.ts",
@@ -1949,6 +1954,10 @@
       "./fhir": {
         "types": "./dist/fhir/index.d.ts",
         "default": "./dist/fhir/index.js"
+      },
+      "./normalize": {
+        "types": "./dist/normalize/index.d.ts",
+        "default": "./dist/normalize/index.js"
       },
       "./blocks/inbox": {
         "types": "./dist/blocks/inbox/index.d.ts",

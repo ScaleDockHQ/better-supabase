@@ -10,6 +10,7 @@
     "naming",
     "commerce",
     "fhir",
+    "normalize",
     "e-invoicing",
     "audit-files",
     "verifiable-credentials",
