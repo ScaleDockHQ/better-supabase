@@ -823,4 +823,17 @@ describe("app tables over the app's own tables", () => {
       /clientRows: \{\n {4}Row: \{[^}]*companyId: string \| null;[\s\S]*?Flags: \{[^}]*tenant: "companyId";/u,
     );
   });
+
+  it("leaves the tenant table unscoped when its record type's tenant is its id", async () => {
+    const input = await model(copyTable("tags", { name: "workspaces" }), {
+      auth: { tenant: { column: "organization_id" } },
+      recordTypes: { workspace: { table: "public.workspaces", tenant: "id" } },
+    });
+
+    const workspaces = input.tables.find(
+      (table) => table.key === "workspaces",
+    )!;
+
+    expect(workspaces.meta.flags.tenant).not.toBe("id");
+  });
 });

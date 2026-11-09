@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:d8d85cf960aad74ffac55e5254e892a9b5e3f7542c9e9169ea6f456ac2fcfef5
+-- @bsb-hash sha256:70367fe00d451b253358005a401b4d7233bd0e76403e3ae95d7f14d673574ea4
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,6 +129,7 @@ begin
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'organization' then (select s."id"::text from "public"."organizations" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)

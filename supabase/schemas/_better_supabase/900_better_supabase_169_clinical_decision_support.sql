@@ -1,6 +1,6 @@
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:9bf96448282d3da14b75a2189a338beff4579d7c8645dfe7438fd3cf38731c8c
+-- @bsb-hash sha256:bbf4485f9f231d9bcd1f73c48dfa75e784b481032d6f685a4535ce25c41928b9
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -253,6 +253,7 @@ begin
       when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."tenant_id"::text = evaluate_care_rules.tenant::text)
       when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."organization_id"::text = evaluate_care_rules.tenant::text)
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."tenant_id"::text = evaluate_care_rules.tenant::text)
+      when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."id"::text = evaluate_care_rules.tenant::text)
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."tenant_id"::text = evaluate_care_rules.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."organization_id"::text = evaluate_care_rules.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."organization_id"::text = evaluate_care_rules.tenant::text)
@@ -405,6 +406,7 @@ begin
       when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (record_care_alerts.subject_id)::uuid and s."tenant_id"::text = record_care_alerts.tenant::text)
       when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (record_care_alerts.subject_id)::uuid and s."organization_id"::text = record_care_alerts.tenant::text)
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (record_care_alerts.subject_id)::uuid and s."tenant_id"::text = record_care_alerts.tenant::text)
+      when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = (record_care_alerts.subject_id)::uuid and s."id"::text = record_care_alerts.tenant::text)
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (record_care_alerts.subject_id)::uuid and s."tenant_id"::text = record_care_alerts.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (record_care_alerts.subject_id)::uuid and s."organization_id"::text = record_care_alerts.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (record_care_alerts.subject_id)::uuid and s."organization_id"::text = record_care_alerts.tenant::text)
@@ -490,6 +492,7 @@ begin
       when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (care_decision_context.subject_id)::uuid and s."tenant_id"::text = care_decision_context.tenant::text)
       when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (care_decision_context.subject_id)::uuid and s."organization_id"::text = care_decision_context.tenant::text)
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (care_decision_context.subject_id)::uuid and s."tenant_id"::text = care_decision_context.tenant::text)
+      when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = (care_decision_context.subject_id)::uuid and s."id"::text = care_decision_context.tenant::text)
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (care_decision_context.subject_id)::uuid and s."tenant_id"::text = care_decision_context.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (care_decision_context.subject_id)::uuid and s."organization_id"::text = care_decision_context.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (care_decision_context.subject_id)::uuid and s."organization_id"::text = care_decision_context.tenant::text)

@@ -17,7 +17,8 @@ export interface SubjectConfig {
    * The tenant column. Defaults to `organization_id`, or
    * `<blocks.memberships.names.organization>_id` when the tenant is renamed.
    * `false` for a subject without a tenant, which modules that keep a tenant on
-   * every row skip.
+   * every row skip. The tenant table itself sets its id column, so each row is
+   * its own tenant.
    */
   readonly tenant?: string | false;
   /** The column `subject_title` returns. */

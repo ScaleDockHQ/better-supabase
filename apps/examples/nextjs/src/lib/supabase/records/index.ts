@@ -32,6 +32,7 @@ export { maintenancePlanRecord } from "./maintenance-plan.ts";
 export { meetingRecord } from "./meeting.ts";
 export { meetingDecisionRecord } from "./meeting-decision.ts";
 export { orderRecord } from "./order.ts";
+export { organizationRecord } from "./organization.ts";
 export { personRecord } from "./person.ts";
 export { postRecord } from "./post.ts";
 export { productRecord } from "./product.ts";

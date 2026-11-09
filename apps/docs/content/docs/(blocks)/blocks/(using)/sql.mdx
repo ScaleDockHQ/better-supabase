@@ -1474,7 +1474,7 @@ export default defineConfig({
 | `table`       | required          | The table, as `table` or `schema.table`                                                                                                                        |
 | `id`          | `id`              | The id column                                                                                                                                                  |
 | `idType`      | compared as text  | The id column's type (`uuid`, `bigint`), so lookups use its index                                                                                              |
-| `tenant`      | `organization_id` | The tenant column, or `false` for a subject without one                                                                                                        |
+| `tenant`      | `organization_id` | The tenant column, `false` for a subject without one, or the id column for the tenant table itself                                                             |
 | `title`       | none              | The column `subject_title` returns                                                                                                                             |
 | `url`         | none              | A path template whose `{column}` placeholders `subject_url` fills from the row                                                                                 |
 | `permissions` | none              | Action to permission key, or to `{ key, rows, owner, also, check }` (see below); `read` is the key modules check before they attach to the row                 |
@@ -1486,6 +1486,21 @@ export default defineConfig({
 | `readAccess`  | `tenant`          | `record` makes `custom-fields` show a value only to members who can read the record, through the `read` entry                                                  |
 | `team`        | none              | `{ actions }`: the actions a record team grants on each row ([Record teams](#record-teams))                                                                    |
 | `auditReads`  | `false`           | Log each read through the blocks' read functions in the audit log ([Record read log](#record-read-log))                                                        |
+
+The tenant table can be a record type too. Set `tenant` to its id column, so
+every row is its own tenant and a block keyed on the record writes the row
+into that organization only:
+
+```ts title="better-supabase.config.ts"
+recordTypes: {
+  organization: {
+    table: "public.organizations",
+    idType: "uuid",
+    tenant: "id",
+    title: "name",
+  },
+},
+```
 
 A block's `on` works three ways:
 

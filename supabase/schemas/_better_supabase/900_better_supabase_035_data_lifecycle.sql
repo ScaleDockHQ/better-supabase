@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:eb2431f8c47f41cd7e4d7ba3b58866624e51b5edd3aab717777647e89e4f91cf
+-- @bsb-hash sha256:77ae150dfc78ec4542b75adedc983c5e8e1ee9a835642f72b75b075f65023abd
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2003,6 +2003,12 @@ begin
       v_name := 'better_supabase.drive_nodes';
       v_reveal := 'drive_nodes_reveal';
       v_reveal_schema := 'better_supabase';
+    when 'organization' then
+      select to_jsonb(s.*), s."id" into v_record, v_tenant
+      from "public"."organizations" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'public.organizations';
+      v_reveal := 'organizations_reveal';
+      v_reveal_schema := 'public';
     when 'application' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
       from "better_supabase"."applications" s where s."id" = (request_subject_export.subject_id)::uuid;
