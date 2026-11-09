@@ -493,6 +493,12 @@ export function withoutImpliedUniqueIndexes(
   const unmarked = (text: string): string =>
     text.replaceAll(new RegExp(`${IMPLIED_UNIQUE_MARK}\\n?`, "g"), "");
 
+  // A module without app tables reads no index of the app's, so its render
+  // doesn't depend on them (ADR 0362).
+  if (appTables.size === 0) {
+    return sql;
+  }
+
   if (
     !sql.includes(IMPLIED_UNIQUE_MARK) &&
     Object.keys(ownIndexes).length === 0
