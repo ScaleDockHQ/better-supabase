@@ -225,6 +225,21 @@ export interface ImportTargetContribution {
    * it, a row changed after the last import is \`conflicted\` and left alone.
    */
   readonly updatedAt?: string;
+  /**
+   * When true, this target replaces a block contribution of the same entity
+   * instead of being refused as a duplicate.
+   */
+  readonly replaces?: boolean;
+  /**
+   * `(run uuid, item jsonb, subject_id text) returns jsonb`, merged into the
+   * item before `write`.
+   */
+  readonly before?: string;
+  /**
+   * `(run uuid, result jsonb, subject_id text) returns jsonb`, replacing the
+   * `write` result.
+   */
+  readonly after?: string;
 }
 
 /** A bulk action the contributing block runs on one row. */

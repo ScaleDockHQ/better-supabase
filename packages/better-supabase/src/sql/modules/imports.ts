@@ -5,11 +5,9 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
-import type { ImportTargetContribution } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { uniqueContributions } from "../contributions.ts";
 import {
   ensureCheck,
   fail,
@@ -30,13 +28,11 @@ import {
 } from "./imports-chunks.ts";
 import { HASH_CONTRACT, hashFunctions } from "./imports-hashes.ts";
 import { importLifecycleSql } from "./imports-lifecycle.ts";
+import { targetsOf } from "./imports-targets.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** The SQLSTATE a dry run raises to roll its writes back. */
 const DRY_RUN_STATE = "BSDRY";
-
-const FUNCTION_NAME: RegExp = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
-const ENTITY_NAME: RegExp = /^[a-z][a-z0-9_.:-]*$/i;
 
 const EVENTS: BlockSqlEvents<ImportsEvents> = {
   "import.completed": {
@@ -163,81 +159,6 @@ function auditModeOf(ctx: BlockSqlContext): "rows" | "summary" {
   return raw;
 }
 
-/**
- * Every target the module dispatches to: the contributions of the blocks that
- * use `imports`, then the app's own from `blocks.imports.options.targets`.
- */
-function targetsOf(ctx: BlockSqlContext): readonly ImportTargetContribution[] {
-  const where = "blocks['imports'].options.targets";
-  const raw: unknown = ctx.option("targets") ?? {};
-
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new TypeError(`${where} must map entity names to targets`);
-  }
-
-  const own: ImportTargetContribution[] = [];
-
-  for (const [entity, value] of new Map<string, unknown>(Object.entries(raw))) {
-    if (!ENTITY_NAME.test(entity)) {
-      throw new TypeError(`${where}: "${entity}" is not a valid entity name`);
-    }
-
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      throw new TypeError(
-        `${where}.${entity} must be { subjectType, write, updatedAt? }`,
-      );
-    }
-
-    const entry = new Map<string, unknown>(Object.entries(value));
-    const subjectType = entry.get("subjectType");
-    const write = entry.get("write");
-    const updatedAt = entry.get("updatedAt");
-    const batch = entry.get("batch");
-
-    if (typeof subjectType !== "string" || subjectType === "") {
-      throw new TypeError(`${where}.${entity}.subjectType must be a string`);
-    }
-
-    if (typeof write !== "string" || !FUNCTION_NAME.test(write)) {
-      throw new TypeError(
-        `${where}.${entity}.write must be a "schema.function" name in lowercase`,
-      );
-    }
-
-    if (
-      updatedAt !== undefined &&
-      (typeof updatedAt !== "string" || !FUNCTION_NAME.test(updatedAt))
-    ) {
-      throw new TypeError(
-        `${where}.${entity}.updatedAt must be a "schema.function" name in lowercase`,
-      );
-    }
-
-    if (
-      batch !== undefined &&
-      (typeof batch !== "string" || !FUNCTION_NAME.test(batch))
-    ) {
-      throw new TypeError(
-        `${where}.${entity}.batch must be a "schema.function" name in lowercase`,
-      );
-    }
-
-    own.push({
-      entity,
-      subjectType,
-      write,
-      ...(batch === undefined ? {} : { batch }),
-      ...(updatedAt === undefined ? {} : { updatedAt }),
-    });
-  }
-
-  return uniqueContributions(
-    "imports",
-    [...ctx.contributions("imports"), ...own],
-    (target) => target.entity,
-  );
-}
-
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -326,11 +247,21 @@ ${chunkTable(ctx, runs)}`
   const known = `array[${targets.map((target) => sqlString(target.entity)).join(", ")}]::text[]`;
 
   const writeArms = targets
-    .map(
-      (target) => `      when ${sqlString(target.entity)} then
+    .map((target) => {
+      const before =
+        target.before === undefined
+          ? ""
+          : `        v_call := coalesce(${quotedTable(target.before)}(v_run_id, v_call, v_subject_id), v_call);\n`;
+
+      const after =
+        target.after === undefined
+          ? ""
+          : `\n        v_out := coalesce(${quotedTable(target.after)}(v_run_id, v_out, v_subject_id), v_out);`;
+
+      return `      when ${sqlString(target.entity)} then
         v_subject_type := ${sqlString(target.subjectType)};
-        v_out := ${quotedTable(target.write)}(v_run_id, v_call, v_subject_id);`,
-    )
+${before}        v_out := ${quotedTable(target.write)}(v_run_id, v_call, v_subject_id);${after}`;
+    })
     .join("\n");
 
   const updatedArms = targets
