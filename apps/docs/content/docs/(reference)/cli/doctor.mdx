@@ -1765,8 +1765,9 @@ update. Use the statement-level form where a block offers one, such as
 
 **Warning: a search trigger on an import target has no import guard.** An import
 writes thousands of rows in one transaction. A search trigger whose function
-doesn't check `better_supabase.import_run() is not null` rebuilds the search
-entry after every row. Run `better-supabase upgrade` so the search module skips
+neither checks `better_supabase.import_run() is not null` nor calls
+`better_supabase.search_enqueue` (which defers the refresh to the end of the
+transaction) rebuilds the search entry after every row. Run `better-supabase upgrade` so the search module skips
 per-row refreshes while an import runs. Doctor reads the trigger function's
 source in the schema files, so a function it can't find is left alone, and the
 tables are the record types that `blocks.imports.options.targets` names.

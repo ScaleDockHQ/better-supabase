@@ -39,3 +39,7 @@ select ok(true, 'the fixture loads');
 select ok(true, 'the measurements ran');
 select * from finish();
 rollback;
+
+-- The statistics are not transactional; a doctor run after pgTAP would report this
+-- fixture's temporary files (BS208).
+select pg_stat_statements_reset() is not null as reset \gset

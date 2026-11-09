@@ -298,7 +298,7 @@ const SCALE_CHECKS: readonly Rule[] = [
     severity: "warning",
     title: "A search trigger on an import target has no import guard",
     description:
-      "An import writes thousands of rows in one transaction. A search trigger without the import guard (`better_supabase.import_run() is not null`) rebuilds the search entry after every row instead of once per batch. Run `better-supabase upgrade` so the search module skips per-row refreshes while an import runs. Doctor looks for the guard in the trigger function's source in the schema files, so a function it can't find is left alone.",
+      "An import writes thousands of rows in one transaction. A search trigger without the import guard (`better_supabase.import_run() is not null`, or the module's `search_enqueue`, which defers the refresh) rebuilds the search entry after every row instead of once per batch. Run `better-supabase upgrade` so the search module skips per-row refreshes while an import runs. Doctor looks for the guard in the trigger function's source in the schema files, so a function it can't find is left alone.",
     check(context) {
       const tables = importTables(context);
 
@@ -315,7 +315,12 @@ const SCALE_CHECKS: readonly Rule[] = [
               lastPart(trigger.function),
             );
 
-            if (source === undefined || /import_run\s*\(\s*\)/i.test(source)) {
+            // The search module's trigger function calls `search_enqueue`, which
+            // defers the refresh to the end of the transaction while an import runs.
+            if (
+              source === undefined ||
+              /import_run\s*\(\s*\)|search_enqueue"?\s*\(/i.test(source)
+            ) {
               return [];
             }
 

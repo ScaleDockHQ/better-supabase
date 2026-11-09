@@ -31,3 +31,7 @@ select is(:exact::bigint, current_setting('bsb.n')::bigint, 'the exact count see
 
 select * from finish();
 rollback;
+
+-- The statistics are not transactional; a doctor run after pgTAP would report this
+-- fixture's temporary files (BS208).
+select pg_stat_statements_reset() is not null as reset \gset

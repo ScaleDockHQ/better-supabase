@@ -259,6 +259,27 @@ $$;`;
     expect(await run({ ...context(snap), config }, "BS388")).toEqual([]);
   });
 
+  it("accepts a function that defers through search_enqueue", async () => {
+    const deferred = `create or replace function better_supabase.search_index_note()
+returns trigger language plpgsql as $$
+begin
+  perform "better_supabase"."search_enqueue"('note', new.id::text);
+  return null;
+end;
+$$;`;
+
+    expect(
+      await run(
+        {
+          ...context(snap),
+          config,
+          sqlFiles: [{ path: "a.sql", text: deferred }],
+        },
+        "BS388",
+      ),
+    ).toEqual([]);
+  });
+
   it("skips projects without the imports block", async () => {
     expect(
       await run(
