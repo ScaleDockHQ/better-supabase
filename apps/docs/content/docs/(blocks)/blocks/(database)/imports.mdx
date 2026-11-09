@@ -129,6 +129,7 @@ These blocks contribute targets:
 | `catalog`       | `party_discount_group` | One party in one customer discount group, or out of it when the group is empty        |
 | `catalog`       | `discount_rule`        | A rule of the discount matrix, by group codes                                         |
 | `inventory`     | `stock_count`          | An open stock count with its lines, by location                                       |
+| `invoices`      | `invoice_allocation`   | A link from an existing receipt to an invoice, with no new ledger entry               |
 | `custom-fields` | `field_value`          | A custom field value of a record the record map knows, checked against its field type |
 
 The [catalog page](/docs/blocks/catalog#importing-price-lists-and-codes) lists
@@ -266,7 +267,10 @@ line count is unchanged, the line title and tax. A different line count
 replaces the lines inside the import session. A void or paid document keeps
 its postings unless `data.repost` is true. `data.settlement` of `row` writes
 `paid`, `partially_paid` or `open` on the invoice without a payment or a
-ledger entry. `suppliedOn` fills `supplied_on`, and fills the issue date when
+ledger entry. That row mode is the fast path and does not link the invoice to
+a receipt. Link mode is the `invoice_allocation` target: it writes
+`invoice_allocations` with `source` `import` and moves the paid total, and it
+posts no ledger entry. Use it when the receipt is already on the ledger. `suppliedOn` fills `supplied_on`, and fills the issue date when
 `issuedOn` is empty. A blank title keeps the number template. A line with a
 product is `product`. A payment term code and a tax rate that matches one
 code are resolved when those blocks are installed. A negative total becomes a

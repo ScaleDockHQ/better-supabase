@@ -12,7 +12,12 @@ import type { InvoiceNames } from "./invoices-names.ts";
 import { bookSource, unbookSource } from "../accounting-sources-sql.ts";
 import { hasLegalEntityColumn } from "../numbering-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { fail, transitionActorSql, userGrant } from "../shared.ts";
+import {
+  fail,
+  serviceGrant,
+  transitionActorSql,
+  userGrant,
+} from "../shared.ts";
 import { approvalSql, approvalStatusSql } from "./invoices-approval.ts";
 import {
   creditCode,
@@ -85,8 +90,12 @@ export const ALLOCATIONS_TABLE: BlockSqlTableSpec = {
 };
 
 /** Whether open items and allocations can run on this invoices table. */
-function hasOpenItems(ctx: BlockSqlContext): boolean {
+export function openItemsEnabled(ctx: BlockSqlContext): boolean {
   return hasPartyCredit(ctx) && ctx.hasTable("allocations");
+}
+
+function hasOpenItems(ctx: BlockSqlContext): boolean {
+  return openItemsEnabled(ctx);
 }
 
 /** The allocations table, its indexes and its read policy. */
@@ -110,7 +119,7 @@ create table if not exists ${table} (
   ${a("reference")} text not null check (length(${a("reference")}) between 1 and 200),
   ${a("party")} text not null,
   ${a("invoice")} uuid not null references ${invoices} (${invoiceId}) on delete cascade,
-  ${a("source")} text not null default 'payment' check (${a("source")} in ('payment', 'credit')),
+  ${a("source")} text not null default 'payment' check (${a("source")} in ('payment', 'credit', 'import')),
   ${a("amount")} bigint not null check (${a("amount")} > 0),
   ${a("discount")} bigint not null default 0 check (${a("discount")} >= 0),
   -- The ledger transactions of the cash (or credit) and of the discount.
@@ -692,6 +701,81 @@ begin
 end;
 $$;
 ${userGrant(`${fn("unallocate_payment")}(${ctx.idType}, text, jsonb)`)}
+
+-- Links an existing ledger line, or an imported receipt, to an invoice.
+-- It writes the allocation and the paid total and posts nothing.
+create or replace function ${fn("allocate_existing")}(tenant ${ctx.idType}, invoice uuid, reference text, amount bigint, party text, allocated_on date default current_date, ledger_entry uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("invoices")};
+  v_reference text := nullif(btrim(allocate_existing.reference), '');
+  v_party text := nullif(btrim(allocate_existing.party), '');
+  v_id uuid;
+begin
+  if not ${allowed("allocate_existing.tenant", n.payment)} then
+    ${fail("INVOICE_FORBIDDEN", "not allowed to record payments in this organization", "42501")}
+  end if;
+  if v_reference is null or v_party is null or coalesce(allocate_existing.amount, 0) <= 0 then
+    ${fail("INVOICE_ALLOCATIONS_INVALID", "an imported allocation needs a reference, a party and a positive amount", "22023")}
+  end if;
+  select * into v_row from ${t("invoices")} x
+  where x.${i("id")} = allocate_existing.invoice and x.${i("tenant")} = allocate_existing.tenant
+  for update;
+  if v_row.${i("id")} is null then
+    ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
+  end if;
+  select b.${al("id")} into v_id from ${allocations} b
+  where b.${al("tenant")} = allocate_existing.tenant and b.${al("reference")} = v_reference and b.${al("invoice")} = v_row.${i("id")};
+  if v_id is not null then
+    return jsonb_build_object('id', v_id, 'invoiceId', v_row.${i("id")}, 'reference', v_reference, 'created', false);
+  end if;
+  insert into ${allocations} (${al("tenant")}, ${al("reference")}, ${al("party")}, ${al("invoice")}, ${al("source")}, ${al("amount")}, ${al("payment")}, ${al("allocatedOn")})
+  values (allocate_existing.tenant, v_reference, v_party, v_row.${i("id")}, 'import', allocate_existing.amount, allocate_existing.ledger_entry, coalesce(allocate_existing.allocated_on, current_date))
+  returning ${al("id")} into v_id;
+  update ${t("invoices")} x set
+    ${i("paidTotal")} = x.${i("paidTotal")} + allocate_existing.amount,
+    ${i("paidAt")} = coalesce(x.${i("paidAt")}, allocate_existing.allocated_on::timestamptz),
+    ${i("status")} = case
+      when x.${i("paidTotal")} + allocate_existing.amount >= x.${i("total")} then 'paid'
+      else 'partially_paid'
+    end
+  where x.${i("id")} = v_row.${i("id")};
+  return jsonb_build_object('id', v_id, 'invoiceId', v_row.${i("id")}, 'reference', v_reference, 'created', true);
+end;
+$$;
+${userGrant(`${fn("allocate_existing")}(${ctx.idType}, uuid, text, bigint, text, date, uuid)`)}
+
+-- The import target of an allocation that already exists on the ledger.
+-- item.data is { invoiceId, reference, amount, party, allocatedOn?, ledgerEntryId? }.
+create or replace function ${fn("import_allocation")}(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType} := (import_allocation.item ->> 'tenant')::${ctx.idType};
+  v_data jsonb := import_allocation.item -> 'data';
+  v_invoice uuid := coalesce(nullif(v_data ->> 'invoiceId', ''), nullif(import_allocation.item -> 'resolved' ->> 'invoice', ''), import_allocation.subject_id)::uuid;
+  v_result jsonb;
+begin
+  v_result := ${fn("allocate_existing")}(
+    v_tenant,
+    v_invoice,
+    coalesce(nullif(v_data ->> 'reference', ''), import_allocation.item ->> 'key'),
+    (v_data ->> 'amount')::bigint,
+    v_data ->> 'party',
+    nullif(v_data ->> 'allocatedOn', '')::date,
+    nullif(v_data ->> 'ledgerEntryId', '')::uuid
+  );
+  return jsonb_build_object('subjectId', v_result ->> 'id', 'updatedAt', now(), 'warnings', '[]'::jsonb);
+end;
+$$;
+${serviceGrant(`${fn("import_allocation")}(uuid, jsonb, text)`)}
 `;
 }
 
@@ -727,6 +811,16 @@ export function openItemContract(
     {
       name: "unallocate_payment",
       args: ["{id}", "text", "jsonb"],
+      returns: "jsonb",
+    },
+    {
+      name: "allocate_existing",
+      args: ["{id}", "uuid", "text", "bigint", "text", "date", "uuid"],
+      returns: "jsonb",
+    },
+    {
+      name: "import_allocation",
+      args: ["uuid", "jsonb", "text"],
       returns: "jsonb",
     },
   ];

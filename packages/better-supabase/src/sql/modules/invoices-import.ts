@@ -5,6 +5,7 @@ import type { InvoiceNames } from "./invoices-names.ts";
 import { sqlString } from "../../core/template.ts";
 import { hasLegalEntityColumn } from "../numbering-sql.ts";
 import { fail, serviceGrant } from "../shared.ts";
+import { openItemsEnabled } from "./invoices-open-items.ts";
 import { linked } from "./manufacturing-sql.ts";
 
 /** An import target names its functions as `schema.function`, without quotes. */
@@ -487,5 +488,15 @@ export function invoiceImportTargets(
       write: plain(own.fn("import_open_item")),
       updatedAt: plain(own.fn("invoice_updated_at")),
     },
+    ...(openItemsEnabled(own)
+      ? [
+          {
+            entity: "invoice_allocation",
+            subjectType: "invoice",
+            write: plain(own.fn("import_allocation")),
+            updatedAt: plain(own.fn("invoice_updated_at")),
+          },
+        ]
+      : []),
   ];
 }

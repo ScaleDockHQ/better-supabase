@@ -239,6 +239,19 @@ export interface InvoiceOpenItems<I> {
       readonly actor?: TransitionActor;
     },
   ): AsyncResult<number>;
+  /**
+   * Links an existing ledger line to an invoice. The paid total moves and no
+   * new ledger entry is posted.
+   */
+  allocateExisting(input: {
+    organizationId: string;
+    invoiceId: string;
+    reference: string;
+    amount: Money;
+    partyId: string;
+    allocatedOn?: Temporal.PlainDate;
+    ledgerEntryId?: string;
+  }): AsyncResult<{ id: string; created: boolean }>;
   /** The allocations of a payment reference or of one invoice. */
   allocations(
     input: { organizationId: string } & {
@@ -538,6 +551,24 @@ export function invoiceOpenItems<I>(
           ...(options.actor === undefined ? {} : { actor: options.actor }),
         },
         (value) => Number(recordOf(value, "unallocate_payment")["unallocated"]),
+      ),
+    allocateExisting: ({ organizationId, ...input }) =>
+      call(
+        "allocate_existing",
+        {
+          tenant: organizationId,
+          invoice: input.invoiceId,
+          reference: input.reference,
+          amount: amountText(input.amount),
+          party: input.partyId,
+          allocated_on: input.allocatedOn?.toString() ?? null,
+          ledger_entry: input.ledgerEntryId ?? null,
+        },
+        (value) => {
+          const row = recordOf(value, "allocate_existing");
+
+          return { id: textOf(row["id"]), created: row["created"] === true };
+        },
       ),
     allocations: ({ organizationId, ...options }) =>
       call(
