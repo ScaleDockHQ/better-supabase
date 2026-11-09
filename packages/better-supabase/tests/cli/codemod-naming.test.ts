@@ -242,6 +242,34 @@ describe("renameMigrationSql", () => {
   });
 });
 
+describe("column renames and the tenant column", () => {
+  const sql =
+    "create table t (organization_id uuid, locked_until timestamptz);";
+
+  it("renames job_schedules.locked_until", () => {
+    expect(renameMigrationSql(NAMING_RENAMES, sql)).toContain(
+      'alter table "better_supabase"."job_schedules" rename column "locked_until" to "lock_expires_at"',
+    );
+  });
+
+  it("skips the configured tenant column, and every column without a config", () => {
+    const loaded = renameMigrationSql(NAMING_RENAMES, sql, {
+      configLoaded: true,
+      tenantColumns: new Set(["organization_id"]),
+    });
+
+    expect(loaded).not.toContain('rename column "organization_id"');
+    expect(loaded).toContain('rename column "locked_until"');
+
+    expect(
+      renameMigrationSql(NAMING_RENAMES, sql, {
+        configLoaded: false,
+        tenantColumns: new Set(),
+      }) ?? "",
+    ).not.toContain("rename column");
+  });
+});
+
 describe("generated policy names", () => {
   const sql = `
 create policy tasks_read on "better_supabase"."tasks" for select to authenticated using (true);

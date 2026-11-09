@@ -700,6 +700,13 @@
       "table": "better_supabase.workflow_schedules"
     },
     {
+      "from": "locked_until",
+      "to": "lock_expires_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.job_schedules"
+    },
+    {
       "from": "scheduled_for",
       "to": "scheduled_at",
       "kind": "column",

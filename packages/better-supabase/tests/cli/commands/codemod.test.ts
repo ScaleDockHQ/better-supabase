@@ -18,6 +18,7 @@ import {
   runCodemod,
 } from "../../../src/cli/commands/codemod.ts";
 import { parseCommandArgs } from "../../../src/cli/core/command.ts";
+import { CliError } from "../../../src/cli/core/errors.ts";
 import { findSpec } from "../../../src/cli/core/manifest.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { usageError } from "../fixtures/usage.ts";
@@ -127,7 +128,7 @@ describe("runCodemod", () => {
     registry["with-sql"] = {
       name: "with-sql",
       description: "test",
-      migration: () => "select 1;\n",
+      migration: () => ({ sql: "select 1;\n" }),
     };
 
     try {
@@ -263,5 +264,74 @@ describe("codemod extra-columns", () => {
     );
 
     expect(done.output).toContain("Nothing to change");
+  });
+
+  it("keeps the configured tenant column out of the rename migration", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/schemas/010_app.sql"),
+      "create table app.notes (organization_id uuid, locked_until timestamptz);\n",
+    );
+
+    await runCodemod(
+      resolveConfig(
+        { database: { sql: { tenantColumn: "organization_id" } } },
+        root,
+      ),
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+    );
+
+    const names = await readdir(join(root, "supabase/migrations")).catch(
+      () => [],
+    );
+
+    const sql = await Promise.all(
+      names.map((name) =>
+        readFile(join(root, "supabase/migrations", name), "utf-8"),
+      ),
+    );
+
+    expect(sql.join("\n")).not.toContain('rename column "organization_id"');
+    expect(sql.join("\n")).toContain('rename column "locked_until"');
+  });
+
+  it("leaves the column renames out and says so when the config did not load", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/schemas/010_app.sql"),
+      "create table app.notes (organization_id uuid);\n",
+    );
+
+    const result = await runCodemod(
+      resolveConfig({}, root),
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+      undefined,
+      undefined,
+      new CliError("config_invalid", "bad config"),
+    );
+
+    expect(result.output).toContain("The config did not load");
+
+    const names = await readdir(join(root, "supabase/migrations")).catch(
+      () => [],
+    );
+
+    for (const name of names) {
+      expect(
+        await readFile(join(root, "supabase/migrations", name), "utf-8"),
+      ).not.toContain("rename column");
+    }
+  });
+
+  it("fails a project codemod with config_invalid when the config did not load", async () => {
+    await expect(
+      runCodemod(
+        resolveConfig({}, root),
+        parseCommandArgs(codemodCommand("owned-columns"), ["owned-columns"]),
+        undefined,
+        undefined,
+        new CliError("config_invalid", "bad config"),
+      ),
+    ).rejects.toMatchObject({ code: "config_invalid" });
   });
 });

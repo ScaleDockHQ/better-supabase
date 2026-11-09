@@ -6,7 +6,7 @@
  * migration of `alter ... rename` statements, so no data moves.
  */
 
-import type { Codemod } from "./codemod.ts";
+import type { Codemod, MigrationContext } from "./codemod.ts";
 
 import naming from "../../api/naming.json" with { type: "json" };
 import { bsbPolicyName, readPolicies } from "../sql/index.ts";
@@ -203,8 +203,20 @@ function dependentRenames(schema: string, from: string, to: string): string {
 export function renameMigrationSql(
   renames: readonly NamingRename[],
   projectSql?: string,
+  context?: MigrationContext,
 ): string | undefined {
   const statements = renames.flatMap((rename): string[] => {
+    // A column the config names as the tenant column keeps its name, and
+    // without the config nothing says which columns those are: renaming one
+    // makes the schema diff drop it and add an empty one.
+    if (
+      rename.kind === "column" &&
+      context !== undefined &&
+      (!context.configLoaded || context.tenantColumns.has(rename.from))
+    ) {
+      return [];
+    }
+
     switch (rename.kind) {
       case "table": {
         const { schema, name } = qualifiedOf(rename.from);
@@ -337,6 +349,20 @@ export function namingCodemod(
         review: keys.review,
       };
     },
-    migration: (sql) => renameMigrationSql(renames, sql),
+    migration: (sql, context) => {
+      const migration = renameMigrationSql(renames, sql, context);
+      const review: string[] = [];
+
+      if (
+        !context.configLoaded &&
+        renames.some((rename) => rename.kind === "column")
+      ) {
+        review.push(
+          "The config did not load, so the column renames were left out: a tenant column named in the config must keep its name. Fix the config and run `better-supabase codemod naming` again.",
+        );
+      }
+
+      return { ...(migration === undefined ? {} : { sql: migration }), review };
+    },
   };
 }

@@ -29,6 +29,17 @@ export interface CodemodProject {
   readonly configText?: string;
 }
 
+/** What a codemod's migration knows about the project's config. */
+export interface MigrationContext {
+  /** False when the config did not load, so the project's own names are unknown. */
+  readonly configLoaded: boolean;
+  /**
+   * The tenant column names the config sets: `sql.tenantColumn` and
+   * `columns.*.tenant`.
+   */
+  readonly tenantColumns: ReadonlySet<string>;
+}
+
 /** A rewrite of one source file, with the project's context already read. */
 export type FileRewrite = (
   path: string,
@@ -62,7 +73,10 @@ export interface Codemod {
    * `.sql` files, so a rename of an object the project never mentions writes
    * nothing.
    */
-  readonly migration?: (sql: string) => string | undefined;
+  readonly migration?: (
+    sql: string,
+    context: MigrationContext,
+  ) => { readonly sql?: string; readonly review?: readonly string[] };
   /**
    * Files to write that no per-file rewrite can express, such as SQL moved out
    * of the config. A path the rewrites above also touch is written once, with
