@@ -83,6 +83,10 @@ const NAMES: BlockSqlNames = {
         correlationId: "correlation_id",
         mapperVersion: "mapper_version",
         scopeAliases: "scope_aliases",
+        plan: "plan",
+        outcome: "outcome",
+        leaseUntil: "lease_until",
+        heartbeatAt: "heartbeat_at",
         createdBy: "created_by",
         createdAt: "created_at",
         startedAt: "started_at",
@@ -252,7 +256,7 @@ function build(ctx: BlockSqlContext): string {
   const unique = `(${x("tenant")}, ${x("source")}, ${x("scope")}, ${x("entity")}, ${x("externalKey")}, ${x("role")})`;
 
   const runJson = (alias: string): string =>
-    `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'source', ${alias}.${r("source")}, 'status', ${alias}.${r("status")}, 'mapping', ${alias}.${r("mapping")}, 'counts', ${alias}.${r("counts")}, 'errors', ${alias}.${r("errors")}, 'dryRun', ${alias}.${r("dryRun")}, 'full', ${alias}.${r("full")}, 'inputChecksum', ${alias}.${r("inputChecksum")}, 'correlationId', ${alias}.${r("correlationId")}, 'mapperVersion', ${alias}.${r("mapperVersion")}, 'scopeAliases', ${alias}.${r("scopeAliases")}, 'createdBy', ${alias}.${r("createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'startedAt', ${alias}.${r("startedAt")}, 'finishedAt', ${alias}.${r("finishedAt")})`;
+    `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'source', ${alias}.${r("source")}, 'status', ${alias}.${r("status")}, 'outcome', ${alias}.${r("outcome")}, 'plan', ${alias}.${r("plan")}, 'mapping', ${alias}.${r("mapping")}, 'counts', ${alias}.${r("counts")}, 'errors', ${alias}.${r("errors")}, 'dryRun', ${alias}.${r("dryRun")}, 'full', ${alias}.${r("full")}, 'inputChecksum', ${alias}.${r("inputChecksum")}, 'correlationId', ${alias}.${r("correlationId")}, 'mapperVersion', ${alias}.${r("mapperVersion")}, 'scopeAliases', ${alias}.${r("scopeAliases")}, 'leaseUntil', ${alias}.${r("leaseUntil")}, 'heartbeatAt', ${alias}.${r("heartbeatAt")}, 'createdBy', ${alias}.${r("createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'startedAt', ${alias}.${r("startedAt")}, 'finishedAt', ${alias}.${r("finishedAt")})`;
 
   const status = `${r("status")} in ('pending', 'running', 'completed', 'failed', 'canceled')`;
 
@@ -276,6 +280,10 @@ alter table ${runs} add column if not exists ${r("mapperVersion")} text;
 alter table ${runs} add column if not exists ${r("scopeAliases")} jsonb not null default '[]'::jsonb;
 alter table ${runs} add column if not exists ${r("startedAt")} timestamptz;
 alter table ${runs} add column if not exists ${r("finishedAt")} timestamptz;
+alter table ${runs} add column if not exists ${r("plan")} jsonb;
+alter table ${runs} add column if not exists ${r("outcome")} text;
+alter table ${runs} add column if not exists ${r("leaseUntil")} timestamptz;
+alter table ${runs} add column if not exists ${r("heartbeatAt")} timestamptz;
 alter table ${runs} drop constraint if exists ${sqlIdent(`${runsName}_status_check`)};
 ${ensureCheck(runs, `bsb_${runsName}_status`, status)}
 ${lockTable(runs, { read: true })}
@@ -393,7 +401,7 @@ begin
     ${fail("IMPORT_ITEM_INVALID", "scopeAliases must be an array of { scope, of, entities }", "22023")}
   end if;
   begin
-    insert into ${runs} as r (${r("tenant")}, ${r("source")}, ${r("mapping")}, ${r("dryRun")}, ${r("full")}, ${r("inputChecksum")}, ${r("correlationId")}, ${r("mapperVersion")}, ${r("scopeAliases")}, ${r("createdBy")})
+    insert into ${runs} as r (${r("tenant")}, ${r("source")}, ${r("mapping")}, ${r("dryRun")}, ${r("full")}, ${r("inputChecksum")}, ${r("correlationId")}, ${r("mapperVersion")}, ${r("scopeAliases")}, ${r("plan")}, ${r("leaseUntil")}, ${r("createdBy")})
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -404,6 +412,8 @@ begin
       v_options ->> 'correlationId',
       nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
+      v_options -> 'plan',
+      now() + interval '30 seconds',
       auth.uid()
     )
     returning r.${r("id")} into v_id;
@@ -856,6 +866,9 @@ declare
   v_missing integer;
   v_total integer := 0;
   v_counts jsonb;
+  v_outcome text := 'completed';
+  v_expected integer;
+  v_applied integer;
 begin
   select * into v_run from ${runs} r where r.${r("id")} = v_run_id for update;
   if not found then
@@ -882,7 +895,23 @@ begin
     end loop;
   end if;
 
-  update ${runs} r set ${r("status")} = ${ctx.cast("runs", "status", "'completed'")}, ${r("finishedAt")} = now(), ${r("counts")} = v_counts
+  if v_run.${r("plan")} is not null and jsonb_typeof(v_run.${r("plan")}) = 'object' then
+    for v_entity in select k.key from jsonb_object_keys(v_run.${r("plan")}) k(key) loop
+      v_expected := coalesce((v_run.${r("plan")} ->> v_entity)::integer, 0);
+      v_applied := coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0)
+        + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0)
+        + coalesce((v_counts -> v_entity ->> 'unchanged')::integer, 0);
+      if v_applied < v_expected then
+        v_outcome := 'incomplete';
+        v_counts := jsonb_set(coalesce(v_counts, '{}'::jsonb), array[v_entity, 'missing'], to_jsonb(v_expected - v_applied), true);
+      end if;
+    end loop;
+  end if;
+  if v_outcome = 'completed' and (jsonb_array_length(coalesce(v_run.${r("errors")}, '[]'::jsonb)) > 0 or v_counts::text like '%"conflicted":%') then
+    v_outcome := 'completed_with_issues';
+  end if;
+
+  update ${runs} r set ${r("status")} = ${ctx.cast("runs", "status", "'completed'")}, ${r("outcome")} = v_outcome, ${r("finishedAt")} = now(), ${r("counts")} = v_counts
   where r.${r("id")} = v_run_id;
 
   if not v_run.${r("dryRun")} then
@@ -930,6 +959,29 @@ begin
 end;
 $$;
 ${serviceGrant(`${ctx.fn("finish_import_run")}(uuid)`)}
+
+create or replace function ${ctx.fn("heartbeat_import_run")}(run uuid, seconds integer default 30)
+returns timestamptz
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_until timestamptz;
+begin
+  if not (auth.role() = 'service_role') then
+    ${fail("IMPORT_FORBIDDEN", "only the service role can heartbeat an import")}
+  end if;
+  update ${runs} r set ${r("heartbeatAt")} = now(), ${r("leaseUntil")} = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
+  where r.${r("id")} = heartbeat_import_run.run and r.${r("status")} = 'running'
+  returning r.${r("leaseUntil")} into v_until;
+  if v_until is null then
+    ${fail("IMPORT_RUN_NOT_RUNNING", "the import is not running", "55000")}
+  end if;
+  return v_until;
+end;
+$$;
+${serviceGrant(`${ctx.fn("heartbeat_import_run")}(uuid, integer)`)}
 
 -- Queues one job per chunk of an entity's items, so a worker writes a large
 -- import in batches; the dedupe key makes a retry harmless.
@@ -994,6 +1046,11 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "finish_import_run", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "heartbeat_import_run",
+      args: ["uuid", "integer"],
+      returns: "timestamptz",
+    },
     {
       name: "enqueue_import_chunks",
       args: ["uuid", "text", "integer"],

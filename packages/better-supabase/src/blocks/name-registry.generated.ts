@@ -305,7 +305,7 @@ export interface BlockNameRegistry {
       readonly "assignments": "id" | "tenant" | "asset" | "assigneeType" | "assigneeId" | "note" | "assignedBy" | "assignedAt" | "releasedAt";
       readonly "depreciations": "id" | "tenant" | "asset" | "periodStart" | "amount" | "entry" | "createdAt";
     };
-    readonly functions: "archive_asset_location" | "asset_assignment_history" | "asset_depreciate" | "asset_location_check_parent" | "asset_locations_at" | "assets_near" | "assign_asset" | "create_asset" | "create_asset_location" | "dispose_asset" | "get_asset" | "get_asset_location" | "list_asset_depreciations" | "list_asset_locations" | "list_assets" | "release_asset" | "run_asset_depreciation" | "set_asset_link" | "update_asset" | "update_asset_location";
+    readonly functions: "archive_asset_location" | "asset_assignment_history" | "asset_depreciate" | "asset_location_check_parent" | "asset_locations_at" | "assets_near" | "assign_asset" | "create_asset" | "create_asset_location" | "dispose_asset" | "get_asset" | "get_asset_location" | "guard_asset_meter_reading" | "import_meter_reading" | "list_asset_depreciations" | "list_asset_locations" | "list_assets" | "release_asset" | "run_asset_depreciation" | "set_asset_link" | "update_asset" | "update_asset_location";
     readonly actions: "read" | "manage" | "assign";
     readonly hooks: "before_asset_assign" | "after_asset_assign";
     readonly entities: {
@@ -1185,11 +1185,11 @@ export interface BlockNameRegistry {
   };
   readonly "imports": {
     readonly tables: {
-      readonly "runs": "id" | "tenant" | "source" | "status" | "mapping" | "counts" | "errors" | "dryRun" | "full" | "inputChecksum" | "correlationId" | "mapperVersion" | "scopeAliases" | "createdBy" | "createdAt" | "startedAt" | "finishedAt";
+      readonly "runs": "id" | "tenant" | "source" | "status" | "mapping" | "counts" | "errors" | "dryRun" | "full" | "inputChecksum" | "correlationId" | "mapperVersion" | "scopeAliases" | "plan" | "outcome" | "leaseUntil" | "heartbeatAt" | "createdBy" | "createdAt" | "startedAt" | "finishedAt";
       readonly "records": "id" | "tenant" | "source" | "scope" | "entity" | "externalKey" | "role" | "subjectType" | "subjectId" | "contentHash" | "firstRun" | "lastRun" | "subjectUpdatedAt" | "missingSince";
       readonly "chunks": "run" | "tenant" | "entity" | "chunk" | "items" | "status" | "result" | "claimedAt" | "doneAt" | "createdAt";
     };
-    readonly functions: "begin_import_session" | "cancel_import_run" | "claim_import_chunk" | "complete_import_chunk" | "enqueue_import_chunks" | "export_import_hashes" | "finish_import" | "finish_import_run" | "get_import_run" | "import_apply_batch" | "import_chunk_progress" | "import_resolve" | "import_upsert_batch" | "list_import_runs" | "mark_import_running" | "process_import_chunk" | "reapply_import_records" | "start_import" | "start_import_run" | "store_import_chunk";
+    readonly functions: "begin_import_session" | "cancel_import_run" | "claim_import_chunk" | "complete_import_chunk" | "enqueue_import_chunks" | "export_import_hashes" | "finish_import" | "finish_import_run" | "get_import_run" | "heartbeat_import_run" | "import_apply_batch" | "import_chunk_progress" | "import_resolve" | "import_upsert_batch" | "list_import_runs" | "mark_import_running" | "process_import_chunk" | "reapply_import_records" | "start_import" | "start_import_run" | "store_import_chunk";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};

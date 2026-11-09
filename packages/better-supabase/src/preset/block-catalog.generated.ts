@@ -3163,7 +3163,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "bookings",
         "tasks",
         "outbox",
-        "audit"
+        "audit",
+        "imports"
       ],
       "modes": [
         "managed",

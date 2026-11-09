@@ -5545,14 +5545,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "bookings",
         "tasks",
         "outbox",
-        "audit"
+        "audit",
+        "imports"
       ],
       "manifest": "assets",
       "scopes": [
         "tenant"
       ],
       "contributes": [
-        "accounting"
+        "accounting",
+        "imports"
       ],
       "entities": {
         "specs": {

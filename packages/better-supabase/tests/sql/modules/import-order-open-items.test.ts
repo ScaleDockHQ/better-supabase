@@ -13,6 +13,8 @@ describe("import order and open items today", () => {
 
     expect(sql).toContain("e.value #>> '{data,orderBy}'");
     expect(sql).toContain("e.value #>> '{data,readAt}'");
+    expect(sql).toContain("heartbeat_import_run");
+    expect(sql).toContain("'incomplete'");
   });
 
   it("reads stored invoice balances when as_of is today", () => {
