@@ -1,3 +1,4 @@
+import { currentBlockName } from "./former-block-names.ts";
 import { sha256Hex } from "./sha256.ts";
 
 /**
@@ -25,8 +26,10 @@ export function moduleFileVersion(
 
   return match
     ? {
-        module: match[1]!,
-        ...(match[4] === undefined ? {} : { block: match[4] }),
+        module: currentBlockName(match[1]!),
+        ...(match[4] === undefined
+          ? {}
+          : { block: currentBlockName(match[4]) }),
         version: Number(match[2]),
       }
     : undefined;
