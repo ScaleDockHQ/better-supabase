@@ -9,6 +9,7 @@
 import type { Codemod, MigrationContext } from "./codemod.ts";
 
 import naming from "../../api/naming.json" with { type: "json" };
+import { FORMER_PERMISSION_KEYS } from "../config/former-permission-keys.ts";
 import { bsbPolicyName, readPolicies } from "../sql/index.ts";
 import { renameConfigKeys } from "./codemod-config-keys.ts";
 
@@ -45,6 +46,21 @@ export interface NamingRename {
 // SAFETY: `kind` in naming.json is one of `RenameKind`, which the naming test checks.
 export const NAMING_RENAMES: readonly NamingRename[] =
   naming.renames as readonly NamingRename[];
+
+/** `blocks.<name>.permissions.<old>` keys, as `configKey` rows. */
+const FORMER_PERMISSION_RENAMES: readonly NamingRename[] = Object.entries(
+  FORMER_PERMISSION_KEYS,
+).map(([key, action]) => {
+  // SAFETY: every key of FORMER_PERMISSION_KEYS is `<block>.<action>`.
+  const [block, old] = key.split(".") as [string, string];
+
+  return {
+    from: `blocks.${block}.permissions.${old}`,
+    to: `blocks.${block}.permissions.${action}`,
+    kind: "configKey",
+    since: "0.48",
+  };
+});
 
 const IDENTIFIER_KINDS: ReadonlySet<RenameKind> = new Set(["function", "type"]);
 
@@ -342,7 +358,10 @@ export function namingCodemod(
     imports: mapOf(renames, (kind) => IDENTIFIER_KINDS.has(kind)),
     subpaths: mapOf(renames, (kind) => kind === "subpath"),
     source: (text) => {
-      const keys = renameConfigKeys(text, renames);
+      const keys = renameConfigKeys(text, [
+        ...renames,
+        ...FORMER_PERMISSION_RENAMES,
+      ]);
 
       return {
         text: renameQuotedNames(renameEnvNames(keys.text, renames), renames),

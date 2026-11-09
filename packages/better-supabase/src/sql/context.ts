@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the former permission key check adds two lines past the limit. 1 finding. */
 import type {
   BlockMode,
   AnyBlocksConfig,
@@ -21,6 +22,7 @@ import type { BlockSqlValueMethods } from "./value-maps.ts";
 
 import { optionSchemaOf } from "../blocks/options-registry.ts";
 import { resolveBlock } from "../config/blocks.ts";
+import { checkFormerPermissionKeys } from "../config/former-permission-keys.ts";
 import { instancePrefix } from "../config/instances.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { composeNames } from "../core/entity-naming.ts";
@@ -750,6 +752,7 @@ export function createModuleContext(
     checkIdent(`${where}.hooks.functions.${hook}`, parts.name);
   }
 
+  checkFormerPermissionKeys(where, module, config.permissions);
   const declared = new Set(names.options);
 
   for (const key of Object.keys(config.options)) {
