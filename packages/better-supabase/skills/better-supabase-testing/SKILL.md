@@ -128,3 +128,7 @@ its lease and heartbeat into the past. `tests.bulk_touch_subjects(entity, n)`
 moves the stored import stamp of n records into the past.
 `tests.assert_override_dispatches_all(signature)` fails when the function is
 missing a `when` arm for an entity `import_entities()` returns.
+`testImportTarget({ entity, fixture })` from `better-supabase/testing` builds
+the pgTAP shape for a target: the first import inserts, the second is
+unchanged, a changed hash updates, a user edit conflicts, a dry run leaves no
+subject rows, import mode suppresses events, and the target returns updatedAt.
