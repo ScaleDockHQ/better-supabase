@@ -855,7 +855,12 @@ export type Database = {
       }
       island_counts: { Args: { args: Json }; Returns: Json }
       my_organizations: {
-        Args: Record<PropertyKey, never>
+        Args: {
+          after_id?: string
+          after_last_used_at?: string
+          after_name?: string
+          page_size?: number
+        }
         Returns: {
           id: string
           last_used_at: string
