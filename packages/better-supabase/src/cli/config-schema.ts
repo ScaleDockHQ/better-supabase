@@ -121,6 +121,21 @@ const blockEntries = {
   owner: v.optional(v.picklist(["tenant", "user", "none"])),
   ownTablePolicies: v.optional(v.picklist(["block", "app"])),
   tenantScope: v.optional(blockSchemas.tenantScopeSchema),
+  indexes: v.optional(
+    v.strictObject({
+      skip: v.optional(
+        v.array(
+          v.pipe(
+            v.string(),
+            v.regex(
+              /^[a-z_][a-z0-9_]*$/,
+              "an index name is lowercase letters, digits and underscores",
+            ),
+          ),
+        ),
+      ),
+    }),
+  ),
   functions: v.optional(stringRecord),
   permissions: v.optional(stringRecord),
   names: v.optional(

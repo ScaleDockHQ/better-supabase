@@ -508,6 +508,14 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "This block's tenant scope policies. Defaults to database.sql.tenantScope.",
   },
+  "$defs.moduleConfig.indexes": {
+    description:
+      "Index names this block should not create, when one of your indexes already covers them. skip lists create index names, such as invoices_tenant_status_idx. A name the module does not create is an error.",
+  },
+  "$defs.permissionsBlock.indexes": {
+    description:
+      "Index names this block should not create, when one of your indexes already covers them. skip lists create index names, such as invoices_tenant_status_idx. A name the module does not create is an error.",
+  },
   "$defs.moduleConfig.functions": {
     description:
       "Function name to the name the block writes it under, such as create_organization to start_company.",
