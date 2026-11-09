@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:b6b34166f12420b60af6e3ebeae157b738a3fef95906678da9f6d52ae805ad07
+-- @bsb-hash sha256:c564c6ad292b1404ddf31456e67b21dd2587ede05b6e94d1e5bf099d6a552ccb
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2607,7 +2607,7 @@ begin
   return null;
 end;
 $$;
-create trigger invoice_open_items_refresh
+create trigger "bsb_invoice_open_items_refresh"
 after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
 on "better_supabase"."invoices"
 for each row execute function "better_supabase"."refresh_open_item"();
@@ -2730,9 +2730,11 @@ begin
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
             'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
               when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end) as item,
+              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "better_supabase"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "better_supabase"."invoice_open_items" e
+        left join "better_supabase"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."tenant_id" = open_items_for_party.tenant
           and e."balance" <> 0
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)

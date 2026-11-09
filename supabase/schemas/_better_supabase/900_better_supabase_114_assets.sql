@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:7b8cc03b7a8aeb97030255faaba003a1d70a3b1d6184d4906d510a371b772735
+-- @bsb-hash sha256:e33ef1d9d69bcf45af6e6ae2019865ab59a533f68b692da6544c2b6f5baa3447
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -911,6 +911,9 @@ create table "better_supabase".asset_meter_readings (
 create index asset_meter_readings_asset_idx on "better_supabase".asset_meter_readings ("asset_id");
 create index asset_meter_readings_series_idx
   on "better_supabase".asset_meter_readings ("tenant_id", "asset_id", "unit", "read_at");
+alter table "better_supabase".asset_meter_readings enable row level security;
+revoke all on "better_supabase".asset_meter_readings from public, anon, authenticated;
+grant all on "better_supabase".asset_meter_readings to service_role;
 
 create or replace function "better_supabase"."guard_asset_meter_reading"()
 returns trigger
@@ -1311,6 +1314,9 @@ create table "better_supabase".asset_identifiers (
   "updated_at" timestamptz not null default now()
 );
 create index asset_identifiers_asset_idx on "better_supabase".asset_identifiers ("asset_id");
+alter table "better_supabase".asset_identifiers enable row level security;
+revoke all on "better_supabase".asset_identifiers from public, anon, authenticated;
+grant all on "better_supabase".asset_identifiers to service_role;
 create unique index asset_identifiers_key on "better_supabase".asset_identifiers ("tenant_id", "type", "value");
 
 create or replace function "better_supabase"."import_asset"(run uuid, item jsonb, subject_id text)

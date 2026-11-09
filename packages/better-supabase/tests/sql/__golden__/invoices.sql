@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:46dc482f73822499b546f6638276d78ec879701c7951fc2e9244eb80cf462434
+-- @bsb-hash sha256:aef7d828a9dac2204cdf2d29eda4637981b49c47e4f80ede0017b1e6172a86e8
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2607,7 +2607,7 @@ begin
   return null;
 end;
 $$;
-create trigger invoice_open_items_refresh
+create trigger "bsb_invoice_open_items_refresh"
 after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
 on "better_supabase"."invoices"
 for each row execute function "better_supabase"."refresh_open_item"();
@@ -2730,9 +2730,11 @@ begin
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
             'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
               when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end) as item,
+              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "better_supabase"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "better_supabase"."invoice_open_items" e
+        left join "better_supabase"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."tenant_id" = open_items_for_party.tenant
           and e."balance" <> 0
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)
@@ -3991,7 +3993,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:6ef9f9043bd2b47802a0d9916cbb66667c9931fbce394a744b42b341f1bfd35d
+-- @bsb-hash sha256:78f2d706930e12dea30c358261bf5b476d9c7969fcbfe20d8f9e21f077faf999
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6983,7 +6985,7 @@ begin
   return null;
 end;
 $$;
-create trigger invoice_open_items_refresh
+create trigger "bsb_invoice_open_items_refresh"
 after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
 on "better_supabase"."invoices"
 for each row execute function "better_supabase"."refresh_open_item"();
@@ -7106,9 +7108,11 @@ begin
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
             'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
               when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end) as item,
+              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "better_supabase"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "better_supabase"."invoice_open_items" e
+        left join "better_supabase"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."tenant_id" = open_items_for_party.tenant
           and e."balance" <> 0
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)
@@ -8416,11 +8420,10 @@ begin
     where x."id" = v_id;
   end if;
   update "better_supabase"."invoice_lines" l set "tax_code" = (
-    select c."code" from "better_supabase"."tax_codes" c
+    select min(c."code") from "better_supabase"."tax_codes" c
     join "better_supabase"."tax_rates" r on r."tax_code_id" = c."id"
     where c."tenant_id" = v_tenant and r."rate_bps" = l."tax_rate_bps"
-    group by c."code"
-    having count(*) = 1
+    having count(distinct c."id") = 1
   )
   where l."parent_id" = v_id and l."tax_code" is null;
   if exists (
@@ -8994,7 +8997,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:885981fa48d2306c84cd7ea990127b3ea9404482533bc51a89a1336b28bfafac
+-- @bsb-hash sha256:d8091cbc4116115bf5db6657ed7231c91e16e4e2ebcf9cc04a60ec21177e3fad
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11605,7 +11608,7 @@ begin
   return null;
 end;
 $$;
-create trigger invoice_open_items_refresh
+create trigger "bsb_invoice_open_items_refresh"
 after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
 on "app_private"."invoices"
 for each row execute function "app_private"."refresh_open_item"();
@@ -11728,9 +11731,11 @@ begin
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
             'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
               when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end) as item,
+              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "app_private"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "app_private"."invoice_open_items" e
+        left join "app_private"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."tenant_id" = open_items_for_party.tenant
           and e."balance" <> 0
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)
@@ -12989,7 +12994,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:19c977ddd8c19925fc8ba1a23aef9ad50ae03022e02292ebd9663d6a9b1081a4
+-- @bsb-hash sha256:44dd65f1e5528e4fb25cf8e34720eb1ad97c02b031265fa2854b661b868fe949
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15595,7 +15600,7 @@ begin
   return null;
 end;
 $$;
-create trigger invoice_open_items_refresh
+create trigger "bsb_invoice_open_items_refresh"
 after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
 on "better_supabase"."invoices"
 for each row execute function "better_supabase"."refresh_open_item"();
@@ -15718,9 +15723,11 @@ begin
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
             'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
               when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end) as item,
+              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "better_supabase"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "better_supabase"."invoice_open_items" e
+        left join "better_supabase"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."tenant_id" = open_items_for_party.tenant
           and e."balance" <> 0
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)
@@ -17498,7 +17505,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:609e147e9cf95e1fc1b79726da5c60355816269a619afedd0dfdb76ad03976df
+-- @bsb-hash sha256:a79a4533b73a10d6c345bfc1456df7610bed13de412c9b6e1e1ffe31322e95a5
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20068,7 +20075,7 @@ begin
   return null;
 end;
 $$;
-create trigger bsb_invoice_open_items_refresh
+create trigger "bsb_invoice_open_items_refresh"
 after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
 on "better_supabase"."invoices"
 for each row execute function "better_supabase"."refresh_open_item"();
@@ -20191,9 +20198,11 @@ begin
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
             'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
               when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end) as item,
+              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "better_supabase"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "better_supabase"."invoice_open_items" e
+        left join "better_supabase"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."tenant_id" = open_items_for_party.tenant
           and e."balance" <> 0
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)
@@ -21452,7 +21461,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:fe9fbcacfa09bc90f2bcef7aff35895b10068b2006b72fb0cd87e97704a4c2eb
+-- @bsb-hash sha256:434ae5f2b6ed494233034920a0d7e72488117c0d6b96e3d71829ca93d00e7549
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -24058,7 +24067,7 @@ begin
   return null;
 end;
 $$;
-create trigger invoice_open_items_refresh
+create trigger "bsb_invoice_open_items_refresh"
 after insert or update of "status", "paid_total", "total", "credited_total", "due_on", "issued_on"
 on "better_supabase"."invoices"
 for each row execute function "better_supabase"."refresh_open_item"();
@@ -24181,9 +24190,11 @@ begin
             'daysOverdue', case when e."due_on" is null then 0 else v_as_of - e."due_on" end,
             'bucket', case when e."due_on" is null or v_as_of - e."due_on" <= 0 then 'current'
               when v_as_of - e."due_on" <= 30 then 'days1To30' when v_as_of - e."due_on" <= 60 then 'days31To60'
-              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end) as item,
+              when v_as_of - e."due_on" <= 90 then 'days61To90' else 'over90' end)
+            || coalesce(case when x."id" is null then null else jsonb_build_object('identifier', x."identifier"::text, 'discountDueOn', x."discount_due_on", 'discountAmount', coalesce(x."discount_amount_early", 0)::bigint::text, 'legalEntityId', null::uuid, 'approvalStatus', case when x."direction" = 'purchase' then "better_supabase"."invoice_approval_state"(x."id") ->> 'status' end) end, '{}'::jsonb) as item,
           e."side" as ord_side, e."party_id" as ord_party, e."due_on" as ord_due, e."document_id" as ord_document
         from "better_supabase"."invoice_open_items" e
+        left join "better_supabase"."invoices" x on e."document_type" = 'invoice' and x."id" = e."document_id"
         where e."org_id" = open_items_for_party.tenant
           and e."balance" <> 0
           and (open_items_for_party.party_id is null or e."party_id" = open_items_for_party.party_id)

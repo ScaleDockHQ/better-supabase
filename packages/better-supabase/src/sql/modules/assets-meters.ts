@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { ImportTargetContribution } from "../contributions.ts";
 
-import { serviceGrant, triggerGrant } from "../shared.ts";
+import { lockTable, serviceGrant, triggerGrant } from "../shared.ts";
 
 const plain = (qualified: string): string => qualified.replaceAll('"', "");
 
@@ -32,6 +32,7 @@ create table if not exists ${readings} (
 create index if not exists ${ctx.naming.rename("asset_meter_readings_asset_idx")} on ${readings} (${r("asset")});
 create index if not exists ${ctx.naming.rename("asset_meter_readings_series_idx")}
   on ${readings} (${r("tenant")}, ${r("asset")}, ${r("unit")}, ${r("readAt")});
+${lockTable(readings)}
 
 create or replace function ${fn("guard_asset_meter_reading")}()
 returns trigger

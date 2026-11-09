@@ -377,7 +377,12 @@ begin
   if open_items_for_party.side is not null and open_items_for_party.side not in ('customer', 'supplier') then
     ${fail("INVOICE_OPEN_ITEMS_INVALID", "side is customer or supplier", "22023")}
   end if;
-  ${storedOpenItemsSql(ctx, unallocatedToday)}
+  ${storedOpenItemsSql(ctx, unallocatedToday, {
+    table: t("invoices"),
+    id: i("id"),
+    fields: (alias) =>
+      `case when ${alias}.${i("id")} is null then null else jsonb_build_object('identifier', ${alias}.${i("identifier")}::text, 'discountDueOn', ${early ? `${alias}.${i("discountDueOn")}` : "null::date"}, 'discountAmount', ${early ? `coalesce(${alias}.${i("discountAmountEarly")}, 0)::bigint` : "0::bigint"}::text, 'legalEntityId', ${hasLegalEntityColumn(ctx, "invoices") ? `${alias}.legal_entity_id` : "null::uuid"}, 'approvalStatus', ${approval(alias)}) end`,
+  })}
   return coalesce((
     select jsonb_agg(jsonb_build_object(
         'side', e.side, 'partyId', e.party, 'documentType', e.document_type, 'documentId', e.id,

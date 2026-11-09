@@ -1,6 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { fail, serviceGrant, userGrant } from "../shared.ts";
+import { fail, lockTable, serviceGrant, userGrant } from "../shared.ts";
 
 const ISSUES = (ctx: BlockSqlContext): string =>
   `${ctx.schema}.${ctx.tableName("issues").name}`;
@@ -32,6 +32,7 @@ create index if not exists import_run_issues_open_idx
   where "resolved_at" is null;
 create index if not exists import_run_issues_run_idx
   on ${table} ("run_id", "entity");
+${lockTable(table)}
 `;
 }
 

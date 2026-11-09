@@ -1,6 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { fail, serviceGrant, userGrant } from "../shared.ts";
+import { fail, lockTable, serviceGrant, userGrant } from "../shared.ts";
 
 /** The registry an integration catalog reads, and the runs any client started. */
 export function importSourcesSql(ctx: BlockSqlContext): string {
@@ -17,6 +17,7 @@ create table if not exists ${ctx.schema}.import_sources (
   "entities" text[] not null default '{}',
   "docs_link" text
 );
+${lockTable(`${ctx.schema}.import_sources`)}
 
 create or replace function ${fn("register_import_source")}(id text, label_key text, description_key text, file_types text[], entities text[], docs_link text default null)
 returns void

@@ -1,7 +1,7 @@
 -- ==== alone: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:b6fac3b096adb9823082c620581591155b73d8e9f72b63da5633e0ef6f63477a
+-- @bsb-hash sha256:116db14fe8dccbd20e1a1913aa7f169627bed4c2059ffa87e0fb0505bfa9d4ee
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -290,7 +290,7 @@ begin
   if v_status not in ('pending', 'running', 'canceled', 'failed', 'completed') then
     raise exception 'state must be pending, running, stale, canceled, failed or completed' using errcode = '22023';
   end if;
-  insert into better_supabase.import_runs (id, tenant_id, source, status, plan, lease_until, heartbeat_at)
+  insert into better_supabase.import_runs (id, tenant_id, source, status, plan, lease_expires_at, heartbeat_at)
   values (
     v_id,
     gen_random_uuid(),
@@ -310,7 +310,7 @@ language sql
 set search_path = ''
 as $$
   update better_supabase.import_runs
-  set lease_until = now() - age, heartbeat_at = now() - age
+  set lease_expires_at = now() - age, heartbeat_at = now() - age
   where id = run
 $$;
 
@@ -371,7 +371,7 @@ select * from extensions.finish();
 -- ==== schema app_private: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:b6fac3b096adb9823082c620581591155b73d8e9f72b63da5633e0ef6f63477a
+-- @bsb-hash sha256:116db14fe8dccbd20e1a1913aa7f169627bed4c2059ffa87e0fb0505bfa9d4ee
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -660,7 +660,7 @@ begin
   if v_status not in ('pending', 'running', 'canceled', 'failed', 'completed') then
     raise exception 'state must be pending, running, stale, canceled, failed or completed' using errcode = '22023';
   end if;
-  insert into better_supabase.import_runs (id, tenant_id, source, status, plan, lease_until, heartbeat_at)
+  insert into better_supabase.import_runs (id, tenant_id, source, status, plan, lease_expires_at, heartbeat_at)
   values (
     v_id,
     gen_random_uuid(),
@@ -680,7 +680,7 @@ language sql
 set search_path = ''
 as $$
   update better_supabase.import_runs
-  set lease_until = now() - age, heartbeat_at = now() - age
+  set lease_expires_at = now() - age, heartbeat_at = now() - age
   where id = run
 $$;
 
@@ -741,7 +741,7 @@ select * from extensions.finish();
 -- ==== api schema: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:b6fac3b096adb9823082c620581591155b73d8e9f72b63da5633e0ef6f63477a
+-- @bsb-hash sha256:116db14fe8dccbd20e1a1913aa7f169627bed4c2059ffa87e0fb0505bfa9d4ee
 -- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1030,7 +1030,7 @@ begin
   if v_status not in ('pending', 'running', 'canceled', 'failed', 'completed') then
     raise exception 'state must be pending, running, stale, canceled, failed or completed' using errcode = '22023';
   end if;
-  insert into better_supabase.import_runs (id, tenant_id, source, status, plan, lease_until, heartbeat_at)
+  insert into better_supabase.import_runs (id, tenant_id, source, status, plan, lease_expires_at, heartbeat_at)
   values (
     v_id,
     gen_random_uuid(),
@@ -1050,7 +1050,7 @@ language sql
 set search_path = ''
 as $$
   update better_supabase.import_runs
-  set lease_until = now() - age, heartbeat_at = now() - age
+  set lease_expires_at = now() - age, heartbeat_at = now() - age
   where id = run
 $$;
 

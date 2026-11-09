@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:9e00efde4a38abbb47d616d7bcf16af74d5967aa221e2bac660996df2624392a
+-- @bsb-hash sha256:dcb46cbe46134f3eda33188ef36904c51fff722250838d7f66479f4c1b578916
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "plan" jsonb;
 alter table "better_supabase"."import_runs" add column "outcome" text;
-alter table "better_supabase"."import_runs" add column "lease_until" timestamptz;
+alter table "better_supabase"."import_runs" add column "lease_expires_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "heartbeat_at" timestamptz;
 alter table "better_supabase"."import_runs" add constraint "bsb_import_runs_status"
   check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
@@ -73,6 +73,9 @@ create table "better_supabase".import_refs (
   "created_at" timestamptz not null default now(),
   constraint import_refs_key unique ("tenant_id", "kind", "key")
 );
+alter table "better_supabase".import_refs enable row level security;
+revoke all on "better_supabase".import_refs from public, anon, authenticated;
+grant all on "better_supabase".import_refs to service_role;
 
 create table "better_supabase"."import_chunks" (
   "run_id" uuid not null references "better_supabase"."import_runs" ("id") on delete cascade,
@@ -114,6 +117,9 @@ create index import_run_issues_open_idx
   where "resolved_at" is null;
 create index import_run_issues_run_idx
   on "better_supabase".import_run_issues ("run_id", "entity");
+alter table "better_supabase".import_run_issues enable row level security;
+revoke all on "better_supabase".import_run_issues from public, anon, authenticated;
+grant all on "better_supabase".import_run_issues to service_role;
 
 create or replace function "better_supabase"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
@@ -139,7 +145,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "plan", "lease_until", "created_by")
+    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "plan", "lease_expires_at", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -194,7 +200,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'outcome', v_run."outcome", 'plan', v_run."plan", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'leaseUntil', v_run."lease_until", 'heartbeatAt', v_run."heartbeat_at", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at", 'issues', (
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'outcome', v_run."outcome", 'plan', v_run."plan", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'leaseUntil', v_run."lease_expires_at", 'heartbeatAt', v_run."heartbeat_at", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at", 'issues', (
     select jsonb_build_object(
       'conflict', count(*) filter (where i."kind" = 'conflict' and i."resolved_at" is null),
       'error', count(*) filter (where i."kind" = 'error' and i."resolved_at" is null),
@@ -221,7 +227,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'outcome', r."outcome", 'plan', r."plan", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'leaseUntil', r."lease_until", 'heartbeatAt', r."heartbeat_at", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at", 'issues', (
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'outcome', r."outcome", 'plan', r."plan", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'leaseUntil', r."lease_expires_at", 'heartbeatAt', r."heartbeat_at", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at", 'issues', (
     select jsonb_build_object(
       'conflict', count(*) filter (where i."kind" = 'conflict' and i."resolved_at" is null),
       'error', count(*) filter (where i."kind" = 'error' and i."resolved_at" is null),
@@ -558,6 +564,9 @@ create table "better_supabase".import_sources (
   "entities" text[] not null default '{}',
   "docs_link" text
 );
+alter table "better_supabase".import_sources enable row level security;
+revoke all on "better_supabase".import_sources from public, anon, authenticated;
+grant all on "better_supabase".import_sources to service_role;
 
 create or replace function "better_supabase"."register_import_source"(id text, label_key text, description_key text, file_types text[], entities text[], docs_link text default null)
 returns void
@@ -843,7 +852,7 @@ begin
 
   perform "better_supabase"."import_note_warnings"(v_run_id, v_entity, v_warnings);
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors, 'diff', v_diff) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_diff) > 0 then jsonb_build_object('diff', v_diff) else '{}'::jsonb end || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
@@ -1101,9 +1110,9 @@ begin
   if not (auth.role() = 'service_role') then
     raise exception 'only the service role can heartbeat an import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  update "better_supabase"."import_runs" r set "heartbeat_at" = now(), "lease_until" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
+  update "better_supabase"."import_runs" r set "heartbeat_at" = now(), "lease_expires_at" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
   where r."id" = heartbeat_import_run.run and r."status" = 'running'
-  returning r."lease_until" into v_until;
+  returning r."lease_expires_at" into v_until;
   if v_until is null then
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
@@ -1448,7 +1457,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:0c62ba753a047ea528edb5180988677092ee24cde5453001231aaadd00149e4c
+-- @bsb-hash sha256:f85e30797773f955aca821a13bf266d63f40980ff88b885fae61ab6eef945fa5
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1475,7 +1484,7 @@ alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "plan" jsonb;
 alter table "better_supabase"."import_runs" add column "outcome" text;
-alter table "better_supabase"."import_runs" add column "lease_until" timestamptz;
+alter table "better_supabase"."import_runs" add column "lease_expires_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "heartbeat_at" timestamptz;
 alter table "better_supabase"."import_runs" add constraint "bsb_import_runs_status"
   check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
@@ -1520,6 +1529,9 @@ create table "better_supabase".import_refs (
   "created_at" timestamptz not null default now(),
   constraint import_refs_key unique ("tenant_id", "kind", "key")
 );
+alter table "better_supabase".import_refs enable row level security;
+revoke all on "better_supabase".import_refs from public, anon, authenticated;
+grant all on "better_supabase".import_refs to service_role;
 
 create table "better_supabase"."import_chunks" (
   "run_id" uuid not null references "better_supabase"."import_runs" ("id") on delete cascade,
@@ -1561,6 +1573,9 @@ create index import_run_issues_open_idx
   where "resolved_at" is null;
 create index import_run_issues_run_idx
   on "better_supabase".import_run_issues ("run_id", "entity");
+alter table "better_supabase".import_run_issues enable row level security;
+revoke all on "better_supabase".import_run_issues from public, anon, authenticated;
+grant all on "better_supabase".import_run_issues to service_role;
 
 create or replace function "better_supabase"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
@@ -1586,7 +1601,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "plan", "lease_until", "created_by")
+    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "plan", "lease_expires_at", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -1641,7 +1656,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'outcome', v_run."outcome", 'plan', v_run."plan", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'leaseUntil', v_run."lease_until", 'heartbeatAt', v_run."heartbeat_at", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at", 'issues', (
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'outcome', v_run."outcome", 'plan', v_run."plan", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'leaseUntil', v_run."lease_expires_at", 'heartbeatAt', v_run."heartbeat_at", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at", 'issues', (
     select jsonb_build_object(
       'conflict', count(*) filter (where i."kind" = 'conflict' and i."resolved_at" is null),
       'error', count(*) filter (where i."kind" = 'error' and i."resolved_at" is null),
@@ -1668,7 +1683,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'outcome', r."outcome", 'plan', r."plan", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'leaseUntil', r."lease_until", 'heartbeatAt', r."heartbeat_at", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at", 'issues', (
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'outcome', r."outcome", 'plan', r."plan", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'leaseUntil', r."lease_expires_at", 'heartbeatAt', r."heartbeat_at", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at", 'issues', (
     select jsonb_build_object(
       'conflict', count(*) filter (where i."kind" = 'conflict' and i."resolved_at" is null),
       'error', count(*) filter (where i."kind" = 'error' and i."resolved_at" is null),
@@ -2019,6 +2034,9 @@ create table "better_supabase".import_sources (
   "entities" text[] not null default '{}',
   "docs_link" text
 );
+alter table "better_supabase".import_sources enable row level security;
+revoke all on "better_supabase".import_sources from public, anon, authenticated;
+grant all on "better_supabase".import_sources to service_role;
 
 create or replace function "better_supabase"."register_import_source"(id text, label_key text, description_key text, file_types text[], entities text[], docs_link text default null)
 returns void
@@ -2511,7 +2529,7 @@ begin
 
   perform "better_supabase"."import_note_warnings"(v_run_id, v_entity, v_warnings);
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors, 'diff', v_diff) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_diff) > 0 then jsonb_build_object('diff', v_diff) else '{}'::jsonb end || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
@@ -2771,9 +2789,9 @@ begin
   if not (auth.role() = 'service_role') then
     raise exception 'only the service role can heartbeat an import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  update "better_supabase"."import_runs" r set "heartbeat_at" = now(), "lease_until" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
+  update "better_supabase"."import_runs" r set "heartbeat_at" = now(), "lease_expires_at" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
   where r."id" = heartbeat_import_run.run and r."status" = 'running'
-  returning r."lease_until" into v_until;
+  returning r."lease_expires_at" into v_until;
   if v_until is null then
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
@@ -3118,7 +3136,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:2b7dab2d9c4e9f96e48791f948c2887acb75e03b1b3d146ec51b88f92ede7d88
+-- @bsb-hash sha256:9c57f9b6ba27c4d4db3fffeb6e55f99e40e514a1d84b7403a4301c72c29207f0
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3150,7 +3168,7 @@ alter table "app_private"."import_runs" add column "started_at" timestamptz;
 alter table "app_private"."import_runs" add column "finished_at" timestamptz;
 alter table "app_private"."import_runs" add column "plan" jsonb;
 alter table "app_private"."import_runs" add column "outcome" text;
-alter table "app_private"."import_runs" add column "lease_until" timestamptz;
+alter table "app_private"."import_runs" add column "lease_expires_at" timestamptz;
 alter table "app_private"."import_runs" add column "heartbeat_at" timestamptz;
 alter table "app_private"."import_runs" add constraint "bsb_import_runs_status"
   check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
@@ -3195,6 +3213,9 @@ create table "app_private".import_refs (
   "created_at" timestamptz not null default now(),
   constraint import_refs_key unique ("tenant_id", "kind", "key")
 );
+alter table "app_private".import_refs enable row level security;
+revoke all on "app_private".import_refs from public, anon, authenticated;
+grant all on "app_private".import_refs to service_role;
 
 create table "app_private"."import_chunks" (
   "run_id" uuid not null references "app_private"."import_runs" ("id") on delete cascade,
@@ -3236,6 +3257,9 @@ create index import_run_issues_open_idx
   where "resolved_at" is null;
 create index import_run_issues_run_idx
   on "app_private".import_run_issues ("run_id", "entity");
+alter table "app_private".import_run_issues enable row level security;
+revoke all on "app_private".import_run_issues from public, anon, authenticated;
+grant all on "app_private".import_run_issues to service_role;
 
 create or replace function "app_private"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
@@ -3261,7 +3285,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "app_private"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "plan", "lease_until", "created_by")
+    insert into "app_private"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "plan", "lease_expires_at", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -3316,7 +3340,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'outcome', v_run."outcome", 'plan', v_run."plan", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'leaseUntil', v_run."lease_until", 'heartbeatAt', v_run."heartbeat_at", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at", 'issues', (
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'outcome', v_run."outcome", 'plan', v_run."plan", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'leaseUntil', v_run."lease_expires_at", 'heartbeatAt', v_run."heartbeat_at", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at", 'issues', (
     select jsonb_build_object(
       'conflict', count(*) filter (where i."kind" = 'conflict' and i."resolved_at" is null),
       'error', count(*) filter (where i."kind" = 'error' and i."resolved_at" is null),
@@ -3343,7 +3367,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'outcome', r."outcome", 'plan', r."plan", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'leaseUntil', r."lease_until", 'heartbeatAt', r."heartbeat_at", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at", 'issues', (
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'outcome', r."outcome", 'plan', r."plan", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'leaseUntil', r."lease_expires_at", 'heartbeatAt', r."heartbeat_at", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at", 'issues', (
     select jsonb_build_object(
       'conflict', count(*) filter (where i."kind" = 'conflict' and i."resolved_at" is null),
       'error', count(*) filter (where i."kind" = 'error' and i."resolved_at" is null),
@@ -3680,6 +3704,9 @@ create table "app_private".import_sources (
   "entities" text[] not null default '{}',
   "docs_link" text
 );
+alter table "app_private".import_sources enable row level security;
+revoke all on "app_private".import_sources from public, anon, authenticated;
+grant all on "app_private".import_sources to service_role;
 
 create or replace function "app_private"."register_import_source"(id text, label_key text, description_key text, file_types text[], entities text[], docs_link text default null)
 returns void
@@ -3965,7 +3992,7 @@ begin
 
   perform "app_private"."import_note_warnings"(v_run_id, v_entity, v_warnings);
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors, 'diff', v_diff) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_diff) > 0 then jsonb_build_object('diff', v_diff) else '{}'::jsonb end || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "app_private"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
@@ -4223,9 +4250,9 @@ begin
   if not (auth.role() = 'service_role') then
     raise exception 'only the service role can heartbeat an import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  update "app_private"."import_runs" r set "heartbeat_at" = now(), "lease_until" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
+  update "app_private"."import_runs" r set "heartbeat_at" = now(), "lease_expires_at" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
   where r."id" = heartbeat_import_run.run and r."status" = 'running'
-  returning r."lease_until" into v_until;
+  returning r."lease_expires_at" into v_until;
   if v_until is null then
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
@@ -4570,7 +4597,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:416f836e82d3e315ec832150a700f499c7b571612a00b13496e887af6e1f8f05
+-- @bsb-hash sha256:bb80de72ef3cbf5eadef3fb4f6e35a8bef4b6fe87aca598d61159324ce49cdd4
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4597,7 +4624,7 @@ alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "plan" jsonb;
 alter table "better_supabase"."import_runs" add column "outcome" text;
-alter table "better_supabase"."import_runs" add column "lease_until" timestamptz;
+alter table "better_supabase"."import_runs" add column "lease_expires_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "heartbeat_at" timestamptz;
 alter table "better_supabase"."import_runs" add constraint "bsb_import_runs_status"
   check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
@@ -4642,6 +4669,9 @@ create table "better_supabase".import_refs (
   "created_at" timestamptz not null default now(),
   constraint import_refs_key unique ("tenant_id", "kind", "key")
 );
+alter table "better_supabase".import_refs enable row level security;
+revoke all on "better_supabase".import_refs from public, anon, authenticated;
+grant all on "better_supabase".import_refs to service_role;
 
 create table "better_supabase"."import_chunks" (
   "run_id" uuid not null references "better_supabase"."import_runs" ("id") on delete cascade,
@@ -4683,6 +4713,9 @@ create index import_run_issues_open_idx
   where "resolved_at" is null;
 create index import_run_issues_run_idx
   on "better_supabase".import_run_issues ("run_id", "entity");
+alter table "better_supabase".import_run_issues enable row level security;
+revoke all on "better_supabase".import_run_issues from public, anon, authenticated;
+grant all on "better_supabase".import_run_issues to service_role;
 
 create or replace function "better_supabase"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
@@ -4708,7 +4741,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "plan", "lease_until", "created_by")
+    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "plan", "lease_expires_at", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -4763,7 +4796,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'outcome', v_run."outcome", 'plan', v_run."plan", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'leaseUntil', v_run."lease_until", 'heartbeatAt', v_run."heartbeat_at", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at", 'issues', (
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'outcome', v_run."outcome", 'plan', v_run."plan", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'leaseUntil', v_run."lease_expires_at", 'heartbeatAt', v_run."heartbeat_at", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at", 'issues', (
     select jsonb_build_object(
       'conflict', count(*) filter (where i."kind" = 'conflict' and i."resolved_at" is null),
       'error', count(*) filter (where i."kind" = 'error' and i."resolved_at" is null),
@@ -4790,7 +4823,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'outcome', r."outcome", 'plan', r."plan", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'leaseUntil', r."lease_until", 'heartbeatAt', r."heartbeat_at", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at", 'issues', (
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'outcome', r."outcome", 'plan', r."plan", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'leaseUntil', r."lease_expires_at", 'heartbeatAt', r."heartbeat_at", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at", 'issues', (
     select jsonb_build_object(
       'conflict', count(*) filter (where i."kind" = 'conflict' and i."resolved_at" is null),
       'error', count(*) filter (where i."kind" = 'error' and i."resolved_at" is null),
@@ -5127,6 +5160,9 @@ create table "better_supabase".import_sources (
   "entities" text[] not null default '{}',
   "docs_link" text
 );
+alter table "better_supabase".import_sources enable row level security;
+revoke all on "better_supabase".import_sources from public, anon, authenticated;
+grant all on "better_supabase".import_sources to service_role;
 
 create or replace function "better_supabase"."register_import_source"(id text, label_key text, description_key text, file_types text[], entities text[], docs_link text default null)
 returns void
@@ -5412,7 +5448,7 @@ begin
 
   perform "better_supabase"."import_note_warnings"(v_run_id, v_entity, v_warnings);
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors, 'diff', v_diff) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_diff) > 0 then jsonb_build_object('diff', v_diff) else '{}'::jsonb end || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
@@ -5670,9 +5706,9 @@ begin
   if not (auth.role() = 'service_role') then
     raise exception 'only the service role can heartbeat an import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  update "better_supabase"."import_runs" r set "heartbeat_at" = now(), "lease_until" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
+  update "better_supabase"."import_runs" r set "heartbeat_at" = now(), "lease_expires_at" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
   where r."id" = heartbeat_import_run.run and r."status" = 'running'
-  returning r."lease_until" into v_until;
+  returning r."lease_expires_at" into v_until;
   if v_until is null then
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
@@ -6330,7 +6366,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:8c196a0ab949914167ff3a655cfa8ca55ebca38c94640e8f43b7f5d25fc7e7ac
+-- @bsb-hash sha256:c39325efbb05a7f88f26d7e07d4929e067dfa2d576c5f6e5a303cf2464f74f2a
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6356,7 +6392,7 @@ alter table "better_supabase"."import_runs" add column if not exists "started_at
 alter table "better_supabase"."import_runs" add column if not exists "finished_at" timestamptz;
 alter table "better_supabase"."import_runs" add column if not exists "plan" jsonb;
 alter table "better_supabase"."import_runs" add column if not exists "outcome" text;
-alter table "better_supabase"."import_runs" add column if not exists "lease_until" timestamptz;
+alter table "better_supabase"."import_runs" add column if not exists "lease_expires_at" timestamptz;
 alter table "better_supabase"."import_runs" add column if not exists "heartbeat_at" timestamptz;
 alter table "better_supabase"."import_runs" enable row level security;
 grant select on "better_supabase"."import_runs" to authenticated;
@@ -6395,6 +6431,8 @@ alter table "better_supabase".import_refs add column if not exists "kind" text;
 alter table "better_supabase".import_refs add column if not exists "key" text;
 alter table "better_supabase".import_refs add column if not exists "payload" jsonb not null default '{}'::jsonb;
 alter table "better_supabase".import_refs add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase".import_refs enable row level security;
+grant all on "better_supabase".import_refs to service_role;
 
 -- better_supabase.import_chunks is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."import_chunks" add column if not exists "run_id" uuid references "better_supabase"."import_runs" ("id") on delete cascade;
@@ -6429,6 +6467,8 @@ create index if not exists import_run_issues_open_idx
   where "resolved_at" is null;
 create index if not exists import_run_issues_run_idx
   on "better_supabase".import_run_issues ("run_id", "entity");
+alter table "better_supabase".import_run_issues enable row level security;
+grant all on "better_supabase".import_run_issues to service_role;
 
 create or replace function "better_supabase"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
@@ -6454,7 +6494,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "plan", "lease_until", "created_by")
+    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "plan", "lease_expires_at", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -6509,7 +6549,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'outcome', v_run."outcome", 'plan', v_run."plan", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'leaseUntil', v_run."lease_until", 'heartbeatAt', v_run."heartbeat_at", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at", 'issues', (
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'outcome', v_run."outcome", 'plan', v_run."plan", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'leaseUntil', v_run."lease_expires_at", 'heartbeatAt', v_run."heartbeat_at", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at", 'issues', (
     select jsonb_build_object(
       'conflict', count(*) filter (where i."kind" = 'conflict' and i."resolved_at" is null),
       'error', count(*) filter (where i."kind" = 'error' and i."resolved_at" is null),
@@ -6536,7 +6576,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'outcome', r."outcome", 'plan', r."plan", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'leaseUntil', r."lease_until", 'heartbeatAt', r."heartbeat_at", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at", 'issues', (
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'outcome', r."outcome", 'plan', r."plan", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'leaseUntil', r."lease_expires_at", 'heartbeatAt', r."heartbeat_at", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at", 'issues', (
     select jsonb_build_object(
       'conflict', count(*) filter (where i."kind" = 'conflict' and i."resolved_at" is null),
       'error', count(*) filter (where i."kind" = 'error' and i."resolved_at" is null),
@@ -6872,6 +6912,8 @@ alter table "better_supabase".import_sources add column if not exists "descripti
 alter table "better_supabase".import_sources add column if not exists "file_types" text[] not null default '{}';
 alter table "better_supabase".import_sources add column if not exists "entities" text[] not null default '{}';
 alter table "better_supabase".import_sources add column if not exists "docs_link" text;
+alter table "better_supabase".import_sources enable row level security;
+grant all on "better_supabase".import_sources to service_role;
 
 create or replace function "better_supabase"."register_import_source"(id text, label_key text, description_key text, file_types text[], entities text[], docs_link text default null)
 returns void
@@ -7157,7 +7199,7 @@ begin
 
   perform "better_supabase"."import_note_warnings"(v_run_id, v_entity, v_warnings);
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors, 'diff', v_diff) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_diff) > 0 then jsonb_build_object('diff', v_diff) else '{}'::jsonb end || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
@@ -7415,9 +7457,9 @@ begin
   if not (auth.role() = 'service_role') then
     raise exception 'only the service role can heartbeat an import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  update "better_supabase"."import_runs" r set "heartbeat_at" = now(), "lease_until" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
+  update "better_supabase"."import_runs" r set "heartbeat_at" = now(), "lease_expires_at" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
   where r."id" = heartbeat_import_run.run and r."status" = 'running'
-  returning r."lease_until" into v_until;
+  returning r."lease_expires_at" into v_until;
   if v_until is null then
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
@@ -7762,7 +7804,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:8ea4fe88db8763aba41d26c79502fe031ae5ae6b10f43e0b646c2126c19ea8c5
+-- @bsb-hash sha256:4b493f394629b4f1d3405daa14307041454b4613d0b2aa9b81a2cc21995db9af
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7789,7 +7831,7 @@ alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "plan" jsonb;
 alter table "better_supabase"."import_runs" add column "outcome" text;
-alter table "better_supabase"."import_runs" add column "lease_until" timestamptz;
+alter table "better_supabase"."import_runs" add column "lease_expires_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "heartbeat_at" timestamptz;
 alter table "better_supabase"."import_runs" add constraint "bsb_import_runs_status"
   check ("status" in ('pending', 'running', 'completed', 'failed', 'canceled'));
@@ -7834,6 +7876,9 @@ create table "better_supabase".import_refs (
   "created_at" timestamptz not null default now(),
   constraint import_refs_key unique ("org_id", "kind", "key")
 );
+alter table "better_supabase".import_refs enable row level security;
+revoke all on "better_supabase".import_refs from public, anon, authenticated;
+grant all on "better_supabase".import_refs to service_role;
 
 create table "better_supabase"."import_chunks" (
   "run_id" uuid not null references "better_supabase"."import_runs" ("id") on delete cascade,
@@ -7875,6 +7920,9 @@ create index import_run_issues_open_idx
   where "resolved_at" is null;
 create index import_run_issues_run_idx
   on "better_supabase".import_run_issues ("run_id", "entity");
+alter table "better_supabase".import_run_issues enable row level security;
+revoke all on "better_supabase".import_run_issues from public, anon, authenticated;
+grant all on "better_supabase".import_run_issues to service_role;
 
 create or replace function "better_supabase"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
@@ -7900,7 +7948,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("org_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "plan", "lease_until", "created_by")
+    insert into "better_supabase"."import_runs" as r ("org_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "plan", "lease_expires_at", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -7955,7 +8003,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."org_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."org_id", 'source', v_run."source", 'status', v_run."status", 'outcome', v_run."outcome", 'plan', v_run."plan", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'leaseUntil', v_run."lease_until", 'heartbeatAt', v_run."heartbeat_at", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at", 'issues', (
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."org_id", 'source', v_run."source", 'status', v_run."status", 'outcome', v_run."outcome", 'plan', v_run."plan", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'leaseUntil', v_run."lease_expires_at", 'heartbeatAt', v_run."heartbeat_at", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at", 'issues', (
     select jsonb_build_object(
       'conflict', count(*) filter (where i."kind" = 'conflict' and i."resolved_at" is null),
       'error', count(*) filter (where i."kind" = 'error' and i."resolved_at" is null),
@@ -7982,7 +8030,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."org_id", 'source', r."source", 'status', r."status", 'outcome', r."outcome", 'plan', r."plan", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'leaseUntil', r."lease_until", 'heartbeatAt', r."heartbeat_at", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at", 'issues', (
+    select jsonb_build_object('id', r."id", 'organizationId', r."org_id", 'source', r."source", 'status', r."status", 'outcome', r."outcome", 'plan', r."plan", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'leaseUntil', r."lease_expires_at", 'heartbeatAt', r."heartbeat_at", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at", 'issues', (
     select jsonb_build_object(
       'conflict', count(*) filter (where i."kind" = 'conflict' and i."resolved_at" is null),
       'error', count(*) filter (where i."kind" = 'error' and i."resolved_at" is null),
@@ -8319,6 +8367,9 @@ create table "better_supabase".import_sources (
   "entities" text[] not null default '{}',
   "docs_link" text
 );
+alter table "better_supabase".import_sources enable row level security;
+revoke all on "better_supabase".import_sources from public, anon, authenticated;
+grant all on "better_supabase".import_sources to service_role;
 
 create or replace function "better_supabase"."register_import_source"(id text, label_key text, description_key text, file_types text[], entities text[], docs_link text default null)
 returns void
@@ -8604,7 +8655,7 @@ begin
 
   perform "better_supabase"."import_note_warnings"(v_run_id, v_entity, v_warnings);
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors, 'diff', v_diff) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_diff) > 0 then jsonb_build_object('diff', v_diff) else '{}'::jsonb end || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
@@ -8862,9 +8913,9 @@ begin
   if not (auth.role() = 'service_role') then
     raise exception 'only the service role can heartbeat an import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  update "better_supabase"."import_runs" r set "heartbeat_at" = now(), "lease_until" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
+  update "better_supabase"."import_runs" r set "heartbeat_at" = now(), "lease_expires_at" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
   where r."id" = heartbeat_import_run.run and r."status" = 'running'
-  returning r."lease_until" into v_until;
+  returning r."lease_expires_at" into v_until;
   if v_until is null then
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;

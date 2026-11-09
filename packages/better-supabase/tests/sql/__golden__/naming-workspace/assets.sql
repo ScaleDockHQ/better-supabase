@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:b62348ea80f192735bc1ce90046930240f8bac5b6258dd8353e7e6cc23ee0633
+-- @bsb-hash sha256:3846c2655f68b9409ca6c1552dd337521e37a9112dcb3af455fedcc4ba67b8af
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -803,6 +803,9 @@ create table "better_supabase".asset_meter_readings (
 create index asset_meter_readings_asset_idx on "better_supabase".asset_meter_readings ("asset_id");
 create index asset_meter_readings_series_idx
   on "better_supabase".asset_meter_readings ("tenant_id", "asset_id", "unit", "read_at");
+alter table "better_supabase".asset_meter_readings enable row level security;
+revoke all on "better_supabase".asset_meter_readings from public, anon, authenticated;
+grant all on "better_supabase".asset_meter_readings to service_role;
 
 create or replace function "better_supabase"."guard_asset_meter_reading"()
 returns trigger
@@ -1185,6 +1188,9 @@ create table "better_supabase".asset_identifiers (
   "updated_at" timestamptz not null default now()
 );
 create index asset_identifiers_asset_idx on "better_supabase".asset_identifiers ("asset_id");
+alter table "better_supabase".asset_identifiers enable row level security;
+revoke all on "better_supabase".asset_identifiers from public, anon, authenticated;
+grant all on "better_supabase".asset_identifiers to service_role;
 create unique index asset_identifiers_key on "better_supabase".asset_identifiers ("tenant_id", "type", "value");
 
 create or replace function "better_supabase"."import_asset"(run uuid, item jsonb, subject_id text)

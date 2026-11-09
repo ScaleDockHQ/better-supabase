@@ -21,7 +21,7 @@ select ok(
 
 select ok(
   pg_get_functiondef('better_supabase.mark_notifications_read(uuid[], uuid)'::regprocedure)
-    !~ 'is null or',
+    !~ 'ids is null or',
   'mark_notifications_read does not use param is null or col = any(param)'
 );
 

@@ -188,11 +188,10 @@ export function invoiceImportFunctions(
       ? ""
       : `
   update ${lineTable} l set ${line("taxCode")} = (
-    select c.${tax.col("codes", "code")} from ${tax.table("codes")} c
+    select min(c.${tax.col("codes", "code")}) from ${tax.table("codes")} c
     join ${tax.table("rates")} r on r.${tax.col("rates", "taxCode")} = c.${tax.col("codes", "id")}
     where c.${tax.col("codes", "tenant")} = v_tenant and r.${tax.col("rates", "rateBps")} = l.${line("taxRateBps")}
-    group by c.${tax.col("codes", "code")}
-    having count(*) = 1
+    having count(distinct c.${tax.col("codes", "id")}) = 1
   )
   where l.${line("parent")} = v_id and l.${line("taxCode")} is null;
   if exists (

@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { ImportTargetContribution } from "../contributions.ts";
 
-import { fail, serviceGrant } from "../shared.ts";
+import { fail, lockTable, serviceGrant } from "../shared.ts";
 
 const plain = (qualified: string): string => qualified.replaceAll('"', "");
 
@@ -33,6 +33,7 @@ create table if not exists ${identifiers} (
   "updated_at" timestamptz not null default now()
 );
 create index if not exists ${ctx.naming.rename("asset_identifiers_asset_idx")} on ${identifiers} (${i("asset")});
+${lockTable(identifiers)}
 create unique index if not exists ${ctx.naming.rename("asset_identifiers_key")} on ${identifiers} (${i("tenant")}, ${i("type")}, ${i("value")});
 
 create or replace function ${fn("import_asset")}(run uuid, item jsonb, subject_id text)

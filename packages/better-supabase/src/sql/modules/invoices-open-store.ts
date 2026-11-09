@@ -1,3 +1,4 @@
+import { sqlIdent } from "../../core/template.ts";
 import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -56,6 +57,7 @@ export function openItemsStoreSql(
   }
 
   const table = ctx.table("openItems");
+  const refreshTrigger = sqlIdent(`bsb_${ctx.tableName("openItems").name}_refresh`);
   const o = (column: string): string => ctx.col("openItems", column);
   const i = store.i;
   const balance = balanceOf(store, "x");
@@ -110,8 +112,9 @@ begin
 end;
 $$;
 
-drop trigger if exists ${ctx.naming.rename("invoice_open_items_refresh")} on ${store.invoices};
-create trigger ${ctx.naming.rename("invoice_open_items_refresh")}
+drop trigger if exists invoice_open_items_refresh on ${store.invoices};
+drop trigger if exists ${refreshTrigger} on ${store.invoices};
+create trigger ${refreshTrigger}
 after insert or update of ${i("status")}, ${i("paidTotal")}, ${i("total")}, ${i("creditedTotal")}, ${i("dueOn")}, ${i("issuedOn")}
 on ${store.invoices}
 for each row execute function ${store.fn("refresh_open_item")}();
@@ -203,6 +206,11 @@ ${userGrant(`${store.fn("open_items_page")}(${ctx.idType}, text, text, integer, 
 export function storedOpenItemsSql(
   ctx: BlockSqlContext,
   unallocated: string,
+  invoice: {
+    readonly table: string;
+    readonly id: string;
+    readonly fields: (alias: string) => string;
+  },
 ): string {
   if (!ctx.hasTable("openItems")) {
     return "";
@@ -223,9 +231,11 @@ export function storedOpenItemsSql(
             'daysOverdue', case when e.${o("dueOn")} is null then 0 else v_as_of - e.${o("dueOn")} end,
             'bucket', case when e.${o("dueOn")} is null or v_as_of - e.${o("dueOn")} <= 0 then 'current'
               when v_as_of - e.${o("dueOn")} <= 30 then 'days1To30' when v_as_of - e.${o("dueOn")} <= 60 then 'days31To60'
-              when v_as_of - e.${o("dueOn")} <= 90 then 'days61To90' else 'over90' end) as item,
+              when v_as_of - e.${o("dueOn")} <= 90 then 'days61To90' else 'over90' end)
+            || coalesce(${invoice.fields("x")}, '{}'::jsonb) as item,
           e.${o("side")} as ord_side, e.${o("party")} as ord_party, e.${o("dueOn")} as ord_due, e.${o("document")} as ord_document
         from ${table} e
+        left join ${invoice.table} x on e.${o("documentType")} = 'invoice' and x.${invoice.id} = e.${o("document")}
         where e.${o("tenant")} = open_items_for_party.tenant
           and e.${o("balance")} <> 0
           and (open_items_for_party.party_id is null or e.${o("party")} = open_items_for_party.party_id)

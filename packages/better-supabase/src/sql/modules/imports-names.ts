@@ -53,7 +53,7 @@ export const IMPORT_NAMES: BlockSqlNames = {
         scopeAliases: "scope_aliases",
         plan: "plan",
         outcome: "outcome",
-        leaseUntil: "lease_until",
+        leaseUntil: "lease_expires_at",
         heartbeatAt: "heartbeat_at",
         createdBy: "created_by",
         createdAt: "created_at",

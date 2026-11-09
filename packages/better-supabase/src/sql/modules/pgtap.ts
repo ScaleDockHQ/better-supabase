@@ -296,7 +296,7 @@ begin
   if v_status not in ('pending', 'running', 'canceled', 'failed', 'completed') then
     raise exception 'state must be pending, running, stale, canceled, failed or completed' using errcode = '22023';
   end if;
-  insert into better_supabase.import_runs (id, tenant_id, source, status, plan, lease_until, heartbeat_at)
+  insert into better_supabase.import_runs (id, tenant_id, source, status, plan, lease_expires_at, heartbeat_at)
   values (
     v_id,
     gen_random_uuid(),
@@ -316,7 +316,7 @@ language sql
 set search_path = ''
 as $$
   update better_supabase.import_runs
-  set lease_until = now() - age, heartbeat_at = now() - age
+  set lease_expires_at = now() - age, heartbeat_at = now() - age
   where id = run
 $$;
 

@@ -234,7 +234,7 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
         "warning BS622": [
           "centrakit.import_runs.diff",
           "centrakit.import_runs.heartbeat_at",
-          "centrakit.import_runs.lease_until",
+          "centrakit.import_runs.lease_expires_at",
           "centrakit.import_runs.outcome",
           "centrakit.import_runs.plan",
         ],
