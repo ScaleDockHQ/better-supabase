@@ -40,9 +40,11 @@ declare
   v_warnings jsonb := '[]'::jsonb;
   v_message text;
   v_hint text;
-  v_pending jsonb := '[]'::jsonb;
+  v_pending jsonb[] := '{}';
+  v_calls jsonb[] := '{}';
   v_pending_keys text[] := '{}';
-  v_results jsonb;
+  v_raw jsonb;
+  v_results jsonb[];
   v_p jsonb;
   v_i integer;
 begin
@@ -65,32 +67,33 @@ begin
     end if;
 
     if v_scope || chr(31) || v_key = any (v_pending_keys) then
-      if jsonb_array_length(v_pending) > 0 then
-        begin
-          case v_entity
-        when 'customer' then
-          v_subject_type := 'customer';
-          v_results := "public"."import_customer_batch"(v_run_id, (select jsonb_agg(p.value -> 'call' order by p.ordinality) from jsonb_array_elements(v_pending) with ordinality p(value, ordinality)));
-          else
-            v_results := null;
-          end case;
-          if jsonb_typeof(v_results) is distinct from 'array' or jsonb_array_length(v_results) <> jsonb_array_length(v_pending) then
-            raise exception 'a batch target returns one result per item' using errcode = '22023';
-          end if;
-        exception when others then
-          v_results := null;
-        end;
-        for v_i in 0 .. jsonb_array_length(v_pending) - 1 loop
-          v_p := v_pending -> v_i;
-          v_key := v_p ->> 'key';
-          v_scope := v_p ->> 'scope';
-          v_hash := v_p ->> 'hash';
-          v_found := (v_p ->> 'found')::boolean;
-          v_subject_id := v_p ->> 'subjectId';
+      if cardinality(v_pending) > 0 then
           begin
-            if v_results is null then
-              v_call := v_p -> 'call';
-              case v_entity
+            case v_entity
+          when 'customer' then
+            v_subject_type := 'customer';
+            v_raw := "public"."import_customer_batch"(v_run_id, to_jsonb(v_calls));
+            else
+              v_raw := null;
+            end case;
+            if jsonb_typeof(v_raw) is distinct from 'array' or jsonb_array_length(v_raw) <> cardinality(v_pending) then
+              raise exception 'a batch target returns one result per item' using errcode = '22023';
+            end if;
+            v_results := array(select e.value from jsonb_array_elements(v_raw) e);
+          exception when others then
+            v_results := null;
+          end;
+          for v_i in 1 .. cardinality(v_pending) loop
+            v_p := v_pending[v_i];
+            v_key := v_p ->> 'key';
+            v_scope := v_p ->> 'scope';
+            v_hash := v_p ->> 'hash';
+            v_found := (v_p ->> 'found')::boolean;
+            v_subject_id := v_p ->> 'subjectId';
+            begin
+              if v_results is null then
+                v_call := v_calls[v_i];
+                case v_entity
       when 'attachment' then
         v_subject_type := 'attachment';
         v_out := "better_supabase"."import_attachment"(v_run_id, v_call, v_subject_id);
@@ -169,58 +172,59 @@ begin
       else
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
     end case;
-            else
-              v_out := v_results -> v_i;
-              if jsonb_typeof(v_out) = 'object' and v_out ? 'error' then
-                raise exception '%', coalesce(v_out -> 'error' ->> 'message', 'the import target refused the item')
-                  using hint = coalesce(v_out -> 'error' ->> 'code', 'IMPORT_ITEM_INVALID');
+              else
+                v_out := v_results[v_i];
+                if jsonb_typeof(v_out) = 'object' and v_out ? 'error' then
+                  raise exception '%', coalesce(v_out -> 'error' ->> 'message', 'the import target refused the item')
+                    using hint = coalesce(v_out -> 'error' ->> 'code', 'IMPORT_ITEM_INVALID');
+                end if;
               end if;
-            end if;
-            v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
-if not exists (
-  select 1 from jsonb_array_elements(v_subjects) s
-  where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
-) then
-  raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
-end if;
-
-for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
-  if jsonb_typeof(v_subject -> 'warnings') = 'array' then
-    v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+              v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
+  if not exists (
+    select 1 from jsonb_array_elements(v_subjects) s
+    where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
+  ) then
+    raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
-  values (
-    v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
-    coalesce(v_subject ->> 'role', 'primary'),
-    coalesce(v_subject ->> 'subjectType', v_subject_type),
-    v_subject ->> 'subjectId',
-    v_hash, v_run_id, v_run_id,
-    coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
-    null
-  )
-  on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
-    "subject_type" = excluded."subject_type",
-    "subject_id" = excluded."subject_id",
-    "content_hash" = excluded."content_hash",
-    "last_run_id" = excluded."last_run_id",
-    "subject_imported_updated_at" = excluded."subject_imported_updated_at",
-    "went_missing_at" = null;
-end loop;
 
-if v_found then
-  v_updated := v_updated + 1;
-else
-  v_inserted := v_inserted + 1;
-end if;
+  for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+    if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+      v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+    end if;
+    insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
+    values (
+      v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
+      coalesce(v_subject ->> 'role', 'primary'),
+      coalesce(v_subject ->> 'subjectType', v_subject_type),
+      v_subject ->> 'subjectId',
+      v_hash, v_run_id, v_run_id,
+      coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
+      null
+    )
+    on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
+      "subject_type" = excluded."subject_type",
+      "subject_id" = excluded."subject_id",
+      "content_hash" = excluded."content_hash",
+      "last_run_id" = excluded."last_run_id",
+      "subject_imported_updated_at" = excluded."subject_imported_updated_at",
+      "went_missing_at" = null;
+  end loop;
 
-          exception when others then
-            get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
-            v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
-          end;
-        end loop;
-        v_pending := '[]'::jsonb;
-        v_pending_keys := '{}';
-      end if;
+  if v_found then
+    v_updated := v_updated + 1;
+  else
+    v_inserted := v_inserted + 1;
+  end if;
+  
+            exception when others then
+              get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
+              v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+            end;
+          end loop;
+          v_pending := '{}';
+          v_calls := '{}';
+          v_pending_keys := '{}';
+        end if;
     end if;
 
     -- jsonb text is key-ordered, so equal content hashes equally.
@@ -316,10 +320,11 @@ end if;
         v_subject_id := case when v_found then v_rec."subject_id" else null end;
         v_call := v_item || jsonb_build_object('tenant', v_run."tenant_id", 'scope', v_scope);
         if v_entity = any (array['customer']::text[]) then
-          v_pending := v_pending || jsonb_build_array(jsonb_build_object('call', v_call, 'subjectId', v_subject_id, 'found', v_found, 'key', v_key, 'scope', v_scope, 'hash', v_hash));
-          v_pending_keys := v_pending_keys || (v_scope || chr(31) || v_key);
-        else
-          case v_entity
+            v_pending := v_pending || jsonb_build_object('subjectId', v_subject_id, 'found', v_found, 'key', v_key, 'scope', v_scope, 'hash', v_hash);
+            v_calls := v_calls || v_call;
+            v_pending_keys := v_pending_keys || (v_scope || chr(31) || v_key);
+          else
+            case v_entity
       when 'attachment' then
         v_subject_type := 'attachment';
         v_out := "better_supabase"."import_attachment"(v_run_id, v_call, v_subject_id);
@@ -399,44 +404,44 @@ end if;
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
     end case;
 
-          v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
-if not exists (
-  select 1 from jsonb_array_elements(v_subjects) s
-  where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
-) then
-  raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
-end if;
-
-for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
-  if jsonb_typeof(v_subject -> 'warnings') = 'array' then
-    v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+            v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
+  if not exists (
+    select 1 from jsonb_array_elements(v_subjects) s
+    where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
+  ) then
+    raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
-  values (
-    v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
-    coalesce(v_subject ->> 'role', 'primary'),
-    coalesce(v_subject ->> 'subjectType', v_subject_type),
-    v_subject ->> 'subjectId',
-    v_hash, v_run_id, v_run_id,
-    coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
-    null
-  )
-  on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
-    "subject_type" = excluded."subject_type",
-    "subject_id" = excluded."subject_id",
-    "content_hash" = excluded."content_hash",
-    "last_run_id" = excluded."last_run_id",
-    "subject_imported_updated_at" = excluded."subject_imported_updated_at",
-    "went_missing_at" = null;
-end loop;
 
-if v_found then
-  v_updated := v_updated + 1;
-else
-  v_inserted := v_inserted + 1;
-end if;
+  for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+    if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+      v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+    end if;
+    insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
+    values (
+      v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
+      coalesce(v_subject ->> 'role', 'primary'),
+      coalesce(v_subject ->> 'subjectType', v_subject_type),
+      v_subject ->> 'subjectId',
+      v_hash, v_run_id, v_run_id,
+      coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
+      null
+    )
+    on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
+      "subject_type" = excluded."subject_type",
+      "subject_id" = excluded."subject_id",
+      "content_hash" = excluded."content_hash",
+      "last_run_id" = excluded."last_run_id",
+      "subject_imported_updated_at" = excluded."subject_imported_updated_at",
+      "went_missing_at" = null;
+  end loop;
 
-        end if;
+  if v_found then
+    v_updated := v_updated + 1;
+  else
+    v_inserted := v_inserted + 1;
+  end if;
+  
+          end if;
       end if;
     exception when others then
       get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
@@ -444,32 +449,33 @@ end if;
     end;
   end loop;
 
-  if jsonb_array_length(v_pending) > 0 then
-        begin
-          case v_entity
-        when 'customer' then
-          v_subject_type := 'customer';
-          v_results := "public"."import_customer_batch"(v_run_id, (select jsonb_agg(p.value -> 'call' order by p.ordinality) from jsonb_array_elements(v_pending) with ordinality p(value, ordinality)));
-          else
-            v_results := null;
-          end case;
-          if jsonb_typeof(v_results) is distinct from 'array' or jsonb_array_length(v_results) <> jsonb_array_length(v_pending) then
-            raise exception 'a batch target returns one result per item' using errcode = '22023';
-          end if;
-        exception when others then
-          v_results := null;
-        end;
-        for v_i in 0 .. jsonb_array_length(v_pending) - 1 loop
-          v_p := v_pending -> v_i;
-          v_key := v_p ->> 'key';
-          v_scope := v_p ->> 'scope';
-          v_hash := v_p ->> 'hash';
-          v_found := (v_p ->> 'found')::boolean;
-          v_subject_id := v_p ->> 'subjectId';
+  if cardinality(v_pending) > 0 then
           begin
-            if v_results is null then
-              v_call := v_p -> 'call';
-              case v_entity
+            case v_entity
+          when 'customer' then
+            v_subject_type := 'customer';
+            v_raw := "public"."import_customer_batch"(v_run_id, to_jsonb(v_calls));
+            else
+              v_raw := null;
+            end case;
+            if jsonb_typeof(v_raw) is distinct from 'array' or jsonb_array_length(v_raw) <> cardinality(v_pending) then
+              raise exception 'a batch target returns one result per item' using errcode = '22023';
+            end if;
+            v_results := array(select e.value from jsonb_array_elements(v_raw) e);
+          exception when others then
+            v_results := null;
+          end;
+          for v_i in 1 .. cardinality(v_pending) loop
+            v_p := v_pending[v_i];
+            v_key := v_p ->> 'key';
+            v_scope := v_p ->> 'scope';
+            v_hash := v_p ->> 'hash';
+            v_found := (v_p ->> 'found')::boolean;
+            v_subject_id := v_p ->> 'subjectId';
+            begin
+              if v_results is null then
+                v_call := v_calls[v_i];
+                case v_entity
       when 'attachment' then
         v_subject_type := 'attachment';
         v_out := "better_supabase"."import_attachment"(v_run_id, v_call, v_subject_id);
@@ -548,58 +554,59 @@ end if;
       else
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
     end case;
-            else
-              v_out := v_results -> v_i;
-              if jsonb_typeof(v_out) = 'object' and v_out ? 'error' then
-                raise exception '%', coalesce(v_out -> 'error' ->> 'message', 'the import target refused the item')
-                  using hint = coalesce(v_out -> 'error' ->> 'code', 'IMPORT_ITEM_INVALID');
+              else
+                v_out := v_results[v_i];
+                if jsonb_typeof(v_out) = 'object' and v_out ? 'error' then
+                  raise exception '%', coalesce(v_out -> 'error' ->> 'message', 'the import target refused the item')
+                    using hint = coalesce(v_out -> 'error' ->> 'code', 'IMPORT_ITEM_INVALID');
+                end if;
               end if;
-            end if;
-            v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
-if not exists (
-  select 1 from jsonb_array_elements(v_subjects) s
-  where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
-) then
-  raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
-end if;
-
-for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
-  if jsonb_typeof(v_subject -> 'warnings') = 'array' then
-    v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+              v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
+  if not exists (
+    select 1 from jsonb_array_elements(v_subjects) s
+    where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
+  ) then
+    raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
-  values (
-    v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
-    coalesce(v_subject ->> 'role', 'primary'),
-    coalesce(v_subject ->> 'subjectType', v_subject_type),
-    v_subject ->> 'subjectId',
-    v_hash, v_run_id, v_run_id,
-    coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
-    null
-  )
-  on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
-    "subject_type" = excluded."subject_type",
-    "subject_id" = excluded."subject_id",
-    "content_hash" = excluded."content_hash",
-    "last_run_id" = excluded."last_run_id",
-    "subject_imported_updated_at" = excluded."subject_imported_updated_at",
-    "went_missing_at" = null;
-end loop;
 
-if v_found then
-  v_updated := v_updated + 1;
-else
-  v_inserted := v_inserted + 1;
-end if;
+  for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+    if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+      v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+    end if;
+    insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
+    values (
+      v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
+      coalesce(v_subject ->> 'role', 'primary'),
+      coalesce(v_subject ->> 'subjectType', v_subject_type),
+      v_subject ->> 'subjectId',
+      v_hash, v_run_id, v_run_id,
+      coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
+      null
+    )
+    on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
+      "subject_type" = excluded."subject_type",
+      "subject_id" = excluded."subject_id",
+      "content_hash" = excluded."content_hash",
+      "last_run_id" = excluded."last_run_id",
+      "subject_imported_updated_at" = excluded."subject_imported_updated_at",
+      "went_missing_at" = null;
+  end loop;
 
-          exception when others then
-            get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
-            v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
-          end;
-        end loop;
-        v_pending := '[]'::jsonb;
-        v_pending_keys := '{}';
-      end if;
+  if v_found then
+    v_updated := v_updated + 1;
+  else
+    v_inserted := v_inserted + 1;
+  end if;
+  
+            exception when others then
+              get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
+              v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+            end;
+          end loop;
+          v_pending := '{}';
+          v_calls := '{}';
+          v_pending_keys := '{}';
+        end if;
 
   return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;

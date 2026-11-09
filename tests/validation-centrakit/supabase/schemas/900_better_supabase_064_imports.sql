@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:3fef64e1afe394aa48759163512bd51eb01dd7601ecdc9912543b30f6dc547aa
+-- @bsb-hash sha256:d0a8b7157b1c4637487d3452dbe69aa784972f5030552a86fd1433b8bc4d52cc
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -365,43 +365,43 @@ begin
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
     end case;
 
-        v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
-if not exists (
-  select 1 from jsonb_array_elements(v_subjects) s
-  where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
-) then
-  raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
-end if;
-
-for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
-  if jsonb_typeof(v_subject -> 'warnings') = 'array' then
-    v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+          v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
+  if not exists (
+    select 1 from jsonb_array_elements(v_subjects) s
+    where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
+  ) then
+    raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
-  values (
-    v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
-    coalesce(v_subject ->> 'role', 'primary'),
-    coalesce(v_subject ->> 'subjectType', v_subject_type),
-    v_subject ->> 'subjectId',
-    v_hash, v_run_id, v_run_id,
-    coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
-    null
-  )
-  on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
-    "subject_type" = excluded."subject_type",
-    "subject_id" = excluded."subject_id",
-    "content_hash" = excluded."content_hash",
-    "last_run_id" = excluded."last_run_id",
-    "subject_imported_updated_at" = excluded."subject_imported_updated_at",
-    "went_missing_at" = null;
-end loop;
 
-if v_found then
-  v_updated := v_updated + 1;
-else
-  v_inserted := v_inserted + 1;
-end if;
+  for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+    if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+      v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+    end if;
+    insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
+    values (
+      v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
+      coalesce(v_subject ->> 'role', 'primary'),
+      coalesce(v_subject ->> 'subjectType', v_subject_type),
+      v_subject ->> 'subjectId',
+      v_hash, v_run_id, v_run_id,
+      coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
+      null
+    )
+    on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
+      "subject_type" = excluded."subject_type",
+      "subject_id" = excluded."subject_id",
+      "content_hash" = excluded."content_hash",
+      "last_run_id" = excluded."last_run_id",
+      "subject_imported_updated_at" = excluded."subject_imported_updated_at",
+      "went_missing_at" = null;
+  end loop;
 
+  if v_found then
+    v_updated := v_updated + 1;
+  else
+    v_inserted := v_inserted + 1;
+  end if;
+  
       end if;
     exception when others then
       get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
