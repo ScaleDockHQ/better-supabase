@@ -610,7 +610,7 @@ ${renderPolicy(
     command: "insert",
     roles: ["authenticated"],
     check: `${c("uploadedBy")} = (select auth.uid())
-    and ${inTenant("", "upload")}
+    and ${memberIn("upload")}
     and ${readablePolicySql}`,
   }),
   { target: t },

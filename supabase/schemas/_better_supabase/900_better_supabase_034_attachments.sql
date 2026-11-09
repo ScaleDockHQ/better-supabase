@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:c7a837b8c04e5ec44459ac18d66f16670c58e47100cb298b56b5d81627e9a000
+-- @bsb-hash sha256:8134a7a90247bec1b047aa4191d0ef02a491120f84834ccf7b4f5ad8fecb8d2f
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -439,7 +439,7 @@ create policy bsb_attachments_read on "better_supabase"."attachments"
 create policy bsb_attachments_insert on "better_supabase"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
-    and (coalesce(better_supabase.can('tenant', "tenant_id", case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
+    and ((("subject_type" = 'message' and ("tenant_id" in (select better_supabase.tenant_ids_with('messages.send')))) or ("subject_type" = 'conversation' and ("tenant_id" in (select better_supabase.tenant_ids_with('messages.send')))) or ("subject_type" = 'expense_line' and ("tenant_id" in (select better_supabase.tenant_ids_with('expenses.submit')))) or (not coalesce("subject_type" in ('message', 'conversation', 'expense_line'), false) and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload')))) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
     and ("subject_type" is null or ((("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or case "subject_type"
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id") and "tenant_id" in (select better_supabase.tenant_ids_with('customers.read'))
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("subject_id")::uuid and s."tenant_id" = "tenant_id" and ("tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
@@ -1315,7 +1315,7 @@ create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as rest
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
-    and (coalesce(better_supabase.can('tenant', "tenant_id", case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
+    and ((("subject_type" = 'message' and ("tenant_id" in (select better_supabase.tenant_ids_with('messages.send')))) or ("subject_type" = 'conversation' and ("tenant_id" in (select better_supabase.tenant_ids_with('messages.send')))) or ("subject_type" = 'expense_line' and ("tenant_id" in (select better_supabase.tenant_ids_with('expenses.submit')))) or (not coalesce("subject_type" in ('message', 'conversation', 'expense_line'), false) and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload')))) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
     and ("subject_type" is null or ((("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or case "subject_type"
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id") and "tenant_id" in (select better_supabase.tenant_ids_with('customers.read'))
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("subject_id")::uuid and s."tenant_id" = "tenant_id" and ("tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))

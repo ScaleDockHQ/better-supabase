@@ -2,7 +2,7 @@
 -- calling attachment_subject_readable once per row (ADR 0424), and still hide
 -- an attachment whose subject the caller cannot read.
 begin;
-select plan(4);
+select plan(5);
 
 select ok(
   (select bool_or(qual ~* 'exists' and qual like '%''customer''%') from pg_policies
@@ -29,6 +29,14 @@ select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-4000-8000-0000000000b9","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000002"}}', true);
 set local role authenticated;
 select is((select count(*)::int from better_supabase.attachments where id = '00000000-0000-4000-8000-00000000d101'), 0, 'another tenant reads nothing');
+
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'better_supabase' and tablename = 'attachments' and cmd = 'INSERT'
+      and with_check like '%better_supabase.can(%'),
+  0,
+  'the insert policy checks the upload permission as a set, not can() per row'
+);
 
 select * from finish();
 rollback;

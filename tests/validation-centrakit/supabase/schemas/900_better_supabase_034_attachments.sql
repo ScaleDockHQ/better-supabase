@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:4a6427f265449007abf160dc8234b8645e55de0797b0450e5bde752ab450cfdd
+-- @bsb-hash sha256:130e30198f7b57e8a1289c4dc54c42e35113b7ec66f6197cdbe0ab5ccef4d2a6
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -382,7 +382,7 @@ create policy bsb_attachments_read on "better_supabase"."attachments"
 create policy bsb_attachments_insert on "better_supabase"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
-    and (("subject_type" = 'project' and (coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or ("subject_type" = 'customer' and (coalesce(better_supabase.can('tenant', "tenant_id", 'crm.read'), false))) or (not coalesce("subject_type" in ('project', 'customer'), false) and coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false)))
+    and (("subject_type" = 'project' and ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or ("subject_type" = 'customer' and ("tenant_id" in (select better_supabase.tenant_ids_with('crm.read')))) or (not coalesce("subject_type" in ('project', 'customer'), false) and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))))
     and ("subject_type" is null or case "subject_type"
     when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
     when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
@@ -1246,7 +1246,7 @@ create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as rest
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
-    and (("subject_type" = 'project' and (coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or ("subject_type" = 'customer' and (coalesce(better_supabase.can('tenant', "tenant_id", 'crm.read'), false))) or (not coalesce("subject_type" in ('project', 'customer'), false) and coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false)))
+    and (("subject_type" = 'project' and ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or ("subject_type" = 'customer' and ("tenant_id" in (select better_supabase.tenant_ids_with('crm.read')))) or (not coalesce("subject_type" in ('project', 'customer'), false) and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))))
     and ("subject_type" is null or case "subject_type"
     when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
     when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
