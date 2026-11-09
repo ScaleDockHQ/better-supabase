@@ -10,7 +10,7 @@ import type { Codemod, MigrationContext } from "./codemod.ts";
 
 import naming from "../../api/naming.json" with { type: "json" };
 import { bsbPolicyName, readPolicies } from "../sql/index.ts";
-import { renameArguments } from "./codemod-arguments.ts";
+import { renameArguments, renameBlockReferences } from "./codemod-arguments.ts";
 import { renameConfigKeys } from "./codemod-config-keys.ts";
 
 export type RenameKind =
@@ -348,8 +348,11 @@ export function namingCodemod(
       const keys = renameConfigKeys(text, renames);
 
       return {
-        text: renameArguments(
-          renameQuotedNames(renameEnvNames(keys.text, renames), renames),
+        text: renameBlockReferences(
+          renameArguments(
+            renameQuotedNames(renameEnvNames(keys.text, renames), renames),
+            renames,
+          ),
           renames,
         ),
         review: keys.review,

@@ -67,3 +67,52 @@ export function renameArguments(
 
   return out + text.slice(from);
 }
+
+const camel = (name: string): string =>
+  name.replaceAll(/-([a-z])/g, (_all, letter: string) => letter.toUpperCase());
+
+const escapeRegExp = (value: string): string =>
+  value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+
+/**
+ * `text` with the block keys of the `blocks.<name>` rows renamed where code
+ * reads them: `blocks["time-tracking"]` and `db.$blocks.timeTracking`. The
+ * config key itself is renamed by the config scanner.
+ */
+export function renameBlockReferences(
+  text: string,
+  renames: readonly NamingRename[],
+): string {
+  let result = text;
+
+  for (const rename of renames) {
+    const from = /^blocks\.([^.]+)$/.exec(rename.from)?.[1];
+    const to = /^blocks\.([^.]+)$/.exec(rename.to)?.[1];
+
+    if (rename.kind !== "configKey" || from === undefined || to === undefined) {
+      continue;
+    }
+
+    const ranges = codeRanges(result);
+
+    const inCode = (index: number): boolean =>
+      ranges.some(([start, end]) => index >= start && index < end);
+
+    result = result
+      .replaceAll(
+        new RegExp(
+          String.raw`\bblocks\s*\[\s*(["'])${escapeRegExp(from)}\1\s*\]`,
+          "g",
+        ),
+        (whole, quote: string, offset: number) =>
+          inCode(offset) ? `blocks[${quote}${to}${quote}]` : whole,
+      )
+      .replaceAll(
+        new RegExp(String.raw`(\$blocks\.)${camel(from)}\b`, "g"),
+        (whole, head: string, offset: number) =>
+          inCode(offset) ? `${head}${camel(to)}` : whole,
+      );
+  }
+
+  return result;
+}

@@ -356,3 +356,30 @@ describe("argument renames", () => {
     );
   });
 });
+
+describe("block references", () => {
+  it("renames string block keys and $blocks members of a renamed block", () => {
+    const { text } = applyCodemod(
+      namingCodemod(),
+      [
+        'const a = config.blocks["time-tracking"];',
+        "const b = db.$blocks.timeTracking.list();",
+        "const c = db.$blocks.bulk.run();",
+        "const d = other.timeTracking;",
+        '// blocks["time-tracking"] stays in a comment',
+        "",
+      ].join("\n"),
+    );
+
+    expect(text).toBe(
+      [
+        'const a = config.blocks["time-entries"];',
+        "const b = db.$blocks.timeEntries.list();",
+        "const c = db.$blocks.bulkActions.run();",
+        "const d = other.timeTracking;",
+        '// blocks["time-tracking"] stays in a comment',
+        "",
+      ].join("\n"),
+    );
+  });
+});
