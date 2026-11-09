@@ -296,6 +296,9 @@ may be your own enum or domain.
   - `better_supabase.payment_terms`: `id`, `tenant_id`, `code`, `name`, `days`, `discount_bps`, `discount_days`, `credit_restriction_bps`, `created_at`, `updated_at`
   - `better_supabase.document_delivery_preferences`: `id`, `tenant_id`, `party_id`, `document_type`, `channel`, `copies`, `email`, `created_at`, `updated_at`
   - `better_supabase.person_identities`: `id`, `tenant_id`, `person_id`, `channel`, `address`
+  - `better_supabase.party_locations`: `id`, `tenant_id`, `party_id`, `kind`, `line1`, `line2`, `postal_code`, `city`, `country`, `latitude`, `longitude`, `is_primary`, `created_at`, `updated_at`
+  - `better_supabase.party_bank_accounts`: `id`, `tenant_id`, `party_id`, `iban`, `bic`, `holder`, `is_primary`, `created_at`, `updated_at`
+  - `better_supabase.party_channels`: `id`, `tenant_id`, `party_id`, `party_kind`, `channel`, `label`, `address`, `is_primary`, `created_at`, `updated_at`
 - `content`
   - `better_supabase.content_entries`: `id`, `tenant_id`, `type`, `locale`, `slug`, `title`, `body`, `status`, `publish_at`, `published_at`, `author_id`, `translation_group_id`, `created_at`, `updated_at`; typed: `type`, `locale`, `status`
 - `contracts`

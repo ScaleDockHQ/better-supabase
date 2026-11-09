@@ -21,6 +21,11 @@ import {
 } from "./contacts-identities.ts";
 import { personReferences } from "./contacts-inbox.ts";
 import {
+  partyImportSql,
+  partyImportTargets,
+  partyPlaceTables,
+} from "./contacts-party-import.ts";
+import {
   representativeFunctions,
   representsKind,
 } from "./contacts-representatives.ts";
@@ -126,6 +131,8 @@ const NAMES: BlockSqlNames = {
         legalName: "legal_name",
         registrationId: "registration_id",
         phone: "phone",
+        billingEmail: "billing_email",
+        billTo: "bill_to_id",
         lifecycle: "lifecycle",
         owner: "owner_id",
         address: "address",
@@ -141,6 +148,8 @@ const NAMES: BlockSqlNames = {
         "legalName",
         "registrationId",
         "phone",
+        "billingEmail",
+        "billTo",
         "owner",
         "address",
         "createdBy",
@@ -156,6 +165,10 @@ const NAMES: BlockSqlNames = {
         id: "id",
         tenant: "tenant_id",
         name: "name",
+        givenName: "given_name",
+        lastName: "last_name",
+        initials: "initials",
+        infix: "infix",
         email: "email",
         phone: "phone",
         title: "title",
@@ -173,6 +186,10 @@ const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
       },
       optional: [
+        "givenName",
+        "lastName",
+        "initials",
+        "infix",
         "mode",
         "avatarUrl",
         "metadata",
@@ -242,6 +259,63 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
       },
       optional: ["verifiedAt", "createdAt"],
+    },
+    locations: {
+      name: "party_locations",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        party: "party_id",
+        kind: "kind",
+        line1: "line1",
+        line2: "line2",
+        postalCode: "postal_code",
+        city: "city",
+        country: "country",
+        latitude: "latitude",
+        longitude: "longitude",
+        isPrimary: "is_primary",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    bankAccounts: {
+      name: "party_bank_accounts",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        party: "party_id",
+        iban: "iban",
+        bic: "bic",
+        holder: "holder",
+        isPrimary: "is_primary",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    channels: {
+      name: "party_channels",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        party: "party_id",
+        partyKind: "party_kind",
+        channel: "channel",
+        label: "label",
+        address: "address",
+        isPrimary: "is_primary",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
     },
   },
 };
@@ -328,7 +402,7 @@ create table if not exists ${t("companies")} (
   ${co("tenant")} ${ctx.idType} not null,
   ${co("name")} text not null check (length(${co("name")}) between 1 and 300),
   ${co("domain")} text check (${co("domain")} = lower(${co("domain")}) and ${co("domain")} ~ '^[a-z0-9.-]+\\.[a-z]{2,}$'),
-  ${co("website")} text,${column("companies", "vatId", (name) => `${name} text`)}${column("companies", "legalName", (name) => `${name} text constraint ${ctx.naming.rename("bsb_companies_legal_name")} check (length(${name}) between 1 and 300)`)}${column("companies", "registrationId", (name) => `${name} text constraint ${ctx.naming.rename("bsb_companies_registration_id")} check (length(${name}) between 1 and 100)`)}${column("companies", "phone", (name) => `${name} text`)}
+  ${co("website")} text,${column("companies", "vatId", (name) => `${name} text`)}${column("companies", "legalName", (name) => `${name} text constraint ${ctx.naming.rename("bsb_companies_legal_name")} check (length(${name}) between 1 and 300)`)}${column("companies", "registrationId", (name) => `${name} text constraint ${ctx.naming.rename("bsb_companies_registration_id")} check (length(${name}) between 1 and 100)`)}${column("companies", "phone", (name) => `${name} text`)}${column("companies", "billingEmail", (name) => `${name} text`)}${column("companies", "billTo", (name) => `${name} uuid`)}
   ${co("lifecycle")} text not null,${column("companies", "owner", (name) => `${name} uuid`)}${column("companies", "address", (name) => `${name} jsonb check (${name} is null or jsonb_typeof(${name}) = 'object')`)}${roleColumns(ctx, "companies")}
   ${co("mergedInto")} uuid references ${t("companies")} (${co("id")}),
   ${co("archivedAt")} timestamptz,${column("companies", "createdBy", (name) => `${name} uuid`)}
@@ -345,7 +419,7 @@ ${read("companies")}
 create table if not exists ${t("people")} (
   ${pe("id")} uuid primary key default gen_random_uuid(),
   ${pe("tenant")} ${ctx.idType} not null,
-  ${pe("name")} text not null check (length(${pe("name")}) between 1 and 300),
+  ${pe("name")} text not null check (length(${pe("name")}) between 1 and 300),${column("people", "givenName", (name) => `${name} text`)}${column("people", "lastName", (name) => `${name} text`)}${column("people", "initials", (name) => `${name} text`)}${column("people", "infix", (name) => `${name} text`)}
   ${pe("email")} text check (${pe("email")} = lower(${pe("email")}) and ${pe("email")} ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   ${pe("phone")} text,
   ${pe("title")} text,${column("people", "mode", (name) => `${name} text not null default 'external' constraint ${ctx.naming.rename("bsb_people_mode")} check (${name} in ('external', 'tenant') and (${name} = 'external' or ${pe("user")} is not null))`)}
@@ -428,12 +502,12 @@ function build(ctx: BlockSqlContext): string {
 
   return `${schemaPreamble(ctx)}
 -- Companies and people an organization works with, and who works where.
-${tables(ctx, names)}${deliveryTable(ctx, names)}${identitiesTable(ctx, names)}${partyFunctions(ctx, names)}${termsFunctions(ctx, names)}${roleFunctions(ctx, names, (kind, alias) => partyJson(ctx, kind, alias))}${identityFunctions(ctx, names)}${personReferences(ctx, names)}${representativeFunctions(ctx, names)}`;
+${tables(ctx, names)}${partyPlaceTables(ctx, names)}${deliveryTable(ctx, names)}${identitiesTable(ctx, names)}${partyFunctions(ctx, names)}${termsFunctions(ctx, names)}${roleFunctions(ctx, names, (kind, alias) => partyJson(ctx, kind, alias))}${identityFunctions(ctx, names)}${personReferences(ctx, names)}${representativeFunctions(ctx, names)}${partyImportSql(ctx, names)}`;
 }
 
 const CONTRIBUTES: BlockContributes = {
   relations: (own) => [representsKind(own)],
-  imports: termsImportTargets,
+  imports: (own) => [...termsImportTargets(own), ...partyImportTargets(own)],
 };
 
 const LIST_ARGS = [
