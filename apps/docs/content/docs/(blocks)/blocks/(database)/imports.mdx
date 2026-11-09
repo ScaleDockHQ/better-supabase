@@ -85,8 +85,12 @@ insert. It returns `{ subjectId, role?, subjectType?, updatedAt? }`, or an
 array of them when one record writes several subjects (the first `primary`
 role is the one `resolve` returns). `updatedAt` is
 `(subject_id text) returns timestamptz`; without it a changed hash always
-overwrites. An entity without a target fails the batch with
-`IMPORT_TARGET_UNKNOWN`.
+overwrites. `ownedHash` is `(subject_id text) returns text` over the columns
+the importer writes. A newer `updated_at` is a conflict only when that hash
+changed. When only the stamp moved, the library realigns it and applies the
+row. `rebase_import_records(tenant, source, entities, keys)` copies the
+current stamp and hash onto the stored row. An entity without a target fails
+the batch with `IMPORT_TARGET_UNKNOWN`.
 
 `replaces: true` swaps a block's target for the app's `write` of the same
 entity. The batch loop, the hash and the record map stay the library's, so a

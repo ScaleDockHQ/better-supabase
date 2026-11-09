@@ -27,7 +27,7 @@ import {
   chunkTable,
 } from "./imports-chunks.ts";
 import { HASH_CONTRACT, hashFunctions } from "./imports-hashes.ts";
-import { importLifecycleSql } from "./imports-lifecycle.ts";
+import { importLifecycleSql, rebaseImportSql } from "./imports-lifecycle.ts";
 import { targetsOf } from "./imports-targets.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
@@ -109,6 +109,7 @@ const NAMES: BlockSqlNames = {
         firstRun: "first_run_id",
         lastRun: "last_run_id",
         subjectUpdatedAt: "subject_imported_updated_at",
+        ownedHash: "owned_hash",
         missingSince: "went_missing_at",
       },
     },
@@ -227,10 +228,12 @@ create table if not exists ${records} (
   ${x("firstRun")} uuid not null,
   ${x("lastRun")} uuid not null,
   ${x("subjectUpdatedAt")} timestamptz,
+  ${x("ownedHash")} text,
   ${x("missingSince")} timestamptz,
   constraint ${sqlIdent(`${recordsName}_key`)} unique ${unique}
 );
 create index if not exists ${sqlIdent(`${recordsName}_subject_idx`)} on ${records} (${x("tenant")}, ${x("subjectType")}, ${x("subjectId")});
+alter table ${records} add column if not exists ${x("ownedHash")} text;
 ${lockTable(records, { read: true })}
 create table if not exists ${ctx.schema}.import_refs (
   "id" uuid primary key default gen_random_uuid(),
@@ -294,6 +297,22 @@ ${writeArms}
     r,
   });
 
+  const ownedArms = targets
+    .filter((target) => target.ownedHash !== undefined)
+    .map(
+      (target) => `        when ${sqlString(target.entity)} then
+          v_owned := ${quotedTable(target.ownedHash ?? "")}(v_rec.${x("subjectId")});`,
+    )
+    .join("\n");
+
+  const currentOwned =
+    ownedArms === ""
+      ? "null;"
+      : `case v_entity
+${ownedArms}
+          else null;
+        end case;`;
+
   const currentUpdated =
     updatedArms === ""
       ? "null;"
@@ -301,6 +320,24 @@ ${writeArms}
 ${updatedArms}
           else null;
         end case;`;
+
+  const readerCase = (
+    pick: (target: (typeof targets)[number]) => string | undefined,
+  ): string => {
+    const arms = targets.flatMap((target) => {
+      const reader = pick(target);
+
+      return reader === undefined
+        ? []
+        : [
+            `when ${sqlString(target.entity)} then ${quotedTable(reader)}(x.${x("subjectId")})`,
+          ];
+    });
+
+    return arms.length === 0
+      ? "null"
+      : `case x.${x("entity")} ${arms.join(" ")} else null end`;
+  };
 
   const queue = ctx.enqueue(
     "imports",
@@ -543,6 +580,7 @@ declare
   v_subject_id text;
   v_subject_type text;
   v_current timestamptz;
+  v_owned text;
   v_out jsonb;
   v_subjects jsonb;
   v_subject jsonb;
@@ -628,8 +666,18 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
       else
         -- A row a user changed after the last import stays as it is.
         v_current := null;
+        v_owned := null;
         ${currentUpdated}
-        if v_current is not null and v_rec.${x("subjectUpdatedAt")} is not null and v_current > v_rec.${x("subjectUpdatedAt")} then
+        ${currentOwned}
+        if v_owned is not null and v_rec.${x("ownedHash")} is not null and v_owned is distinct from v_rec.${x("ownedHash")} then
+          update ${records} x set ${x("lastRun")} = v_run_id, ${x("missingSince")} = null
+          where x.${x("id")} = v_rec.${x("id")};
+          v_conflicted := v_conflicted + 1;
+          v_done := true;
+        elsif v_owned is not null and v_current is not null and v_rec.${x("subjectUpdatedAt")} is not null and v_current > v_rec.${x("subjectUpdatedAt")} then
+          update ${records} x set ${x("lastRun")} = v_run_id, ${x("subjectUpdatedAt")} = v_current, ${x("ownedHash")} = v_owned
+          where x.${x("id")} = v_rec.${x("id")};
+        elsif v_owned is null and v_current is not null and v_rec.${x("subjectUpdatedAt")} is not null and v_current > v_rec.${x("subjectUpdatedAt")} then
           update ${records} x set ${x("lastRun")} = v_run_id, ${x("missingSince")} = null
           where x.${x("id")} = v_rec.${x("id")};
           v_conflicted := v_conflicted + 1;
@@ -904,6 +952,11 @@ ${importLifecycleSql(
   ctx,
   targets.map((target) => target.entity),
 )}
+${rebaseImportSql(
+  ctx,
+  readerCase((target) => target.updatedAt),
+  readerCase((target) => target.ownedHash),
+)}
 
 -- Queues one job per chunk of an entity's items, so a worker writes a large
 -- import in batches; the dedupe key makes a retry harmless.
@@ -979,6 +1032,11 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "import_entities", args: [], returns: "text[]" },
+    {
+      name: "rebase_import_records",
+      args: ["{id}", "text", "text[]", "text[]"],
+      returns: "integer",
+    },
     {
       name: "enqueue_import_chunks",
       args: ["uuid", "text", "integer"],

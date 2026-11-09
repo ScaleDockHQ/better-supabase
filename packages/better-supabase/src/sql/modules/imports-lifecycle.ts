@@ -85,3 +85,41 @@ as $$ select array[${listed === "" ? "" : listed}]::text[] $$;
 ${serviceGrant(`${fn("import_entities")}()`)}
 `;
 }
+
+/** Realigns stored stamps and owned hashes to the current subject. */
+export function rebaseImportSql(
+  ctx: BlockSqlContext,
+  stamp: string,
+  owned: string,
+): string {
+  const fn = (name: string): string => ctx.fn(name);
+  const records = ctx.table("records");
+  const column = (name: string): string => ctx.col("records", name);
+
+  return `
+create or replace function ${fn("rebase_import_records")}(tenant ${ctx.idType}, source text, entities text[] default null, keys text[] default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (auth.role() = 'service_role') then
+    ${fail("IMPORT_FORBIDDEN", "only the service role can rebase import records")}
+  end if;
+  update ${records} x
+  set ${column("subjectUpdatedAt")} = coalesce((${stamp}), x.${column("subjectUpdatedAt")}),
+      ${column("ownedHash")} = coalesce((${owned}), x.${column("ownedHash")})
+  where x.${column("tenant")} = rebase_import_records.tenant
+    and x.${column("source")} = rebase_import_records.source
+    and (rebase_import_records.entities is null or x.${column("entity")} = any (rebase_import_records.entities))
+    and (rebase_import_records.keys is null or x.${column("externalKey")} = any (rebase_import_records.keys));
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+${serviceGrant(`${fn("rebase_import_records")}(${ctx.idType}, text, text[], text[])`)}
+`;
+}

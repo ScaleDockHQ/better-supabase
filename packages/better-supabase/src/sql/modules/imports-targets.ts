@@ -38,6 +38,7 @@ export function targetsOf(
     const subjectType = entry.get("subjectType");
     const write = entry.get("write");
     const updatedAt = entry.get("updatedAt");
+    const ownedHash = entry.get("ownedHash");
     const batch = entry.get("batch");
     const replaces = entry.get("replaces");
     const before = entry.get("before");
@@ -77,6 +78,15 @@ export function targetsOf(
     }
 
     if (
+      ownedHash !== undefined &&
+      (typeof ownedHash !== "string" || !FUNCTION_NAME.test(ownedHash))
+    ) {
+      throw new TypeError(
+        `${where}.${entity}.ownedHash must be a "schema.function" name in lowercase`,
+      );
+    }
+
+    if (
       batch !== undefined &&
       (typeof batch !== "string" || !FUNCTION_NAME.test(batch))
     ) {
@@ -98,6 +108,7 @@ export function targetsOf(
       write,
       ...(batch === undefined ? {} : { batch }),
       ...(updatedAt === undefined ? {} : { updatedAt }),
+      ...(ownedHash === undefined ? {} : { ownedHash }),
       ...(replaces === true ? { replaces: true } : {}),
       ...(beforeName === undefined ? {} : { before: beforeName }),
       ...(afterName === undefined ? {} : { after: afterName }),

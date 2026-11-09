@@ -225,6 +225,8 @@ export interface ImportTargetContribution {
    * it, a row changed after the last import is \`conflicted\` and left alone.
    */
   readonly updatedAt?: string;
+  /** `(subject_id text) returns text` over the columns the importer writes. */
+  readonly ownedHash?: string;
   /**
    * When true, this target replaces a block contribution of the same entity
    * instead of being refused as a duplicate.
