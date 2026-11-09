@@ -619,6 +619,8 @@ may be your own enum or domain.
   - `better_supabase.order_line_preparations`: `order_line_id`, `tenant_id`, `order_id`, `station_id`, `state`, `queued_at`, `started_at`, `ready_at`, `served_at`, `updated_at`; typed: `state`
 - `organizations`
   - `better_supabase.organizations`: `id`, `name`
+  - `better_supabase.organization_profiles`: `tenant_id`, `vat_id`, `registration_id`, `default_rate`, `currency`, `updated_at`
+  - `better_supabase.organization_payment_accounts`: `id`, `tenant_id`, `iban`, `bic`, `holder`, `label`, `is_primary`, `updated_at`
 - `outbox`
   - `better_supabase.outbox_events`: `id`, `position`, `type`, `payload`, `created_at`
   - `better_supabase.outbox_consumers`: `name`, `cursor_xid`, `cursor_position`, `types`, `lease_owner`, `lease_expires_at`, `attempts`, `last_error`, `retry_at`, `updated_at`

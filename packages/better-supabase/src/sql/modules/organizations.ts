@@ -29,6 +29,11 @@ import {
   organizationOverview,
 } from "./organizations-overview.ts";
 import {
+  ORGANIZATION_PROFILE_TABLES,
+  organizationProfileSql,
+  organizationProfileTargets,
+} from "./organizations-profile.ts";
+import {
   organizationAttributes,
   organizationReads,
 } from "./organizations-reads.ts";
@@ -80,6 +85,7 @@ const NAMES: BlockSqlNames = {
         "deletedAt",
       ],
     },
+    ...ORGANIZATION_PROFILE_TABLES,
   },
   hooks: [
     "before_organization_create",
@@ -1065,7 +1071,8 @@ ${table(ctx, n, layout)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n
     assignableRole: (stored) => assignableRole(ctx, stored),
     event,
   })}${switcher(ctx, n)}${organizationReads(ctx, n)}${organizationOverview(ctx)}
-${grants}`;
+${grants}
+${organizationProfileSql(ctx)}`;
 }
 
 export const ORGANIZATIONS: BlockSqlDefinition = {
@@ -1086,6 +1093,7 @@ export const ORGANIZATIONS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
+  contributes: { imports: organizationProfileTargets },
   names: NAMES,
   contract: (ctx) =>
     functionsOf(ctx, "{id}").map(([name, args]) => ({

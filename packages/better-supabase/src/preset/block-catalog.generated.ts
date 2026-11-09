@@ -422,7 +422,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "data-lifecycle",
         "entitlements",
         "invitations",
-        "reserved-slugs"
+        "reserved-slugs",
+        "imports"
       ],
       "modes": [
         "managed",

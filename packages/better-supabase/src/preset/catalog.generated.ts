@@ -272,11 +272,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "data-lifecycle",
         "entitlements",
         "invitations",
-        "reserved-slugs"
+        "reserved-slugs",
+        "imports"
       ],
       "manifest": "organizations",
       "scopes": [
         "tenant"
+      ],
+      "contributes": [
+        "imports"
       ],
       "reads": [
         {
