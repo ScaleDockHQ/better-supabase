@@ -1395,7 +1395,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "integrates": [
         "inbox",
         "outbox",
-        "audit"
+        "audit",
+        "employees"
       ],
       "modes": [
         "managed",
@@ -2819,7 +2820,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "relations",
         "hiring",
         "time-entries",
-        "approvals"
+        "approvals",
+        "teams"
       ],
       "modes": [
         "managed",

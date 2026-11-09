@@ -88,6 +88,7 @@ describe("saas block clients", () => {
         description: "Desk",
         status: "archived",
         memberIds: ["u1", "u2"],
+        memberEmployeeIds: [],
         fields: {},
       },
     ]);

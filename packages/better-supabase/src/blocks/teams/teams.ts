@@ -54,6 +54,11 @@ export interface Team<F extends object = Record<never, never>> {
   readonly status: TeamStatus;
   /** The members' user ids, oldest first. Empty on `create` and `update`. */
   readonly memberIds: readonly string[];
+  /**
+   * The members' employee ids, oldest first. Empty without the employees block,
+   * and on `create` and `update`.
+   */
+  readonly memberEmployeeIds: readonly string[];
   /** The extra columns, keyed by database name. */
   readonly fields: ExtraFields<F>;
 }
@@ -101,22 +106,29 @@ export interface Teams<F extends object = Record<never, never>> {
   /** Makes an archived team active again. */
   restore(id: string): AsyncResult<boolean>;
   delete(id: string): AsyncResult<boolean>;
-  addMember(input: { teamId: string; userId: string }): AsyncResult<boolean>;
-  removeMember(input: { teamId: string; userId: string }): AsyncResult<boolean>;
+  /** Adds a user, or with the employees block an employee, to a team. */
+  addMember(input: TeamMemberInput): AsyncResult<boolean>;
+  /** Removes a user or an employee; a row with both goes as a whole. */
+  removeMember(input: TeamMemberInput): AsyncResult<boolean>;
   list(organizationId: string): AsyncResult<readonly Team<F>[]>;
   /**
-   * Makes `userIds` the team's members: it adds the missing ones and removes
-   * the others, and returns what changed. It reads `list` to find the current
-   * members, then calls `addMember` and `removeMember`, so their hooks see each
-   * step. A failure stops the loop; run it again to finish.
+   * Makes `userIds` the team's user members and `employeeIds` its employee
+   * members: it adds the missing ones and removes the others, and returns what
+   * changed. A list left out stays as it is. It reads `list` to find the
+   * current members (again before the employees), then calls `addMember` and
+   * `removeMember`, so their hooks see each step. A failure stops the loop; run
+   * it again to finish.
    */
   setMembers(input: {
     organizationId: string;
     teamId: string;
-    userIds: readonly string[];
+    userIds?: readonly string[] | undefined;
+    employeeIds?: readonly string[] | undefined;
   }): AsyncResult<{
     readonly added: readonly string[];
     readonly removed: readonly string[];
+    readonly addedEmployees?: readonly string[];
+    readonly removedEmployees?: readonly string[];
   }>;
   /** `archive` when `archived` is true, otherwise `restore`. */
   setArchived(input: {
@@ -124,6 +136,16 @@ export interface Teams<F extends object = Record<never, never>> {
     archived: boolean;
   }): AsyncResult<boolean>;
 }
+
+/** A team and a user, or with the employees block an employee. */
+type TeamMemberInput =
+  | { readonly teamId: string; readonly userId: string }
+  | { readonly teamId: string; readonly employeeId: string };
+
+const memberArgs = (input: TeamMemberInput): Record<string, string> =>
+  "employeeId" in input
+    ? { team: input.teamId, employee: input.employeeId }
+    : { team: input.teamId, member: input.userId };
 
 function teamOf(value: unknown): Team {
   const row = recordOf(value, "team");
@@ -135,6 +157,7 @@ function teamOf(value: unknown): Team {
     description: nullableText(row["description"]),
     status: oneOf(row["status"], TEAM_STATUSES, "active"),
     memberIds: stringsOf(row["member_ids"]),
+    memberEmployeeIds: stringsOf(row["member_employee_ids"]),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
@@ -211,58 +234,90 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
       call("restore_team", { team: id }, (value) => value === true),
     delete: (id) =>
       call("delete_team", { team: id }, (value) => value === true),
-    addMember: ({ teamId, userId }) =>
-      call(
-        "add_team_member",
-        { team: teamId, member: userId },
-        (value) => value === true,
-      ),
-    removeMember: ({ teamId, userId }) =>
-      call(
-        "remove_team_member",
-        { team: teamId, member: userId },
-        (value) => value === true,
-      ),
+    addMember: (input) =>
+      call("add_team_member", memberArgs(input), (value) => value === true),
+    removeMember: (input) =>
+      call("remove_team_member", memberArgs(input), (value) => value === true),
     list: (organizationId) =>
       call("list_teams", { tenant: organizationId }, (value) =>
         recordsOf(value, "list_teams").map(teamOf),
       ).andThen(fields.rows),
-    setMembers: ({ organizationId, teamId, userIds }) =>
+    setMembers: ({ organizationId, teamId, userIds, employeeIds }) =>
       AsyncResult.from(async () => {
-        const teams = await hooked.list(organizationId);
+        const current = async (key: "memberIds" | "memberEmployeeIds") => {
+          const teams = await hooked.list(organizationId);
 
-        if (!teams.ok) {
-          return teams;
-        }
-
-        const team = teams.data.find((each) => each.id === teamId);
-
-        if (team === undefined) {
-          return err(dbError("not_found", "No team in this organization"));
-        }
-
-        const wanted = new Set(userIds);
-        const current = new Set(team.memberIds);
-        const added = [...wanted].filter((id) => !current.has(id));
-        const removed = [...current].filter((id) => !wanted.has(id));
-
-        for (const userId of added) {
-          const result = await hooked.addMember({ teamId, userId });
-
-          if (!result.ok) {
-            return result;
+          if (!teams.ok) {
+            return teams;
           }
-        }
 
-        for (const userId of removed) {
-          const result = await hooked.removeMember({ teamId, userId });
+          const team = teams.data.find((each) => each.id === teamId);
 
-          if (!result.ok) {
-            return result;
+          return team === undefined
+            ? err(dbError("not_found", "No team in this organization"))
+            : ok(team[key]);
+        };
+
+        const sync = async (
+          wanted: readonly string[],
+          key: "memberIds" | "memberEmployeeIds",
+          member: (id: string) => TeamMemberInput,
+        ) => {
+          const now = await current(key);
+
+          if (!now.ok) {
+            return now;
           }
+
+          const want = new Set(wanted);
+          const have = new Set(now.data);
+          const added = [...want].filter((id) => !have.has(id));
+          const removed = [...have].filter((id) => !want.has(id));
+
+          for (const id of added) {
+            const result = await hooked.addMember(member(id));
+
+            if (!result.ok) {
+              return result;
+            }
+          }
+
+          for (const id of removed) {
+            const result = await hooked.removeMember(member(id));
+
+            if (!result.ok) {
+              return result;
+            }
+          }
+
+          return ok({ added, removed });
+        };
+
+        const users =
+          userIds === undefined
+            ? ok({ added: [], removed: [] })
+            : await sync(userIds, "memberIds", (userId) => ({
+                teamId,
+                userId,
+              }));
+
+        if (!users.ok || employeeIds === undefined) {
+          return users;
         }
 
-        return ok({ added, removed });
+        const people = await sync(
+          employeeIds,
+          "memberEmployeeIds",
+          (employeeId) => ({ teamId, employeeId }),
+        );
+
+        return people.ok
+          ? ok({
+              ...users.data,
+              addedEmployees: people.data.added,
+              removedEmployees: people.data.removed,
+            })
+          : people;
       }),
     setArchived: ({ teamId, archived }) =>
       archived ? hooked.archive(teamId) : hooked.restore(teamId),

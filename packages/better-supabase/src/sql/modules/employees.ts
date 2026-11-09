@@ -28,6 +28,7 @@ import {
 } from "./employees-options.ts";
 import { sensitiveFunctions } from "./employees-sensitive.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import { employeeMembers, isTenantMember, teamIdType } from "./teams.ts";
 
 const EMPLOYEE = [
   "organizationId",
@@ -537,7 +538,82 @@ function build(ctx: BlockSqlContext): string {
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
 -- behind employees.view_sensitive.
-${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}${timeEntriesSql(ctx)}`;
+${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}${timeEntriesSql(ctx)}${teamMembersSql(ctx)}`;
+}
+
+/**
+ * With teams, team rows of an employee: their user follows the employee's
+ * account, and the employee's team (the primary team) gets a row.
+ */
+function teamMembersSql(ctx: BlockSqlContext): string {
+  if (!ctx.installed("teams") || !employeeMembers(ctx.of("teams"))) {
+    return "";
+  }
+
+  const teams = ctx.of("teams");
+  const members = teams.table("members");
+  const m = (column: string): string => teams.col("members", column);
+  const employees = ctx.table("employees");
+  const e = (column: string): string => ctx.col("employees", column);
+  const sync = ctx.naming.rename("bsb_employee_team_members");
+  const primary = ctx.has("employees", "team") && teamIdType(teams) === "uuid";
+
+  const join = primary
+    ? `
+  if new.${e("team")} is not null and (tg_op = 'INSERT' or new.${e("team")} is distinct from old.${e("team")}) then
+    insert into ${members} (${m("team")}, ${m("user")}, ${m("employee")}, ${m("tenant")})
+    select t.${teams.col("teams", "id")}, v_user, new.${e("id")}, new.${e("tenant")}
+    from ${teams.table("teams")} t
+    where t.${teams.col("teams", "id")} = new.${e("team")} and t.${teams.col("teams", "tenant")} = new.${e("tenant")}
+    on conflict do nothing;
+  end if;`
+    : "";
+
+  return `
+${addForeignKey({
+  table: members,
+  name: `${teams.tableName("members").name}_employee_fkey`,
+  column: m("employee"),
+  references: `${employees} (${e("id")})`,
+  onDelete: "cascade",
+})}
+
+-- The employee's team rows carry the employee's account while it is a member
+-- of the organization; linking an account merges that user's own rows.${primary ? "\n-- Setting the team adds a row for it; the row of the previous team stays." : ""}
+create or replace function better_supabase.${sync}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_user uuid;
+begin
+  if new.${e("user")} is not null and ${isTenantMember(teams, `new.${e("tenant")}`, `new.${e("user")}`)} then
+    v_user := new.${e("user")};
+  end if;
+  if tg_op = 'INSERT' or new.${e("user")} is distinct from old.${e("user")} then
+    if v_user is not null then
+      delete from ${members} x
+      where x.${m("user")} = v_user and x.${m("employee")} is null
+        and exists (
+          select 1 from ${members} y
+          where y.${m("team")} = x.${m("team")} and y.${m("employee")} = new.${e("id")}
+        );
+      update ${members} set ${m("employee")} = new.${e("id")}
+      where ${m("tenant")} = new.${e("tenant")} and ${m("user")} = v_user and ${m("employee")} is null;
+    end if;
+    update ${members} set ${m("user")} = v_user
+    where ${m("employee")} = new.${e("id")} and ${m("user")} is distinct from v_user;
+  end if;${join}
+  return null;
+end;
+$$;
+${triggerGrant(`better_supabase.${sync}()`)}
+drop trigger if exists ${sync} on ${employees};
+create trigger ${sync} after insert or update of ${e("user")}${primary ? `, ${e("team")}` : ""} on ${employees}
+for each row execute function better_supabase.${sync}();
+`;
 }
 
 const timeByEmployee = (ctx: BlockSqlContext): boolean =>
@@ -642,7 +718,14 @@ export const EMPLOYEES: BlockSqlDefinition = {
   description:
     "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "relations", "hiring", "time-entries", "approvals"],
+  integrates: [
+    "outbox",
+    "relations",
+    "hiring",
+    "time-entries",
+    "approvals",
+    "teams",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,

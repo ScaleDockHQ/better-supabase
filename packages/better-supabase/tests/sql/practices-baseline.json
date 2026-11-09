@@ -194,8 +194,8 @@
     "security-definer-functions": 48
   },
   "employees": {
-    "security-definer-functions": 75,
-    "row-triggers": 14
+    "security-definer-functions": 76,
+    "row-triggers": 15
   },
   "enrichment": {
     "security-definer-functions": 24
@@ -525,7 +525,8 @@
     "security-definer-functions": 67
   },
   "teams": {
-    "security-definer-functions": 48
+    "security-definer-functions": 49,
+    "row-triggers": 1
   },
   "templates": {
     "security-definer-functions": 77,

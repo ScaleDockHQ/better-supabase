@@ -128283,6 +128283,27 @@
         "table_id": 1000513,
         "schema": "better_supabase",
         "table": "team_members",
+        "id": "1000513.5",
+        "ordinal_position": 5,
+        "name": "employee_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000513,
+        "schema": "better_supabase",
+        "table": "team_members",
         "id": "1000513.1",
         "ordinal_position": 1,
         "name": "team_id",
@@ -128335,7 +128356,7 @@
         "is_identity": false,
         "identity_generation": null,
         "is_generated": false,
-        "is_nullable": false,
+        "is_nullable": true,
         "is_updatable": true,
         "is_unique": false,
         "check": null,
@@ -146625,18 +146646,6 @@
         "name": "id"
       },
       {
-        "table_id": 1000513,
-        "schema": "better_supabase",
-        "table_name": "team_members",
-        "name": "team_id"
-      },
-      {
-        "table_id": 1000513,
-        "schema": "better_supabase",
-        "table_name": "team_members",
-        "name": "user_id"
-      },
-      {
         "table_id": 1000514,
         "schema": "better_supabase",
         "table_name": "teams",
@@ -156527,6 +156536,20 @@
         "is_one_to_one": false
       },
       {
+        "foreign_key_name": "team_members_employee_fkey",
+        "schema": "better_supabase",
+        "relation": "team_members",
+        "columns": [
+          "employee_id"
+        ],
+        "referenced_schema": "better_supabase",
+        "referenced_relation": "employees",
+        "referenced_columns": [
+          "id"
+        ],
+        "is_one_to_one": false
+      },
+      {
         "foreign_key_name": "team_members_membership_fkey",
         "schema": "better_supabase",
         "relation": "team_members",
@@ -160632,14 +160655,20 @@
         "schema": "better_supabase",
         "name": "add_team_member",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  v_tenant uuid;\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select \"tenant_id\" into v_tenant from \"better_supabase\".\"teams\" where \"id\" = add_team_member.team;\n  if not found then\n    raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then\n    raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';\n  end if;\n  if not exists (\n    select 1 from \"public\".\"memberships\" m\n    where m.\"organization_id\" = v_tenant\n      and m.\"user_id\" = add_team_member.member\n  ) then\n    raise exception 'user is not a member of the tenant' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';\n  end if;\n  insert into \"better_supabase\".\"team_members\" (\"team_id\", \"user_id\", \"tenant_id\")\n  values (add_team_member.team, add_team_member.member, v_tenant)\n  on conflict do nothing;\n  perform \"better_supabase\".emit_event('team_member.added', jsonb_build_object('organizationId', v_tenant, 'id', add_team_member.team, 'userId', add_team_member.member), 'teams/' || (add_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');\n  perform better_supabase.audit_event(\n    event_type => 'team_member.added',\n    category => 'membership',\n    target_type => 'team',\n    record_id => (add_team_member.team)::text,\n    tenant => (v_tenant)::uuid,\n    metadata => jsonb_build_object('organizationId', v_tenant, 'id', add_team_member.team, 'userId', add_team_member.member)\n  );\n  return true;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.add_team_member(team uuid, member uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_tenant uuid;\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select \"tenant_id\" into v_tenant from \"better_supabase\".\"teams\" where \"id\" = add_team_member.team;\n  if not found then\n    raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then\n    raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';\n  end if;\n  if not exists (\n    select 1 from \"public\".\"memberships\" m\n    where m.\"organization_id\" = v_tenant\n      and m.\"user_id\" = add_team_member.member\n  ) then\n    raise exception 'user is not a member of the tenant' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';\n  end if;\n  insert into \"better_supabase\".\"team_members\" (\"team_id\", \"user_id\", \"tenant_id\")\n  values (add_team_member.team, add_team_member.member, v_tenant)\n  on conflict do nothing;\n  perform \"better_supabase\".emit_event('team_member.added', jsonb_build_object('organizationId', v_tenant, 'id', add_team_member.team, 'userId', add_team_member.member), 'teams/' || (add_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');\n  perform better_supabase.audit_event(\n    event_type => 'team_member.added',\n    category => 'membership',\n    target_type => 'team',\n    record_id => (add_team_member.team)::text,\n    tenant => (v_tenant)::uuid,\n    metadata => jsonb_build_object('organizationId', v_tenant, 'id', add_team_member.team, 'userId', add_team_member.member)\n  );\n  return true;\nend;\n$function$\n",
+        "definition": "\ndeclare\n  v_tenant uuid;\n  v_user uuid := add_team_member.member;\n  v_employee uuid := add_team_member.employee;\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select \"tenant_id\" into v_tenant from \"better_supabase\".\"teams\" where \"id\" = add_team_member.team;\n  if not found then\n    raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then\n    raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';\n  end if;\n  if (add_team_member.member is null) = (add_team_member.employee is null) then\n    raise exception 'pass either a user or an employee' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';\n  end if;\n  if v_employee is null then\n    if not exists (\n    select 1 from \"public\".\"memberships\" m\n    where m.\"organization_id\" = v_tenant\n      and m.\"user_id\" = v_user\n  ) then\n    raise exception 'user is not a member of the tenant' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';\n  end if;\n    v_employee := (\n      select x.\"id\" from \"better_supabase\".\"employees\" x\n      where x.\"tenant_id\" = v_tenant and x.\"user_id\" = v_user\n    );\n  else\n    select x.\"user_id\" into v_user from \"better_supabase\".\"employees\" x\n    where x.\"id\" = v_employee and x.\"tenant_id\" = v_tenant;\n    if not found then\n      raise exception 'employee is not in the tenant' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';\n    end if;\n    if v_user is not null and not exists (\n    select 1 from \"public\".\"memberships\" m\n    where m.\"organization_id\" = v_tenant\n      and m.\"user_id\" = v_user\n  ) then\n      v_user := null;\n    end if;\n  end if;\n  if v_employee is not null and v_user is not null then\n    delete from \"better_supabase\".\"team_members\" x\n    where x.\"team_id\" = add_team_member.team and x.\"user_id\" = v_user and x.\"employee_id\" is null\n      and exists (\n        select 1 from \"better_supabase\".\"team_members\" y\n        where y.\"team_id\" = add_team_member.team and y.\"employee_id\" = v_employee\n      );\n    update \"better_supabase\".\"team_members\" set \"user_id\" = v_user\n    where \"team_id\" = add_team_member.team and \"employee_id\" = v_employee and \"user_id\" is null;\n    update \"better_supabase\".\"team_members\" set \"employee_id\" = v_employee\n    where \"team_id\" = add_team_member.team and \"user_id\" = v_user and \"employee_id\" is null;\n  end if;\n  insert into \"better_supabase\".\"team_members\" (\"team_id\", \"user_id\", \"employee_id\", \"tenant_id\")\n  values (add_team_member.team, v_user, v_employee, v_tenant)\n  on conflict do nothing;\n  perform \"better_supabase\".emit_event('team_member.added', jsonb_build_object('organizationId', v_tenant, 'id', add_team_member.team, 'userId', v_user, 'employeeId', v_employee), 'teams/' || (add_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');\n  perform better_supabase.audit_event(\n    event_type => 'team_member.added',\n    category => 'membership',\n    target_type => 'team',\n    record_id => (add_team_member.team)::text,\n    tenant => (v_tenant)::uuid,\n    metadata => jsonb_build_object('organizationId', v_tenant, 'id', add_team_member.team, 'userId', v_user, 'employeeId', v_employee)\n  );\n  return true;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.add_team_member(team uuid, member uuid DEFAULT NULL::uuid, employee uuid DEFAULT NULL::uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_tenant uuid;\n  v_user uuid := add_team_member.member;\n  v_employee uuid := add_team_member.employee;\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select \"tenant_id\" into v_tenant from \"better_supabase\".\"teams\" where \"id\" = add_team_member.team;\n  if not found then\n    raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then\n    raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';\n  end if;\n  if (add_team_member.member is null) = (add_team_member.employee is null) then\n    raise exception 'pass either a user or an employee' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';\n  end if;\n  if v_employee is null then\n    if not exists (\n    select 1 from \"public\".\"memberships\" m\n    where m.\"organization_id\" = v_tenant\n      and m.\"user_id\" = v_user\n  ) then\n    raise exception 'user is not a member of the tenant' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';\n  end if;\n    v_employee := (\n      select x.\"id\" from \"better_supabase\".\"employees\" x\n      where x.\"tenant_id\" = v_tenant and x.\"user_id\" = v_user\n    );\n  else\n    select x.\"user_id\" into v_user from \"better_supabase\".\"employees\" x\n    where x.\"id\" = v_employee and x.\"tenant_id\" = v_tenant;\n    if not found then\n      raise exception 'employee is not in the tenant' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';\n    end if;\n    if v_user is not null and not exists (\n    select 1 from \"public\".\"memberships\" m\n    where m.\"organization_id\" = v_tenant\n      and m.\"user_id\" = v_user\n  ) then\n      v_user := null;\n    end if;\n  end if;\n  if v_employee is not null and v_user is not null then\n    delete from \"better_supabase\".\"team_members\" x\n    where x.\"team_id\" = add_team_member.team and x.\"user_id\" = v_user and x.\"employee_id\" is null\n      and exists (\n        select 1 from \"better_supabase\".\"team_members\" y\n        where y.\"team_id\" = add_team_member.team and y.\"employee_id\" = v_employee\n      );\n    update \"better_supabase\".\"team_members\" set \"user_id\" = v_user\n    where \"team_id\" = add_team_member.team and \"employee_id\" = v_employee and \"user_id\" is null;\n    update \"better_supabase\".\"team_members\" set \"employee_id\" = v_employee\n    where \"team_id\" = add_team_member.team and \"user_id\" = v_user and \"employee_id\" is null;\n  end if;\n  insert into \"better_supabase\".\"team_members\" (\"team_id\", \"user_id\", \"employee_id\", \"tenant_id\")\n  values (add_team_member.team, v_user, v_employee, v_tenant)\n  on conflict do nothing;\n  perform \"better_supabase\".emit_event('team_member.added', jsonb_build_object('organizationId', v_tenant, 'id', add_team_member.team, 'userId', v_user, 'employeeId', v_employee), 'teams/' || (add_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');\n  perform better_supabase.audit_event(\n    event_type => 'team_member.added',\n    category => 'membership',\n    target_type => 'team',\n    record_id => (add_team_member.team)::text,\n    tenant => (v_tenant)::uuid,\n    metadata => jsonb_build_object('organizationId', v_tenant, 'id', add_team_member.team, 'userId', v_user, 'employeeId', v_employee)\n  );\n  return true;\nend;\n$function$\n",
         "args": [
+          {
+            "mode": "in",
+            "name": "employee",
+            "type_id": 2950,
+            "has_default": true
+          },
           {
             "mode": "in",
             "name": "member",
             "type_id": 2950,
-            "has_default": false
+            "has_default": true
           },
           {
             "mode": "in",
@@ -160648,8 +160677,8 @@
             "has_default": false
           }
         ],
-        "argument_types": "team uuid, member uuid",
-        "identity_argument_types": "team uuid, member uuid",
+        "argument_types": "team uuid, member uuid DEFAULT NULL::uuid, employee uuid DEFAULT NULL::uuid",
+        "identity_argument_types": "team uuid, member uuid, employee uuid",
         "return_type_id": 16,
         "return_type": "boolean",
         "return_type_relation_id": null,
@@ -208800,8 +208829,8 @@
         "schema": "better_supabase",
         "name": "list_teams",
         "language": "sql",
-        "definition": "\n  select coalesce(jsonb_agg(jsonb_build_object(\n    'id', t.\"id\",\n    'name', t.\"name\",\n    'slug', t.\"slug\",\n    'description', t.\"description\",\n    'status', t.\"status\",\n    'member_ids', coalesce((\n      select jsonb_agg(m.\"user_id\" order by m.\"created_at\")\n      from \"better_supabase\".\"team_members\" m\n      where m.\"team_id\" = t.\"id\"\n    ), '[]'::jsonb)\n  ) order by t.\"name\"), '[]'::jsonb)\n  from \"better_supabase\".\"teams\" t\n  where t.\"tenant_id\" = list_teams.tenant\n    and (\n      auth.role() = 'service_role'\n      or coalesce(better_supabase.can('tenant', list_teams.tenant, 'teams.read'), false)\n    )\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.list_teams(tenant uuid)\n RETURNS jsonb\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select coalesce(jsonb_agg(jsonb_build_object(\n    'id', t.\"id\",\n    'name', t.\"name\",\n    'slug', t.\"slug\",\n    'description', t.\"description\",\n    'status', t.\"status\",\n    'member_ids', coalesce((\n      select jsonb_agg(m.\"user_id\" order by m.\"created_at\")\n      from \"better_supabase\".\"team_members\" m\n      where m.\"team_id\" = t.\"id\"\n    ), '[]'::jsonb)\n  ) order by t.\"name\"), '[]'::jsonb)\n  from \"better_supabase\".\"teams\" t\n  where t.\"tenant_id\" = list_teams.tenant\n    and (\n      auth.role() = 'service_role'\n      or coalesce(better_supabase.can('tenant', list_teams.tenant, 'teams.read'), false)\n    )\n$function$\n",
+        "definition": "\n  select coalesce(jsonb_agg(jsonb_build_object(\n    'id', t.\"id\",\n    'name', t.\"name\",\n    'slug', t.\"slug\",\n    'description', t.\"description\",\n    'status', t.\"status\",\n    'member_ids', coalesce((\n      select jsonb_agg(m.\"user_id\" order by m.\"created_at\") filter (where m.\"user_id\" is not null)\n      from \"better_supabase\".\"team_members\" m\n      where m.\"team_id\" = t.\"id\"\n    ), '[]'::jsonb),\n    'member_employee_ids', coalesce((\n      select jsonb_agg(m.\"employee_id\" order by m.\"created_at\") filter (where m.\"employee_id\" is not null)\n      from \"better_supabase\".\"team_members\" m\n      where m.\"team_id\" = t.\"id\"\n    ), '[]'::jsonb)\n  ) order by t.\"name\"), '[]'::jsonb)\n  from \"better_supabase\".\"teams\" t\n  where t.\"tenant_id\" = list_teams.tenant\n    and (\n      auth.role() = 'service_role'\n      or coalesce(better_supabase.can('tenant', list_teams.tenant, 'teams.read'), false)\n    )\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.list_teams(tenant uuid)\n RETURNS jsonb\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select coalesce(jsonb_agg(jsonb_build_object(\n    'id', t.\"id\",\n    'name', t.\"name\",\n    'slug', t.\"slug\",\n    'description', t.\"description\",\n    'status', t.\"status\",\n    'member_ids', coalesce((\n      select jsonb_agg(m.\"user_id\" order by m.\"created_at\") filter (where m.\"user_id\" is not null)\n      from \"better_supabase\".\"team_members\" m\n      where m.\"team_id\" = t.\"id\"\n    ), '[]'::jsonb),\n    'member_employee_ids', coalesce((\n      select jsonb_agg(m.\"employee_id\" order by m.\"created_at\") filter (where m.\"employee_id\" is not null)\n      from \"better_supabase\".\"team_members\" m\n      where m.\"team_id\" = t.\"id\"\n    ), '[]'::jsonb)\n  ) order by t.\"name\"), '[]'::jsonb)\n  from \"better_supabase\".\"teams\" t\n  where t.\"tenant_id\" = list_teams.tenant\n    and (\n      auth.role() = 'service_role'\n      or coalesce(better_supabase.can('tenant', list_teams.tenant, 'teams.read'), false)\n    )\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -214561,8 +214590,8 @@
         "schema": "better_supabase",
         "name": "offboard_employee",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  v_row \"better_supabase\".\"employees\";\n  v_report \"better_supabase\".\"employees\";\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select * into v_row from \"better_supabase\".\"employees\" x where x.\"id\" = offboard_employee.employee;\n  if v_row.\"id\" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row.\"tenant_id\", 'employees.write'), false)) then\n    raise exception 'no such employee you can offboard' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';\n  end if;\n  if v_row.\"status\" = 'offboarded' then\n    return to_jsonb(v_row);\n  end if;\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"before_employee_offboard\"(uuid)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::uuid)', v_hook::oid::regproc)\n        using v_row.\"id\";\n    end if;\n  end;\n  begin\n    update \"better_supabase\".\"employees\" x set \"status\" = 'offboarded', \"end_date\" = coalesce(offboard_employee.end_date, current_date), \"offboard_reason\" = nullif(trim(offboard_employee.reason), ''), \"updated_at\" = now()\n    where x.\"id\" = v_row.\"id\"\n    returning * into v_row;\n  exception when check_violation then\n    raise exception 'the end date is before the start date' using errcode = '22023', hint = 'EMPLOYEE_ATTRS_INVALID';\n  end;\n\n  for v_report in select * from \"better_supabase\".\"employees\" x where x.\"manager_id\" = v_row.\"id\" loop\n    update \"better_supabase\".\"employees\" x set \"manager_id\" = v_row.\"manager_id\", \"updated_at\" = now()\n    where x.\"id\" = v_report.\"id\"\n    returning * into v_report;\n    perform \"better_supabase\".emit_event('employee.manager_changed', jsonb_build_object('organizationId', v_report.\"tenant_id\", 'employeeId', v_report.\"id\", 'subjectType', 'employee', 'subjectId', v_report.\"id\"::text, 'name', v_report.\"name\", 'userId', v_report.\"user_id\", 'fromManagerId', v_row.\"id\", 'toManagerId', v_report.\"manager_id\"), 'employees/' || v_report.\"id\"::text, (v_report.\"tenant_id\"::text)::text, null, 'better-supabase/employees');\n  end loop;\n  update \"better_supabase\".\"employee_private_details\" x set \"offboarded_at\" = now()\n  where x.\"employee_id\" = v_row.\"id\";\n  perform \"better_supabase\".emit_event('employee.offboarded', jsonb_build_object('organizationId', v_row.\"tenant_id\", 'employeeId', v_row.\"id\", 'subjectType', 'employee', 'subjectId', v_row.\"id\"::text, 'name', v_row.\"name\", 'userId', v_row.\"user_id\", 'endDate', v_row.\"end_date\", 'reason', v_row.\"offboard_reason\"), 'employees/' || v_row.\"id\"::text, (v_row.\"tenant_id\"::text)::text, null, 'better-supabase/employees');\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"after_employee_offboard\"(uuid)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::uuid)', v_hook::oid::regproc)\n        using v_row.\"id\";\n    end if;\n  end;\n  return to_jsonb(v_row);\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.offboard_employee(employee uuid, end_date date, reason text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_row \"better_supabase\".\"employees\";\n  v_report \"better_supabase\".\"employees\";\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select * into v_row from \"better_supabase\".\"employees\" x where x.\"id\" = offboard_employee.employee;\n  if v_row.\"id\" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row.\"tenant_id\", 'employees.write'), false)) then\n    raise exception 'no such employee you can offboard' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';\n  end if;\n  if v_row.\"status\" = 'offboarded' then\n    return to_jsonb(v_row);\n  end if;\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"before_employee_offboard\"(uuid)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::uuid)', v_hook::oid::regproc)\n        using v_row.\"id\";\n    end if;\n  end;\n  begin\n    update \"better_supabase\".\"employees\" x set \"status\" = 'offboarded', \"end_date\" = coalesce(offboard_employee.end_date, current_date), \"offboard_reason\" = nullif(trim(offboard_employee.reason), ''), \"updated_at\" = now()\n    where x.\"id\" = v_row.\"id\"\n    returning * into v_row;\n  exception when check_violation then\n    raise exception 'the end date is before the start date' using errcode = '22023', hint = 'EMPLOYEE_ATTRS_INVALID';\n  end;\n\n  for v_report in select * from \"better_supabase\".\"employees\" x where x.\"manager_id\" = v_row.\"id\" loop\n    update \"better_supabase\".\"employees\" x set \"manager_id\" = v_row.\"manager_id\", \"updated_at\" = now()\n    where x.\"id\" = v_report.\"id\"\n    returning * into v_report;\n    perform \"better_supabase\".emit_event('employee.manager_changed', jsonb_build_object('organizationId', v_report.\"tenant_id\", 'employeeId', v_report.\"id\", 'subjectType', 'employee', 'subjectId', v_report.\"id\"::text, 'name', v_report.\"name\", 'userId', v_report.\"user_id\", 'fromManagerId', v_row.\"id\", 'toManagerId', v_report.\"manager_id\"), 'employees/' || v_report.\"id\"::text, (v_report.\"tenant_id\"::text)::text, null, 'better-supabase/employees');\n  end loop;\n  update \"better_supabase\".\"employee_private_details\" x set \"offboarded_at\" = now()\n  where x.\"employee_id\" = v_row.\"id\";\n  perform \"better_supabase\".emit_event('employee.offboarded', jsonb_build_object('organizationId', v_row.\"tenant_id\", 'employeeId', v_row.\"id\", 'subjectType', 'employee', 'subjectId', v_row.\"id\"::text, 'name', v_row.\"name\", 'userId', v_row.\"user_id\", 'endDate', v_row.\"end_date\", 'reason', v_row.\"offboard_reason\"), 'employees/' || v_row.\"id\"::text, (v_row.\"tenant_id\"::text)::text, null, 'better-supabase/employees');\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"after_employee_offboard\"(uuid)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::uuid)', v_hook::oid::regproc)\n        using v_row.\"id\";\n    end if;\n  end;\n  return to_jsonb(v_row);\nend;\n$function$\n",
+        "definition": "\ndeclare\n  v_row \"better_supabase\".\"employees\";\n  v_report \"better_supabase\".\"employees\";\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select * into v_row from \"better_supabase\".\"employees\" x where x.\"id\" = offboard_employee.employee;\n  if v_row.\"id\" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row.\"tenant_id\", 'employees.write'), false)) then\n    raise exception 'no such employee you can offboard' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';\n  end if;\n  if v_row.\"status\" = 'offboarded' then\n    return to_jsonb(v_row);\n  end if;\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"before_employee_offboard\"(uuid)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::uuid)', v_hook::oid::regproc)\n        using v_row.\"id\";\n    end if;\n  end;\n  begin\n    update \"better_supabase\".\"employees\" x set \"status\" = 'offboarded', \"end_date\" = coalesce(offboard_employee.end_date, current_date), \"offboard_reason\" = nullif(trim(offboard_employee.reason), ''), \"updated_at\" = now()\n    where x.\"id\" = v_row.\"id\"\n    returning * into v_row;\n  exception when check_violation then\n    raise exception 'the end date is before the start date' using errcode = '22023', hint = 'EMPLOYEE_ATTRS_INVALID';\n  end;\n\n  for v_report in select * from \"better_supabase\".\"employees\" x where x.\"manager_id\" = v_row.\"id\" loop\n    update \"better_supabase\".\"employees\" x set \"manager_id\" = v_row.\"manager_id\", \"updated_at\" = now()\n    where x.\"id\" = v_report.\"id\"\n    returning * into v_report;\n    perform \"better_supabase\".emit_event('employee.manager_changed', jsonb_build_object('organizationId', v_report.\"tenant_id\", 'employeeId', v_report.\"id\", 'subjectType', 'employee', 'subjectId', v_report.\"id\"::text, 'name', v_report.\"name\", 'userId', v_report.\"user_id\", 'fromManagerId', v_row.\"id\", 'toManagerId', v_report.\"manager_id\"), 'employees/' || v_report.\"id\"::text, (v_report.\"tenant_id\"::text)::text, null, 'better-supabase/employees');\n  end loop;\n  update \"better_supabase\".\"employee_private_details\" x set \"offboarded_at\" = now()\n  where x.\"employee_id\" = v_row.\"id\";\n  perform \"better_supabase\".emit_event('employee.offboarded', jsonb_build_object('organizationId', v_row.\"tenant_id\", 'employeeId', v_row.\"id\", 'subjectType', 'employee', 'subjectId', v_row.\"id\"::text, 'name', v_row.\"name\", 'userId', v_row.\"user_id\", 'endDate', v_row.\"end_date\"), 'employees/' || v_row.\"id\"::text, (v_row.\"tenant_id\"::text)::text, null, 'better-supabase/employees');\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"after_employee_offboard\"(uuid)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::uuid)', v_hook::oid::regproc)\n        using v_row.\"id\";\n    end if;\n  end;\n  return to_jsonb(v_row);\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.offboard_employee(employee uuid, end_date date, reason text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_row \"better_supabase\".\"employees\";\n  v_report \"better_supabase\".\"employees\";\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select * into v_row from \"better_supabase\".\"employees\" x where x.\"id\" = offboard_employee.employee;\n  if v_row.\"id\" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row.\"tenant_id\", 'employees.write'), false)) then\n    raise exception 'no such employee you can offboard' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';\n  end if;\n  if v_row.\"status\" = 'offboarded' then\n    return to_jsonb(v_row);\n  end if;\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"before_employee_offboard\"(uuid)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::uuid)', v_hook::oid::regproc)\n        using v_row.\"id\";\n    end if;\n  end;\n  begin\n    update \"better_supabase\".\"employees\" x set \"status\" = 'offboarded', \"end_date\" = coalesce(offboard_employee.end_date, current_date), \"offboard_reason\" = nullif(trim(offboard_employee.reason), ''), \"updated_at\" = now()\n    where x.\"id\" = v_row.\"id\"\n    returning * into v_row;\n  exception when check_violation then\n    raise exception 'the end date is before the start date' using errcode = '22023', hint = 'EMPLOYEE_ATTRS_INVALID';\n  end;\n\n  for v_report in select * from \"better_supabase\".\"employees\" x where x.\"manager_id\" = v_row.\"id\" loop\n    update \"better_supabase\".\"employees\" x set \"manager_id\" = v_row.\"manager_id\", \"updated_at\" = now()\n    where x.\"id\" = v_report.\"id\"\n    returning * into v_report;\n    perform \"better_supabase\".emit_event('employee.manager_changed', jsonb_build_object('organizationId', v_report.\"tenant_id\", 'employeeId', v_report.\"id\", 'subjectType', 'employee', 'subjectId', v_report.\"id\"::text, 'name', v_report.\"name\", 'userId', v_report.\"user_id\", 'fromManagerId', v_row.\"id\", 'toManagerId', v_report.\"manager_id\"), 'employees/' || v_report.\"id\"::text, (v_report.\"tenant_id\"::text)::text, null, 'better-supabase/employees');\n  end loop;\n  update \"better_supabase\".\"employee_private_details\" x set \"offboarded_at\" = now()\n  where x.\"employee_id\" = v_row.\"id\";\n  perform \"better_supabase\".emit_event('employee.offboarded', jsonb_build_object('organizationId', v_row.\"tenant_id\", 'employeeId', v_row.\"id\", 'subjectType', 'employee', 'subjectId', v_row.\"id\"::text, 'name', v_row.\"name\", 'userId', v_row.\"user_id\", 'endDate', v_row.\"end_date\"), 'employees/' || v_row.\"id\"::text, (v_row.\"tenant_id\"::text)::text, null, 'better-supabase/employees');\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"after_employee_offboard\"(uuid)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::uuid)', v_hook::oid::regproc)\n        using v_row.\"id\";\n    end if;\n  end;\n  return to_jsonb(v_row);\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -227896,14 +227925,20 @@
         "schema": "better_supabase",
         "name": "remove_team_member",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  v_tenant uuid;\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select \"tenant_id\" into v_tenant from \"better_supabase\".\"teams\" where \"id\" = remove_team_member.team;\n  if not found then\n    raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then\n    raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';\n  end if;\n  delete from \"better_supabase\".\"team_members\"\n  where \"team_id\" = remove_team_member.team and \"user_id\" = remove_team_member.member;\n  perform \"better_supabase\".emit_event('team_member.deleted', jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', remove_team_member.member), 'teams/' || (remove_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');\n  perform better_supabase.audit_event(\n    event_type => 'team_member.deleted',\n    category => 'membership',\n    target_type => 'team',\n    record_id => (remove_team_member.team)::text,\n    tenant => (v_tenant)::uuid,\n    metadata => jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', remove_team_member.member)\n  );\n  return found;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.remove_team_member(team uuid, member uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_tenant uuid;\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select \"tenant_id\" into v_tenant from \"better_supabase\".\"teams\" where \"id\" = remove_team_member.team;\n  if not found then\n    raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then\n    raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';\n  end if;\n  delete from \"better_supabase\".\"team_members\"\n  where \"team_id\" = remove_team_member.team and \"user_id\" = remove_team_member.member;\n  perform \"better_supabase\".emit_event('team_member.deleted', jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', remove_team_member.member), 'teams/' || (remove_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');\n  perform better_supabase.audit_event(\n    event_type => 'team_member.deleted',\n    category => 'membership',\n    target_type => 'team',\n    record_id => (remove_team_member.team)::text,\n    tenant => (v_tenant)::uuid,\n    metadata => jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', remove_team_member.member)\n  );\n  return found;\nend;\n$function$\n",
+        "definition": "\ndeclare\n  v_tenant uuid;\n  v_user uuid;\n  v_employee uuid;\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select \"tenant_id\" into v_tenant from \"better_supabase\".\"teams\" where \"id\" = remove_team_member.team;\n  if not found then\n    raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then\n    raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';\n  end if;\n  if (remove_team_member.member is null) = (remove_team_member.employee is null) then\n    raise exception 'pass either a user or an employee' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';\n  end if;\n  delete from \"better_supabase\".\"team_members\" x\n  where x.\"team_id\" = remove_team_member.team\n    and (x.\"employee_id\" = remove_team_member.employee or x.\"user_id\" = remove_team_member.member)\n  returning x.\"user_id\", x.\"employee_id\" into v_user, v_employee;\n  if not found then\n    return false;\n  end if;\n  perform \"better_supabase\".emit_event('team_member.deleted', jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', v_user, 'employeeId', v_employee), 'teams/' || (remove_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');\n  perform better_supabase.audit_event(\n    event_type => 'team_member.deleted',\n    category => 'membership',\n    target_type => 'team',\n    record_id => (remove_team_member.team)::text,\n    tenant => (v_tenant)::uuid,\n    metadata => jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', v_user, 'employeeId', v_employee)\n  );\n  return true;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.remove_team_member(team uuid, member uuid DEFAULT NULL::uuid, employee uuid DEFAULT NULL::uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_tenant uuid;\n  v_user uuid;\n  v_employee uuid;\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  select \"tenant_id\" into v_tenant from \"better_supabase\".\"teams\" where \"id\" = remove_team_member.team;\n  if not found then\n    raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then\n    raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';\n  end if;\n  if (remove_team_member.member is null) = (remove_team_member.employee is null) then\n    raise exception 'pass either a user or an employee' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';\n  end if;\n  delete from \"better_supabase\".\"team_members\" x\n  where x.\"team_id\" = remove_team_member.team\n    and (x.\"employee_id\" = remove_team_member.employee or x.\"user_id\" = remove_team_member.member)\n  returning x.\"user_id\", x.\"employee_id\" into v_user, v_employee;\n  if not found then\n    return false;\n  end if;\n  perform \"better_supabase\".emit_event('team_member.deleted', jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', v_user, 'employeeId', v_employee), 'teams/' || (remove_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');\n  perform better_supabase.audit_event(\n    event_type => 'team_member.deleted',\n    category => 'membership',\n    target_type => 'team',\n    record_id => (remove_team_member.team)::text,\n    tenant => (v_tenant)::uuid,\n    metadata => jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', v_user, 'employeeId', v_employee)\n  );\n  return true;\nend;\n$function$\n",
         "args": [
+          {
+            "mode": "in",
+            "name": "employee",
+            "type_id": 2950,
+            "has_default": true
+          },
           {
             "mode": "in",
             "name": "member",
             "type_id": 2950,
-            "has_default": false
+            "has_default": true
           },
           {
             "mode": "in",
@@ -227912,8 +227947,8 @@
             "has_default": false
           }
         ],
-        "argument_types": "team uuid, member uuid",
-        "identity_argument_types": "team uuid, member uuid",
+        "argument_types": "team uuid, member uuid DEFAULT NULL::uuid, employee uuid DEFAULT NULL::uuid",
+        "identity_argument_types": "team uuid, member uuid, employee uuid",
         "return_type_id": 16,
         "return_type": "boolean",
         "return_type_relation_id": null,
@@ -303971,6 +304006,16 @@
             "fills": []
           },
           {
+            "name": "bsb_employee_team_members",
+            "timing": "after",
+            "events": [
+              "insert",
+              "update"
+            ],
+            "level": "row",
+            "function": "better_supabase.bsb_employee_team_members"
+          },
+          {
             "name": "bsb_employee_user_mirror",
             "timing": "after",
             "events": [
@@ -355627,12 +355672,14 @@
         "id": 1000513,
         "schema": "better_supabase",
         "name": "team_members",
-        "primaryKey": [
-          "team_id",
-          "user_id"
-        ],
+        "primaryKey": [],
         "uniques": [],
         "foreignKeys": [
+          {
+            "name": "team_members_employee_fkey",
+            "onDelete": "cascade",
+            "onUpdate": "no action"
+          },
           {
             "name": "team_members_membership_fkey",
             "onDelete": "cascade",
@@ -355649,8 +355696,48 @@
             "onUpdate": "no action"
           }
         ],
-        "checks": [],
+        "checks": [
+          {
+            "name": "bsb_team_members_check",
+            "definition": "CHECK (((user_id IS NOT NULL) OR (employee_id IS NOT NULL)))"
+          }
+        ],
         "indexes": [
+          {
+            "name": "bsb_team_members_employee_key",
+            "columns": [
+              "team_id",
+              "employee_id"
+            ],
+            "unique": true,
+            "primary": false,
+            "partial": true,
+            "method": "btree",
+            "predicate": "(employee_id IS NOT NULL)"
+          },
+          {
+            "name": "bsb_team_members_user_key",
+            "columns": [
+              "team_id",
+              "user_id"
+            ],
+            "unique": true,
+            "primary": false,
+            "partial": true,
+            "method": "btree",
+            "predicate": "(user_id IS NOT NULL)"
+          },
+          {
+            "name": "team_members_employee_idx",
+            "columns": [
+              "employee_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": true,
+            "method": "btree",
+            "predicate": "(employee_id IS NOT NULL)"
+          },
           {
             "name": "team_members_membership_idx",
             "columns": [
@@ -355659,18 +355746,6 @@
             ],
             "unique": false,
             "primary": false,
-            "partial": false,
-            "method": "btree",
-            "predicate": null
-          },
-          {
-            "name": "team_members_pkey",
-            "columns": [
-              "team_id",
-              "user_id"
-            ],
-            "unique": true,
-            "primary": true,
             "partial": false,
             "method": "btree",
             "predicate": null
@@ -355766,6 +355841,15 @@
             ],
             "level": "statement",
             "function": "better_supabase.approval_memo_bump"
+          },
+          {
+            "name": "bsb_team_member_employee_keep",
+            "timing": "before",
+            "events": [
+              "delete"
+            ],
+            "level": "row",
+            "function": "better_supabase.bsb_team_member_employee_keep"
           }
         ],
         "grants": [
@@ -368599,7 +368683,7 @@
       {
         "schema": "better_supabase",
         "name": "add_team_member",
-        "signature": "team uuid, member uuid",
+        "signature": "team uuid, member uuid, employee uuid",
         "language": "plpgsql",
         "volatility": "volatile",
         "securityDefiner": true,
@@ -387438,7 +387522,7 @@
       {
         "schema": "better_supabase",
         "name": "remove_team_member",
-        "signature": "team uuid, member uuid",
+        "signature": "team uuid, member uuid, employee uuid",
         "language": "plpgsql",
         "volatility": "volatile",
         "securityDefiner": true,

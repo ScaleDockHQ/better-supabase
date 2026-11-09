@@ -96,6 +96,48 @@ const client = createTeams({
 
 ## Replacing members and archiving
 
-`setMembers({ organizationId, teamId, userIds })` makes `userIds` the team's members. It reads `list`, adds the missing users with `addMember`, removes the others with `removeMember`, and returns `{ added, removed }`. A failure stops the loop with that error, and running it again finishes the change. A team outside the organization fails with `not_found`.
+`setMembers({ organizationId, teamId, userIds })` makes `userIds` the team's members. It reads `list`, adds the missing users with `addMember`, removes the others with `removeMember`, and returns `{ added, removed }`. A failure stops the loop with that error, and running it again finishes the change. A team outside the organization fails with `not_found`. With the employees block it also takes `employeeIds`: after the users it reads `list` again, syncs the employees the same way, and returns them as `addedEmployees` and `removedEmployees`. A list you leave out stays as it is.
 
 `setArchived({ teamId, archived })` calls `archive` when `archived` is true and `restore` otherwise.
+
+## Employees as members
+
+With the [employees](/docs/blocks/employees) block installed, a team holds
+employees next to users. `team_members` gets an `employee_id` column
+(`columns.members.employee`), `user_id` becomes nullable, and each row has a user,
+an employee or both. A team can mix them: the owner or an external accountant as
+a user, a technician without an account as an employee, and a colleague with an
+account as one row with both. Each user and each employee is on a team once.
+
+| Call                                   | SQL                                        |
+| -------------------------------------- | ------------------------------------------ |
+| `addMember({ teamId, employeeId })`    | `add_team_member(team, employee => id)`    |
+| `removeMember({ teamId, employeeId })` | `remove_team_member(team, employee => id)` |
+| `setMembers({ ..., employeeIds })`     | Both, after the user members               |
+| `list()` returns `memberEmployeeIds`   | `list_teams` returns `member_employee_ids` |
+
+The functions take a user (`member`) or an employee (`employee`), never both
+(`TEAM_MEMBER_INVALID`). An employee must belong to the team's organization.
+Removing a user whose row has an employee removes the row. `memberIds` keeps
+listing user ids only, and `team_ids_of(user)` and the policies read `user_id`,
+so access checks don't change. `team_member.added` and `team_member.deleted`
+carry `userId`, `null` for an employee without an account, and `employeeId`.
+
+`user_id` follows the employee's account. Linking an account fills it on the
+employee's rows and merges a row the user already had on the same team.
+Unlinking the account, deleting the auth user or removing the user from the
+organization sets it to `null` and keeps the employee on the team. A row
+without an employee still goes with its membership. Deleting the employee
+removes its rows.
+
+`employees.team_id` is the employee's primary team. Setting or changing it adds
+a row for the employee on that team. The row on the previous team stays; remove
+it with `removeMember` when the employee leaves that team.
+
+Without the employees block, or with `columns.members.employee: null`, the
+table and functions are the user-only ones above. For an app that adds the
+employees block later, `better-supabase add --adopt` writes the teams data file
+as a migration: it fills `employee_id` for members with an employee record in
+the same organization and adds each employee to their primary team. Over your
+own `team_members` table, drop its `(team_id, user_id)` primary key and the
+`not null` on its user column yourself.

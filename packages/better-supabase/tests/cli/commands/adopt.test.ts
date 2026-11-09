@@ -164,7 +164,7 @@ describe("adopt", () => {
           tables: { teams: "public.teams", members: "public.team_members" },
           columns: {
             teams: { tenant: "organization_id" },
-            members: { tenant: "organization_id" },
+            members: { employee: null, tenant: "organization_id" },
           },
         },
       },
