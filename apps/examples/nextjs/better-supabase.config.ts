@@ -143,6 +143,14 @@ export default defineConfig({
     },
     // Members ask for read access to a file or folder they cannot open.
     drive_node: driveSubject({ accessRequests: true }),
+    // The tenant itself: its id is its tenant, so an organization accepts
+    // agreements through consents for itself only.
+    organization: {
+      table: "public.organizations",
+      idType: "uuid",
+      tenant: "id",
+      title: "name",
+    },
     application: {
       table: "better_supabase.applications",
       idType: "uuid",

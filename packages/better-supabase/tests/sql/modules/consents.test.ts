@@ -69,6 +69,26 @@ describe("consents module", () => {
     );
   });
 
+  it("takes the organization's tenant from its own id when the tenant table is a record type", () => {
+    const sql = renderBlocks(["consents"], {
+      modules: {},
+      subjects: {
+        organization: {
+          table: "better_supabase.organizations",
+          idType: "uuid",
+          tenant: "id",
+        },
+      },
+    })
+      .filter((file) => file.module === "consents")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      `when 'organization' then (select s."id"::text from "better_supabase"."organizations" s where s."id" = (record_consent.subject_id)::uuid)`,
+    );
+  });
+
   it("emits the consent events", () => {
     const sql = render(["outbox"]);
 

@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:28441c031eb67af82c2e801e8e3ee6042ae5555d4e3fb488a8fb1d939e905932
+-- @bsb-hash sha256:4f738ab2e6e76c241eb089bdbf18478a00ffbbfb63d7e45285795e6d9b37fb9e
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,7 +98,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,application,change_request,project,task}'::text[]
+  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -220,6 +220,8 @@ begin
       return (select s."name"::text from "public"."customers" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'drive_node' then
       return (select s."name"::text from "better_supabase"."drive_nodes" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
+    when 'organization' then
+      return (select s."name"::text from "public"."organizations" s where s."id" = (subject_title.subject_id)::uuid);
     when 'change_request' then
       return (select s."title"::text from "public"."change_requests" s where s."id" = (subject_title.subject_id)::uuid);
     when 'project' then
@@ -620,6 +622,12 @@ begin
       'title', s."name"::text, 'url', null::text))
     from "better_supabase"."drive_nodes" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'drive_node')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'organization', 'id', s."id"::text,
+      'title', s."name"::text, 'url', null::text))
+    from "public"."organizations" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'organization')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'application', 'id', s."id"::text,
@@ -1212,6 +1220,12 @@ begin
           when 'fields' then coalesce("better_supabase"."drive_node_writable"(s."id"), false)
           else true
         end)
+      );
+    when 'organization' then
+      return exists (
+        select 1 from "public"."organizations" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and true
       );
     when 'application' then
       return exists (
@@ -1908,6 +1922,12 @@ begin
           when 'fields' then false
           else false
         end
+      );
+    when 'organization' then
+      return exists (
+        select 1 from "public"."organizations" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and false
       );
     when 'application' then
       return exists (

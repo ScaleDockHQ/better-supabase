@@ -101,6 +101,43 @@ caller can't read, so it never tells a caller more than the record does.
 `list(subject)` returns the latest decision per purpose, and
 `list(subject, { includeHistory: true })` every decision, newest first.
 
+## Consent of the organization
+
+An organization can accept an agreement for itself, such as terms that let
+you act on its behalf. Register the tenant table as a record type whose
+tenant is its own id ([Subject registry](/docs/blocks/sql#subject-registry)),
+then record the decision on it:
+
+```ts title="better-supabase.config.ts"
+recordTypes: {
+  organization: {
+    table: "better_supabase.organizations",
+    idType: "uuid",
+    tenant: "id",
+  },
+},
+```
+
+```ts
+const organization = { type: "organization", id: organizationId };
+
+await db.consents
+  .record({
+    subject: organization,
+    purposeKey: "agency.agreement",
+    status: "granted",
+  })
+  .orThrow();
+
+await db.consents.isActive(organization, "agency.agreement").orThrow();
+```
+
+A system purpose fits an agreement every organization accepts. The record's
+tenant is its own id, so a member with `consents.record` in one organization
+can't record a decision for another one. Without a `permissions.read` key,
+every member who can read the organization row can read the record; add one to
+limit that.
+
 ## Withdraw and expire
 
 ```ts
