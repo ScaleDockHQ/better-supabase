@@ -24,8 +24,9 @@ were marked "measure first".
 
 `bsb.scale_rows` resizes the first two. A 1,000,000-row seed did not finish in
 six minutes on the shared machine or on a CI runner (the customer triggers
-dominate), so the defaults are the sizes of the documented runs, 60,000 and
-200,000 rows. `supabase test db` runs these files with the rest.
+dominate), so both fixtures default to 60,000 rows. The documented count run
+used 200,000 (`bsb.scale_rows`), which stalled the CI runner as well.
+`supabase test db` runs these files with the rest.
 
 Measure-first verdicts, from `pg_stat_statements` on CentraKit develop:
 
