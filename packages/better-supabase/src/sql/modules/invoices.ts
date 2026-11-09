@@ -81,6 +81,7 @@ import {
   OPEN_ITEM_EVENTS,
   openItemContract,
 } from "./invoices-open-items.ts";
+import { OPEN_ITEMS_TABLE } from "./invoices-open-store.ts";
 import { PURCHASE_COLUMNS, purchaseNames } from "./invoices-purchase.ts";
 import { repairContract } from "./invoices-repair.ts";
 import {
@@ -350,6 +351,7 @@ const NAMES: BlockSqlNames = {
     dunningRunItems: DUNNING_RUN_ITEMS_TABLE,
     dunningHistory: DUNNING_HISTORY_TABLE,
     allocations: ALLOCATIONS_TABLE,
+    openItems: OPEN_ITEMS_TABLE,
     lineSources: LINE_SOURCES_TABLE,
     approvalLevels: APPROVAL_LEVELS_TABLE,
     approvals: APPROVALS_TABLE,
