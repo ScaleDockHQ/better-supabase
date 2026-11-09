@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:61d4e8ab69d9e5bd6c789a06b59fbc9857fa95385c0d40666f867dcb99b1e1c8
+-- @bsb-hash sha256:cea6805bdbc3d022d8e60a0e008351b20653f51bf799ddab776364d0718584f2
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21,6 +21,7 @@ alter table "better_supabase"."import_runs" add column "dry_run" boolean not nul
 alter table "better_supabase"."import_runs" add column "full" boolean not null default false;
 alter table "better_supabase"."import_runs" add column "input_checksum" text;
 alter table "better_supabase"."import_runs" add column "correlation_id" text;
+alter table "better_supabase"."import_runs" add column "mapper_version" text;
 alter table "better_supabase"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
@@ -101,7 +102,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -110,6 +111,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -153,7 +155,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_import_run"(uuid) from public, anon;
@@ -172,7 +174,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
     from "better_supabase"."import_runs" r
     where r."tenant_id" = list_import_runs.tenant
       and (list_import_runs.source is null or r."source" = list_import_runs.source)
@@ -810,6 +812,52 @@ $$;
 revoke execute on function "better_supabase"."import_chunk_progress"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_chunk_progress"(uuid) to service_role;
 
+-- Clears the content hash of the records of a source (and entity) that a run of
+-- another mapper version last wrote, so the next import treats them as changed and
+-- rewrites them through their target (a row a user changed since stays as it is, as
+-- for any changed hash). Returns how many records it cleared.
+create or replace function "better_supabase"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer;
+begin
+  update "better_supabase"."import_records" x set "content_hash" = ''
+  where x."tenant_id" = reapply_import_records.tenant and x."source" = reapply_import_records.source
+    and (reapply_import_records.entity is null or x."entity" = reapply_import_records.entity)
+    and x."content_hash" <> ''
+    and (select r."mapper_version" from "better_supabase"."import_runs" r where r."id" = x."last_run_id") is distinct from reapply_import_records.mapper_version;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+-- The record map of a source as { entity, scope, key, role, hash, subjectType,
+-- subjectId }, one object per record in key order, so a caller can compare what the
+-- source sends with what was imported without reading the rows.
+create or replace function "better_supabase"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('entity', x."entity", 'scope', x."scope", 'key', x."external_key", 'role', x."role",
+    'hash', x."content_hash", 'subjectType', x."subject_type", 'subjectId', x."subject_id")
+  from "better_supabase"."import_records" x
+  where x."tenant_id" = export_import_hashes.tenant and x."source" = export_import_hashes.source
+    and (export_import_hashes.entity is null or x."entity" = export_import_hashes.entity)
+  order by x."entity", x."scope", x."external_key", x."role"
+$$;
+revoke execute on function "better_supabase"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."export_import_hashes"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -857,7 +905,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:e2cb8c0e854c7195fcf54c4ba4bf06e2659df8f34d9a4a82fcaf15fbfc13c440
+-- @bsb-hash sha256:33735f1bccec2451f3a2788f7c18ebc7a2464ce58bf15b03df79ee97eaba7637
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -877,6 +925,7 @@ alter table "better_supabase"."import_runs" add column "dry_run" boolean not nul
 alter table "better_supabase"."import_runs" add column "full" boolean not null default false;
 alter table "better_supabase"."import_runs" add column "input_checksum" text;
 alter table "better_supabase"."import_runs" add column "correlation_id" text;
+alter table "better_supabase"."import_runs" add column "mapper_version" text;
 alter table "better_supabase"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
@@ -957,7 +1006,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -966,6 +1015,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -1009,7 +1059,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_import_run"(uuid) from public, anon;
@@ -1028,7 +1078,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
     from "better_supabase"."import_runs" r
     where r."tenant_id" = list_import_runs.tenant
       and (list_import_runs.source is null or r."source" = list_import_runs.source)
@@ -1772,6 +1822,52 @@ $$;
 revoke execute on function "better_supabase"."import_chunk_progress"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_chunk_progress"(uuid) to service_role;
 
+-- Clears the content hash of the records of a source (and entity) that a run of
+-- another mapper version last wrote, so the next import treats them as changed and
+-- rewrites them through their target (a row a user changed since stays as it is, as
+-- for any changed hash). Returns how many records it cleared.
+create or replace function "better_supabase"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer;
+begin
+  update "better_supabase"."import_records" x set "content_hash" = ''
+  where x."tenant_id" = reapply_import_records.tenant and x."source" = reapply_import_records.source
+    and (reapply_import_records.entity is null or x."entity" = reapply_import_records.entity)
+    and x."content_hash" <> ''
+    and (select r."mapper_version" from "better_supabase"."import_runs" r where r."id" = x."last_run_id") is distinct from reapply_import_records.mapper_version;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+-- The record map of a source as { entity, scope, key, role, hash, subjectType,
+-- subjectId }, one object per record in key order, so a caller can compare what the
+-- source sends with what was imported without reading the rows.
+create or replace function "better_supabase"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('entity', x."entity", 'scope', x."scope", 'key', x."external_key", 'role', x."role",
+    'hash', x."content_hash", 'subjectType', x."subject_type", 'subjectId', x."subject_id")
+  from "better_supabase"."import_records" x
+  where x."tenant_id" = export_import_hashes.tenant and x."source" = export_import_hashes.source
+    and (export_import_hashes.entity is null or x."entity" = export_import_hashes.entity)
+  order by x."entity", x."scope", x."external_key", x."role"
+$$;
+revoke execute on function "better_supabase"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."export_import_hashes"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1819,7 +1915,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:3b280aee3ff3b0f1ce2a0fc147a510eafbbe0e8159a043d297a5d0c5e216783e
+-- @bsb-hash sha256:b94300072bc4ead254960764a1b867417676c81b97eb0568fd55409e5a118c52
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1844,6 +1940,7 @@ alter table "app_private"."import_runs" add column "dry_run" boolean not null de
 alter table "app_private"."import_runs" add column "full" boolean not null default false;
 alter table "app_private"."import_runs" add column "input_checksum" text;
 alter table "app_private"."import_runs" add column "correlation_id" text;
+alter table "app_private"."import_runs" add column "mapper_version" text;
 alter table "app_private"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "app_private"."import_runs" add column "started_at" timestamptz;
 alter table "app_private"."import_runs" add column "finished_at" timestamptz;
@@ -1924,7 +2021,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "app_private"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    insert into "app_private"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -1933,6 +2030,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -1976,7 +2074,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
 end;
 $$;
 revoke execute on function "app_private"."get_import_run"(uuid) from public, anon;
@@ -1995,7 +2093,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
     from "app_private"."import_runs" r
     where r."tenant_id" = list_import_runs.tenant
       and (list_import_runs.source is null or r."source" = list_import_runs.source)
@@ -2633,6 +2731,52 @@ $$;
 revoke execute on function "app_private"."import_chunk_progress"(uuid) from public, anon, authenticated;
 grant execute on function "app_private"."import_chunk_progress"(uuid) to service_role;
 
+-- Clears the content hash of the records of a source (and entity) that a run of
+-- another mapper version last wrote, so the next import treats them as changed and
+-- rewrites them through their target (a row a user changed since stays as it is, as
+-- for any changed hash). Returns how many records it cleared.
+create or replace function "app_private"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer;
+begin
+  update "app_private"."import_records" x set "content_hash" = ''
+  where x."tenant_id" = reapply_import_records.tenant and x."source" = reapply_import_records.source
+    and (reapply_import_records.entity is null or x."entity" = reapply_import_records.entity)
+    and x."content_hash" <> ''
+    and (select r."mapper_version" from "app_private"."import_runs" r where r."id" = x."last_run_id") is distinct from reapply_import_records.mapper_version;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "app_private"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+-- The record map of a source as { entity, scope, key, role, hash, subjectType,
+-- subjectId }, one object per record in key order, so a caller can compare what the
+-- source sends with what was imported without reading the rows.
+create or replace function "app_private"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('entity', x."entity", 'scope', x."scope", 'key', x."external_key", 'role', x."role",
+    'hash', x."content_hash", 'subjectType', x."subject_type", 'subjectId', x."subject_id")
+  from "app_private"."import_records" x
+  where x."tenant_id" = export_import_hashes.tenant and x."source" = export_import_hashes.source
+    and (export_import_hashes.entity is null or x."entity" = export_import_hashes.entity)
+  order by x."entity", x."scope", x."external_key", x."role"
+$$;
+revoke execute on function "app_private"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."export_import_hashes"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2680,7 +2824,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:3275bdd1f12ac2dcdd3a82386a18b589988df068f14850e40cea8832c1bf49cc
+-- @bsb-hash sha256:ab6c9ea232964edc6917639245446c2968144b190b7b2095da98944e16a7015e
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2700,6 +2844,7 @@ alter table "better_supabase"."import_runs" add column "dry_run" boolean not nul
 alter table "better_supabase"."import_runs" add column "full" boolean not null default false;
 alter table "better_supabase"."import_runs" add column "input_checksum" text;
 alter table "better_supabase"."import_runs" add column "correlation_id" text;
+alter table "better_supabase"."import_runs" add column "mapper_version" text;
 alter table "better_supabase"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
@@ -2780,7 +2925,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -2789,6 +2934,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -2832,7 +2978,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_import_run"(uuid) from public, anon;
@@ -2851,7 +2997,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
     from "better_supabase"."import_runs" r
     where r."tenant_id" = list_import_runs.tenant
       and (list_import_runs.source is null or r."source" = list_import_runs.source)
@@ -3489,6 +3635,52 @@ $$;
 revoke execute on function "better_supabase"."import_chunk_progress"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_chunk_progress"(uuid) to service_role;
 
+-- Clears the content hash of the records of a source (and entity) that a run of
+-- another mapper version last wrote, so the next import treats them as changed and
+-- rewrites them through their target (a row a user changed since stays as it is, as
+-- for any changed hash). Returns how many records it cleared.
+create or replace function "better_supabase"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer;
+begin
+  update "better_supabase"."import_records" x set "content_hash" = ''
+  where x."tenant_id" = reapply_import_records.tenant and x."source" = reapply_import_records.source
+    and (reapply_import_records.entity is null or x."entity" = reapply_import_records.entity)
+    and x."content_hash" <> ''
+    and (select r."mapper_version" from "better_supabase"."import_runs" r where r."id" = x."last_run_id") is distinct from reapply_import_records.mapper_version;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+-- The record map of a source as { entity, scope, key, role, hash, subjectType,
+-- subjectId }, one object per record in key order, so a caller can compare what the
+-- source sends with what was imported without reading the rows.
+create or replace function "better_supabase"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('entity', x."entity", 'scope', x."scope", 'key', x."external_key", 'role', x."role",
+    'hash', x."content_hash", 'subjectType', x."subject_type", 'subjectId', x."subject_id")
+  from "better_supabase"."import_records" x
+  where x."tenant_id" = export_import_hashes.tenant and x."source" = export_import_hashes.source
+    and (export_import_hashes.entity is null or x."entity" = export_import_hashes.entity)
+  order by x."entity", x."scope", x."external_key", x."role"
+$$;
+revoke execute on function "better_supabase"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."export_import_hashes"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3689,6 +3881,25 @@ as $$ select "better_supabase"."import_chunk_progress"($1) $$;
 revoke execute on function "api"."import_chunk_progress"(uuid) from public, anon, authenticated;
 grant execute on function "api"."import_chunk_progress"(uuid) to service_role;
 
+create or replace function "api"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."reapply_import_records"($1, $2, $3, $4) $$;
+revoke execute on function "api"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "api"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+create or replace function "api"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."export_import_hashes"($1, $2, $3) $$;
+revoke execute on function "api"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."export_import_hashes"(uuid, text, text) to service_role;
+
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block-data imports
@@ -3706,7 +3917,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:7aa26e3f7521a4a6e372ee9173f38cc2d05db60747936250a8af46c9953d0405
+-- @bsb-hash sha256:2b23985af17b871c7fc253e8fa46372ca4b68c1b0aa822d7f7b6315e955932fc
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3725,6 +3936,7 @@ alter table "better_supabase"."import_runs" add column if not exists "dry_run" b
 alter table "better_supabase"."import_runs" add column if not exists "full" boolean not null default false;
 alter table "better_supabase"."import_runs" add column if not exists "input_checksum" text;
 alter table "better_supabase"."import_runs" add column if not exists "correlation_id" text;
+alter table "better_supabase"."import_runs" add column if not exists "mapper_version" text;
 alter table "better_supabase"."import_runs" add column if not exists "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "better_supabase"."import_runs" add column if not exists "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column if not exists "finished_at" timestamptz;
@@ -3794,7 +4006,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -3803,6 +4015,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -3846,7 +4059,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_import_run"(uuid) from public, anon;
@@ -3865,7 +4078,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
     from "better_supabase"."import_runs" r
     where r."tenant_id" = list_import_runs.tenant
       and (list_import_runs.source is null or r."source" = list_import_runs.source)
@@ -4503,6 +4716,52 @@ $$;
 revoke execute on function "better_supabase"."import_chunk_progress"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_chunk_progress"(uuid) to service_role;
 
+-- Clears the content hash of the records of a source (and entity) that a run of
+-- another mapper version last wrote, so the next import treats them as changed and
+-- rewrites them through their target (a row a user changed since stays as it is, as
+-- for any changed hash). Returns how many records it cleared.
+create or replace function "better_supabase"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer;
+begin
+  update "better_supabase"."import_records" x set "content_hash" = ''
+  where x."tenant_id" = reapply_import_records.tenant and x."source" = reapply_import_records.source
+    and (reapply_import_records.entity is null or x."entity" = reapply_import_records.entity)
+    and x."content_hash" <> ''
+    and (select r."mapper_version" from "better_supabase"."import_runs" r where r."id" = x."last_run_id") is distinct from reapply_import_records.mapper_version;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+-- The record map of a source as { entity, scope, key, role, hash, subjectType,
+-- subjectId }, one object per record in key order, so a caller can compare what the
+-- source sends with what was imported without reading the rows.
+create or replace function "better_supabase"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('entity', x."entity", 'scope', x."scope", 'key', x."external_key", 'role', x."role",
+    'hash', x."content_hash", 'subjectType', x."subject_type", 'subjectId', x."subject_id")
+  from "better_supabase"."import_records" x
+  where x."tenant_id" = export_import_hashes.tenant and x."source" = export_import_hashes.source
+    and (export_import_hashes.entity is null or x."entity" = export_import_hashes.entity)
+  order by x."entity", x."scope", x."external_key", x."role"
+$$;
+revoke execute on function "better_supabase"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."export_import_hashes"(uuid, text, text) to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4550,7 +4809,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:22fa84845204d846c32367cffe025fdc684e0814c8500023733ab217c3f5531f
+-- @bsb-hash sha256:1a980b1bf7cc684c883ce6811d9ad5e3b70dbaeee964d1e54bc9dac096c36022
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4570,6 +4829,7 @@ alter table "better_supabase"."import_runs" add column "dry_run" boolean not nul
 alter table "better_supabase"."import_runs" add column "full" boolean not null default false;
 alter table "better_supabase"."import_runs" add column "input_checksum" text;
 alter table "better_supabase"."import_runs" add column "correlation_id" text;
+alter table "better_supabase"."import_runs" add column "mapper_version" text;
 alter table "better_supabase"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
@@ -4650,7 +4910,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("org_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    insert into "better_supabase"."import_runs" as r ("org_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -4659,6 +4919,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -4702,7 +4963,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."org_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."org_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."org_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_import_run"(uuid) from public, anon;
@@ -4721,7 +4982,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."org_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    select jsonb_build_object('id', r."id", 'organizationId', r."org_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
     from "better_supabase"."import_runs" r
     where r."org_id" = list_import_runs.tenant
       and (list_import_runs.source is null or r."source" = list_import_runs.source)
@@ -5358,6 +5619,52 @@ as $$
 $$;
 revoke execute on function "better_supabase"."import_chunk_progress"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_chunk_progress"(uuid) to service_role;
+
+-- Clears the content hash of the records of a source (and entity) that a run of
+-- another mapper version last wrote, so the next import treats them as changed and
+-- rewrites them through their target (a row a user changed since stays as it is, as
+-- for any changed hash). Returns how many records it cleared.
+create or replace function "better_supabase"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer;
+begin
+  update "better_supabase"."import_records" x set "content_hash" = ''
+  where x."org_id" = reapply_import_records.tenant and x."source" = reapply_import_records.source
+    and (reapply_import_records.entity is null or x."entity" = reapply_import_records.entity)
+    and x."content_hash" <> ''
+    and (select r."mapper_version" from "better_supabase"."import_runs" r where r."id" = x."last_run_id") is distinct from reapply_import_records.mapper_version;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+-- The record map of a source as { entity, scope, key, role, hash, subjectType,
+-- subjectId }, one object per record in key order, so a caller can compare what the
+-- source sends with what was imported without reading the rows.
+create or replace function "better_supabase"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('entity', x."entity", 'scope', x."scope", 'key', x."external_key", 'role', x."role",
+    'hash', x."content_hash", 'subjectType', x."subject_type", 'subjectId', x."subject_id")
+  from "better_supabase"."import_records" x
+  where x."org_id" = export_import_hashes.tenant and x."source" = export_import_hashes.source
+    and (export_import_hashes.entity is null or x."entity" = export_import_hashes.entity)
+  order by x."entity", x."scope", x."external_key", x."role"
+$$;
+revoke execute on function "better_supabase"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."export_import_hashes"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

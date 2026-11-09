@@ -28,6 +28,7 @@ import {
   chunkFunctions,
   chunkTable,
 } from "./imports-chunks.ts";
+import { HASH_CONTRACT, hashFunctions } from "./imports-hashes.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** The SQLSTATE a dry run raises to roll its writes back. */
@@ -80,6 +81,7 @@ const NAMES: BlockSqlNames = {
         full: "full",
         inputChecksum: "input_checksum",
         correlationId: "correlation_id",
+        mapperVersion: "mapper_version",
         scopeAliases: "scope_aliases",
         createdBy: "created_by",
         createdAt: "created_at",
@@ -250,7 +252,7 @@ function build(ctx: BlockSqlContext): string {
   const unique = `(${x("tenant")}, ${x("source")}, ${x("scope")}, ${x("entity")}, ${x("externalKey")}, ${x("role")})`;
 
   const runJson = (alias: string): string =>
-    `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'source', ${alias}.${r("source")}, 'status', ${alias}.${r("status")}, 'mapping', ${alias}.${r("mapping")}, 'counts', ${alias}.${r("counts")}, 'errors', ${alias}.${r("errors")}, 'dryRun', ${alias}.${r("dryRun")}, 'full', ${alias}.${r("full")}, 'inputChecksum', ${alias}.${r("inputChecksum")}, 'correlationId', ${alias}.${r("correlationId")}, 'scopeAliases', ${alias}.${r("scopeAliases")}, 'createdBy', ${alias}.${r("createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'startedAt', ${alias}.${r("startedAt")}, 'finishedAt', ${alias}.${r("finishedAt")})`;
+    `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'source', ${alias}.${r("source")}, 'status', ${alias}.${r("status")}, 'mapping', ${alias}.${r("mapping")}, 'counts', ${alias}.${r("counts")}, 'errors', ${alias}.${r("errors")}, 'dryRun', ${alias}.${r("dryRun")}, 'full', ${alias}.${r("full")}, 'inputChecksum', ${alias}.${r("inputChecksum")}, 'correlationId', ${alias}.${r("correlationId")}, 'mapperVersion', ${alias}.${r("mapperVersion")}, 'scopeAliases', ${alias}.${r("scopeAliases")}, 'createdBy', ${alias}.${r("createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'startedAt', ${alias}.${r("startedAt")}, 'finishedAt', ${alias}.${r("finishedAt")})`;
 
   const status = `${r("status")} in ('pending', 'running', 'completed', 'failed', 'canceled')`;
 
@@ -270,6 +272,7 @@ alter table ${runs} add column if not exists ${r("dryRun")} boolean not null def
 alter table ${runs} add column if not exists ${r("full")} boolean not null default false;
 alter table ${runs} add column if not exists ${r("inputChecksum")} text;
 alter table ${runs} add column if not exists ${r("correlationId")} text;
+alter table ${runs} add column if not exists ${r("mapperVersion")} text;
 alter table ${runs} add column if not exists ${r("scopeAliases")} jsonb not null default '[]'::jsonb;
 alter table ${runs} add column if not exists ${r("startedAt")} timestamptz;
 alter table ${runs} add column if not exists ${r("finishedAt")} timestamptz;
@@ -390,7 +393,7 @@ begin
     ${fail("IMPORT_ITEM_INVALID", "scopeAliases must be an array of { scope, of, entities }", "22023")}
   end if;
   begin
-    insert into ${runs} as r (${r("tenant")}, ${r("source")}, ${r("mapping")}, ${r("dryRun")}, ${r("full")}, ${r("inputChecksum")}, ${r("correlationId")}, ${r("scopeAliases")}, ${r("createdBy")})
+    insert into ${runs} as r (${r("tenant")}, ${r("source")}, ${r("mapping")}, ${r("dryRun")}, ${r("full")}, ${r("inputChecksum")}, ${r("correlationId")}, ${r("mapperVersion")}, ${r("scopeAliases")}, ${r("createdBy")})
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -399,6 +402,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -951,7 +955,7 @@ begin
 end;
 $$;
 ${serviceGrant(`${ctx.fn("enqueue_import_chunks")}(uuid, text, integer)`)}
-${chunkFunctions(ctx, runs)}`;
+${chunkFunctions(ctx, runs)}${hashFunctions(ctx, runs)}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
@@ -993,6 +997,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "integer",
     },
     ...CHUNK_CONTRACT,
+    ...HASH_CONTRACT,
   ];
 }
 

@@ -263,6 +263,10 @@ Map `tables.runs` onto the app's import table. Optional columns can be `null`.
 
 The batch size adapts. A batch that takes longer than `targetBatchMs` (default 30,000) halves the next one, and with `maxBatchSize` set a batch under half of it doubles the next one up to that size. A batch that hits the statement timeout (SQLSTATE `57014`) is split in two and each half is sent again, down to one item. The result's `suggestedBatchSize` is the size to start the next run of the source with. Two batches of one run can write at the same time: `import_upsert_batch` reads the run without a row lock and only the counts update at its end locks the row.
 
+## Mapper versions and the record map
+
+`runs.start({ mapperVersion })` stores the version of the mapping code that produced a run's items (`ImportRun.mapperVersion`). After a mapper fix, `reapply_import_records(tenant, source, mapper_version, entity?)` clears the content hash of the source's records that a run of another version last wrote, and returns how many; the next run counts them as changed and rewrites them through their target (a row a user edited since stays as it is). `export_import_hashes(tenant, source, entity?)` lists the record map as `{ entity, scope, key, role, hash, subjectType, subjectId }` objects in key order, so you can compare what a source sends with what was imported without reading the rows. Both are service-role functions.
+
 ## Large imports in chunks
 
 A source with millions of rows writes in chunks, so a worker pool shares the work and a retry never writes a chunk twice. Cut each entity's items into chunks, store them, queue one job per chunk and let workers process them:

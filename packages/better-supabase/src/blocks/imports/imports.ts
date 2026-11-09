@@ -73,6 +73,8 @@ export interface ImportRun {
   readonly full: boolean;
   readonly inputChecksum: string | null;
   readonly correlationId: string | null;
+  /** The version of the mapping code that produced the run's items. */
+  readonly mapperVersion: string | null;
   readonly scopeAliases: readonly ImportScopeAlias[];
   readonly createdBy: string | null;
   readonly createdAt: Temporal.Instant;
@@ -90,6 +92,11 @@ export interface StartImportRunOptions {
   /** Identifies the input, so a caller can tell a repeated file. */
   readonly inputChecksum?: string;
   readonly correlationId?: string;
+  /**
+   * The version of the mapping code, such as `2026-11-09`. After a mapper fix,
+   * `reapplyRecords` makes the next run rewrite what older versions imported.
+   */
+  readonly mapperVersion?: string;
   readonly scopeAliases?: readonly ImportScopeAlias[];
 }
 
@@ -294,6 +301,7 @@ function runOf(value: unknown, fn: string): ImportRun {
     full: row["full"] === true,
     inputChecksum: nullableText(row["inputChecksum"]),
     correlationId: nullableText(row["correlationId"]),
+    mapperVersion: nullableText(row["mapperVersion"]),
     scopeAliases: recordsOf(row["scopeAliases"], fn).map((alias) => ({
       scope: textOf(alias["scope"]),
       of: textOf(alias["of"]),
@@ -334,6 +342,9 @@ const startArg = (start: StartImportRunOptions): Record<string, unknown> => ({
   ...(start.correlationId === undefined
     ? {}
     : { correlationId: start.correlationId }),
+  ...(start.mapperVersion === undefined
+    ? {}
+    : { mapperVersion: start.mapperVersion }),
   ...(start.scopeAliases === undefined
     ? {}
     : { scopeAliases: start.scopeAliases }),
