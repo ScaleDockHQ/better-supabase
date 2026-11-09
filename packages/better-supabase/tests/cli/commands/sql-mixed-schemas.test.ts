@@ -248,6 +248,21 @@ create index if not exists customers_block_idx on public.customers (organization
     ).not.toContain("name");
   });
 
+  it("writes no totals update for an invoices table without total columns", async () => {
+    const path = join(root, APP["public.invoices"]);
+
+    await writeFile(
+      path,
+      (await readFile(path, "utf-8"))
+        .replace("  subtotal bigint not null default 0,\n", "")
+        .replace("  tax_total bigint not null default 0,\n", "")
+        .replace("  total bigint not null default 0,\n", ""),
+    );
+    await sql(["sync"]);
+
+    expect(unquote(await read(INVOICES))).not.toMatch(/set\s+where/);
+  });
+
   it("casts its writes to the app's enum status", async () => {
     await sql(["sync"]);
 
