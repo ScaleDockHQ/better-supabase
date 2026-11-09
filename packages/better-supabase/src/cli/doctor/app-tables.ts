@@ -82,11 +82,14 @@ export function accessModule(
 /** What `adoptedTables` needs to render the modules as `upgrade` does. */
 export function adoptionContext(
   context: Pick<DoctorContext, "config">,
-): Pick<BlockSqlLayout, "subjects" | "accessProvider"> {
+): Pick<BlockSqlLayout, "subjects" | "accessProvider" | "blockTenantColumn"> {
   const access = accessModule(context);
 
   return {
     subjects: context.config.subjects,
+    ...(context.config.sql.tenantColumn === undefined
+      ? {}
+      : { blockTenantColumn: context.config.sql.tenantColumn }),
     ...(access.kind === "provider" ? { accessProvider: access.access } : {}),
   };
 }

@@ -980,7 +980,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Block on names an unknown record type",
     description:
-      "A block entry's `on` lists a type, or has a key, that `config.subjects` doesn't register, so the block's SQL refuses it when `gen` renders the migration. Register the type in `config.subjects` or remove it from `on`.",
+      "A block entry's `on` lists a type, or has a key, that `recordTypes` doesn't register, so the block's SQL refuses it when `gen` renders the migration. Register the type in `recordTypes` or remove it from `on`.",
     check: onUnknownRecordTypes,
   },
   {
