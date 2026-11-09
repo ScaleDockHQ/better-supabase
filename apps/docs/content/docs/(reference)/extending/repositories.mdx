@@ -58,3 +58,8 @@ Each layer has a way out when the repository doesn't cover a query:
 | Raw SQL under RLS                        | `ctx.sql` from [`/postgres`](/docs/auth/postgres)                                         |
 | A different backend                      | an [`Executor`](/docs/extending/interfaces#executor) passed to `betterSupabase.connect()` |
 | Rewriting queries everywhere             | a [plugin](/docs/extending/plugins) with `transformQuery`                                 |
+
+A function comment `@bsb returns=./file.ts#Schema` points `db.$rpc` at a Zod or
+Valibot schema (any Standard Schema). The generated module registers it, and a
+result that does not match throws. A call can still pass `returns` when the
+function has no tag.

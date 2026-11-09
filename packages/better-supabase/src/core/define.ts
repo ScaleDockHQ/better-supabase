@@ -35,6 +35,7 @@ import type { RequestTuning } from "./timeout.ts";
 import { builderFor } from "../ir/build.ts";
 import { encodeArguments } from "../ir/wire.ts";
 import { addLazyTable } from "../schema/define.ts";
+import { decodeRpcReturn } from "../schema/rpc-returns.ts";
 import { batchingExecutor } from "./batch.ts";
 import { cacheTargetOf, rpcCacheTargets } from "./cache.ts";
 import { blocksPrototype } from "./db-blocks.ts";
@@ -608,7 +609,7 @@ export class BetterSupabase<
               });
             }
 
-            return data;
+            return decodeRpcReturn(name, data);
           })
           .mapError((error) => {
             if (events.has("error")) {

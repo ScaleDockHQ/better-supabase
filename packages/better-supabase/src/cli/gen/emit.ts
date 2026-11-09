@@ -595,9 +595,26 @@ export function emitModule(model: Model, options: EmitOptions): string {
   for (const [from, names] of [...byFile.entries()].toSorted(([a], [b]) =>
     byCodePoint(a, b),
   )) {
-    lines.push(
-      `import type { ${names.toSorted().join(", ")} } from ${q(options.importPathFor(from))};`,
+    const valueNames = new Set(
+      model.functions.flatMap((fn) =>
+        fn.meta.returnsSchema === undefined ? [] : [fn.meta.returnsSchema],
+      ),
     );
+
+    const types = names.filter((name) => !valueNames.has(name));
+    const values = names.filter((name) => valueNames.has(name));
+
+    if (types.length > 0) {
+      lines.push(
+        `import type { ${types.toSorted().join(", ")} } from ${q(options.importPathFor(from))};`,
+      );
+    }
+
+    if (values.length > 0) {
+      lines.push(
+        `import { ${values.toSorted().join(", ")} } from ${q(options.importPathFor(from))};`,
+      );
+    }
   }
 
   if (model.jsonImports.some((entry) => entry.value === true)) {
@@ -727,6 +744,20 @@ export function emitModule(model: Model, options: EmitOptions): string {
       "export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };",
       "",
     );
+  }
+
+  const tagged = model.functions.filter(
+    (fn) => fn.meta.returnsSchema !== undefined,
+  );
+
+  if (tagged.length > 0) {
+    lines.push(`import { registerRpcReturn } from ${q(runtime)};`);
+
+    for (const fn of tagged) {
+      lines.push(`registerRpcReturn(${q(fn.key)}, ${fn.meta.returnsSchema});`);
+    }
+
+    lines.push("");
   }
 
   if (split) {

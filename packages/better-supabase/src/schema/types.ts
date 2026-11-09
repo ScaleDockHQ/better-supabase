@@ -153,6 +153,11 @@ export interface FunctionSignature {
    * the rows of a table (by app key), or a `returns table (...)` record.
    */
   readonly result?: FunctionResult;
+  /**
+   * Standard Schema export that `$rpc` uses to check a jsonb result. Set from
+   * an `@bsb returns=./file.ts#Schema` comment.
+   */
+  readonly returnsSchema?: string;
 }
 
 export type FunctionResult =

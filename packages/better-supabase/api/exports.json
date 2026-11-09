@@ -16,6 +16,7 @@
       "DbException",
       "decodeCursor",
       "decodeRows",
+      "decodeRpcReturn",
       "defineBetterResultErrors",
       "definePlugin",
       "defineReadSet",
@@ -61,6 +62,7 @@
       "readSetTables",
       "readTypeSource",
       "recordStats",
+      "registerRpcReturn",
       "rowKey",
       "rpcCacheTargets",
       "scopeCondition",
@@ -5209,6 +5211,7 @@
   },
   "./normalize": {
     "values": [
+      "classifyParty",
       "detectMojibake",
       "looksShouted",
       "normalizeBic",
@@ -5224,7 +5227,9 @@
       "validateIban"
     ],
     "types": [
+      "ClassifiedParty",
       "CountryOptions",
+      "PartyKindChoice",
       "PersonName",
       "PhoneOptions",
       "SanitizeOptions",
