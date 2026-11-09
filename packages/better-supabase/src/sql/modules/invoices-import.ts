@@ -263,6 +263,14 @@ begin
     select * into v_row from ${t("invoices")} x where x.${i("id")} = v_id;
     return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row.${i("updatedAt")}, 'warnings', v_warnings);
   end if;
+  if not v_credit and coalesce((v_data -> 'totals' ->> 'total')::bigint, 0) < 0 then
+    if coalesce(nullif(v_data ->> 'originalId', ''), nullif(import_invoice_document.item -> 'resolved' ->> 'original', '')) is not null then
+      v_credit := true;
+    else
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_CREDIT_WITHOUT_ORIGINAL', 'message', 'a negative total has no original invoice, so it stays an invoice'));
+    end if;
+  end if;
+
   if v_status not in ('draft', 'issued', 'partially_paid', 'paid', 'void', 'uncollectible') then
     ${fail("IMPORT_ITEM_INVALID", "status is draft, issued, partially_paid, paid, void or uncollectible", "22023")}
   end if;
@@ -293,11 +301,17 @@ begin
   if v_credit then
     v_original := coalesce(
       nullif(v_data ->> 'originalId', '')::uuid,
+      nullif(import_invoice_document.item -> 'resolved' ->> 'original', '')::uuid,
       (select x.${i("id")} from ${t("invoices")} x where x.${i("tenant")} = v_tenant and x.${i("identifier")} = v_data ->> 'original' limit 1)
     );
-    if v_original is null then
+    if v_original is null and coalesce(v_data ->> 'settlement', 'payments') = 'row' then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_CREDIT_WITHOUT_ORIGINAL', 'message', 'a credit note has no original invoice, so no posting was made'));
+      v_credit := false;
+    elsif v_original is null then
       ${fail("IMPORT_ITEM_INVALID", "a credit note names the invoice it credits (originalId or original)", "22023")}
     end if;
+  end if;
+  if v_credit then
     v_made := ${fn("credit_invoice")}(v_original, v_data -> 'lines', nullif(v_data ->> 'note', ''), v_number, v_issued_on);
     v_id := (v_made ->> ${sqlString(plain(i("id")))})::uuid;
   else

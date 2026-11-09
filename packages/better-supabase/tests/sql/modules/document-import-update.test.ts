@@ -25,5 +25,7 @@ describe("imported document updates", () => {
     expect(invoices).toContain("settlement");
     expect(invoices).toContain("supplied_on");
     expect(invoices).toContain("= 'product'");
+    expect(invoices).toContain("IMPORT_CREDIT_WITHOUT_ORIGINAL");
+    expect(invoices).toContain("resolved");
   });
 });

@@ -4675,6 +4675,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "termsDays": "terms_days",
               "issuedOn": "issued_on",
+              "suppliedOn": "supplied_on",
               "dueOn": "due_on",
               "paidTotal": "paid_total",
               "creditedTotal": "credited_total",

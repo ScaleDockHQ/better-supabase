@@ -268,9 +268,13 @@ its postings unless `data.repost` is true. `data.settlement` of `row` writes
 ledger entry. `suppliedOn` fills `supplied_on`, and fills the issue date when
 `issuedOn` is empty. A blank title keeps the number template. A line with a
 product is `product`. A payment term code and a tax rate that matches one
-code are resolved when those blocks are installed. A document edited after
-the import is reported as a conflict, and a document whose source changed
-yields `IMPORT_DOCUMENT_CHANGED` while `update` stays `keep`.
+code are resolved when those blocks are installed. A negative total becomes a
+credit note when `resolved.original` or `originalId` names the invoice, and
+stays an invoice with `IMPORT_CREDIT_WITHOUT_ORIGINAL` when it does not. A
+credit note in `settlement` `row` with no original records the same warning
+and posts nothing. A document edited after the import is reported as a
+conflict, and a document whose source changed yields
+`IMPORT_DOCUMENT_CHANGED` while `update` stays `keep`.
 
 ### Opening open items
 
