@@ -4673,11 +4673,11 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "memberships",
         "permissions",
         "subjects",
-        "dispatch",
         "recurrence"
       ],
       "integrates": [
         "assets",
+        "dispatch",
         "inventory",
         "outbox",
         "audit",
@@ -4690,10 +4690,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "events": [
         "maintenance_calibration.recorded",
         "maintenance_meter_reading.recorded",
-        "maintenance_plan.completed",
         "maintenance_plan.created",
         "maintenance_plan.deleted",
-        "maintenance_plan.triggered",
         "maintenance_plan.updated"
       ],
       "subpath": "better-supabase/blocks/maintenance",
@@ -6892,7 +6890,6 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "ledger",
         "assets",
         "enrollments",
-        "dispatch",
         "compliance",
         "courses",
         "messaging",
@@ -6956,7 +6953,6 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "ledger",
         "assets",
         "enrollments",
-        "dispatch",
         "compliance",
         "courses",
         "qualifications",

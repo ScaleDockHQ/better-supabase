@@ -10206,11 +10206,11 @@ export const PRESET_CATALOG: PresetCatalog = {
         "memberships",
         "permissions",
         "subjects",
-        "dispatch",
         "recurrence"
       ],
       "integrates": [
         "assets",
+        "dispatch",
         "inventory",
         "outbox",
         "audit",

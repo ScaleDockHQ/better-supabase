@@ -1468,7 +1468,7 @@ export interface BlockNameRegistry {
       readonly "readings": "id" | "tenant" | "meter" | "value" | "readAt" | "readBy";
       readonly "calibrations": "id" | "tenant" | "asset" | "instrument" | "performedAt" | "dueAt" | "result" | "reference" | "performedBy" | "qualifications";
     };
-    readonly functions: "create_maintenance_meter" | "create_maintenance_plan" | "delete_maintenance_plan" | "generate_maintenance_work_orders" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_next_occurrence" | "maintenance_work_order_closed" | "record_calibration" | "record_meter_reading" | "update_maintenance_plan";
+    readonly functions: "create_maintenance_meter" | "create_maintenance_plan" | "delete_maintenance_plan" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_next_occurrence" | "record_calibration" | "record_meter_reading" | "update_maintenance_plan";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_maintenance_plan_create" | "after_maintenance_plan_create";
     readonly entities: {
