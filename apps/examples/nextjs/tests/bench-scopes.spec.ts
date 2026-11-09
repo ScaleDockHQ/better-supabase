@@ -57,6 +57,13 @@ test.beforeEach(async ({ page }) => {
 test("twelve private scopes verify at most once", async ({ page }) => {
   const plain = await load(page, "plain");
 
+  test
+    .info()
+    .annotations.push({
+      type: "plain",
+      description: `${String(plain.lookups)} lookups, ${String(plain.misses)} misses`,
+    });
+
   expect(plain.misses).toBeLessThanOrEqual(1);
   expect(plain.lookups).toBeGreaterThanOrEqual(SCOPES);
 });
@@ -65,6 +72,13 @@ test("a session handle makes the scopes verify zero times", async ({
   page,
 }) => {
   const session = await load(page, "session");
+
+  test
+    .info()
+    .annotations.push({
+      type: "session",
+      description: `${String(session.lookups)} lookups, ${String(session.misses)} misses`,
+    });
 
   expect(session.misses).toBe(0);
   // The proxy's own resolution and the one `bsb.sessionHandle()` call, no more.
