@@ -300,6 +300,7 @@ describe("BS260", () => {
 
   it("reports a source file that uses an old name", async () => {
     const findings = await rule.check({
+      config: { blocks: {} },
       sources: [
         { path: "a.ts", text: "const s = buildApiModel(x);\n" },
         { path: "b.ts", text: "const s = defineApiModel(x);\n" },
@@ -310,6 +311,7 @@ describe("BS260", () => {
     expect(findings).toHaveLength(2);
 
     const subpath = await rule.check({
+      config: { blocks: {} },
       sources: [
         {
           path: "d.ts",
@@ -381,5 +383,25 @@ describe("block references", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  it("keeps the argument names of an entity the config renamed", async () => {
+    const rule = NAMING_RENAME_RULES[0]!;
+
+    const sources = [
+      { path: "a.ts", text: "tasks.assign({ workItemId: id });\n" },
+    ];
+
+    const context = (blocks: object): never =>
+      // SAFETY: the rule reads only `config.blocks` and `sources`.
+      ({ config: { blocks }, sources }) as never;
+
+    expect(await rule.check(context({}))).toHaveLength(1);
+
+    const kept = await rule.check(
+      context({ tasks: { entities: { task: "work_item" } } }),
+    );
+
+    expect(kept).toEqual([]);
   });
 });
