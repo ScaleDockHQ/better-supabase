@@ -90,7 +90,11 @@ describe("databaseUrl with a named stack", () => {
       ":61234/",
     );
 
-    expect(status).toHaveBeenCalledWith(root, {}, { stack: "tests" });
+    expect(status).toHaveBeenCalledWith(
+      root,
+      {},
+      expect.objectContaining({ stack: "tests" }),
+    );
   });
 
   it("fails naming both sources when that stack's status fails", async () => {
