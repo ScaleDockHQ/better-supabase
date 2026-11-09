@@ -1,4 +1,4 @@
-import { useContext, useEffect } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 
 import type {
   DataId,
@@ -9,10 +9,12 @@ import type {
   DataState,
   DataWrites,
 } from "../bindings/data-hooks.ts";
+import type { DbError } from "../core/errors.ts";
 
 import {
   createDataList,
   createDataOne,
+  createDataPage,
   dataArgsKey,
   dataTarget,
 } from "../bindings/data-hooks.ts";
@@ -123,3 +125,105 @@ export function defineDataHooks<D, S extends DataSource>(
     useOne: defineOneHook(name, select),
   };
 }
+
+interface CursorPayload {
+  readonly items: readonly unknown[];
+  readonly nextCursor: string | null;
+  readonly hasMore: boolean;
+}
+
+function isCursorPayload(value: unknown): value is CursorPayload {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "items" in value &&
+    Array.isArray(value.items) &&
+    "hasMore" in value
+  );
+}
+
+/** One cursor page after another, on `source.page()`. */
+export interface InfiniteList<T> {
+  readonly items: readonly T[];
+  readonly error: DbError | undefined;
+  readonly isPending: boolean;
+  readonly hasMore: boolean;
+  readonly fetchNextPage: () => void;
+}
+
+/**
+ * Pages a table with `page({ after, size })`. `fetchNextPage` asks for the next
+ * cursor. A change to `args` starts again at the first page. Offline, the hook
+ * pauses like `useList`.
+ */
+export const defineInfiniteListHook =
+  /*#__NO_SIDE_EFFECTS__*/
+  <D, S extends DataSource, T>(
+    name: string,
+    select: (db: D) => S,
+    table?: object,
+  ): ((
+    args: DataListOptions<S> & { readonly size: number },
+  ) => InfiniteList<T>) =>
+    (args) => {
+      const client = useClient();
+      const target = dataTarget(client, name, select, table);
+      const offline = useContext(OfflineContext);
+      const filters = dataArgsKey(args);
+      const [seen, setSeen] = useState(filters);
+      const [after, setAfter] = useState<string | null>(null);
+      const [items, setItems] = useState<readonly T[]>([]);
+      const [cursor, setCursor] = useState<string | null>(null);
+      const [hasMore, setHasMore] = useState(false);
+
+      if (seen !== filters) {
+        setSeen(filters);
+        setAfter(null);
+        setItems([]);
+        setCursor(null);
+      }
+
+      const pageArgs = { ...args, after };
+
+      const { controller, view } = useController(
+        () => createDataPage(target, pageArgs, { offline }),
+        [
+          client.db,
+          target.engine,
+          dataArgsKey(target.scope),
+          dataArgsKey(pageArgs),
+        ],
+      );
+
+      useEffect(() => {
+        controller.actions.setOffline(offline);
+      }, [controller, offline]);
+
+      useEffect(() => {
+        if (view.status !== "success" || !isCursorPayload(view.data)) {
+          return;
+        }
+
+        const page = view.data;
+        // SAFETY: isCursorPayload checked that items is an array. T is the row the caller named.
+        const next = page.items as readonly T[];
+
+        setItems((current) => (after === null ? next : [...current, ...next]));
+        setCursor(page.nextCursor);
+        setHasMore(page.hasMore);
+      }, [view.data, view.status, after]);
+
+      const fetchNextPage = useCallback(() => {
+        if (hasMore && cursor !== null) {
+          setAfter(cursor);
+        }
+      }, [hasMore, cursor]);
+
+      return {
+        items,
+        error: view.error,
+        isPending: view.isPending && items.length === 0,
+        hasMore,
+        fetchNextPage,
+      };
+    };

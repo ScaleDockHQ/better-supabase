@@ -233,8 +233,11 @@ export type CursorPageParams<M extends AnyModels, T extends keyof M> = Omit<
   /**
    * Also count every row matching `where` (ignoring the cursor) and return it
    * as `total`. The first page reads it from the page request; later pages cost
-   * one more request.
+   * one more request. Defaults to `estimated` with `withCount`. Pass `exact`
+   * when the total must be exact above `maxRows`.
    */
+  readonly count?: CountMode;
+  /** Shorthand for `count: "estimated"`. */
   readonly withCount?: boolean;
 };
 
@@ -261,7 +264,14 @@ export interface CursorPage<R> {
 }
 
 /** A cursor page that was asked for a count. */
-export type CountedCursorPage<R> = CursorPage<R> & { readonly total: number };
+export type CountedCursorPage<R> = CursorPage<R> & {
+  readonly total: number;
+  /**
+   * `true` when `total` is the planner's estimate. Absent when the executor
+   * does not say.
+   */
+  readonly capped?: boolean;
+};
 
 type IsCounted<A> = A extends { readonly withCount: true }
   ? true

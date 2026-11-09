@@ -6,6 +6,7 @@ import { AUTHZ_EVENT, AUTHZ_TOPIC } from "../../core/authz-topic.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { tableGlobs } from "../schema-scan.ts";
 import { qualifiedTable } from "./grants.ts";
+import { roleAuthzBumps } from "./sessions-authz.ts";
 import { SESSIONS_OVERVIEW_SQL, SESSIONS_READS } from "./sessions-reads.ts";
 
 /** The `schema.table` names `blocks['sessions'].options.policies` covers. */
@@ -554,6 +555,18 @@ function hookPlan(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 `
       : "";
 
+  const tenantSwitch = `
+  -- A refresh whose permission claim was built for another tenant than
+  -- app_metadata.tenant_id must read again. reuse would keep the old keys.
+  if coalesce(v_claims -> 'app_metadata' ->> 'tenant_id', '') <> ''
+    and jsonb_typeof(v_claims -> 'permissions') = 'object'
+    and v_claims -> 'permissions' <> '{}'::jsonb
+    and not (v_claims -> 'permissions' ? (v_claims -> 'app_metadata' ->> 'tenant_id'))
+  then
+    return 'full';
+  end if;
+`;
+
   const reuse =
     refresh === "reuse"
       ? `
@@ -587,7 +600,7 @@ as $$
 declare
   v_claims jsonb := coalesce(event -> 'claims', '{}'::jsonb);
   v_user uuid := nullif(event ->> 'user_id', '')::uuid;
-begin${slim}${reuse}
+begin${slim}${tenantSwitch}${reuse}
   return 'full';
 end;
 $$;
@@ -779,7 +792,7 @@ begin
     )}
   end if;
 end;
-$$;`;
+$$;${roleAuthzBumps(ctx)}`;
 }
 
 export const SESSIONS: BlockSqlDefinition = {
@@ -794,6 +807,7 @@ export const SESSIONS: BlockSqlDefinition = {
   description:
     "session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.",
   requires: [],
+  integrates: ["permissions", "memberships"],
   target: "schema",
   build: (ctx, layout) => `
 -- An access token stays valid until it expires, even after its session is

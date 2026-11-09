@@ -8,6 +8,7 @@
     "next-cache-components",
     "next-islands",
     "next-offline-pwa",
+    "client-permissions",
     "hono",
     "hono-and-next",
     "expo",

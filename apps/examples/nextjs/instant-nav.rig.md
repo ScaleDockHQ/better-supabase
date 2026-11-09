@@ -18,9 +18,10 @@
 
 Measured on the claims shape this branch started from, without a production render (the local stack was not loaded with the scale seed in this pass). Membership bytes are `JSON.stringify` of 150 `{ scope, id, roles: ["member"] }` entries. Permission bytes are one tenant holding 300 `resource.action_NNN` keys in the full bootstrap form. ADR 0523 measured the SQL `membership_claims` array at 14,294 bytes and 9 cookie chunks for 150 memberships on the real hook.
 
-| Measure                                          | Before                                                |
-| ------------------------------------------------ | ----------------------------------------------------- |
-| Membership claim, 150 entries                    | 13,201 bytes (synthetic); 14,294 bytes (ADR 0523 SQL) |
-| Cookie chunks at 150 memberships                 | 9 (ADR 0523)                                          |
-| Full bootstrap permissions, 300 keys, one tenant | 6,683 bytes                                           |
-| HTML, Flight, round trips                        | not measured on a production render in this pass      |
+| Measure                                      | Before                                                | After                                               |
+| -------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
+| Membership claim, 150 entries                | 13,201 bytes (synthetic); 14,294 bytes (ADR 0523 SQL) | 6,199 bytes (`claimFormat: "summary"`, one role)    |
+| Cookie chunks at 150 memberships             | 9 (ADR 0523)                                          | not re-measured on a live cookie                    |
+| Bootstrap permissions, 300 keys, one tenant  | 6,683 bytes (full)                                    | 6,747 bytes (compact; the key list still dominates) |
+| Bootstrap permissions, 300 keys, 150 tenants | 996,192 bytes (full)                                  | 20,604 bytes (compact)                              |
+| HTML, Flight, round trips                    | not measured on a production render in this pass      | not measured on a production render in this pass    |

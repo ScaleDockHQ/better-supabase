@@ -496,6 +496,7 @@ export class BetterSupabase<
     const { urlLengthLimit, postgrestVersion } = this.options;
 
     return {
+      maxRows: this.options.maxRows ?? 1000,
       ...(urlLengthLimit === undefined ? {} : { urlLengthLimit }),
       ...(postgrestVersion === undefined ? {} : { postgrestVersion }),
     };

@@ -578,3 +578,37 @@ describe("BS393 import batches near the statement timeout", () => {
     expect(await check(70_000, "2min")).toHaveLength(1);
   });
 });
+
+describe("BS628 list cursor indexes", () => {
+  const rule = RULES.find((entry) => entry.code === "BS628");
+
+  const check = (text: string) =>
+    rule!.check({
+      sqlFiles: [{ path: "supabase/schemas/app.sql", text }],
+    } as unknown as DoctorContext);
+
+  it("flags a list ordered by created_at and id without an index", async () => {
+    const findings = await check(`
+      create or replace function app.list_cases()
+      returns jsonb language sql as $$
+        select 1 order by created_at desc, id desc
+      $$;
+    `);
+
+    expect(findings.map((finding) => finding.message).join(" ")).toContain(
+      "list_cases",
+    );
+  });
+
+  it("accepts the same list when the file indexes both columns", async () => {
+    const findings = await check(`
+      create index cases_created_idx on app.cases (tenant_id, created_at desc, id desc);
+      create or replace function app.list_cases()
+      returns jsonb language sql as $$
+        select 1 order by created_at desc, id desc
+      $$;
+    `);
+
+    expect(findings).toEqual([]);
+  });
+});

@@ -22,6 +22,7 @@ import { catalogRoles } from "./permissions-catalog-roles.ts";
 import { catalogAudit, membershipRoleKey } from "./permissions-catalog.ts";
 import { capFor, delegationSql } from "./permissions-delegation.ts";
 import {
+  bootstrapPermissionsSql,
   myPermissionsSql,
   oneTenantClaims,
   permissionClaimHook,
@@ -1015,7 +1016,7 @@ $$;
 
 ${oneTenantClaims(ctx, layout)}
 
-${myPermissionsSql(id)}${providerGuestFunctions(ctx.installedModules, layout)}${catalogRoleFunctions(ctx)}
+${myPermissionsSql(id)}${model === "roles" || model === "catalog" ? bootstrapPermissionsSql() : ""}${providerGuestFunctions(ctx.installedModules, layout)}${catalogRoleFunctions(ctx)}
 
 ${[
   "permission_matches(text, text)",

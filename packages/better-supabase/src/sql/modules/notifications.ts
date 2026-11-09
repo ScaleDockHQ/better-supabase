@@ -431,7 +431,7 @@ create table if not exists ${n.table("recipients")} (
   ].join(",\n  ")}
 );
 ${added(n)}
-create index if not exists notification_recipients_inbox_idx on ${n.table("recipients")} (${c("recipients", "user")}, ${c("recipients", "createdAt")} desc) where ${c("recipients", "dismissedAt")} is null;
+create index if not exists notification_recipients_inbox_idx on ${n.table("recipients")} (${c("recipients", "user")}, ${c("recipients", "createdAt")} desc, ${c("recipients", "id")} desc) where ${c("recipients", "dismissedAt")} is null;
 create index if not exists notification_recipients_unread_idx on ${n.table("recipients")} (${c("recipients", "user")}) where ${c("recipients", "readAt")} is null and ${c("recipients", "dismissedAt")} is null;
 create index if not exists notification_recipients_user_idx on ${n.table("recipients")} (${c("recipients", "user")});
 alter table ${n.table("recipients")} enable row level security;

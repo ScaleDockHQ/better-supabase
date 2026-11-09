@@ -206,26 +206,44 @@ export async function sharedJwks(
     return ok(entry.cached.keys);
   }
 
-  entry.pending ??= fetchRawJwks(url, options.fetch)
-    .catch((cause: unknown) =>
-      err(
-        dbError(
-          "network",
-          `The JWKS could not be loaded: ${cause instanceof Error ? cause.message : String(cause)}`,
-          { code: "JWKS_FETCH_FAILED" },
+  const refreshKeys = (): Promise<Result<RawJwks>> => {
+    const pending = fetchRawJwks(url, options.fetch)
+      .catch((cause: unknown) =>
+        err(
+          dbError(
+            "network",
+            `The JWKS could not be loaded: ${cause instanceof Error ? cause.message : String(cause)}`,
+            { code: "JWKS_FETCH_FAILED" },
+          ),
         ),
-      ),
-    )
-    .then((result) => {
-      if (result.ok) {
-        entry.cached = { keys: result.data, at: now() };
-      }
+      )
+      .then((result) => {
+        if (result.ok) {
+          entry.cached = { keys: result.data, at: now() };
+        }
 
-      return result;
-    })
-    .finally(() => {
-      entry.pending = undefined;
-    });
+        return result;
+      })
+      .finally(() => {
+        if (entry.pending === pending) {
+          entry.pending = undefined;
+        }
+      });
+
+    entry.pending = pending;
+
+    return pending;
+  };
+
+  // A routine expiry serves the keys already known and refreshes behind the
+  // response. An unknown kid still waits, because the cached set cannot verify it.
+  if (entry.cached && !refresh) {
+    entry.pending ??= refreshKeys();
+
+    return ok(entry.cached.keys);
+  }
+
+  entry.pending ??= refreshKeys();
 
   const result = await entry.pending;
 
@@ -273,27 +291,43 @@ export function jwksSource(
       return ok(cached.keys);
     }
 
-    pending ??= input()
-      .then((value) => ok(parse(value)))
-      .catch((cause: unknown) =>
-        err(
-          dbError(
-            "network",
-            `The JWKS could not be loaded: ${cause instanceof Error ? cause.message : String(cause)}`,
-            { code: "JWKS_FETCH_FAILED" },
+    const load = (): Promise<Result<Jwks>> => {
+      const flight = input()
+        .then((value) => ok(parse(value)))
+        .catch((cause: unknown) =>
+          err(
+            dbError(
+              "network",
+              `The JWKS could not be loaded: ${cause instanceof Error ? cause.message : String(cause)}`,
+              { code: "JWKS_FETCH_FAILED" },
+            ),
           ),
-        ),
-      )
-      .then((result) => {
-        if (result.ok) {
-          cached = { keys: result.data, at: now() };
-        }
+        )
+        .then((result) => {
+          if (result.ok) {
+            cached = { keys: result.data, at: now() };
+          }
 
-        return result;
-      })
-      .finally(() => {
-        pending = undefined;
-      });
+          return result;
+        })
+        .finally(() => {
+          if (pending === flight) {
+            pending = undefined;
+          }
+        });
+
+      pending = flight;
+
+      return flight;
+    };
+
+    if (cached && !refresh) {
+      pending ??= load();
+
+      return ok(cached.keys);
+    }
+
+    pending ??= load();
 
     const result = await pending;
 

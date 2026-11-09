@@ -277,6 +277,7 @@ describe("sessions hook plan", () => {
       "(v_claims ->> 'authz_ver')::bigint = better_supabase.authz_version(v_user)",
     );
     expect(sql).toContain("v_claims ->> 'permissions_truncated'");
+    expect(sql).toContain("app_metadata' ->> 'tenant_id'");
     expect(sql).not.toContain("return 'slim'");
   });
 

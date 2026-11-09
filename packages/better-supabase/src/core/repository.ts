@@ -793,8 +793,11 @@ export function createRepository(
       lookAhead: true,
       offset: undefined,
       // Without a cursor the request matches every row, so its count is the total.
+      // The first page estimates, matching offset pages. `count: "exact"` opts in.
       count:
-        args["withCount"] === true && after === undefined ? "exact" : undefined,
+        cursorCount(args) !== undefined && after === undefined
+          ? cursorCount(args)
+          : undefined,
     });
 
     const result = await run(op, args);
@@ -804,15 +807,17 @@ export function createRepository(
     }
 
     let total = result.data.count;
+    let capped = result.data.capped;
+    const countMode = cursorCount(args);
 
-    if (args["withCount"] === true && after !== undefined) {
+    if (countMode !== undefined && after !== undefined) {
       const counted = await run(
         selectOp(args, {
           selection: { columns: [], includes: [] },
           orderBy: [],
           limit: undefined,
           offset: undefined,
-          count: args["count"] === "exact" ? "exact" : "estimated",
+          count: countMode,
           head: true,
         }),
         args,
@@ -823,6 +828,7 @@ export function createRepository(
       }
 
       total = counted.data.count;
+      capped = counted.data.capped;
     }
 
     const rows = result.data.rows.slice(0, size);
@@ -843,12 +849,34 @@ export function createRepository(
           )
         : null;
 
+    const counted: { total?: number; capped?: boolean } = {};
+
+    if (countMode) {
+      counted.total = total ?? 0;
+    }
+
+    if (typeof capped === "boolean") {
+      counted.capped = capped;
+    }
+
     return ok({
       items: added.length > 0 ? rows.map((row) => strip(row, added)) : rows,
       nextCursor,
       hasMore,
-      ...(args["withCount"] === true ? { total: total ?? 0 } : {}),
+      ...counted,
     });
+  }
+
+  function cursorCount(
+    args: CallParams,
+  ): "exact" | "planned" | "estimated" | undefined {
+    const named = args["count"];
+
+    if (named === "exact" || named === "planned" || named === "estimated") {
+      return named;
+    }
+
+    return args["withCount"] === true ? "estimated" : undefined;
   }
 
   function withTieBreaker(orderBy: readonly OrderTerm[]): OrderTerm[] {

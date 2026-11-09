@@ -493,6 +493,10 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0591: Measure the type and dev-loop cost of 0.58 in the bench.
 - 0592: Pin columns reached through options and instances.
 - 0593: same_tenant null rows are opt-in.
+- 0594: Compact client permissions and the claims-free session.
+- 0595: Session memo on globalThis and stale-while-revalidate JWKS.
+- 0596: Bump authorization versions when role defaults change.
+- 0597: Native offline boundary and a permissions snapshot.
 
 ## Pre-release pins
 

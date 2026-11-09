@@ -130,8 +130,32 @@ export function isAnonymousUser(claims: Readonly<object>): boolean {
   return "is_anonymous" in claims && claims.is_anonymous === true;
 }
 
+/** A session for client props: the same fields, without the JWT payload. */
+export type ClaimsFreeSession<C = unknown, P = unknown> =
+  | Omit<Extract<AuthSession<C, P>, { readonly kind: "user" }>, "claims">
+  | Exclude<AuthSession<C, P>, { readonly kind: "user" }>;
+
+export interface ToSessionOptions {
+  /**
+   * `false` leaves the JWT payload off the session. Client components take
+   * permissions from `PermissionsProvider` instead of the claims.
+   */
+  readonly claims?: boolean;
+}
+
 /** Drops the token from an `AuthState`, leaving only serializable fields. */
-export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
+export function toSession<C, P>(
+  auth: AuthState<C, P>,
+  options: { readonly claims: false },
+): ClaimsFreeSession<C, P>;
+export function toSession<C, P>(
+  auth: AuthState<C, P>,
+  options?: ToSessionOptions,
+): AuthSession<C, P>;
+export function toSession<C, P>(
+  auth: AuthState<C, P>,
+  options?: ToSessionOptions,
+): AuthSession<C, P> | ClaimsFreeSession<C, P> {
   switch (auth.kind) {
     case "user": {
       const outcome = actorOf(auth.claims);
@@ -164,7 +188,7 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
       return {
         kind: "user",
         user: auth.user,
-        claims: auth.claims,
+        ...(options?.claims === false ? {} : { claims: auth.claims }),
         expiresAt: auth.expiresAt,
         issuedAt: issuedAtOf(auth.claims),
         authzVersion: authzVersionOf(auth.claims),

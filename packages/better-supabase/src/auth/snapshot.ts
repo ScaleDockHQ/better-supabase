@@ -167,21 +167,14 @@ interface Entry<T> {
   until: number;
 }
 
-const encoder = new TextEncoder();
-
-/** The SHA-256 digest of a token, so the memo never keeps a bearer credential. */
-const digestOf = async (token: string): Promise<string> => {
-  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(token));
-
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-};
+const PROCESS_MEMO = Symbol.for("better-supabase.session-memo");
 
 /**
- * A bounded LRU of verified sessions. Keys derive only from the token, never
- * from a user id or a header, so one instance can serve many users at once
- * (Fluid compute). Create it once at module scope; `createServer` owns one.
+ * A bounded LRU of verified sessions. The key is the raw token (ADR 0116): the
+ * stored value already holds it, and an awaited digest made every lookup wait.
+ * Keys never come from a user id or a header, so one instance can serve many
+ * users at once (Fluid compute). Create it once at module scope; `createServer`
+ * keeps one per process on `globalThis`.
  */
 export function sessionMemo<T>(
   /**
@@ -216,8 +209,7 @@ export function sessionMemo<T>(
   };
 
   return {
-    async get(raw, load) {
-      const token = await digestOf(raw);
+    async get(token, load) {
       const now = clock();
       const known = entries.get(token);
 
@@ -264,11 +256,12 @@ export function sessionMemo<T>(
       return entry.promise;
     },
 
-    async seed(raw, value) {
-      const token = await digestOf(raw);
+    seed(token, value) {
       const until = untilFor(clock(), expiresAt(value));
 
       store(token, { promise: Promise.resolve(value), value, until });
+
+      return Promise.resolve();
     },
 
     evict(match) {
@@ -291,4 +284,39 @@ export function sessionMemo<T>(
       size: entries.size,
     }),
   };
+}
+
+/**
+ * The process-wide memo. The proxy and the render are separate module graphs
+ * (ADR 0340) and share this slot on `globalThis`, so a verification the proxy
+ * seeded is a hit in the render. A custom clock, bound, ttl or counter object
+ * gets a private memo, which is what tests use.
+ */
+export function processSessionMemo<T>(
+  expiresAt: (value: T) => number | null,
+  options?: SessionMemoOptions,
+): SessionMemo<T> {
+  const given = options ?? {};
+
+  if (
+    given.now !== undefined ||
+    given.counters !== undefined ||
+    given.max !== undefined ||
+    given.ttlMs !== undefined
+  ) {
+    return sessionMemo(expiresAt, given);
+  }
+
+  // SAFETY: PROCESS_MEMO is this module's symbol, so nothing else writes that slot.
+  const scope = globalThis as { [PROCESS_MEMO]?: SessionMemo<T> };
+
+  return (scope[PROCESS_MEMO] ??= sessionMemo(expiresAt));
+}
+
+/** Drops the process-wide memo. Tests call it so one file cannot seed the next. */
+export function clearProcessSessionMemo(): void {
+  // SAFETY: PROCESS_MEMO is this module's symbol, so nothing else writes that slot.
+  const scope = globalThis as { [PROCESS_MEMO]?: unknown };
+
+  delete scope[PROCESS_MEMO];
 }

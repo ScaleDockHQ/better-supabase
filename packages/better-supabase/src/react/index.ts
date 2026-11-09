@@ -61,11 +61,16 @@ export { useBlockEnv, useBlockTenant } from "../blocks/react-env.ts";
 
 export {
   defineDataHooks,
+  defineInfiniteListHook,
   defineListHook,
   defineOneHook,
 } from "./data-hooks.ts";
 
-export type { DataHooks, DataView } from "./data-hooks.ts";
+export type { DataHooks, DataView, InfiniteList } from "./data-hooks.ts";
+
+export { can, PermissionsProvider, useCan } from "./permissions.ts";
+
+export { OfflineContext } from "./offline.ts";
 
 export type {
   DataSource,

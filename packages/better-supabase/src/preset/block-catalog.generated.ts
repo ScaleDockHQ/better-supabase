@@ -553,7 +553,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "category": "Identity & access",
       "description": "session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.",
       "requires": [],
-      "integrates": [],
+      "integrates": [
+        "permissions",
+        "memberships"
+      ],
       "modes": [
         "managed"
       ],

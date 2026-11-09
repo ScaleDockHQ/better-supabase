@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   authzVersionOf,
+  clearProcessSessionMemo,
   isSessionSnapshot,
   issuedAtOf,
+  processSessionMemo,
   sessionCacheKey,
   sessionMemo,
 } from "../../src/auth/snapshot.ts";
@@ -138,6 +140,31 @@ describe("sessionMemo", () => {
     await memo.get("seeded", load);
     expect(load).toHaveBeenCalledOnce();
     expect(memo.stats().size).toBe(2);
+  });
+});
+
+describe("processSessionMemo", () => {
+  it("shares one memo across calls and keeps a custom clock private", async () => {
+    clearProcessSessionMemo();
+
+    const first = processSessionMemo<Value>((value) => value.exp);
+    const second = processSessionMemo<Value>((value) => value.exp);
+    const load = vi.fn(async () => ({ user: "a", exp: null }));
+
+    await first.seed("token", { user: "a", exp: null });
+
+    expect(await second.get("token", load)).toEqual({ user: "a", exp: null });
+    expect(load).not.toHaveBeenCalled();
+
+    const clock = { ms: 0 };
+
+    const custom = processSessionMemo<Value>((value) => value.exp, {
+      now: () => clock.ms,
+    });
+
+    expect(await custom.get("token", load)).toEqual({ user: "a", exp: null });
+    expect(load).toHaveBeenCalledOnce();
+    clearProcessSessionMemo();
   });
 });
 

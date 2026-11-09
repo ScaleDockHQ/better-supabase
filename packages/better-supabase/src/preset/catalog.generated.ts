@@ -484,7 +484,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Session revocation",
       "category": "identity",
       "requires": [],
-      "integrates": [],
+      "integrates": [
+        "permissions",
+        "memberships"
+      ],
       "manifest": "sessions",
       "reads": [
         {
