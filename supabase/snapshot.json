@@ -283912,8 +283912,7 @@
               "INSERT"
             ]
           }
-        ],
-        "large": true
+        ]
       },
       {
         "id": 1000082,
@@ -365681,8 +365680,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000576,

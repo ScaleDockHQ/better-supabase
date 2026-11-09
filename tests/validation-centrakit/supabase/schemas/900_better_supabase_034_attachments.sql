@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:130e30198f7b57e8a1289c4dc54c42e35113b7ec66f6197cdbe0ab5ccef4d2a6
+-- @bsb-hash sha256:1e5ba28e85ae4e9db30232ff41e2e378d2ef2c5dc161eea73484049676c56703
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -373,21 +373,21 @@ grant execute on function "better_supabase"."attachment_subject_readable"(text, 
 
 create policy bsb_attachments_read on "better_supabase"."attachments"
   for select to authenticated
-  using ((("subject_type" = 'project' and ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.read') as t(id)))) or ("subject_type" = 'customer' and ("tenant_id" in (select better_supabase.tenant_ids_with('crm.read')))) or (not coalesce("subject_type" in ('project', 'customer'), false) and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')))) and ("subject_type" is null or case "subject_type"
-    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
-    when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
-    when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = ("subject_id")::bigint and s."organization_id" = "tenant_id")
-    else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
+  using ((("subject_type" = 'project' and ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.read') as t(id)))) or ("subject_type" = 'customer' and ("tenant_id" in (select better_supabase.tenant_ids_with('crm.read')))) or (not coalesce("subject_type" in ('project', 'customer'), false) and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')))) and ("better_supabase"."attachments"."subject_type" is null or case "better_supabase"."attachments"."subject_type"
+    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = ("better_supabase"."attachments"."subject_id")::uuid and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = ("better_supabase"."attachments"."subject_id")::uuid and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = ("better_supabase"."attachments"."subject_id")::bigint and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    else "better_supabase"."attachment_subject_readable"("better_supabase"."attachments"."subject_type", "better_supabase"."attachments"."subject_id", "better_supabase"."attachments"."tenant_id")
   end));
 create policy bsb_attachments_insert on "better_supabase"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
     and (("subject_type" = 'project' and ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or ("subject_type" = 'customer' and ("tenant_id" in (select better_supabase.tenant_ids_with('crm.read')))) or (not coalesce("subject_type" in ('project', 'customer'), false) and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))))
-    and ("subject_type" is null or case "subject_type"
-    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
-    when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
-    when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = ("subject_id")::bigint and s."organization_id" = "tenant_id")
-    else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
+    and ("better_supabase"."attachments"."subject_type" is null or case "better_supabase"."attachments"."subject_type"
+    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = ("better_supabase"."attachments"."subject_id")::uuid and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = ("better_supabase"."attachments"."subject_id")::uuid and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = ("better_supabase"."attachments"."subject_id")::bigint and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    else "better_supabase"."attachment_subject_readable"("better_supabase"."attachments"."subject_type", "better_supabase"."attachments"."subject_id", "better_supabase"."attachments"."tenant_id")
   end)) and (select centrakit.authz_actor_may_write()));
 create policy bsb_attachments_delete on "better_supabase"."attachments"
   for delete to authenticated
@@ -1234,11 +1234,11 @@ create policy bsb_tenant_scope_select on "better_supabase"."attachments" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ((("subject_type" = 'project' and ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.read') as t(id)))) or ("subject_type" = 'customer' and ("tenant_id" in (select better_supabase.tenant_ids_with('crm.read')))) or (not coalesce("subject_type" in ('project', 'customer'), false) and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')))) and ("subject_type" is null or case "subject_type"
-    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
-    when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
-    when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = ("subject_id")::bigint and s."organization_id" = "tenant_id")
-    else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
+    or ((("subject_type" = 'project' and ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.read') as t(id)))) or ("subject_type" = 'customer' and ("tenant_id" in (select better_supabase.tenant_ids_with('crm.read')))) or (not coalesce("subject_type" in ('project', 'customer'), false) and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')))) and ("better_supabase"."attachments"."subject_type" is null or case "better_supabase"."attachments"."subject_type"
+    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = ("better_supabase"."attachments"."subject_id")::uuid and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = ("better_supabase"."attachments"."subject_id")::uuid and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = ("better_supabase"."attachments"."subject_id")::bigint and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    else "better_supabase"."attachment_subject_readable"("better_supabase"."attachments"."subject_type", "better_supabase"."attachments"."subject_id", "better_supabase"."attachments"."tenant_id")
   end))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
@@ -1247,11 +1247,11 @@ create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as rest
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
     and (("subject_type" = 'project' and ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload')) or "subject_id" in (select t.id::text from centrakit.authz_project_ids_with('attachments.upload') as t(id)))) or ("subject_type" = 'customer' and ("tenant_id" in (select better_supabase.tenant_ids_with('crm.read')))) or (not coalesce("subject_type" in ('project', 'customer'), false) and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))))
-    and ("subject_type" is null or case "subject_type"
-    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
-    when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
-    when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = ("subject_id")::bigint and s."organization_id" = "tenant_id")
-    else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
+    and ("better_supabase"."attachments"."subject_type" is null or case "better_supabase"."attachments"."subject_type"
+    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = ("better_supabase"."attachments"."subject_id")::uuid and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = ("better_supabase"."attachments"."subject_id")::uuid and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = ("better_supabase"."attachments"."subject_id")::bigint and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    else "better_supabase"."attachment_subject_readable"("better_supabase"."attachments"."subject_type", "better_supabase"."attachments"."subject_id", "better_supabase"."attachments"."tenant_id")
   end))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
