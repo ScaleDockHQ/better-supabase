@@ -93,6 +93,33 @@ describe("columnPins", () => {
       name: "reviewer_user_id",
       physical: "public.application_scorecards",
     });
+
+    const instance = columnPins(
+      {
+        blocks: {},
+        instances: {
+          "hiring-eu": {
+            name: "hiring-eu",
+            block: "hiring",
+            uses: {},
+            config: { tables: { scorecards: "public.eu_scorecards" } },
+          },
+        },
+      },
+      NAMING_RENAMES,
+      { "public.eu_scorecards": "app.sql" },
+      { "public.eu_scorecards": ["id", "reviewer_user_id"] },
+    );
+
+    expect(instance.review).toEqual([]);
+    expect(instance.pins).toContainEqual({
+      block: "hiring-eu",
+      module: "hiring",
+      table: "scorecards",
+      column: "reviewer",
+      name: "reviewer_user_id",
+      physical: "public.eu_scorecards",
+    });
   });
 
   it("reports a block whose context refuses the config", () => {
