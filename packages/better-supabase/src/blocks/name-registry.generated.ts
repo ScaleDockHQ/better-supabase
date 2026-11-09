@@ -1270,8 +1270,8 @@ export interface BlockNameRegistry {
       readonly "reservations": "id" | "tenant" | "variant" | "location" | "quantity" | "status" | "referenceType" | "referenceId" | "expiresAt" | "createdAt" | "updatedAt";
       readonly "transfers": "id" | "tenant" | "from" | "to" | "status" | "note" | "createdAt" | "shippedAt" | "receivedAt";
       readonly "transferLines": "tenant" | "transfer" | "variant" | "quantity" | "detail";
-      readonly "purchaseOrders": "id" | "tenant" | "location" | "supplierType" | "supplierId" | "status" | "currency" | "expectedAt" | "note" | "createdAt" | "updatedAt" | "placedAt" | "shipTo" | "originType" | "originId" | "template" | "sourceTemplate";
-      readonly "purchaseOrderLines": "id" | "tenant" | "order" | "variant" | "quantity" | "received" | "unitCost";
+      readonly "purchaseOrders": "id" | "tenant" | "location" | "supplierType" | "supplierId" | "status" | "currency" | "exchangeRate" | "number" | "expectedAt" | "note" | "createdAt" | "updatedAt" | "placedAt" | "shipTo" | "originType" | "originId" | "template" | "sourceTemplate";
+      readonly "purchaseOrderLines": "id" | "tenant" | "order" | "variant" | "quantity" | "received" | "quantityCanceled" | "taxCode" | "unitCost";
       readonly "requisitions": "id" | "tenant" | "location" | "supplierType" | "supplierId" | "currency" | "status" | "reason" | "requestedBy" | "decidedBy" | "decidedAt" | "approval" | "purchaseOrder" | "createdAt" | "updatedAt";
       readonly "requisitionLines": "id" | "tenant" | "requisition" | "variant" | "quantity" | "unitCost";
       readonly "receipts": "id" | "tenant" | "purchaseOrder" | "location" | "inspection" | "receivedBy" | "receivedAt";
@@ -1290,7 +1290,7 @@ export interface BlockNameRegistry {
     readonly hooks: "before_stock_adjust" | "after_stock_adjust" | "before_stock_reserve" | "after_stock_reserve";
     readonly entities: {
       readonly "inventory_location": "id" | "tenant_id" | "code" | "name" | "kind" | "active" | "address" | "created_at" | "updated_at";
-      readonly "purchase_order": "id" | "tenant_id" | "location_id" | "supplier_type" | "supplier_id" | "status" | "currency" | "expected_at" | "note" | "created_at" | "updated_at" | "placed_at" | "ship_to" | "origin_type" | "origin_id" | "template_id" | "source_template_id";
+      readonly "purchase_order": "id" | "tenant_id" | "location_id" | "supplier_type" | "supplier_id" | "status" | "currency" | "exchange_rate" | "number" | "expected_at" | "note" | "created_at" | "updated_at" | "placed_at" | "ship_to" | "origin_type" | "origin_id" | "template_id" | "source_template_id";
       readonly "purchase_requisition": "id" | "tenant_id" | "location_id" | "supplier_type" | "supplier_id" | "currency" | "status" | "reason" | "requested_by" | "decided_by" | "decided_at" | "approval_id" | "purchase_order_id" | "created_at" | "updated_at";
       readonly "inventory_receipt": "id" | "tenant_id" | "purchase_order_id" | "location_id" | "inspection_id" | "received_by" | "received_at";
     };
