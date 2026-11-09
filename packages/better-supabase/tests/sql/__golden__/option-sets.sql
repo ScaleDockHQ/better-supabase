@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_183_option_sets.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
 -- @bsb-hash sha256:8be428d280161c98d784e2afe1ff115b6efdb864374bf52ace99f2d59af71eeb
@@ -412,7 +412,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."option_set_items" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block-data option-sets
 -- @bsb-hash sha256:07e1ad1782c49422b596705ed05a07bfd597ba8914a65cd9968d04292f6152cf
@@ -426,7 +426,7 @@ values ('option-sets', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_183_option_sets.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
 -- @bsb-hash sha256:e9d25423e7d1ba33dcbb1dc7eb8a4654cfccb06bc7532f7e4919c621dbbb0baf
@@ -973,7 +973,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."option_set_items" as
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.option_sets deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"option_set","event_prefix":"option_set"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block-data option-sets
 -- @bsb-hash sha256:07e1ad1782c49422b596705ed05a07bfd597ba8914a65cd9968d04292f6152cf
@@ -987,7 +987,7 @@ values ('option-sets', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_183_option_sets.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
 -- @bsb-hash sha256:bba8edbe5548fa3fbe35b5d587df431127cf46a83cc40fd6c5fbcc42564fe8b8
@@ -1406,7 +1406,7 @@ create policy bsb_tenant_scope_delete on "app_private"."option_set_items" as res
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block-data option-sets
 -- @bsb-hash sha256:07e1ad1782c49422b596705ed05a07bfd597ba8914a65cd9968d04292f6152cf
@@ -1420,7 +1420,7 @@ values ('option-sets', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_183_option_sets.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
 -- @bsb-hash sha256:e212ed9d0d44e0e87fb6087c5e6a72095953ed90f9e509ee4c3ca3cb5d2c60e0
@@ -1902,7 +1902,7 @@ as $$ select "better_supabase"."archive_option_set_item"($1, $2) $$;
 revoke execute on function "api"."archive_option_set_item"(uuid, uuid) from public, anon;
 grant execute on function "api"."archive_option_set_item"(uuid, uuid) to authenticated, service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block-data option-sets
 -- @bsb-hash sha256:07e1ad1782c49422b596705ed05a07bfd597ba8914a65cd9968d04292f6152cf
@@ -1916,7 +1916,7 @@ values ('option-sets', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_183_option_sets.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
 -- @bsb-hash sha256:9b1543a46ede976c8e06f23d19df2645834493705d659b87d1c8a2348edd611d
@@ -2326,7 +2326,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."option_set_items" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block-data option-sets
 -- @bsb-hash sha256:07e1ad1782c49422b596705ed05a07bfd597ba8914a65cd9968d04292f6152cf
@@ -2340,7 +2340,7 @@ values ('option-sets', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_183_option_sets.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
 -- @bsb-hash sha256:116bbf8385118be6d67c350c0d9cc68e87b2ac1dd1571a31f514e3cd2b4d6415
@@ -2754,7 +2754,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."option_set_items" as
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block-data option-sets
 -- @bsb-hash sha256:07e1ad1782c49422b596705ed05a07bfd597ba8914a65cd9968d04292f6152cf

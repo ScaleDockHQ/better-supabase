@@ -1,7 +1,7 @@
--- ==== schema supabase/schemas/900_better_supabase_163_document_templates.sql
+-- ==== schema supabase/schemas/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:83cf798c11128b3dbb01dfe93bea17abe3a758bb0816b0f740e100d7c7ec4548
+-- @bsb-hash sha256:c9c77a9ffae7233313f564ffaecf8dfe4235c9368e9fd80224f5f8a3944266b4
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1072,6 +1072,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  if p_locale = any (array['en']) then
+    insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
+    select p_tenant, 'letterhead', 'en', '{{entity.name}} · Company no. {{entity.cocNumber}} · VAT {{entity.vatNumber}} · IBAN {{entity.iban}}'
+    where not exists (select 1 from "better_supabase"."document_text_blocks" x where x."tenant_id" = p_tenant and x."key" is not distinct from 'letterhead' and x."language" is not distinct from 'en');
+  end if;
   if p_locale = any (array['nl']) then
     insert into "better_supabase"."document_text_blocks" ("tenant_id", "key", "language", "body")
     select p_tenant, 'letterhead', 'nl', '{{entity.name}} · KvK {{entity.cocNumber}} · BTW {{entity.vatNumber}} · IBAN {{entity.iban}}'
@@ -1144,7 +1149,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_163_document_templates.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block-data document-templates
 -- @bsb-hash sha256:78c1630b141d582941b9c29d483d8b522b90759b462aa33a62301aff19a8ff53

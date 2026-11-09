@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:3f8cdf983c6c2e5e6ddd8303000d933268ce04b790b6c1493d3d954c044e414f
+-- @bsb-hash sha256:ffa70e2535ea4e5ec137c464a53712f5f92be252130f2a96f985f7d84b63abb5
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,7 +48,7 @@ create table "better_supabase"."notification_recipients" (
   "created_at" timestamptz not null default now(),
   unique ("event_id", "user_id")
 );
-create index notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc) where "dismissed_at" is null;
+create index notification_recipients_inbox_idx on "better_supabase"."notification_recipients" ("user_id", "created_at" desc, "id" desc) where "dismissed_at" is null;
 create index notification_recipients_unread_idx on "better_supabase"."notification_recipients" ("user_id") where "read_at" is null and "dismissed_at" is null;
 create index notification_recipients_user_idx on "better_supabase"."notification_recipients" ("user_id");
 alter table "better_supabase"."notification_recipients" enable row level security;

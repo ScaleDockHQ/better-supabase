@@ -96,6 +96,8 @@ describe("blocks.<name>.entities in the SQL", () => {
   // in rows, option defaults and columns another block owns keep their names.
   const CONTRACT: Readonly<Record<string, readonly string[]>> = {
     catalog: ["'productId'", "'variantId'"],
+    // Import item keys the client sends.
+    assets: ["'assetId'"],
     announcements: ["'announcement_changed'"],
     automations: ["'rules'", "'rules[]'", '"rules"', "'ruleId'"],
     hiring: ["'interviews[]'", "'interviews'"],

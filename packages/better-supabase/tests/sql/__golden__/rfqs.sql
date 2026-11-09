@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_167_rfqs.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
 -- @bsb-hash sha256:127c8e5807b905a98f83b3605f24c797311fcc08745749719d6fd730fc5f18e5
@@ -910,7 +910,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."rfq_quote_lines" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_167_rfqs.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block-data rfqs
 -- @bsb-hash sha256:4f060bda0baa0954c3319bfb338686aa96c7946ee6b9106908b1bba5bf406eaa
@@ -924,7 +924,7 @@ values ('rfqs', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_167_rfqs.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
 -- @bsb-hash sha256:10529be98b8cc59d2be8f6553bf04c49c840bc72acbec6fbb4e51be17058297a
@@ -1927,7 +1927,7 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_quotes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_quote","event_prefix":"rfq_quote"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_quote_lines deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_quote_line","event_prefix":"rfq_quote_line"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_167_rfqs.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block-data rfqs
 -- @bsb-hash sha256:4f060bda0baa0954c3319bfb338686aa96c7946ee6b9106908b1bba5bf406eaa
@@ -1941,7 +1941,7 @@ values ('rfqs', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_167_rfqs.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
 -- @bsb-hash sha256:c0b5696d5a91ce7cc768002a8193decb8d2391425d312c5dbe0ccb869cef4296
@@ -2858,7 +2858,7 @@ create policy bsb_tenant_scope_delete on "app_private"."rfq_quote_lines" as rest
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_167_rfqs.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block-data rfqs
 -- @bsb-hash sha256:4f060bda0baa0954c3319bfb338686aa96c7946ee6b9106908b1bba5bf406eaa
@@ -2872,7 +2872,7 @@ values ('rfqs', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_167_rfqs.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
 -- @bsb-hash sha256:57b6ab47f1b10e27e483d832b2914a5cd69ec1873aee5d00e5577221ee410457
@@ -3908,7 +3908,7 @@ as $$ select "better_supabase"."award_rfq"($1, $2, $3) $$;
 revoke execute on function "api"."award_rfq"(uuid, uuid, uuid) from public, anon;
 grant execute on function "api"."award_rfq"(uuid, uuid, uuid) to authenticated, service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_167_rfqs.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block-data rfqs
 -- @bsb-hash sha256:4f060bda0baa0954c3319bfb338686aa96c7946ee6b9106908b1bba5bf406eaa
@@ -3922,7 +3922,7 @@ values ('rfqs', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_167_rfqs.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
 -- @bsb-hash sha256:e9b810b3caef3815be502e1ceaac24570a5d183d21c20d1b77bb32a33199cd00
@@ -4824,7 +4824,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."rfq_quote_lines" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_167_rfqs.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block-data rfqs
 -- @bsb-hash sha256:4f060bda0baa0954c3319bfb338686aa96c7946ee6b9106908b1bba5bf406eaa
@@ -4838,7 +4838,7 @@ values ('rfqs', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_167_rfqs.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
 -- @bsb-hash sha256:dec0ab6ed8a4d3e1aa45e7fc5e4c845be349bba1700574548f15783002ad4b74
@@ -5750,7 +5750,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."rfq_quote_lines" as 
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_167_rfqs.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block-data rfqs
 -- @bsb-hash sha256:4f060bda0baa0954c3319bfb338686aa96c7946ee6b9106908b1bba5bf406eaa

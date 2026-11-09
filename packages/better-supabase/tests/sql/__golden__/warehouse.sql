@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_166_warehouse.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
 -- @bsb-hash sha256:5729d211d14de5cf04cad1647a3917dd05156af6574ab8374f4c354612f5dfeb
@@ -1682,7 +1682,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_166_warehouse.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block-data warehouse
 -- @bsb-hash sha256:de99a8b453ef3a1d4c58c453b819cfb6b0f618135357c930067906efa72c5215
@@ -1696,7 +1696,7 @@ values ('warehouse', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_166_warehouse.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
 -- @bsb-hash sha256:866fa2be404b61bcfe8f625881d27cbda8dc6862f51f3fc6292e5819d9f48a36
@@ -3480,7 +3480,7 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.bin_slots deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bin_slot","event_prefix":"bin_slot"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.variant_sizes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"variant_size","event_prefix":"variant_size"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_166_warehouse.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block-data warehouse
 -- @bsb-hash sha256:de99a8b453ef3a1d4c58c453b819cfb6b0f618135357c930067906efa72c5215
@@ -3494,7 +3494,7 @@ values ('warehouse', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_166_warehouse.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
 -- @bsb-hash sha256:f597f80fcce11b26f32bd02ee7f8ea42481a9b87e5927b1f0da89a8ccddf4e4a
@@ -5183,7 +5183,7 @@ create policy bsb_tenant_scope_delete on "app_private"."variant_sizes" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_166_warehouse.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block-data warehouse
 -- @bsb-hash sha256:de99a8b453ef3a1d4c58c453b819cfb6b0f618135357c930067906efa72c5215
@@ -5197,7 +5197,7 @@ values ('warehouse', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_166_warehouse.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
 -- @bsb-hash sha256:b942ffae27f4bf5226a0ff72c3edc4399f4397f955cd7eb4bc73252983b54edd
@@ -7120,7 +7120,7 @@ as $$ select "better_supabase"."set_pick_route"($1, $2) $$;
 revoke execute on function "api"."set_pick_route"(uuid, uuid[]) from public, anon;
 grant execute on function "api"."set_pick_route"(uuid, uuid[]) to authenticated, service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_166_warehouse.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block-data warehouse
 -- @bsb-hash sha256:de99a8b453ef3a1d4c58c453b819cfb6b0f618135357c930067906efa72c5215
@@ -7134,7 +7134,7 @@ values ('warehouse', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_166_warehouse.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
 -- @bsb-hash sha256:d29a0eff072aa1f880f340fc6e44d5e2c8bb7cf475ff3d90d3c0fc31c3ef2013
@@ -8802,7 +8802,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_166_warehouse.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block-data warehouse
 -- @bsb-hash sha256:de99a8b453ef3a1d4c58c453b819cfb6b0f618135357c930067906efa72c5215
@@ -8816,7 +8816,7 @@ values ('warehouse', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_166_warehouse.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
 -- @bsb-hash sha256:ce2d948e27b728c003ff257c8d9fb0af4ed35ec09b64709664b4919c4e592373
@@ -10500,7 +10500,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as re
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_166_warehouse.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block-data warehouse
 -- @bsb-hash sha256:de99a8b453ef3a1d4c58c453b819cfb6b0f618135357c930067906efa72c5215

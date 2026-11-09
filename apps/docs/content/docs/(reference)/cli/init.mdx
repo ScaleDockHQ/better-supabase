@@ -401,7 +401,9 @@ leaves the cache alone.
 Each block file carries a `-- @bsb-hash sha256:...` line over its SQL. When
 the SQL no longer matches the hash, the file was edited by hand: `upgrade`
 leaves it alone and exits 1 naming it. Move the change into your own schema
-file or a SQL hook, or pass `--force` to overwrite it. `upgrade` also renames
+file or a SQL hook, or pass `--force` to overwrite it. `--preserve <file>`
+leaves one hand-edited block file in place and writes the new render beside it
+as `.new`. `upgrade` also renames
 files from earlier releases (2-digit positions such as
 `900_better_supabase_04_memberships.sql` become `..._004_...`) and removes
 block files that no installed block writes, unless they were edited by hand.

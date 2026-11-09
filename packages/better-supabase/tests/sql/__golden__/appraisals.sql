@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_165_appraisals.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
 -- @bsb-hash sha256:42a325563b66e0d3934ea7e21f4507210b47a4b2039005c00ea0017d45153c85
@@ -1150,7 +1150,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_goals" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_165_appraisals.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block-data appraisals
 -- @bsb-hash sha256:ff62b2a70053408f2fb6ab6aaeb54ae4ef08766cb052dce51c932a77fa5a9054
@@ -1164,7 +1164,7 @@ values ('appraisals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_165_appraisals.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
 -- @bsb-hash sha256:8e3278d731390de8e7746582740b6a06959905908c07227c66dbc32cca44bef0
@@ -2494,7 +2494,7 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.appraisal_competencies deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"appraisal_competency","event_prefix":"appraisal_competency"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.appraisal_review_ratings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"appraisal_review_rating","event_prefix":"appraisal_review_rating"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_165_appraisals.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block-data appraisals
 -- @bsb-hash sha256:ff62b2a70053408f2fb6ab6aaeb54ae4ef08766cb052dce51c932a77fa5a9054
@@ -2508,7 +2508,7 @@ values ('appraisals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_165_appraisals.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
 -- @bsb-hash sha256:18bb2eedba2a6a7537f6b4f6b0ea2f39d28338e1236031bad8438f6abb68cc90
@@ -3665,7 +3665,7 @@ create policy bsb_tenant_scope_delete on "app_private"."appraisal_goals" as rest
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_165_appraisals.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block-data appraisals
 -- @bsb-hash sha256:ff62b2a70053408f2fb6ab6aaeb54ae4ef08766cb052dce51c932a77fa5a9054
@@ -3679,7 +3679,7 @@ values ('appraisals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_165_appraisals.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
 -- @bsb-hash sha256:e8e70f58d69a4107c7e815669c0997f633b65642947bc1da0ff0ccc3cc35cf21
@@ -4956,7 +4956,7 @@ as $$ select "better_supabase"."sign_off_appraisal"($1) $$;
 revoke execute on function "api"."sign_off_appraisal"(uuid) from public, anon;
 grant execute on function "api"."sign_off_appraisal"(uuid) to authenticated, service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_165_appraisals.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block-data appraisals
 -- @bsb-hash sha256:ff62b2a70053408f2fb6ab6aaeb54ae4ef08766cb052dce51c932a77fa5a9054
@@ -4970,7 +4970,7 @@ values ('appraisals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_165_appraisals.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
 -- @bsb-hash sha256:a353417de98704df79a338956a2562a756773e7a6b80c838dc59004f863cc7cf
@@ -6080,7 +6080,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_goals" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_165_appraisals.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block-data appraisals
 -- @bsb-hash sha256:ff62b2a70053408f2fb6ab6aaeb54ae4ef08766cb052dce51c932a77fa5a9054
@@ -6094,7 +6094,7 @@ values ('appraisals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_165_appraisals.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
 -- @bsb-hash sha256:5f9245295e9f3dc11d60381858a0df7c15a0f6529b93dfd069eb41944d58a58f
@@ -7246,7 +7246,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_goals" as 
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_165_appraisals.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block-data appraisals
 -- @bsb-hash sha256:ff62b2a70053408f2fb6ab6aaeb54ae4ef08766cb052dce51c932a77fa5a9054

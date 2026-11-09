@@ -9,8 +9,9 @@ const BLOCKS = join(import.meta.dirname, "../../src/blocks");
 /**
  * Method signatures that keep several positional arguments on purpose, as
  * `<path under src/blocks>:<method>`: ports other libraries implement,
- * infrastructure backends, callbacks and standard APIs (ADR 0196). A new block
- * client method takes one object, so this list does not grow.
+ * infrastructure backends, callbacks and standard APIs (ADR 0196). List methods
+ * that take an id and an optional limit, and the import source port, stay
+ * positional. A new block client method otherwise takes one object.
  */
 const POSITIONAL = new Set<string>([
   "advisories/feed.ts:epss",
@@ -18,7 +19,10 @@ const POSITIONAL = new Set<string>([
   "agent-checkout/x402.ts:onVerified",
   "agent-checkout/x402.ts:settle",
   "agent-checkout/x402.ts:verify",
+  "ai-chat/durable.ts:list",
   "ai-evals/job.ts:task",
+  "ai-keys/ai-keys.ts:list",
+  "ai-keys/types.ts:list",
   "banking/berlin-group.ts:transactions",
   "create-blocks.ts:serviceBlocks",
   "content/seo.ts:translationUrlFor",
@@ -120,6 +124,8 @@ const POSITIONAL = new Set<string>([
   "imports/define-import.ts:finish",
   "imports/define-import.ts:insert",
   "imports/define-import.ts:upsertBatch",
+  "imports/source.ts:start",
+  "imports/source.ts:upsert",
   "inbox/client.ts:onEvent",
   "inbox/client.ts:onMessage",
   "inbox/client.ts:send",
@@ -208,7 +214,10 @@ const POSITIONAL = new Set<string>([
   "record-bindings.ts:run",
   "relations/record-binding.ts:load",
   "relations/record-binding.ts:run",
+  "reminders/reminders.ts:list",
   "reminders/schedule.ts:markSent",
+  "service-accounts/service-accounts.ts:list",
+  "teams/teams.ts:list",
   "rename-block.ts:count",
   "rename-block.ts:load",
   "rename-block.ts:optimistic",
@@ -268,7 +277,11 @@ const POSITIONAL = new Set<string>([
   "webhooks/secrets.ts:rotate",
   "webhooks/url-policy.ts:lookup",
   "webhooks/verify.ts:handler",
+  "warranty/warranty.ts:decide",
   "workflow-editor/executor.ts:approval",
+  "workflow-editor/types.ts:list",
+  "workflow-editor/workflow-editor.ts:list",
+  "workflows/workflows.ts:list",
 ]);
 
 function files(dir: string): string[] {

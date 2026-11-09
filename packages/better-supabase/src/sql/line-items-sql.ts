@@ -692,7 +692,7 @@ begin
       select n.${c("parent")} as parent from new_rows n
       join old_rows o on o.${c("id")} = n.${c("id")}
       where n.${c("quantity")} is distinct from o.${c("quantity")}
-        or n.${c("unitAmount")} is distinct from o.${c("unitAmount")}
+        or n.${c("unitAmount")} is distinct from o.${c("unitAmount")}${has("selected") ? `\n        or n.${c("selected")} is distinct from o.${c("selected")}` : ""}${has("optional") ? `\n        or n.${c("optional")} is distinct from o.${c("optional")}` : ""}
       union
       select n.${c("parent")} from new_rows n
       where not exists (select 1 from old_rows o where o.${c("id")} = n.${c("id")})

@@ -64,6 +64,9 @@ const NOT_LITERAL = [
   "care-plans: care_plan.agreed",
   "cases: case_action.created",
   "inspections: inspection_finding.case_raised",
+  // Recorded when dispatch is installed. The module render alone omits them.
+  "maintenance: maintenance_plan.triggered",
+  "maintenance: maintenance_plan.completed",
   "dam: dam_usage_right.expiry_notified",
 ];
 

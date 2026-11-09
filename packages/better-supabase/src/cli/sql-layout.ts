@@ -32,7 +32,6 @@ import {
   sameTenantLayout,
   rlsTables,
 } from "../sql/index.ts";
-import { notNullKeyPredicate } from "../sql/schema-scan.ts";
 import { apiUsedNames } from "./api-used.ts";
 import { parseSnapshot } from "./commands/snapshot.ts";
 import { toCatalog } from "./introspect/catalog.ts";
@@ -654,6 +653,35 @@ export function sqlPlan(
         }
       : {}),
   };
+}
+
+/**
+ * Whether `predicate` is exactly `<column> is not null` for a column of
+ * `columns`. The CLI keeps its own copy: it reaches the library only through
+ * entry files, and this check is not part of that surface.
+ */
+function notNullKeyPredicate(
+  predicate: string | undefined,
+  columns: readonly string[],
+): boolean {
+  if (predicate === undefined) {
+    return false;
+  }
+
+  const text = predicate
+    .trim()
+    .replace(/^where\s+/i, "")
+    .replace(/^\(+/, "")
+    .replace(/\)+$/, "")
+    .trim();
+
+  const match = /^(?:"([^"]+)"|([A-Za-z_][\w$]*))\s+is\s+not\s+null$/i.exec(
+    text,
+  );
+
+  const column = match?.[1] ?? match?.[2];
+
+  return column !== undefined && columns.includes(column);
 }
 
 /**

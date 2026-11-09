@@ -2,17 +2,21 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { fail, serviceGrant, userGrant } from "../shared.ts";
 
-const ISSUES = (schema: string): string => `${schema}.import_run_issues`;
+const ISSUES = (ctx: BlockSqlContext): string =>
+  `${ctx.schema}.${ctx.tableName("issues").name}`;
+
+const issueTenant = (ctx: BlockSqlContext): string =>
+  ctx.col("issues", "tenant");
 
 /** The issues table, created with the other import tables. */
 export function importIssuesTable(ctx: BlockSqlContext): string {
-  const table = ISSUES(ctx.schema);
+  const table = ISSUES(ctx);
 
   return `
 create table if not exists ${table} (
   "id" uuid primary key default gen_random_uuid(),
   "run_id" uuid not null,
-  "tenant_id" ${ctx.idType} not null,
+  ${issueTenant(ctx)} ${ctx.idType} not null,
   "source" text not null,
   "entity" text not null,
   "key" text not null,
@@ -24,7 +28,7 @@ create table if not exists ${table} (
   constraint import_run_issues_kind check ("kind" in ('conflict', 'error', 'warning'))
 );
 create index if not exists import_run_issues_open_idx
-  on ${table} ("tenant_id", "source", "entity", "key")
+  on ${table} (${issueTenant(ctx)}, "source", "entity", "key")
   where "resolved_at" is null;
 create index if not exists import_run_issues_run_idx
   on ${table} ("run_id", "entity");
@@ -37,7 +41,7 @@ export function importIssueHelpers(
   manage: string,
 ): string {
   const fn = (name: string): string => ctx.fn(name);
-  const table = ISSUES(ctx.schema);
+  const table = ISSUES(ctx);
   const runs = ctx.table("runs");
   const records = ctx.table("records");
   const r = (column: string): string => ctx.col("runs", column);
@@ -59,7 +63,7 @@ begin
   if v_tenant is null or import_note_issue.key is null or import_note_issue.key = '' then
     return;
   end if;
-  insert into ${table} ("run_id", "tenant_id", "source", "entity", "key", "kind", "code", "message")
+  insert into ${table} ("run_id", ${issueTenant(ctx)}, "source", "entity", "key", "kind", "code", "message")
   values (import_note_issue.run, v_tenant, v_source, import_note_issue.entity, import_note_issue.key, import_note_issue.kind, import_note_issue.code, import_note_issue.message);
 end;
 $$;
@@ -105,7 +109,7 @@ begin
     return;
   end if;
   update ${table} i set "resolved_at" = now()
-  where i."tenant_id" = v_tenant and i."source" = v_source
+  where i.${issueTenant(ctx)} = v_tenant and i."source" = v_source
     and i."entity" = import_clear_issues.entity and i."key" = import_clear_issues.key
     and i."resolved_at" is null;
 end;
@@ -211,7 +215,7 @@ begin
     ${fail("IMPORT_ITEM_INVALID", "action must be keep or overwrite", "22023")}
   end if;
   update ${table} i set "resolved_at" = now()
-  where i."tenant_id" = resolve_import_conflict.tenant
+  where i.${issueTenant(ctx)} = resolve_import_conflict.tenant
     and i."source" = resolve_import_conflict.source
     and i."entity" = resolve_import_conflict.entity
     and i."key" = resolve_import_conflict.key
@@ -228,7 +232,7 @@ ${userGrant(`${fn("resolve_import_conflict")}(${ctx.idType}, text, text, text, t
 
 /** Open issue counts for one run, for the list payload. */
 export function importIssueCounts(ctx: BlockSqlContext, runId: string): string {
-  const table = ISSUES(ctx.schema);
+  const table = ISSUES(ctx);
 
   return `(
     select jsonb_build_object(

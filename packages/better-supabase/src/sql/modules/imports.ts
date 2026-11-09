@@ -1,9 +1,4 @@
-import type { ImportsEvents } from "../../blocks/imports/events.ts";
-import type {
-  BlockSqlContext,
-  BlockSqlEvents,
-  BlockSqlNames,
-} from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { importWaves } from "../../blocks/imports/waves.ts";
@@ -20,7 +15,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { batchSql } from "./imports-batch.ts";
-import { CHUNK_TABLE, chunkFunctions, chunkTable } from "./imports-chunks.ts";
+import { chunkFunctions, chunkTable } from "./imports-chunks.ts";
 import { importContract as contract } from "./imports-contract.ts";
 import { hashFunctions } from "./imports-hashes.ts";
 import { eventsPolicyOf, importIntegritySql } from "./imports-integrity.ts";
@@ -30,6 +25,7 @@ import {
   importIssuesTable,
 } from "./imports-issues.ts";
 import { importLifecycleSql, rebaseImportSql } from "./imports-lifecycle.ts";
+import { IMPORT_NAMES } from "./imports-names.ts";
 import { importSourcesSql } from "./imports-sources.ts";
 import {
   assignCase,
@@ -41,91 +37,6 @@ import {
 import { OPERATIONS } from "./permissions-model.ts";
 
 const DRY_RUN_STATE = "BSDRY";
-
-const EVENTS: BlockSqlEvents<ImportsEvents> = {
-  "import.completed": {
-    subject: "imports",
-    payload: ["organizationId", "id", "count"],
-  },
-  "import.failed": {
-    subject: "imports",
-    payload: ["organizationId", "id", "error"],
-  },
-  "import.entity_completed": {
-    subject: "imports",
-    payload: ["organizationId", "id", "entity", "counts"],
-  },
-};
-
-const NAMES: BlockSqlNames = {
-  events: EVENTS,
-  options: ["targets", "events", "audit"],
-  migrations: [
-    {
-      from: 1,
-      description:
-        "An import run names its source instead of its kind (ADR 0141).",
-      table: "runs",
-      columns: { source: "kind" },
-    },
-  ],
-  tables: {
-    runs: {
-      name: "import_runs",
-      app: {},
-      lifecycle: { tenant: "tenant", user: "createdBy", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        source: "source",
-        status: "status",
-        mapping: "mapping",
-        counts: "counts",
-        errors: "errors",
-        diff: "diff",
-        dryRun: "dry_run",
-        full: "full",
-        inputChecksum: "input_checksum",
-        correlationId: "correlation_id",
-        mapperVersion: "mapper_version",
-        scopeAliases: "scope_aliases",
-        plan: "plan",
-        outcome: "outcome",
-        leaseUntil: "lease_until",
-        heartbeatAt: "heartbeat_at",
-        createdBy: "created_by",
-        createdAt: "created_at",
-        startedAt: "started_at",
-        finishedAt: "finished_at",
-      },
-      typed: ["status"],
-    },
-    records: {
-      name: "import_records",
-      app: {},
-      lifecycle: { tenant: "tenant", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        source: "source",
-        scope: "scope",
-        entity: "entity",
-        externalKey: "external_key",
-        role: "role",
-        subjectType: "subject_type",
-        subjectId: "subject_id",
-        contentHash: "content_hash",
-        firstRun: "first_run_id",
-        lastRun: "last_run_id",
-        subjectUpdatedAt: "subject_imported_updated_at",
-        sourceUpdatedAt: "source_updated_at",
-        ownedHash: "owned_hash",
-        missingSince: "went_missing_at",
-      },
-    },
-    chunks: CHUNK_TABLE,
-  },
-};
 
 function auditModeOf(ctx: BlockSqlContext): "rows" | "summary" {
   const raw: unknown = ctx.option("audit") ?? "rows";
@@ -156,6 +67,8 @@ function build(ctx: BlockSqlContext): string {
   const eventsPolicy = sqlString(eventsPolicyOf(ctx));
   const auditMode = auditModeOf(ctx);
   const searchDeferral = ctx.installed("search");
+  const refs = `${ctx.schema}.${ctx.tableName("refs").name}`;
+  const ref = (column: string): string => ctx.col("refs", column);
   const runsName = ctx.tableName("runs").name;
   const recordsName = ctx.tableName("records").name;
   const unique = `(${x("tenant")}, ${x("source")}, ${x("scope")}, ${x("entity")}, ${x("externalKey")}, ${x("role")})`;
@@ -220,14 +133,14 @@ create index if not exists ${sqlIdent(`${recordsName}_subject_idx`)} on ${record
 alter table ${records} add column if not exists ${x("ownedHash")} text;
 alter table ${records} add column if not exists ${x("sourceUpdatedAt")} timestamptz;
 ${lockTable(records, { read: true })}
-create table if not exists ${ctx.schema}.import_refs (
+create table if not exists ${refs} (
   "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" ${ctx.idType} not null,
+  ${ref("tenant")} ${ctx.idType} not null,
   "kind" text not null,
   "key" text not null,
   "payload" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now(),
-  constraint import_refs_key unique ("tenant_id", "kind", "key")
+  constraint import_refs_key unique (${ref("tenant")}, "kind", "key")
 );
 ${chunkTable(ctx, runs)}
 ${importIssuesTable(ctx)}`
@@ -1053,7 +966,7 @@ export const IMPORTS: BlockSqlDefinition = {
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,
-  names: NAMES,
+  names: IMPORT_NAMES,
   contract,
   build,
 };

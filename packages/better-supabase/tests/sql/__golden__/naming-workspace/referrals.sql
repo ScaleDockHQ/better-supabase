@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_173_referrals.sql
+-- ==== schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:18bdb3a06d81c2230eeb67a3e9db2bf22919c4502cccc689c722fb9d3ad0b9b0
@@ -375,7 +375,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8

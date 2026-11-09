@@ -1,10 +1,10 @@
 import type { ResolvedConfig } from "../config/index.ts";
 import type { NamingRename } from "./codemod-naming.ts";
 
-import { isRecord } from "../core/guards.ts";
 import { moduleContext, SQL_MODULES } from "../sql/index.ts";
 import { codeRanges } from "./code-ranges.ts";
 import { closing as closingBrace } from "./codemod-config.ts";
+import { isRecord } from "./guards.ts";
 
 /** One `blocks.<block>.columns.<table>.<column>` entry that keeps an old name. */
 export interface ColumnPin {

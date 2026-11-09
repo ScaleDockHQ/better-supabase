@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_170_periods.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
 -- @bsb-hash sha256:02af6c54fec7900430af253578dfa0f12e535fdcf4a5d9b0a087da35ff026d11
@@ -305,7 +305,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrict
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block-data periods
 -- @bsb-hash sha256:55b2a755e5f3596258569ee15d709290a25c624a8555a3d7247d9afd0e501f9b
@@ -319,7 +319,7 @@ values ('periods', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_170_periods.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
 -- @bsb-hash sha256:acba48514f4f3e3053c129e24528ef18c63f0a70d05d2118b7493744ae6960fe
@@ -701,7 +701,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrict
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.periods deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"period","event_prefix":"period"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block-data periods
 -- @bsb-hash sha256:55b2a755e5f3596258569ee15d709290a25c624a8555a3d7247d9afd0e501f9b
@@ -715,7 +715,7 @@ values ('periods', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_170_periods.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
 -- @bsb-hash sha256:60c42d70e91192920ffc63819fc4ae670f1c036ea9765d38380bb41aa3bd8b79
@@ -1027,7 +1027,7 @@ create policy bsb_tenant_scope_delete on "app_private"."periods" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block-data periods
 -- @bsb-hash sha256:55b2a755e5f3596258569ee15d709290a25c624a8555a3d7247d9afd0e501f9b
@@ -1041,7 +1041,7 @@ values ('periods', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_170_periods.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
 -- @bsb-hash sha256:91cbd8b218c9bb40a8c3e6a5e8a3618e04e315d335b206aa8868473cedd47d98
@@ -1427,7 +1427,7 @@ as $$ select "better_supabase"."list_periods"($1, $2) $$;
 revoke execute on function "api"."list_periods"(uuid, jsonb) from public, anon;
 grant execute on function "api"."list_periods"(uuid, jsonb) to authenticated, service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block-data periods
 -- @bsb-hash sha256:55b2a755e5f3596258569ee15d709290a25c624a8555a3d7247d9afd0e501f9b
@@ -1441,7 +1441,7 @@ values ('periods', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_170_periods.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
 -- @bsb-hash sha256:a21ac90635d2289339258d783d761d0dcc0af8e860d9f8a318bde3194d5ce46f
@@ -1745,7 +1745,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrict
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block-data periods
 -- @bsb-hash sha256:55b2a755e5f3596258569ee15d709290a25c624a8555a3d7247d9afd0e501f9b
@@ -1759,7 +1759,7 @@ values ('periods', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_170_periods.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
 -- @bsb-hash sha256:a745e0355eb8c629c274a31e8807999abd4dc5e025ffa23ad57331d387f76c09
@@ -2066,7 +2066,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrict
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block-data periods
 -- @bsb-hash sha256:55b2a755e5f3596258569ee15d709290a25c624a8555a3d7247d9afd0e501f9b

@@ -13,6 +13,9 @@ export function assetImportSql(ctx: BlockSqlContext): string {
 
   const assets = ctx.table("assets");
   const s = (column: string): string => ctx.col("assets", column);
+  const identifiers = `${ctx.schema}.${ctx.tableName("identifiers").name}`;
+  const i = (column: string): string => ctx.col("identifiers", column);
+  const qualify = (name: string): string => ctx.fnName(name);
   const fn = (name: string): string => ctx.fn(name);
 
   const set = (logical: string, expr: string): string =>
@@ -21,14 +24,14 @@ export function assetImportSql(ctx: BlockSqlContext): string {
       : "";
 
   return `
-create table if not exists ${ctx.schema}.asset_identifiers (
+create table if not exists ${identifiers} (
   "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" ${ctx.idType} not null,
-  "asset_id" uuid not null references ${assets} (${s("id")}) on delete cascade,
+  ${i("tenant")} ${ctx.idType} not null,
+  ${i("asset")} uuid not null references ${assets} (${s("id")}) on delete cascade,
   "type" text not null,
   "value" text not null,
   "updated_at" timestamptz not null default now(),
-  unique ("tenant_id", "type", "value")
+  unique (${i("tenant")}, ${i("type")}, ${i("value")})
 );
 
 create or replace function ${fn("import_asset")}(run uuid, item jsonb, subject_id text)
@@ -38,9 +41,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_data jsonb := import_asset.item -> 'data';
-  v_tenant ${ctx.idType} := (import_asset.item ->> 'tenant')::${ctx.idType};
-  v_id uuid := nullif(import_asset.subject_id, '')::uuid;
+  v_data jsonb := ${qualify("import_asset")}.item -> 'data';
+  v_tenant ${ctx.idType} := (${qualify("import_asset")}.item ->> 'tenant')::${ctx.idType};
+  v_id uuid := nullif(${qualify("import_asset")}.subject_id, '')::uuid;
   v_updated timestamptz;
 begin
   if jsonb_typeof(v_data) is distinct from 'object' or nullif(btrim(v_data ->> 'name'), '') is null then
@@ -67,7 +70,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select x.${s("updatedAt")} from ${assets} x where x.${s("id")}::text = asset_updated_at.subject_id
+  select x.${s("updatedAt")} from ${assets} x where x.${s("id")}::text = ${qualify("asset_updated_at")}.subject_id
 $$;
 ${serviceGrant(`${fn("asset_updated_at")}(text)`)}
 
@@ -78,17 +81,17 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_data jsonb := import_asset_identifier.item -> 'data';
-  v_asset uuid := nullif(coalesce(import_asset_identifier.item -> 'resolved' ->> 'asset', v_data ->> 'assetId'), '')::uuid;
+  v_data jsonb := ${qualify("import_asset_identifier")}.item -> 'data';
+  v_asset uuid := nullif(coalesce(${qualify("import_asset_identifier")}.item -> 'resolved' ->> 'asset', v_data ->> 'assetId'), '')::uuid;
   v_id uuid;
   v_updated timestamptz;
 begin
   if v_asset is null or nullif(btrim(v_data ->> 'type'), '') is null or nullif(btrim(v_data ->> 'value'), '') is null then
     ${fail("IMPORT_ITEM_INVALID", "an identifier needs an asset, a type and a value", "22023")}
   end if;
-  insert into ${ctx.schema}.asset_identifiers ("tenant_id", "asset_id", "type", "value")
-  values ((import_asset_identifier.item ->> 'tenant')::${ctx.idType}, v_asset, btrim(v_data ->> 'type'), btrim(v_data ->> 'value'))
-  on conflict ("tenant_id", "type", "value") do update set "asset_id" = excluded."asset_id", "updated_at" = now()
+  insert into ${identifiers} (${i("tenant")}, ${i("asset")}, ${i("type")}, ${i("value")})
+  values ((${qualify("import_asset_identifier")}.item ->> 'tenant')::${ctx.idType}, v_asset, btrim(v_data ->> 'type'), btrim(v_data ->> 'value'))
+  on conflict (${i("tenant")}, ${i("type")}, ${i("value")}) do update set ${i("asset")} = excluded.${i("asset")}, ${i("updatedAt")} = now()
   returning "id", "updated_at" into v_id, v_updated;
   return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
 end;
@@ -102,7 +105,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select x."updated_at" from ${ctx.schema}.asset_identifiers x where x."id"::text = asset_identifier_updated_at.subject_id
+  select x.${i("updatedAt")} from ${identifiers} x where x.${i("id")}::text = ${qualify("asset_identifier_updated_at")}.subject_id
 $$;
 ${serviceGrant(`${fn("asset_identifier_updated_at")}(text)`)}
 `;

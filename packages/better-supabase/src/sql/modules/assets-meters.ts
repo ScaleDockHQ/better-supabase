@@ -15,21 +15,22 @@ export function meterReadingsSql(ctx: BlockSqlContext): string {
   const id = ctx.col("assets", "id");
   const tenant = ctx.col("assets", "tenant");
   const fn = (name: string): string => ctx.fn(name);
-  const readings = `${ctx.schema}.asset_meter_readings`;
+  const readings = `${ctx.schema}.${ctx.tableName("meterReadings").name}`;
+  const r = (column: string): string => ctx.col("meterReadings", column);
 
   return `
 create table if not exists ${readings} (
   "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" ${ctx.idType} not null,
-  "asset_id" uuid not null references ${assets} (${id}) on delete cascade,
+  ${r("tenant")} ${ctx.idType} not null,
+  ${r("asset")} uuid not null references ${assets} (${id}) on delete cascade,
   "unit" text not null check ("unit" ~ '^[a-z][a-z0-9_]{0,40}$'),
   "value" numeric not null,
   "read_at" timestamptz not null,
   "reason" text,
   "created_at" timestamptz not null default now()
 );
-create index if not exists asset_meter_readings_series_idx
-  on ${readings} ("tenant_id", "asset_id", "unit", "read_at");
+create index if not exists ${ctx.naming.rename("asset_meter_readings_series_idx")}
+  on ${readings} (${r("tenant")}, ${r("asset")}, ${r("unit")}, ${r("readAt")});
 
 create or replace function ${fn("guard_asset_meter_reading")}()
 returns trigger
@@ -41,7 +42,7 @@ declare
 begin
   select r."value" into v_previous
   from ${readings} r
-  where r."tenant_id" = new."tenant_id" and r."asset_id" = new."asset_id" and r."unit" = new."unit"
+  where r.${r("tenant")} = new.${r("tenant")} and r.${r("asset")} = new.${r("asset")} and r.${r("unit")} = new.${r("unit")}
     and r."read_at" < new."read_at"
   order by r."read_at" desc
   limit 1;
@@ -88,7 +89,7 @@ begin
     raise exception 'the asset is not in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   select r."value" into v_previous from ${readings} r
-  where r."tenant_id" = v_tenant and r."asset_id" = v_asset and r."unit" = v_data ->> 'unit' and r."read_at" < v_at
+  where r.${r("tenant")} = v_tenant and r.${r("asset")} = v_asset and r.${r("unit")} = v_data ->> 'unit' and r.${r("readAt")} < v_at
   order by r."read_at" desc limit 1;
   v_reason := nullif(v_data ->> 'reason', '');
   if v_previous is not null and v_value < v_previous then
@@ -96,12 +97,12 @@ begin
     v_warning := true;
   end if;
   if import_meter_reading.subject_id is null then
-    insert into ${readings} ("tenant_id", "asset_id", "unit", "value", "read_at", "reason")
+    insert into ${readings} (${r("tenant")}, ${r("asset")}, ${r("unit")}, ${r("value")}, ${r("readAt")}, ${r("reason")})
     values (v_tenant, v_asset, v_data ->> 'unit', v_value, v_at, v_reason)
     returning "id" into v_id;
   else
     update ${readings} r set "value" = v_value, "read_at" = v_at, "reason" = v_reason
-    where r."id" = import_meter_reading.subject_id::uuid and r."tenant_id" = v_tenant
+    where r."id" = import_meter_reading.subject_id::uuid and r.${r("tenant")} = v_tenant
     returning r."id" into v_id;
     if v_id is null then
       raise exception 'the meter reading no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';

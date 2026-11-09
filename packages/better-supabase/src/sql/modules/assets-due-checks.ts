@@ -19,32 +19,33 @@ export function dueChecksSql(ctx: BlockSqlContext): string {
   const id = ctx.col("assets", "id");
   const tenant = ctx.col("assets", "tenant");
   const fn = (name: string): string => ctx.fn(name);
-  const checks = `${ctx.schema}.asset_due_checks`;
+  const checks = `${ctx.schema}.${ctx.tableName("dueChecks").name}`;
+  const c = (column: string): string => ctx.col("dueChecks", column);
   const read = ctx.permission("read", "assets.read");
 
   return `
 create table if not exists ${checks} (
   "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" ${ctx.idType} not null,
-  "asset_id" uuid not null references ${assets} (${id}) on delete cascade,
+  ${c("tenant")} ${ctx.idType} not null,
+  ${c("asset")} uuid not null references ${assets} (${id}) on delete cascade,
   "check_type" text not null check ("check_type" ~ '^[a-z][a-z0-9_]{0,40}$'),
   "interval_days" integer not null check ("interval_days" > 0),
   "last_done_at" timestamptz,
   "next_due_at" timestamptz,
   "result" text,
   "updated_at" timestamptz not null default now(),
-  unique ("tenant_id", "asset_id", "check_type")
+  unique (${c("tenant")}, ${c("asset")}, ${c("checkType")})
 );
-create index if not exists asset_due_checks_due_idx
-  on ${checks} ("tenant_id", "next_due_at") where "next_due_at" is not null;
+create index if not exists ${ctx.naming.rename("asset_due_checks_due_idx")}
+  on ${checks} (${c("tenant")}, ${c("nextDueAt")}) where ${c("nextDueAt")} is not null;
 ${lockTable(checks, { read: true })}
 ${renderPolicy(
   makePolicy({
     table: checks,
-    name: "bsb_asset_due_checks_read",
+    name: ctx.naming.rename("bsb_asset_due_checks_read"),
     command: "select",
     roles: ["authenticated"],
-    using: ctx.scope.check('"tenant_id"', read),
+    using: ctx.scope.check(c("tenant"), read),
   }),
   { target: checks },
 )}
@@ -97,9 +98,9 @@ begin
   if not exists (select 1 from ${assets} a where a.${id} = v_asset and a.${tenant} = v_tenant) then
     raise exception 'the asset is not in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  insert into ${checks} ("tenant_id", "asset_id", "check_type", "interval_days", "last_done_at", "result")
+  insert into ${checks} (${c("tenant")}, ${c("asset")}, ${c("checkType")}, ${c("intervalDays")}, ${c("lastDoneAt")}, ${c("result")})
   values (v_tenant, v_asset, v_data ->> 'checkType', v_days, v_done, nullif(v_data ->> 'result', ''))
-  on conflict ("tenant_id", "asset_id", "check_type") do update set
+  on conflict (${c("tenant")}, ${c("asset")}, ${c("checkType")}) do update set
     "interval_days" = excluded."interval_days",
     "last_done_at" = coalesce(excluded."last_done_at", ${checks}."last_done_at"),
     "result" = coalesce(excluded."result", ${checks}."result")

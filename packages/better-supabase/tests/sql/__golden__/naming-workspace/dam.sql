@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_161_dam.sql
+-- ==== schema supabase/schemas/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
 -- @bsb-hash sha256:ca635c7e68b41a110334e45ec5410aee7acc33f79101f9a57402f009fd21e120
@@ -346,7 +346,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_161_dam.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_162_dam.sql
 -- better-supabase module: dam
 -- @bsb-block-data dam
 -- @bsb-hash sha256:0918b26d3a424244b1f29164f093513009377a70fd55b9a20e20010069ace602

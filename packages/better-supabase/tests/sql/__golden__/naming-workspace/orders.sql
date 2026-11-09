@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:7f965b1d09089815058806a7e409a85dea2f9ae872e40c9bd8ae2e5aea610dab
+-- @bsb-hash sha256:98af80d34412fce7c9e2c2d6a8b671fe246073629494d14be2d4ee5ffae32325
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2072,7 +2072,35 @@ begin
     if not found then
       raise exception 'the order no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
     end if;
-    return jsonb_build_object('subjectId', import_order.subject_id, 'updatedAt', v_updated, 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source order changed after it was imported; an imported order is kept as imported')));
+    if coalesce(v_data ->> 'update', 'keep') is distinct from 'apply' then
+      return jsonb_build_object('subjectId', import_order.subject_id, 'updatedAt', v_updated, 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source order changed after it was imported; an imported order is kept as imported')));
+    end if;
+    v_id := import_order.subject_id::uuid;
+    update "better_supabase"."orders" x set
+      "status" = case when x."status"::text in ('cancelled', 'paid') and coalesce((v_data ->> 'repost')::boolean, false) = false then x."status" else coalesce(nullif(v_data ->> 'status', ''), x."status"::text) end,
+      "customer_id" = coalesce(nullif(v_data ->> 'customerId', '')::uuid, x."customer_id"),
+      "currency" = coalesce(nullif(upper(v_data ->> 'currency'), ''), x."currency"),
+      "placed_at" = coalesce(nullif(v_data ->> 'placedAt', '')::timestamptz, x."placed_at"),
+      "subtotal" = coalesce((v_data -> 'totals' ->> 'subtotal')::bigint, x."subtotal"),
+      "tax_total" = coalesce((v_data -> 'totals' ->> 'taxTotal')::bigint, x."tax_total"),
+      "total" = coalesce((v_data -> 'totals' ->> 'total')::bigint, x."total")
+    where x."id" = v_id;
+    if coalesce((v_data ->> 'repost')::boolean, false) or (select x."status"::text from "better_supabase"."orders" x where x."id" = v_id) not in ('cancelled', 'paid') then
+      if (select count(*) from "better_supabase"."order_lines" l where l."order_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb)) then
+        update "better_supabase"."order_lines" l set
+          "title" = coalesce(nullif(e.l ->> 'title', ''), l."title"),
+          "tax" = coalesce((e.l ->> 'tax')::bigint, l."tax")
+        from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n)
+        where l."order_id" = v_id and l."position" = e.n::integer;
+      elsif jsonb_typeof(v_data -> 'lines') = 'array' then
+        delete from "better_supabase"."order_lines" l where l."order_id" = v_id;
+        insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title", "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping", "location_id", "tax_code_id", "unit_cost", "cost_source", "bin_id", "billing_party", "billing_party_id", "billing_account_id")
+        select v_tenant, v_id, e.n::integer, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, coalesce(e.l ->> 'sku', ''), e.l ->> 'title', (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, coalesce((e.l ->> 'subtotal')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint), coalesce((e.l ->> 'discount')::bigint, 0), coalesce((e.l ->> 'tax')::bigint, 0), coalesce((e.l ->> 'total')::bigint, (e.l ->> 'unitAmount')::bigint * (e.l ->> 'quantity')::bigint - coalesce((e.l ->> 'discount')::bigint, 0)), coalesce((e.l ->> 'requiresShipping')::boolean, false), nullif(e.l ->> 'locationId', '')::uuid, nullif(e.l ->> 'taxCodeId', '')::uuid, (e.l ->> 'unitCost')::bigint, nullif(e.l ->> 'costSource', ''), nullif(e.l ->> 'binId', '')::uuid, coalesce(nullif(e.l ->> 'billingParty', ''), 'customer'), nullif(e.l ->> 'billingPartyId', ''), nullif(e.l ->> 'billingAccountId', '')::uuid
+        from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n);
+      end if;
+    end if;
+    select x."updated_at" into v_updated from "better_supabase"."orders" x where x."id" = v_id;
+    return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated, 'warnings', v_warnings);
   end if;
   if v_number is null then
     raise exception 'an order needs its number' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';

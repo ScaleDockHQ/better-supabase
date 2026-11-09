@@ -17,6 +17,7 @@ import type {
 } from "./block-hooks.ts";
 import type {
   defineDataHooks as clientDefineDataHooks,
+  defineInfiniteListHook as clientDefineInfiniteListHook,
   defineListHook as clientDefineListHook,
   defineOneHook as clientDefineOneHook,
 } from "./data-hooks.ts";
@@ -32,6 +33,7 @@ import type {
   UseActionFormOptions,
   UseActionOptions,
 } from "./index.ts";
+import type { useCan as clientUseCan } from "./permissions.ts";
 import type { usePresence as clientUsePresence } from "./presence.ts";
 import type { useRecordForm as clientUseRecordForm } from "./record-form.ts";
 import type { useRecordListState as clientUseRecordListState } from "./record-list.ts";
@@ -65,6 +67,10 @@ export {
 export { SessionProvider } from "./session.js";
 
 export { fieldErrorsOf } from "../bindings/field-errors.ts";
+
+export { can, PermissionsProvider } from "./permissions.ts";
+
+export { OfflineContext } from "./offline.ts";
 
 export { escapeLike } from "../ir/escape-like.ts";
 
@@ -258,6 +264,13 @@ export const defineListHook: typeof clientDefineListHook = () =>
 /** The `react-server` build of `defineOneHook` (see `defineDataHooks`). */
 export const defineOneHook: typeof clientDefineOneHook = () =>
   clientOnly("useOne");
+
+/** The `react-server` build of `defineInfiniteListHook` (see `defineDataHooks`). */
+export const defineInfiniteListHook: typeof clientDefineInfiniteListHook = () =>
+  clientOnly("useInfiniteList");
+
+/** The `react-server` build of `useCan`: call `can()` with the bootstrap value. */
+export const useCan: typeof clientUseCan = clientOnly("useCan");
 
 /**
  * The `react-server` build of `useDebouncedSearch`: read the term from

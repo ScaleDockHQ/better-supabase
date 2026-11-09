@@ -1016,7 +1016,7 @@ $$;
 
 ${oneTenantClaims(ctx, layout)}
 
-${myPermissionsSql(id)}${model === "roles" || model === "catalog" ? bootstrapPermissionsSql() : ""}${providerGuestFunctions(ctx.installedModules, layout)}${catalogRoleFunctions(ctx)}
+${myPermissionsSql(id)}${model === "roles" || model === "catalog" ? bootstrapPermissionsSql(ctx.of("memberships").fn("member_organization_ids")) : ""}${providerGuestFunctions(ctx.installedModules, layout)}${catalogRoleFunctions(ctx)}
 
 ${[
   "permission_matches(text, text)",

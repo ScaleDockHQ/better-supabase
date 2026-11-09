@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_165_appraisals.sql
+-- ==== schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
 -- @bsb-hash sha256:65d903f3c3ee4b8c78a90822ba38bb8743ff1e963b1285c8dd44b907dd383846
@@ -1150,7 +1150,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_goals" as 
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_165_appraisals.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block-data appraisals
 -- @bsb-hash sha256:ff62b2a70053408f2fb6ab6aaeb54ae4ef08766cb052dce51c932a77fa5a9054

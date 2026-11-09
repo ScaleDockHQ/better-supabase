@@ -320,7 +320,7 @@ ${tables(ctx)}
 ${maintenanceFunctions(ctx)}`;
 }
 
-function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
+function contract(_ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_maintenance_plan",
@@ -351,15 +351,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "list_maintenance_meters", args: ["{id}"], returns: "jsonb" },
     { name: "list_calibrations", args: ["{id}", "jsonb"], returns: "jsonb" },
-    ...(ctx.installed("dispatch")
-      ? [
-          {
-            name: "generate_maintenance_work_orders",
-            args: ["{id}"],
-            returns: "jsonb",
-          },
-        ]
-      : []),
+    {
+      name: "generate_maintenance_work_orders",
+      args: ["{id}"],
+      returns: "jsonb",
+    },
   ];
 }
 

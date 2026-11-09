@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:6094fd69bdb29d4ea6c6123f3a9abe79eaa935450a30a7a31a3cbb7d83ae403d
+-- @bsb-hash sha256:83382dbc115196e8eb2cae12ad48f1d7d0b382de275108a03b06ddf13f3124f4
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2538,6 +2538,40 @@ $$;
 revoke execute on function "better_supabase"."import_accounting_journal"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_accounting_journal"(uuid, jsonb, text) to service_role;
 
+-- Opens the fiscal year of an imported entry: twelve monthly periods from the
+-- start month, and closes earlier open years when closeHistorical is set.
+create or replace function "better_supabase"."ensure_import_periods"(tenant uuid, entry_date date, start_month integer, close_historical boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_month integer := least(greatest(coalesce(ensure_import_periods.start_month, 1), 1), 12);
+  v_year integer := extract(year from ensure_import_periods.entry_date)::integer;
+  v_start date;
+  v_index integer;
+begin
+  if extract(month from ensure_import_periods.entry_date) < v_month then
+    v_year := v_year - 1;
+  end if;
+  v_start := make_date(v_year, v_month, 1);
+  if not exists (select 1 from "better_supabase"."accounting_periods" y where y."tenant_id" = ensure_import_periods.tenant and y."fiscal_year" = v_year) then
+    for v_index in 0..11 loop
+      insert into "better_supabase"."accounting_periods" ("tenant_id", "fiscal_year", "number", "starts_on", "ends_on")
+      values (ensure_import_periods.tenant, v_year, v_index + 1, (v_start + make_interval(months => v_index))::date,
+        ((v_start + make_interval(months => v_index + 1)) - 1)::date);
+    end loop;
+  end if;
+  if ensure_import_periods.close_historical then
+    update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now()
+    where y."tenant_id" = ensure_import_periods.tenant and y."fiscal_year" < v_year and y."status" = 'open';
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."ensure_import_periods"(uuid, date, integer, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."ensure_import_periods"(uuid, date, integer, boolean) to service_role;
+
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
 -- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
@@ -2587,6 +2621,9 @@ begin
   if v_debit <> v_credit then
     raise exception 'the lines don''t balance: debits and credits differ' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  perform "better_supabase"."ensure_import_periods"(v_tenant, (v_data ->> 'entryDate')::date,
+    coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
+    coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
   v_row := "better_supabase"."save_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
@@ -3473,7 +3510,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:8cad8da778e2d274733b5b7a7785d8a7d4640c518c8f3710094f50b7d8f99faa
+-- @bsb-hash sha256:9fe514adddbc052d709f15dcc7689a32c99000795397ae8218cf97825cc683f5
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6164,6 +6201,40 @@ $$;
 revoke execute on function "better_supabase"."import_accounting_journal"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_accounting_journal"(uuid, jsonb, text) to service_role;
 
+-- Opens the fiscal year of an imported entry: twelve monthly periods from the
+-- start month, and closes earlier open years when closeHistorical is set.
+create or replace function "better_supabase"."ensure_import_periods"(tenant uuid, entry_date date, start_month integer, close_historical boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_month integer := least(greatest(coalesce(ensure_import_periods.start_month, 1), 1), 12);
+  v_year integer := extract(year from ensure_import_periods.entry_date)::integer;
+  v_start date;
+  v_index integer;
+begin
+  if extract(month from ensure_import_periods.entry_date) < v_month then
+    v_year := v_year - 1;
+  end if;
+  v_start := make_date(v_year, v_month, 1);
+  if not exists (select 1 from "better_supabase"."accounting_periods" y where y."tenant_id" = ensure_import_periods.tenant and y."fiscal_year" = v_year) then
+    for v_index in 0..11 loop
+      insert into "better_supabase"."accounting_periods" ("tenant_id", "fiscal_year", "number", "starts_on", "ends_on")
+      values (ensure_import_periods.tenant, v_year, v_index + 1, (v_start + make_interval(months => v_index))::date,
+        ((v_start + make_interval(months => v_index + 1)) - 1)::date);
+    end loop;
+  end if;
+  if ensure_import_periods.close_historical then
+    update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now()
+    where y."tenant_id" = ensure_import_periods.tenant and y."fiscal_year" < v_year and y."status" = 'open';
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."ensure_import_periods"(uuid, date, integer, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."ensure_import_periods"(uuid, date, integer, boolean) to service_role;
+
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
 -- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
@@ -6213,6 +6284,9 @@ begin
   if v_debit <> v_credit then
     raise exception 'the lines don''t balance: debits and credits differ' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  perform "better_supabase"."ensure_import_periods"(v_tenant, (v_data ->> 'entryDate')::date,
+    coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
+    coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
   v_row := "better_supabase"."save_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
@@ -7127,7 +7201,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:5f4c6a5349ac0a45d131c7d2e5a6522abb26cf1d9e66c2d99a268b2926128e2e
+-- @bsb-hash sha256:cf4b386a36d541a5e63879f8cf08621748e225d20606e8975e9f778264f1e8e1
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9669,6 +9743,40 @@ $$;
 revoke execute on function "app_private"."import_accounting_journal"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "app_private"."import_accounting_journal"(uuid, jsonb, text) to service_role;
 
+-- Opens the fiscal year of an imported entry: twelve monthly periods from the
+-- start month, and closes earlier open years when closeHistorical is set.
+create or replace function "app_private"."ensure_import_periods"(tenant uuid, entry_date date, start_month integer, close_historical boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_month integer := least(greatest(coalesce(ensure_import_periods.start_month, 1), 1), 12);
+  v_year integer := extract(year from ensure_import_periods.entry_date)::integer;
+  v_start date;
+  v_index integer;
+begin
+  if extract(month from ensure_import_periods.entry_date) < v_month then
+    v_year := v_year - 1;
+  end if;
+  v_start := make_date(v_year, v_month, 1);
+  if not exists (select 1 from "app_private"."accounting_periods" y where y."tenant_id" = ensure_import_periods.tenant and y."fiscal_year" = v_year) then
+    for v_index in 0..11 loop
+      insert into "app_private"."accounting_periods" ("tenant_id", "fiscal_year", "number", "starts_on", "ends_on")
+      values (ensure_import_periods.tenant, v_year, v_index + 1, (v_start + make_interval(months => v_index))::date,
+        ((v_start + make_interval(months => v_index + 1)) - 1)::date);
+    end loop;
+  end if;
+  if ensure_import_periods.close_historical then
+    update "app_private"."accounting_periods" y set "status" = 'closed', "closed_at" = now()
+    where y."tenant_id" = ensure_import_periods.tenant and y."fiscal_year" < v_year and y."status" = 'open';
+  end if;
+end;
+$$;
+revoke execute on function "app_private"."ensure_import_periods"(uuid, date, integer, boolean) from public, anon, authenticated;
+grant execute on function "app_private"."ensure_import_periods"(uuid, date, integer, boolean) to service_role;
+
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
 -- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
@@ -9718,6 +9826,9 @@ begin
   if v_debit <> v_credit then
     raise exception 'the lines don''t balance: debits and credits differ' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  perform "app_private"."ensure_import_periods"(v_tenant, (v_data ->> 'entryDate')::date,
+    coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
+    coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
   v_row := "app_private"."save_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
@@ -10604,7 +10715,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:7925011d47d4440994cab132e1f7a6747c6e7effe088daaf0f467eb3c0e4fadf
+-- @bsb-hash sha256:49441c81c0ce47a7c56c246c7dda0d19ba46a895327dbcd368e638ab5d7dd832
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13141,6 +13252,40 @@ $$;
 revoke execute on function "better_supabase"."import_accounting_journal"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_accounting_journal"(uuid, jsonb, text) to service_role;
 
+-- Opens the fiscal year of an imported entry: twelve monthly periods from the
+-- start month, and closes earlier open years when closeHistorical is set.
+create or replace function "better_supabase"."ensure_import_periods"(tenant uuid, entry_date date, start_month integer, close_historical boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_month integer := least(greatest(coalesce(ensure_import_periods.start_month, 1), 1), 12);
+  v_year integer := extract(year from ensure_import_periods.entry_date)::integer;
+  v_start date;
+  v_index integer;
+begin
+  if extract(month from ensure_import_periods.entry_date) < v_month then
+    v_year := v_year - 1;
+  end if;
+  v_start := make_date(v_year, v_month, 1);
+  if not exists (select 1 from "better_supabase"."accounting_periods" y where y."tenant_id" = ensure_import_periods.tenant and y."fiscal_year" = v_year) then
+    for v_index in 0..11 loop
+      insert into "better_supabase"."accounting_periods" ("tenant_id", "fiscal_year", "number", "starts_on", "ends_on")
+      values (ensure_import_periods.tenant, v_year, v_index + 1, (v_start + make_interval(months => v_index))::date,
+        ((v_start + make_interval(months => v_index + 1)) - 1)::date);
+    end loop;
+  end if;
+  if ensure_import_periods.close_historical then
+    update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now()
+    where y."tenant_id" = ensure_import_periods.tenant and y."fiscal_year" < v_year and y."status" = 'open';
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."ensure_import_periods"(uuid, date, integer, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."ensure_import_periods"(uuid, date, integer, boolean) to service_role;
+
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
 -- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
@@ -13190,6 +13335,9 @@ begin
   if v_debit <> v_credit then
     raise exception 'the lines don''t balance: debits and credits differ' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  perform "better_supabase"."ensure_import_periods"(v_tenant, (v_data ->> 'entryDate')::date,
+    coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
+    coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
   v_row := "better_supabase"."save_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
@@ -14436,6 +14584,15 @@ as $$ select "better_supabase"."import_accounting_journal"($1, $2, $3) $$;
 revoke execute on function "api"."import_accounting_journal"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "api"."import_accounting_journal"(uuid, jsonb, text) to service_role;
 
+create or replace function "api"."ensure_import_periods"(tenant uuid, entry_date date, start_month integer, close_historical boolean)
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."ensure_import_periods"($1, $2, $3, $4) $$;
+revoke execute on function "api"."ensure_import_periods"(uuid, date, integer, boolean) from public, anon, authenticated;
+grant execute on function "api"."ensure_import_periods"(uuid, date, integer, boolean) to service_role;
+
 create or replace function "api"."import_accounting_entry"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language sql
@@ -14545,7 +14702,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:4e91187cd5149aebad710d9da0e302d422470f57fe5549f75e74cdcdf634996c
+-- @bsb-hash sha256:ca02fa5d69473c1b4b246ff97c8fb186561d4547ab28d476e8fa8f08650cfa18
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17033,6 +17190,40 @@ $$;
 revoke execute on function "better_supabase"."import_accounting_journal"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_accounting_journal"(uuid, jsonb, text) to service_role;
 
+-- Opens the fiscal year of an imported entry: twelve monthly periods from the
+-- start month, and closes earlier open years when closeHistorical is set.
+create or replace function "better_supabase"."ensure_import_periods"(tenant uuid, entry_date date, start_month integer, close_historical boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_month integer := least(greatest(coalesce(ensure_import_periods.start_month, 1), 1), 12);
+  v_year integer := extract(year from ensure_import_periods.entry_date)::integer;
+  v_start date;
+  v_index integer;
+begin
+  if extract(month from ensure_import_periods.entry_date) < v_month then
+    v_year := v_year - 1;
+  end if;
+  v_start := make_date(v_year, v_month, 1);
+  if not exists (select 1 from "better_supabase"."accounting_periods" y where y."tenant_id" = ensure_import_periods.tenant and y."fiscal_year" = v_year) then
+    for v_index in 0..11 loop
+      insert into "better_supabase"."accounting_periods" ("tenant_id", "fiscal_year", "number", "starts_on", "ends_on")
+      values (ensure_import_periods.tenant, v_year, v_index + 1, (v_start + make_interval(months => v_index))::date,
+        ((v_start + make_interval(months => v_index + 1)) - 1)::date);
+    end loop;
+  end if;
+  if ensure_import_periods.close_historical then
+    update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now()
+    where y."tenant_id" = ensure_import_periods.tenant and y."fiscal_year" < v_year and y."status" = 'open';
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."ensure_import_periods"(uuid, date, integer, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."ensure_import_periods"(uuid, date, integer, boolean) to service_role;
+
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
 -- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
@@ -17082,6 +17273,9 @@ begin
   if v_debit <> v_credit then
     raise exception 'the lines don''t balance: debits and credits differ' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  perform "better_supabase"."ensure_import_periods"(v_tenant, (v_data ->> 'entryDate')::date,
+    coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
+    coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
   v_row := "better_supabase"."save_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
@@ -17955,7 +18149,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:2160e7c502c470bff323be264050380f7735beebd3604e35156f356a55d3187a
+-- @bsb-hash sha256:676f64a8102f740f6fdc4550fc2239d80b1be1bed904afa512ed578bb2787374
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20492,6 +20686,40 @@ $$;
 revoke execute on function "better_supabase"."import_accounting_journal"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."import_accounting_journal"(uuid, jsonb, text) to service_role;
 
+-- Opens the fiscal year of an imported entry: twelve monthly periods from the
+-- start month, and closes earlier open years when closeHistorical is set.
+create or replace function "better_supabase"."ensure_import_periods"(tenant uuid, entry_date date, start_month integer, close_historical boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_month integer := least(greatest(coalesce(ensure_import_periods.start_month, 1), 1), 12);
+  v_year integer := extract(year from ensure_import_periods.entry_date)::integer;
+  v_start date;
+  v_index integer;
+begin
+  if extract(month from ensure_import_periods.entry_date) < v_month then
+    v_year := v_year - 1;
+  end if;
+  v_start := make_date(v_year, v_month, 1);
+  if not exists (select 1 from "better_supabase"."accounting_periods" y where y."org_id" = ensure_import_periods.tenant and y."fiscal_year" = v_year) then
+    for v_index in 0..11 loop
+      insert into "better_supabase"."accounting_periods" ("org_id", "fiscal_year", "number", "starts_on", "ends_on")
+      values (ensure_import_periods.tenant, v_year, v_index + 1, (v_start + make_interval(months => v_index))::date,
+        ((v_start + make_interval(months => v_index + 1)) - 1)::date);
+    end loop;
+  end if;
+  if ensure_import_periods.close_historical then
+    update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now()
+    where y."org_id" = ensure_import_periods.tenant and y."fiscal_year" < v_year and y."status" = 'open';
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."ensure_import_periods"(uuid, date, integer, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."ensure_import_periods"(uuid, date, integer, boolean) to service_role;
+
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
 -- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
@@ -20541,6 +20769,9 @@ begin
   if v_debit <> v_credit then
     raise exception 'the lines don''t balance: debits and credits differ' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
+  perform "better_supabase"."ensure_import_periods"(v_tenant, (v_data ->> 'entryDate')::date,
+    coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
+    coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
   v_row := "better_supabase"."save_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then

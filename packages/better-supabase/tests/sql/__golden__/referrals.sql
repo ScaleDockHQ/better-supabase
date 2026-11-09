@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_173_referrals.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:949b538a52bc22de2d53d8602adbab3daa9bab47ad8bc39a6bb82370c406f034
@@ -375,7 +375,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8
@@ -389,7 +389,7 @@ values ('referrals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_173_referrals.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:e5cecb61ffd9628c9ec4538d4b159340df10bee2d61b596550ded37055a97d96
@@ -816,7 +816,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restri
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.referral_codes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"referral_code","event_prefix":"referral_code"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.referrals deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"referral","event_prefix":"referral"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8
@@ -830,7 +830,7 @@ values ('referrals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_173_referrals.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:d6b4d2060f7e06471e7ad382b745f8b9ef36a182638863a4f6d023fc1462f2bb
@@ -1212,7 +1212,7 @@ create policy bsb_tenant_scope_delete on "app_private"."referrals" as restrictiv
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8
@@ -1226,7 +1226,7 @@ values ('referrals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_173_referrals.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:48e77054e640979e73f15e252c039f6419eee59ee9499939626536da0dbf2019
@@ -1672,7 +1672,7 @@ as $$ select "better_supabase"."list_referral_codes"($1, $2) $$;
 revoke execute on function "api"."list_referral_codes"(uuid, jsonb) from public, anon;
 grant execute on function "api"."list_referral_codes"(uuid, jsonb) to authenticated, service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8
@@ -1686,7 +1686,7 @@ values ('referrals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_173_referrals.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:483040a91b5c32b2ca61250cdd75666605e7d4d503b74111c1532f389165d3d0
@@ -2052,7 +2052,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8
@@ -2066,7 +2066,7 @@ values ('referrals', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_173_referrals.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
 -- @bsb-hash sha256:fe496c13fd2191b4dc3a9262bce6fb3441d48bc027ad3f14064033e8982cf120
@@ -2443,7 +2443,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restri
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block-data referrals
 -- @bsb-hash sha256:ceb9afb90afb8e28f7810b7fb091d8845f340739a53570a530fd9a63c84d22f8

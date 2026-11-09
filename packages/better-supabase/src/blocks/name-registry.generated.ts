@@ -303,6 +303,9 @@ export interface BlockNameRegistry {
       readonly "locations": "id" | "tenant" | "parent" | "kind" | "name" | "code" | "address" | "latitude" | "longitude" | "metadata" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "assets": "id" | "tenant" | "location" | "kind" | "name" | "tag" | "serial" | "make" | "model" | "modelYear" | "ownership" | "product" | "status" | "assigneeType" | "assigneeId" | "latitude" | "longitude" | "metadata" | "retiredAt" | "createdBy" | "createdAt" | "updatedAt" | "acquisitionCost" | "currency" | "acquiredOn" | "usefulLifeMonths" | "residualValue" | "depreciationMethod" | "depreciationRateBps" | "disposedOn" | "disposalAmount";
       readonly "assignments": "id" | "tenant" | "asset" | "assigneeType" | "assigneeId" | "note" | "assignedBy" | "assignedAt" | "releasedAt";
+      readonly "meterReadings": "id" | "tenant" | "asset" | "unit" | "value" | "readAt" | "reason" | "createdAt";
+      readonly "dueChecks": "id" | "tenant" | "asset" | "checkType" | "intervalDays" | "lastDoneAt" | "nextDueAt" | "result" | "updatedAt";
+      readonly "identifiers": "id" | "tenant" | "asset" | "type" | "value" | "updatedAt";
       readonly "depreciations": "id" | "tenant" | "asset" | "periodStart" | "amount" | "entry" | "createdAt";
     };
     readonly functions: "archive_asset_location" | "asset_assignment_history" | "asset_depreciate" | "asset_identifier_updated_at" | "asset_location_check_parent" | "asset_locations_at" | "asset_updated_at" | "assets_near" | "assign_asset" | "create_asset" | "create_asset_location" | "dispose_asset" | "due_check_updated_at" | "fill_asset_due_check" | "get_asset" | "get_asset_location" | "guard_asset_meter_reading" | "import_asset" | "import_asset_identifier" | "import_due_check" | "import_meter_reading" | "list_asset_depreciations" | "list_asset_locations" | "list_assets" | "release_asset" | "run_asset_depreciation" | "set_asset_link" | "update_asset" | "update_asset_location";
@@ -1191,6 +1194,9 @@ export interface BlockNameRegistry {
       readonly "runs": "id" | "tenant" | "source" | "status" | "mapping" | "counts" | "errors" | "diff" | "dryRun" | "full" | "inputChecksum" | "correlationId" | "mapperVersion" | "scopeAliases" | "plan" | "outcome" | "leaseUntil" | "heartbeatAt" | "createdBy" | "createdAt" | "startedAt" | "finishedAt";
       readonly "records": "id" | "tenant" | "source" | "scope" | "entity" | "externalKey" | "role" | "subjectType" | "subjectId" | "contentHash" | "firstRun" | "lastRun" | "subjectUpdatedAt" | "sourceUpdatedAt" | "ownedHash" | "missingSince";
       readonly "chunks": "run" | "tenant" | "entity" | "chunk" | "items" | "status" | "result" | "claimedAt" | "doneAt" | "createdAt";
+      readonly "refs": "id" | "tenant" | "kind" | "key" | "payload" | "createdAt";
+      readonly "issues": "id" | "run" | "tenant" | "source" | "entity" | "key" | "kind" | "code" | "message" | "createdAt" | "resolvedAt";
+      readonly "sources": "id" | "labelKey" | "descriptionKey" | "fileTypes" | "entities" | "docsLink";
     };
     readonly functions: "begin_import_session" | "cancel_import_run" | "claim_import_chunk" | "complete_import_chunk" | "enqueue_import_chunks" | "export_import_hashes" | "finish_import" | "finish_import_run" | "get_import_run" | "heartbeat_import_run" | "import_apply_batch" | "import_chunk_progress" | "import_clear_issues" | "import_ensure_ref" | "import_entities" | "import_integrity" | "import_note_issue" | "import_note_warnings" | "import_resolve" | "import_upsert_batch" | "list_import_diff" | "list_import_issues" | "list_import_runs" | "list_import_source_runs" | "list_import_sources" | "mark_import_running" | "process_import_chunk" | "reapply_import_records" | "rebase_import_records" | "register_import_source" | "resolve_import_conflict" | "start_import" | "start_import_run" | "store_import_chunk";
     readonly actions: "manage";
@@ -1468,7 +1474,7 @@ export interface BlockNameRegistry {
       readonly "readings": "id" | "tenant" | "meter" | "value" | "readAt" | "readBy";
       readonly "calibrations": "id" | "tenant" | "asset" | "instrument" | "performedAt" | "dueAt" | "result" | "reference" | "performedBy" | "qualifications";
     };
-    readonly functions: "create_maintenance_meter" | "create_maintenance_plan" | "delete_maintenance_plan" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_next_occurrence" | "record_calibration" | "record_meter_reading" | "update_maintenance_plan";
+    readonly functions: "create_maintenance_meter" | "create_maintenance_plan" | "delete_maintenance_plan" | "generate_maintenance_work_orders" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_next_occurrence" | "record_calibration" | "record_meter_reading" | "update_maintenance_plan";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_maintenance_plan_create" | "after_maintenance_plan_create";
     readonly entities: {

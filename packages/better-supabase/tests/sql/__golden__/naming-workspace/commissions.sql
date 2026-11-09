@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_172_commissions.sql
+-- ==== schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
 -- @bsb-hash sha256:cc43e3ea6b5a7eb84b148bef3d659e5faca42a82824bed0eece48a235d6e70a8
@@ -910,7 +910,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."commission_statement
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_172_commissions.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block-data commissions
 -- @bsb-hash sha256:817e70daac986addaf1de50e6c6a05c808ddf586ef2f8008e6c6dc9ddf58053e

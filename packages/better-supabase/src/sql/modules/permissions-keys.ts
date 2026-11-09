@@ -16,12 +16,13 @@ import { accessModel } from "./permissions-model.ts";
  * belongs to, instead of `my_permissions` once per tenant. The bitset matches
  * `compactBootstrapPermissions` (least significant bit first, base64url).
  */
-export function bootstrapPermissionsSql(): string {
+export function bootstrapPermissionsSql(memberIds: string): string {
   return `-- Compact permissions for the caller: keys once, then a bitset per tenant.
 create or replace function better_supabase.permission_bitset(all_keys text[], held text[])
 returns text
 language plpgsql
 immutable
+set search_path = ''
 as $$
 declare
   width integer := ceil(coalesce(cardinality(all_keys), 0) / 8.0);
@@ -59,7 +60,7 @@ set search_path = ''
 as $$
   with keys as (
     select coalesce(array_agg(distinct key order by key), '{}'::text[]) as keys
-    from better_supabase.member_organization_ids(null) as tenant(id),
+    from ${memberIds}(null) as tenant(id),
       lateral unnest(better_supabase.member_permissions(auth.uid(), tenant.id)) as key
     where auth.uid() is not null
   )
@@ -79,7 +80,7 @@ as $$
             better_supabase.member_permissions(auth.uid(), tenant.id)
           )
         )
-        from better_supabase.member_organization_ids(null) as tenant(id)
+        from ${memberIds}(null) as tenant(id)
       ), '{}'::jsonb)
     )
   end

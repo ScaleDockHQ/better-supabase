@@ -90,6 +90,8 @@ describe("server sessions", () => {
     const server = fresh();
     const request = await requestAs({ role: "member" });
 
+    // The memo is process-wide, so an earlier test in this file can leave a hit.
+    server.sessions.clear();
     await server.snapshot(request);
     server.sessions.evict(USER);
     await server.snapshot(request);

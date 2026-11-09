@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_164_lims.sql
+-- ==== schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
 -- @bsb-hash sha256:f2ffce097c9b43f9adb7d77a8b50fef92ad0ef930631bb24e0d06974f210fb12
@@ -634,7 +634,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."lims_results" as res
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_164_lims.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block-data lims
 -- @bsb-hash sha256:7b7e412cabd4be556c915fdce87de40880f85a2850a13ec2253ba8cffc91fa5e

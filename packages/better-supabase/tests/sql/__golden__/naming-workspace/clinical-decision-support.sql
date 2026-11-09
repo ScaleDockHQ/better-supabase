@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
+-- ==== schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
 -- @bsb-hash sha256:17c8b3ce79ab96f608e152947c94649b5a115e2f4ade2aaf10f2847144ff7753
@@ -602,7 +602,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as rest
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_169_clinical_decision_support.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block-data clinical-decision-support
 -- @bsb-hash sha256:1489add5de9fc5ff5ff278865e0ec1ea4f9f80995d36f7d7a76c308f1be5e23b

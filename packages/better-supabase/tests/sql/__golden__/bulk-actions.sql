@@ -240,12 +240,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restri
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
 -- better-supabase module: bulk-actions
 -- @bsb-block-data bulk-actions
--- @bsb-hash sha256:04e5d6184660b4a59fe93acb078e4b2450346622dba3a9bcdb44ba3f8f87a14a
+-- @bsb-hash sha256:c992fa8d4fb0cbcfc96dc022a0825a34f22cc4b24cefeab3d2d1cdc1c1ee15ce
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+delete from better_supabase.blocks
+  where name = 'bulk'
+    and exists (select 1 from better_supabase.blocks where name = 'bulk-actions');
 update better_supabase.blocks set name = 'bulk-actions'
   where name = 'bulk'
     and not exists (select 1 from better_supabase.blocks where name = 'bulk-actions');
@@ -516,12 +519,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restri
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
 -- better-supabase module: bulk-actions
 -- @bsb-block-data bulk-actions
--- @bsb-hash sha256:04e5d6184660b4a59fe93acb078e4b2450346622dba3a9bcdb44ba3f8f87a14a
+-- @bsb-hash sha256:c992fa8d4fb0cbcfc96dc022a0825a34f22cc4b24cefeab3d2d1cdc1c1ee15ce
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+delete from better_supabase.blocks
+  where name = 'bulk'
+    and exists (select 1 from better_supabase.blocks where name = 'bulk-actions');
 update better_supabase.blocks set name = 'bulk-actions'
   where name = 'bulk'
     and not exists (select 1 from better_supabase.blocks where name = 'bulk-actions');
@@ -777,12 +783,15 @@ create policy bsb_tenant_scope_delete on "app_private"."bulk_runs" as restrictiv
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
 -- better-supabase module: bulk-actions
 -- @bsb-block-data bulk-actions
--- @bsb-hash sha256:04e5d6184660b4a59fe93acb078e4b2450346622dba3a9bcdb44ba3f8f87a14a
+-- @bsb-hash sha256:c992fa8d4fb0cbcfc96dc022a0825a34f22cc4b24cefeab3d2d1cdc1c1ee15ce
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+delete from better_supabase.blocks
+  where name = 'bulk'
+    and exists (select 1 from better_supabase.blocks where name = 'bulk-actions');
 update better_supabase.blocks set name = 'bulk-actions'
   where name = 'bulk'
     and not exists (select 1 from better_supabase.blocks where name = 'bulk-actions');
@@ -1083,12 +1092,15 @@ grant execute on function "api"."bulk_step"(uuid, integer) to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
 -- better-supabase module: bulk-actions
 -- @bsb-block-data bulk-actions
--- @bsb-hash sha256:04e5d6184660b4a59fe93acb078e4b2450346622dba3a9bcdb44ba3f8f87a14a
+-- @bsb-hash sha256:c992fa8d4fb0cbcfc96dc022a0825a34f22cc4b24cefeab3d2d1cdc1c1ee15ce
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+delete from better_supabase.blocks
+  where name = 'bulk'
+    and exists (select 1 from better_supabase.blocks where name = 'bulk-actions');
 update better_supabase.blocks set name = 'bulk-actions'
   where name = 'bulk'
     and not exists (select 1 from better_supabase.blocks where name = 'bulk-actions');
@@ -1337,12 +1349,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restri
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
 -- better-supabase module: bulk-actions
 -- @bsb-block-data bulk-actions
--- @bsb-hash sha256:04e5d6184660b4a59fe93acb078e4b2450346622dba3a9bcdb44ba3f8f87a14a
+-- @bsb-hash sha256:c992fa8d4fb0cbcfc96dc022a0825a34f22cc4b24cefeab3d2d1cdc1c1ee15ce
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+delete from better_supabase.blocks
+  where name = 'bulk'
+    and exists (select 1 from better_supabase.blocks where name = 'bulk-actions');
 update better_supabase.blocks set name = 'bulk-actions'
   where name = 'bulk'
     and not exists (select 1 from better_supabase.blocks where name = 'bulk-actions');
@@ -1593,12 +1608,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bulk_runs" as restri
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_069_bulk_actions.sql
 -- better-supabase module: bulk-actions
 -- @bsb-block-data bulk-actions
--- @bsb-hash sha256:04e5d6184660b4a59fe93acb078e4b2450346622dba3a9bcdb44ba3f8f87a14a
+-- @bsb-hash sha256:c992fa8d4fb0cbcfc96dc022a0825a34f22cc4b24cefeab3d2d1cdc1c1ee15ce
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+delete from better_supabase.blocks
+  where name = 'bulk'
+    and exists (select 1 from better_supabase.blocks where name = 'bulk-actions');
 update better_supabase.blocks set name = 'bulk-actions'
   where name = 'bulk'
     and not exists (select 1 from better_supabase.blocks where name = 'bulk-actions');

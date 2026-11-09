@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_180_prompts.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
 -- @bsb-hash sha256:704c2e715481855ceab5c3007b7aef17cbef943b207ed49c827e5578de8ba6a4
@@ -163,7 +163,7 @@ $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
 -- @bsb-hash sha256:6d90da15641b1eaef7619745e7292b6267b22f2a04096c5141bb18d15584c34e
@@ -177,7 +177,7 @@ values ('prompts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_180_prompts.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
 -- @bsb-hash sha256:704c2e715481855ceab5c3007b7aef17cbef943b207ed49c827e5578de8ba6a4
@@ -342,7 +342,7 @@ $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
 -- @bsb-hash sha256:6d90da15641b1eaef7619745e7292b6267b22f2a04096c5141bb18d15584c34e
@@ -356,7 +356,7 @@ values ('prompts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_180_prompts.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
 -- @bsb-hash sha256:013f9fa78f6c3f69d0e304c27f15433bc3c96925ee41048585ca9916df4d5160
@@ -526,7 +526,7 @@ $$;
 revoke execute on function "app_private"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "app_private"."list_prompt_versions"(text, uuid) to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
 -- @bsb-hash sha256:6d90da15641b1eaef7619745e7292b6267b22f2a04096c5141bb18d15584c34e
@@ -540,7 +540,7 @@ values ('prompts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_180_prompts.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
 -- @bsb-hash sha256:d655ecd103ad715396f7437f548a86bb29fe9d8ad8630c842d617a9348dca182
@@ -747,7 +747,7 @@ as $$ select "better_supabase"."list_prompt_versions"($1, $2) $$;
 revoke execute on function "api"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "api"."list_prompt_versions"(text, uuid) to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
 -- @bsb-hash sha256:6d90da15641b1eaef7619745e7292b6267b22f2a04096c5141bb18d15584c34e
@@ -761,7 +761,7 @@ values ('prompts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_180_prompts.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
 -- @bsb-hash sha256:8e933614c1f392bcaecf10ca3e0362700e5cb18b91264fc588752b44c7afefd6
@@ -922,7 +922,7 @@ $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
 -- @bsb-hash sha256:6d90da15641b1eaef7619745e7292b6267b22f2a04096c5141bb18d15584c34e
@@ -936,7 +936,7 @@ values ('prompts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_180_prompts.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
 -- @bsb-hash sha256:8b5f7cc231dc88f13bcf48f503536160ea2781c4bd50df76621a76abcd29d323
@@ -1101,7 +1101,7 @@ $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_180_prompts.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
 -- @bsb-hash sha256:6d90da15641b1eaef7619745e7292b6267b22f2a04096c5141bb18d15584c34e

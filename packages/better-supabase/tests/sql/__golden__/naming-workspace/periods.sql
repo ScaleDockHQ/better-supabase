@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_170_periods.sql
+-- ==== schema supabase/schemas/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
 -- @bsb-hash sha256:98bc55004e49ba2399fa229c821b3d80eda63a3282cccc579c66894e0872216d
@@ -305,7 +305,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrict
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_170_periods.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_171_periods.sql
 -- better-supabase module: periods
 -- @bsb-block-data periods
 -- @bsb-hash sha256:55b2a755e5f3596258569ee15d709290a25c624a8555a3d7247d9afd0e501f9b

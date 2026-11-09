@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_176_seeds.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_177_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block seeds@1 managed
 -- @bsb-hash sha256:1e4cce5facffe816a70a06feeaaa9923d75ac0088ae86054faa36ca30bbd829d
@@ -21,7 +21,7 @@ $$;
 revoke execute on function "better_supabase".seed_tenant_defaults(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase".seed_tenant_defaults(uuid, jsonb, text) to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_176_seeds.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_177_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block-data seeds
 -- @bsb-hash sha256:49123fe2bbaa6795eeef6340e266e39b99ae4c5a7e4063877a73cec726f8a194
@@ -35,7 +35,7 @@ values ('seeds', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_176_seeds.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_177_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block seeds@1 managed
 -- @bsb-hash sha256:95c8de0ce76682a5330244a932e580bb0aada3d5a22a9700cda1e29274f636c8
@@ -67,7 +67,7 @@ $$;
 revoke execute on function "better_supabase".seed_tenant_defaults(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase".seed_tenant_defaults(uuid, jsonb, text) to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_176_seeds.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_177_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block-data seeds
 -- @bsb-hash sha256:49123fe2bbaa6795eeef6340e266e39b99ae4c5a7e4063877a73cec726f8a194
@@ -81,7 +81,7 @@ values ('seeds', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_176_seeds.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_177_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block seeds@1 managed
 -- @bsb-hash sha256:bfd9e24aa5d6e598905f8fa7cb3198fc0c5d4c0e1f2fa950a9c045c3806188f2
@@ -110,7 +110,7 @@ $$;
 revoke execute on function "app_private".seed_tenant_defaults(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "app_private".seed_tenant_defaults(uuid, jsonb, text) to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_176_seeds.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_177_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block-data seeds
 -- @bsb-hash sha256:49123fe2bbaa6795eeef6340e266e39b99ae4c5a7e4063877a73cec726f8a194
@@ -124,7 +124,7 @@ values ('seeds', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_176_seeds.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_177_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block seeds@1 managed
 -- @bsb-hash sha256:f73419376142d3a8774db1c0d59700521b0dc2d0461ac1a391671af6ec323398
@@ -160,7 +160,7 @@ as $$ select "better_supabase"."seed_tenant_defaults"($1, $2, $3) $$;
 revoke execute on function "api"."seed_tenant_defaults"(uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function "api"."seed_tenant_defaults"(uuid, jsonb, text) to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_176_seeds.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_177_seeds.sql
 -- better-supabase module: seeds
 -- @bsb-block-data seeds
 -- @bsb-hash sha256:49123fe2bbaa6795eeef6340e266e39b99ae4c5a7e4063877a73cec726f8a194

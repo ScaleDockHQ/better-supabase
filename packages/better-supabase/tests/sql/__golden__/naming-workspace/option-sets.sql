@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_183_option_sets.sql
+-- ==== schema supabase/schemas/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
 -- @bsb-hash sha256:05a7f8f08d8a0a202f20a5d23e6721e407c8e501f3176b7a65844cbdebbcca85
@@ -412,7 +412,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."option_set_items" as
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_184_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block-data option-sets
 -- @bsb-hash sha256:07e1ad1782c49422b596705ed05a07bfd597ba8914a65cd9968d04292f6152cf

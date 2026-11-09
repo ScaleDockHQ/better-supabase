@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_179_advisories.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:2936bd7ce672f0bf383193d55c56f37cb42f64d49830f64b034d4a108cf904c6
@@ -1152,7 +1152,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."advisory_vulnerabili
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_179_advisories.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705
@@ -1166,7 +1166,7 @@ values ('advisories', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_179_advisories.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:57a68771de148b051fd0c49c84d2edd012121d994dc80f98f2d61db70967df7a
@@ -2429,7 +2429,7 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.vex_statements deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"vex_statement","event_prefix":"vex_statement"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.advisory_vulnerabilities deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"advisory_vulnerability","event_prefix":"advisory_vulnerability"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_179_advisories.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705
@@ -2443,7 +2443,7 @@ values ('advisories', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_179_advisories.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:f956c61444f9db1b8124228143f8a175ab69156061719fbb465095acdc9c1038
@@ -3602,7 +3602,7 @@ create policy bsb_tenant_scope_delete on "app_private"."advisory_vulnerabilities
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_179_advisories.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705
@@ -3616,7 +3616,7 @@ values ('advisories', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_179_advisories.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:ef10fe24ddb8fad9c87d5bc608ea30c51f504a7e64827ce8a5334622e4502624
@@ -4945,7 +4945,7 @@ as $$ select "better_supabase"."list_published_advisories"($1) $$;
 revoke execute on function "api"."list_published_advisories"(uuid) from public, anon, authenticated;
 grant execute on function "api"."list_published_advisories"(uuid) to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_179_advisories.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705
@@ -4959,7 +4959,7 @@ values ('advisories', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_179_advisories.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:5ef0298479b5fbafb1a9b293bc37fdfbc40094c4a3acb6573517be065b14d28d
@@ -6090,7 +6090,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."advisory_vulnerabili
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_179_advisories.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705
@@ -6104,7 +6104,7 @@ values ('advisories', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_179_advisories.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
 -- @bsb-hash sha256:49d6ed79f0e6b12fe76a2ea3aeef75176d8dd7a0cf4858de52904682605156b5
@@ -7258,7 +7258,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."advisory_vulnerabili
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_179_advisories.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_180_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block-data advisories
 -- @bsb-hash sha256:094b7d1f5a897653ebe15e328532177af1785e66afc5a320404d736edb77b705

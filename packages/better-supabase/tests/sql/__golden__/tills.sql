@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_168_tills.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
 -- @bsb-hash sha256:a52ff8c9debd805dcf12e389caeae2a4751d0426ed0944f1e2bef817c300b0fa
@@ -737,7 +737,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."till_deposits" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_168_tills.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block-data tills
 -- @bsb-hash sha256:97aebb68082028b87343d802ec0cfa32a1001cebdc3f3b6c6f100af8709fdbfc
@@ -751,7 +751,7 @@ values ('tills', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_168_tills.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
 -- @bsb-hash sha256:2ca8072cc0eb42db7359f8b23731a8818244896b31b1973745f2cdebb3b045c4
@@ -1640,7 +1640,7 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_counts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_count","event_prefix":"till_count"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_deposits deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_deposit","event_prefix":"till_deposit"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_168_tills.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block-data tills
 -- @bsb-hash sha256:97aebb68082028b87343d802ec0cfa32a1001cebdc3f3b6c6f100af8709fdbfc
@@ -1654,7 +1654,7 @@ values ('tills', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_168_tills.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
 -- @bsb-hash sha256:5c3f4af7da669b1c834d39c02ff15c8d2609db88bec6d2a54d104ee75e49db27
@@ -2398,7 +2398,7 @@ create policy bsb_tenant_scope_delete on "app_private"."till_deposits" as restri
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_168_tills.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block-data tills
 -- @bsb-hash sha256:97aebb68082028b87343d802ec0cfa32a1001cebdc3f3b6c6f100af8709fdbfc
@@ -2412,7 +2412,7 @@ values ('tills', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_168_tills.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
 -- @bsb-hash sha256:bf5b7287c055fe1e93f381e38a6f11b26d043905e9a0febfeb6610ee7e34bab0
@@ -3248,7 +3248,7 @@ as $$ select "better_supabase"."reconcile_till_deposit"($1, $2) $$;
 revoke execute on function "api"."reconcile_till_deposit"(uuid, uuid) from public, anon;
 grant execute on function "api"."reconcile_till_deposit"(uuid, uuid) to authenticated, service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_168_tills.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block-data tills
 -- @bsb-hash sha256:97aebb68082028b87343d802ec0cfa32a1001cebdc3f3b6c6f100af8709fdbfc
@@ -3262,7 +3262,7 @@ values ('tills', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_168_tills.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
 -- @bsb-hash sha256:88a72ab3a926ca1505f7688e85256b5ae67a5d10f3c41e1b86bd5c6038048532
@@ -3994,7 +3994,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."till_deposits" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_168_tills.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block-data tills
 -- @bsb-hash sha256:97aebb68082028b87343d802ec0cfa32a1001cebdc3f3b6c6f100af8709fdbfc
@@ -4008,7 +4008,7 @@ values ('tills', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_168_tills.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
 -- @bsb-hash sha256:aee1eb1388265c3bc8f72d3ed6d3b906750fdfb7d540ff67a098eac12e14df50
@@ -4747,7 +4747,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."till_deposits" as re
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_168_tills.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block-data tills
 -- @bsb-hash sha256:97aebb68082028b87343d802ec0cfa32a1001cebdc3f3b6c6f100af8709fdbfc

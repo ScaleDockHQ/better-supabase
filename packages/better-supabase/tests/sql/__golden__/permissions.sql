@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:9fc3411b50db40d0dd9993453f18b40b13873b80010f92078f822346bbd76d35
+-- @bsb-hash sha256:79af3b55e9c732bb5273c13d10a7bb6ef7a192b549df35a71a8b304e6f96fd80
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -124,8 +124,8 @@ set search_path = ''
 as $$
   select case role
     when 'owner' then array['*']::text[]
-    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*']::text[]
-    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register']::text[]
+    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*', 'warranty.*']::text[]
+    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register', 'warranty.read', 'warranty.write']::text[]
     when 'viewer' then array['organization.read']::text[]
     else '{}'::text[]
   end
@@ -371,7 +371,78 @@ as $$
       where better_supabase.cap_allows(p)
     ), '{}'::text[])
   end
+$$;-- Compact permissions for the caller: keys once, then a bitset per tenant.
+create or replace function better_supabase.permission_bitset(all_keys text[], held text[])
+returns text
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  width integer := ceil(coalesce(cardinality(all_keys), 0) / 8.0);
+  bytes bytea;
+  i integer;
+  slot integer;
+  value integer;
+begin
+  if width < 1 then
+    return '';
+  end if;
+  bytes := decode(repeat('00', width), 'hex');
+  if held is null then
+    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  end if;
+  for i in 1 .. coalesce(cardinality(all_keys), 0) loop
+    if all_keys[i] = any (held) then
+      slot := (i - 1) / 8;
+      value := get_byte(bytes, slot) | (1 << ((i - 1) % 8));
+      bytes := set_byte(bytes, slot, value);
+    end if;
+  end loop;
+  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+end;
 $$;
+
+revoke execute on function better_supabase.permission_bitset(text[], text[]) from public, anon, authenticated;
+
+create or replace function better_supabase.bootstrap_permissions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with keys as (
+    select coalesce(array_agg(distinct key order by key), '{}'::text[]) as keys
+    from better_supabase.member_organization_ids(null) as tenant(id),
+      lateral unnest(better_supabase.member_permissions(auth.uid(), tenant.id)) as key
+    where auth.uid() is not null
+  )
+  select case
+    when auth.uid() is null then jsonb_build_object(
+      'apiVersion', 1, 'form', 'compact', 'keys', '[]'::jsonb, 'tenants', '{}'::jsonb
+    )
+    else jsonb_build_object(
+      'apiVersion', 1,
+      'form', 'compact',
+      'keys', to_jsonb(keys.keys),
+      'tenants', coalesce((
+        select jsonb_object_agg(
+          tenant.id::text,
+          better_supabase.permission_bitset(
+            keys.keys,
+            better_supabase.member_permissions(auth.uid(), tenant.id)
+          )
+        )
+        from better_supabase.member_organization_ids(null) as tenant(id)
+      ), '{}'::jsonb)
+    )
+  end
+  from keys
+$$;
+
+revoke execute on function better_supabase.bootstrap_permissions() from public, anon;
+grant execute on function better_supabase.bootstrap_permissions() to authenticated;
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -439,7 +510,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:f9e53da6138fb3e8566aa1fd2ba3b939f7a207c6897c6d1d3311f2403dea3a11
+-- @bsb-hash sha256:ec60b9399aa587b5ca8a27e20160a263160838dfcfb624286206b1872ca43a31
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -952,6 +1023,9 @@ as $$
     when 'warehouse.manage' then 'warehouse.manage'
     when 'warehouse.pick' then 'warehouse.pick'
     when 'warehouse.read' then 'warehouse.read'
+    when 'warranty.decide' then 'warranty.decide'
+    when 'warranty.read' then 'warranty.read'
+    when 'warranty.write' then 'warranty.write'
     when 'webhooks-in.create' then 'webhooks.manage'
     when 'webhooks-in.delete' then 'webhooks.manage'
     when 'webhooks-in.read' then 'webhooks.read'
@@ -978,8 +1052,8 @@ set search_path = ''
 as $$
   select case role
     when 'owner' then array['*']::text[]
-    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*']::text[]
-    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register']::text[]
+    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*', 'warranty.*']::text[]
+    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register', 'warranty.read', 'warranty.write']::text[]
     when 'viewer' then array['organization.read']::text[]
     else '{}'::text[]
   end
@@ -1225,7 +1299,78 @@ as $$
       where better_supabase.cap_allows(p)
     ), '{}'::text[])
   end
+$$;-- Compact permissions for the caller: keys once, then a bitset per tenant.
+create or replace function better_supabase.permission_bitset(all_keys text[], held text[])
+returns text
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  width integer := ceil(coalesce(cardinality(all_keys), 0) / 8.0);
+  bytes bytea;
+  i integer;
+  slot integer;
+  value integer;
+begin
+  if width < 1 then
+    return '';
+  end if;
+  bytes := decode(repeat('00', width), 'hex');
+  if held is null then
+    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  end if;
+  for i in 1 .. coalesce(cardinality(all_keys), 0) loop
+    if all_keys[i] = any (held) then
+      slot := (i - 1) / 8;
+      value := get_byte(bytes, slot) | (1 << ((i - 1) % 8));
+      bytes := set_byte(bytes, slot, value);
+    end if;
+  end loop;
+  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+end;
 $$;
+
+revoke execute on function better_supabase.permission_bitset(text[], text[]) from public, anon, authenticated;
+
+create or replace function better_supabase.bootstrap_permissions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with keys as (
+    select coalesce(array_agg(distinct key order by key), '{}'::text[]) as keys
+    from better_supabase.member_organization_ids(null) as tenant(id),
+      lateral unnest(better_supabase.member_permissions(auth.uid(), tenant.id)) as key
+    where auth.uid() is not null
+  )
+  select case
+    when auth.uid() is null then jsonb_build_object(
+      'apiVersion', 1, 'form', 'compact', 'keys', '[]'::jsonb, 'tenants', '{}'::jsonb
+    )
+    else jsonb_build_object(
+      'apiVersion', 1,
+      'form', 'compact',
+      'keys', to_jsonb(keys.keys),
+      'tenants', coalesce((
+        select jsonb_object_agg(
+          tenant.id::text,
+          better_supabase.permission_bitset(
+            keys.keys,
+            better_supabase.member_permissions(auth.uid(), tenant.id)
+          )
+        )
+        from better_supabase.member_organization_ids(null) as tenant(id)
+      ), '{}'::jsonb)
+    )
+  end
+  from keys
+$$;
+
+revoke execute on function better_supabase.bootstrap_permissions() from public, anon;
+grant execute on function better_supabase.bootstrap_permissions() to authenticated;
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -1293,7 +1438,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:3c54a7f6abe9c1b1c5f662dd6c8f79fc10cd801b48bac68432b96ed35f40fff2
+-- @bsb-hash sha256:ed16ee8239ba62b257ca351af2498b9c68b6cd343a4723a04667ca1c5b072651
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1421,8 +1566,8 @@ set search_path = ''
 as $$
   select case role
     when 'owner' then array['*']::text[]
-    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*']::text[]
-    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register']::text[]
+    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*', 'warranty.*']::text[]
+    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register', 'warranty.read', 'warranty.write']::text[]
     when 'viewer' then array['organization.read']::text[]
     else '{}'::text[]
   end
@@ -1668,7 +1813,78 @@ as $$
       where better_supabase.cap_allows(p)
     ), '{}'::text[])
   end
+$$;-- Compact permissions for the caller: keys once, then a bitset per tenant.
+create or replace function better_supabase.permission_bitset(all_keys text[], held text[])
+returns text
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  width integer := ceil(coalesce(cardinality(all_keys), 0) / 8.0);
+  bytes bytea;
+  i integer;
+  slot integer;
+  value integer;
+begin
+  if width < 1 then
+    return '';
+  end if;
+  bytes := decode(repeat('00', width), 'hex');
+  if held is null then
+    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  end if;
+  for i in 1 .. coalesce(cardinality(all_keys), 0) loop
+    if all_keys[i] = any (held) then
+      slot := (i - 1) / 8;
+      value := get_byte(bytes, slot) | (1 << ((i - 1) % 8));
+      bytes := set_byte(bytes, slot, value);
+    end if;
+  end loop;
+  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+end;
 $$;
+
+revoke execute on function better_supabase.permission_bitset(text[], text[]) from public, anon, authenticated;
+
+create or replace function better_supabase.bootstrap_permissions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with keys as (
+    select coalesce(array_agg(distinct key order by key), '{}'::text[]) as keys
+    from better_supabase.member_organization_ids(null) as tenant(id),
+      lateral unnest(better_supabase.member_permissions(auth.uid(), tenant.id)) as key
+    where auth.uid() is not null
+  )
+  select case
+    when auth.uid() is null then jsonb_build_object(
+      'apiVersion', 1, 'form', 'compact', 'keys', '[]'::jsonb, 'tenants', '{}'::jsonb
+    )
+    else jsonb_build_object(
+      'apiVersion', 1,
+      'form', 'compact',
+      'keys', to_jsonb(keys.keys),
+      'tenants', coalesce((
+        select jsonb_object_agg(
+          tenant.id::text,
+          better_supabase.permission_bitset(
+            keys.keys,
+            better_supabase.member_permissions(auth.uid(), tenant.id)
+          )
+        )
+        from better_supabase.member_organization_ids(null) as tenant(id)
+      ), '{}'::jsonb)
+    )
+  end
+  from keys
+$$;
+
+revoke execute on function better_supabase.bootstrap_permissions() from public, anon;
+grant execute on function better_supabase.bootstrap_permissions() to authenticated;
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -1736,7 +1952,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:8d3f4ec9ee4c91c1f55b063bede52decea7ee249a82756c9838cce334e29f291
+-- @bsb-hash sha256:f77b0dd574c2e9c4d3fa78673625a34d2b9c4a872b6e308b5961e5dfaa7d1dfa
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1859,8 +2075,8 @@ set search_path = ''
 as $$
   select case role
     when 'owner' then array['*']::text[]
-    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*']::text[]
-    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register']::text[]
+    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*', 'warranty.*']::text[]
+    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register', 'warranty.read', 'warranty.write']::text[]
     when 'viewer' then array['organization.read']::text[]
     else '{}'::text[]
   end
@@ -2106,7 +2322,78 @@ as $$
       where better_supabase.cap_allows(p)
     ), '{}'::text[])
   end
+$$;-- Compact permissions for the caller: keys once, then a bitset per tenant.
+create or replace function better_supabase.permission_bitset(all_keys text[], held text[])
+returns text
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  width integer := ceil(coalesce(cardinality(all_keys), 0) / 8.0);
+  bytes bytea;
+  i integer;
+  slot integer;
+  value integer;
+begin
+  if width < 1 then
+    return '';
+  end if;
+  bytes := decode(repeat('00', width), 'hex');
+  if held is null then
+    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  end if;
+  for i in 1 .. coalesce(cardinality(all_keys), 0) loop
+    if all_keys[i] = any (held) then
+      slot := (i - 1) / 8;
+      value := get_byte(bytes, slot) | (1 << ((i - 1) % 8));
+      bytes := set_byte(bytes, slot, value);
+    end if;
+  end loop;
+  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+end;
 $$;
+
+revoke execute on function better_supabase.permission_bitset(text[], text[]) from public, anon, authenticated;
+
+create or replace function better_supabase.bootstrap_permissions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with keys as (
+    select coalesce(array_agg(distinct key order by key), '{}'::text[]) as keys
+    from better_supabase.member_organization_ids(null) as tenant(id),
+      lateral unnest(better_supabase.member_permissions(auth.uid(), tenant.id)) as key
+    where auth.uid() is not null
+  )
+  select case
+    when auth.uid() is null then jsonb_build_object(
+      'apiVersion', 1, 'form', 'compact', 'keys', '[]'::jsonb, 'tenants', '{}'::jsonb
+    )
+    else jsonb_build_object(
+      'apiVersion', 1,
+      'form', 'compact',
+      'keys', to_jsonb(keys.keys),
+      'tenants', coalesce((
+        select jsonb_object_agg(
+          tenant.id::text,
+          better_supabase.permission_bitset(
+            keys.keys,
+            better_supabase.member_permissions(auth.uid(), tenant.id)
+          )
+        )
+        from better_supabase.member_organization_ids(null) as tenant(id)
+      ), '{}'::jsonb)
+    )
+  end
+  from keys
+$$;
+
+revoke execute on function better_supabase.bootstrap_permissions() from public, anon;
+grant execute on function better_supabase.bootstrap_permissions() to authenticated;
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -2200,6 +2487,16 @@ set search_path = ''
 as $$ select "better_supabase"."role_grants"($1, $2) $$;
 revoke execute on function "api"."role_grants"(text, text) from public, anon, authenticated;
 grant execute on function "api"."role_grants"(text, text) to service_role;
+
+create or replace function "api"."bootstrap_permissions"()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."bootstrap_permissions"() $$;
+revoke execute on function "api"."bootstrap_permissions"() from public, anon, service_role;
+grant execute on function "api"."bootstrap_permissions"() to authenticated;
 
 create or replace function "api"."permission_matches"(granted text, wanted text)
 returns boolean
@@ -2388,7 +2685,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:9fc3411b50db40d0dd9993453f18b40b13873b80010f92078f822346bbd76d35
+-- @bsb-hash sha256:79af3b55e9c732bb5273c13d10a7bb6ef7a192b549df35a71a8b304e6f96fd80
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2511,8 +2808,8 @@ set search_path = ''
 as $$
   select case role
     when 'owner' then array['*']::text[]
-    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*']::text[]
-    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register']::text[]
+    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*', 'warranty.*']::text[]
+    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register', 'warranty.read', 'warranty.write']::text[]
     when 'viewer' then array['organization.read']::text[]
     else '{}'::text[]
   end
@@ -2758,7 +3055,78 @@ as $$
       where better_supabase.cap_allows(p)
     ), '{}'::text[])
   end
+$$;-- Compact permissions for the caller: keys once, then a bitset per tenant.
+create or replace function better_supabase.permission_bitset(all_keys text[], held text[])
+returns text
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  width integer := ceil(coalesce(cardinality(all_keys), 0) / 8.0);
+  bytes bytea;
+  i integer;
+  slot integer;
+  value integer;
+begin
+  if width < 1 then
+    return '';
+  end if;
+  bytes := decode(repeat('00', width), 'hex');
+  if held is null then
+    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  end if;
+  for i in 1 .. coalesce(cardinality(all_keys), 0) loop
+    if all_keys[i] = any (held) then
+      slot := (i - 1) / 8;
+      value := get_byte(bytes, slot) | (1 << ((i - 1) % 8));
+      bytes := set_byte(bytes, slot, value);
+    end if;
+  end loop;
+  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+end;
 $$;
+
+revoke execute on function better_supabase.permission_bitset(text[], text[]) from public, anon, authenticated;
+
+create or replace function better_supabase.bootstrap_permissions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with keys as (
+    select coalesce(array_agg(distinct key order by key), '{}'::text[]) as keys
+    from better_supabase.member_organization_ids(null) as tenant(id),
+      lateral unnest(better_supabase.member_permissions(auth.uid(), tenant.id)) as key
+    where auth.uid() is not null
+  )
+  select case
+    when auth.uid() is null then jsonb_build_object(
+      'apiVersion', 1, 'form', 'compact', 'keys', '[]'::jsonb, 'tenants', '{}'::jsonb
+    )
+    else jsonb_build_object(
+      'apiVersion', 1,
+      'form', 'compact',
+      'keys', to_jsonb(keys.keys),
+      'tenants', coalesce((
+        select jsonb_object_agg(
+          tenant.id::text,
+          better_supabase.permission_bitset(
+            keys.keys,
+            better_supabase.member_permissions(auth.uid(), tenant.id)
+          )
+        )
+        from better_supabase.member_organization_ids(null) as tenant(id)
+      ), '{}'::jsonb)
+    )
+  end
+  from keys
+$$;
+
+revoke execute on function better_supabase.bootstrap_permissions() from public, anon;
+grant execute on function better_supabase.bootstrap_permissions() to authenticated;
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;
@@ -2826,7 +3194,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:dc41de4b08f5e6be09da671eade644624771744c5ba38b475bab6f1c7207dd79
+-- @bsb-hash sha256:ac117260166110958b029ad8f6b2c1ef48ff5d46bf2b0cab62e356a56a5b70ca
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2949,8 +3317,8 @@ set search_path = ''
 as $$
   select case role
     when 'owner' then array['*']::text[]
-    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*']::text[]
-    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register']::text[]
+    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*', 'warranty.*']::text[]
+    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register', 'warranty.read', 'warranty.write']::text[]
     when 'viewer' then array['organization.read']::text[]
     else '{}'::text[]
   end
@@ -3196,7 +3564,78 @@ as $$
       where better_supabase.cap_allows(p)
     ), '{}'::text[])
   end
+$$;-- Compact permissions for the caller: keys once, then a bitset per tenant.
+create or replace function better_supabase.permission_bitset(all_keys text[], held text[])
+returns text
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  width integer := ceil(coalesce(cardinality(all_keys), 0) / 8.0);
+  bytes bytea;
+  i integer;
+  slot integer;
+  value integer;
+begin
+  if width < 1 then
+    return '';
+  end if;
+  bytes := decode(repeat('00', width), 'hex');
+  if held is null then
+    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  end if;
+  for i in 1 .. coalesce(cardinality(all_keys), 0) loop
+    if all_keys[i] = any (held) then
+      slot := (i - 1) / 8;
+      value := get_byte(bytes, slot) | (1 << ((i - 1) % 8));
+      bytes := set_byte(bytes, slot, value);
+    end if;
+  end loop;
+  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+end;
 $$;
+
+revoke execute on function better_supabase.permission_bitset(text[], text[]) from public, anon, authenticated;
+
+create or replace function better_supabase.bootstrap_permissions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with keys as (
+    select coalesce(array_agg(distinct key order by key), '{}'::text[]) as keys
+    from better_supabase.member_organization_ids(null) as tenant(id),
+      lateral unnest(better_supabase.member_permissions(auth.uid(), tenant.id)) as key
+    where auth.uid() is not null
+  )
+  select case
+    when auth.uid() is null then jsonb_build_object(
+      'apiVersion', 1, 'form', 'compact', 'keys', '[]'::jsonb, 'tenants', '{}'::jsonb
+    )
+    else jsonb_build_object(
+      'apiVersion', 1,
+      'form', 'compact',
+      'keys', to_jsonb(keys.keys),
+      'tenants', coalesce((
+        select jsonb_object_agg(
+          tenant.id::text,
+          better_supabase.permission_bitset(
+            keys.keys,
+            better_supabase.member_permissions(auth.uid(), tenant.id)
+          )
+        )
+        from better_supabase.member_organization_ids(null) as tenant(id)
+      ), '{}'::jsonb)
+    )
+  end
+  from keys
+$$;
+
+revoke execute on function better_supabase.bootstrap_permissions() from public, anon;
+grant execute on function better_supabase.bootstrap_permissions() to authenticated;
 
 revoke execute on function better_supabase.permission_matches(text, text) from public;
 grant execute on function better_supabase.permission_matches(text, text) to anon, authenticated, service_role;

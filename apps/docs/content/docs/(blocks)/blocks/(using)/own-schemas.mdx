@@ -159,6 +159,9 @@ may be your own enum or domain.
   - `better_supabase.asset_locations`: `id`, `tenant_id`, `parent_id`, `kind`, `name`, `archived_at`, `created_at`, `updated_at`
   - `better_supabase.assets`: `id`, `tenant_id`, `location_id`, `kind`, `name`, `status`, `assignee_type`, `assignee_id`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.asset_assignments`: `id`, `tenant_id`, `asset_id`, `assignee_type`, `assignee_id`, `assigned_at`, `released_at`
+  - `better_supabase.asset_meter_readings`: `id`, `tenant_id`, `asset_id`, `unit`, `value`, `read_at`, `created_at`
+  - `better_supabase.asset_due_checks`: `id`, `tenant_id`, `asset_id`, `check_type`, `interval_days`, `updated_at`
+  - `better_supabase.asset_identifiers`: `id`, `tenant_id`, `asset_id`, `type`, `value`, `updated_at`
   - `better_supabase.asset_depreciations`: `id`, `tenant_id`, `asset_id`, `period_start`, `amount`, `entry_id`, `created_at`
 - `assignment`
   - `better_supabase.assignment_queues`: `id`, `tenant_id`, `name`, `subject_type`, `strategy`, `enabled`, `created_at`, `updated_at`; typed: `strategy`
@@ -428,6 +431,9 @@ may be your own enum or domain.
   - `better_supabase.import_runs`: `id`, `tenant_id`, `source`, `status`, `mapping`, `counts`, `errors`, `diff`, `dry_run`, `full`, `input_checksum`, `correlation_id`, `mapper_version`, `scope_aliases`, `plan`, `outcome`, `lease_until`, `heartbeat_at`, `created_by`, `created_at`, `started_at`, `finished_at`; typed: `status`
   - `better_supabase.import_records`: `id`, `tenant_id`, `source`, `scope`, `entity`, `external_key`, `role`, `subject_type`, `subject_id`, `content_hash`, `first_run_id`, `last_run_id`, `subject_imported_updated_at`, `source_updated_at`, `owned_hash`, `went_missing_at`
   - `better_supabase.import_chunks`: `run_id`, `tenant_id`, `entity`, `chunk`, `items`, `status`, `result`, `claimed_at`, `done_at`, `created_at`
+  - `better_supabase.import_refs`: `id`, `tenant_id`, `kind`, `key`, `payload`, `created_at`
+  - `better_supabase.import_run_issues`: `id`, `run_id`, `tenant_id`, `source`, `entity`, `key`, `kind`, `code`, `message`, `created_at`
+  - `better_supabase.import_sources`: `id`, `label_key`, `description_key`, `file_types`, `entities`
 - `inbox`
   - `better_supabase.inboxes`: `id`, `tenant_id`, `name`, `channel`, `bot_mode`, `updated_at`; typed: `channel`, `bot_mode`
   - `better_supabase.inbox_members`: `inbox_id`, `user_id`, `role`; typed: `role`

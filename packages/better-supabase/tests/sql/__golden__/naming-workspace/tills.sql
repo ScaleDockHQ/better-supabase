@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_168_tills.sql
+-- ==== schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
 -- @bsb-hash sha256:1a2ad379fa7c64457e09206437a223e0b3776edeb5199f292254b24c22b6b7be
@@ -737,7 +737,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."till_deposits" as re
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
--- ==== data supabase/better-supabase-data/900_better_supabase_168_tills.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block-data tills
 -- @bsb-hash sha256:97aebb68082028b87343d802ec0cfa32a1001cebdc3f3b6c6f100af8709fdbfc

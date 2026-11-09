@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_172_commissions.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
 -- @bsb-hash sha256:951d8253c07158b36cf3a9e2891e03937623e230502a724740f714c7180ec1fc
@@ -910,7 +910,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."commission_statement
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_172_commissions.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block-data commissions
 -- @bsb-hash sha256:817e70daac986addaf1de50e6c6a05c808ddf586ef2f8008e6c6dc9ddf58053e
@@ -924,7 +924,7 @@ values ('commissions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_172_commissions.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
 -- @bsb-hash sha256:faf86a56cb42815157d667cbf0b3893214d4815dfc4a7d26ff8d560a35836ca5
@@ -1898,7 +1898,7 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.commissions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"commission","event_prefix":"commission"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.commission_statements deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"commission_statement","event_prefix":"commission_statement"}');
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_172_commissions.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block-data commissions
 -- @bsb-hash sha256:817e70daac986addaf1de50e6c6a05c808ddf586ef2f8008e6c6dc9ddf58053e
@@ -1912,7 +1912,7 @@ values ('commissions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_172_commissions.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
 -- @bsb-hash sha256:dd648b5e1e45ff5b8c6e5f42de0db871da3f7e568b5304ad0f5e7113c9e35191
@@ -2828,7 +2828,7 @@ create policy bsb_tenant_scope_delete on "app_private"."commission_statements" a
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_172_commissions.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block-data commissions
 -- @bsb-hash sha256:817e70daac986addaf1de50e6c6a05c808ddf586ef2f8008e6c6dc9ddf58053e
@@ -2842,7 +2842,7 @@ values ('commissions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_172_commissions.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
 -- @bsb-hash sha256:012107276d7301f8f10934468a1e69799d18ac5d5527f64a5e1afdc7febc1846
@@ -3946,7 +3946,7 @@ as $$ select "better_supabase"."commission_close_range"($1, $2, $3) $$;
 revoke execute on function "api"."commission_close_range"(uuid, date, date) from public, anon, authenticated;
 grant execute on function "api"."commission_close_range"(uuid, date, date) to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_172_commissions.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block-data commissions
 -- @bsb-hash sha256:817e70daac986addaf1de50e6c6a05c808ddf586ef2f8008e6c6dc9ddf58053e
@@ -3960,7 +3960,7 @@ values ('commissions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_172_commissions.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
 -- @bsb-hash sha256:a1c2317d36a5daf76b5ef80c87ee2a9644b6a3c2ecbf2065a093e6b9c0acf6f7
@@ -4846,7 +4846,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."commission_statement
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_172_commissions.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block-data commissions
 -- @bsb-hash sha256:817e70daac986addaf1de50e6c6a05c808ddf586ef2f8008e6c6dc9ddf58053e
@@ -4860,7 +4860,7 @@ values ('commissions', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_172_commissions.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
 -- @bsb-hash sha256:e981bc957730bc7cd6b727863fcf0ab0283402a16e1b99f868481c70d038dfe1
@@ -5772,7 +5772,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."commission_statement
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_172_commissions.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block-data commissions
 -- @bsb-hash sha256:817e70daac986addaf1de50e6c6a05c808ddf586ef2f8008e6c6dc9ddf58053e
