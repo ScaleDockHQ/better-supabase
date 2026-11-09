@@ -407,7 +407,8 @@ export function parseDeclared(text: string): ParsedFile {
       continue;
     }
 
-    const comment = COMMENT_TABLE.exec(flat);
+    // The statement text, not `flat`: a tag reader needs the comment's line breaks.
+    const comment = COMMENT_TABLE.exec(statement.text);
 
     if (comment) {
       tags.push({
@@ -566,11 +567,14 @@ export interface SchemaModel {
 
 /** The column names a table comment's `@bsb fields a, b` line lists. */
 function fieldsTagged(tags: string): readonly string[] {
-  const line = /^@bsb\s+fields\s+(.+)$/m.exec(tags)?.[1];
+  // The list ends at the end of its line or at the next `@bsb`.
+  const line = /(?:^|\s)@bsb[ \t]+fields[ \t]+([^\n]+)/m.exec(tags)?.[1];
 
   return line === undefined
     ? []
-    : line.split(/[\s,]+/).filter((name) => name !== "");
+    : (line.split(/\s@bsb\b/)[0] ?? "")
+        .split(/[\s,]+/)
+        .filter((name) => name !== "");
 }
 
 /**

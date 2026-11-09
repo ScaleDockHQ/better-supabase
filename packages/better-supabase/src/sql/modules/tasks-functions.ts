@@ -930,13 +930,14 @@ function cloneTask(
     ? `case when v_src.${w("template")} is not null then v_src.${w("template")}::text else v_src.${ctx.has("items", "sourceTemplate") ? w("sourceTemplate") : "id"}::text end`
     : "null";
 
-  const tags = ctx.installed("tags")
-    ? `
+  const tags =
+    ctx.installed("tags") && ctx.of("tags").hasTable("taggings")
+      ? `
   insert into ${ctx.of("tags").table("taggings")} (${ctx.of("tags").col("taggings", "tenant")}, ${ctx.of("tags").col("taggings", "tag")}, ${ctx.of("tags").col("taggings", "subjectType")}, ${ctx.of("tags").col("taggings", "subjectId")})
   select g.${ctx.of("tags").col("taggings", "tenant")}, g.${ctx.of("tags").col("taggings", "tag")}, g.${ctx.of("tags").col("taggings", "subjectType")}, v_id::text
   from ${ctx.of("tags").table("taggings")} g
   where g.${ctx.of("tags").col("taggings", "subjectType")} = ${sqlString(n.type)} and g.${ctx.of("tags").col("taggings", "subjectId")} = clone_task.source::text;`
-    : "";
+      : "";
 
   const checklist = ctx.hasTable("checklist")
     ? `
