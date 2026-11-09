@@ -141,6 +141,24 @@ describe("server.bootstrapFor()", () => {
     });
   });
 
+  it("reports a partial team_ids claim", async () => {
+    expect(
+      (await server.bootstrapFor(await signedIn(), { rpc: "home" }))
+        .teamIdsTruncated,
+    ).toBe(false);
+
+    server.sessions.clear();
+
+    expect(
+      (
+        await server.bootstrapFor(
+          await signedIn({ team_ids_truncated: true }),
+          { rpc: "home" },
+        )
+      ).teamIdsTruncated,
+    ).toBe(true);
+  });
+
   it("returns no permissions for another apiVersion or a wrapper without them", async () => {
     row = { ...row, permissions: { apiVersion: 2, tenants: {} } };
 

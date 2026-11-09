@@ -34,10 +34,15 @@ The provider contract stays `apiVersion: 1` and gains optional fields only:
 - `outcomesOfMany` sends every check of `tools/list` in one `evaluations` call.
   An authorizer without `evaluations` is called once per tool.
 
-`memberships[].userKey`, `approverFor`, `managedUsers`, `levels` and
-`teamIdsTruncatedClaim` are accepted and validated; no module reads them yet.
-They are the slots a library fills, and the schema, the placeholder table and
-the docs list them so a provider can set them today.
+Each field and what reads it:
+
+| Field                                             | Consumer                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `memberships[].userKey`                           | The derived `memberIds` and `memberIdsFor` templates match this column (else `userColumn`) against `auth.uid()` and `{user}`.                                                                                                                                                                                                                                           |
+| `suspension.userKey`                              | `blocks.permissions.disabled.userKey`.                                                                                                                                                                                                                                                                                                                                  |
+| `permissions[].levels`                            | `keyStatus`: `<permission>@<level>` is `incomplete` for a listed level (the tenant-level SQL functions answer for the whole tenant, so policies refuse it) and `missing` for an unlisted one.                                                                                                                                                                           |
+| `tokenHook.teamIdsTruncatedClaim`                 | The hook plan stops reusing a refresh whose token carries that claim as `true`, and `Bootstrap.teamIdsTruncated` reports `team_ids_truncated` from the token.                                                                                                                                                                                                           |
+| `functions.approverFor`, `functions.managedUsers` | None. They stay accept-and-validate: reading them needs an approvals design (who may decide on behalf of whom, and whether a cover counts as a distinct approver) that this track does not make, and a module that guessed would widen who can approve. Doctor placeholder checks cover them. They are the slots a provider fills; a module adopts them in its own ADR. |
 
 ## Alternatives considered
 

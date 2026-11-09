@@ -19,6 +19,7 @@ import { sessionCacheKey, snapshotOf } from "../auth/snapshot.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
 import { bindAuthorizer } from "../core/authorizer.ts";
 import { expandBootstrapPermissions } from "../core/bootstrap-permissions.ts";
+import { TEAM_IDS_TRUNCATED_CLAIM } from "../core/claim-names.ts";
 import { claimsOf } from "../core/claims.ts";
 import { DbException, dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
@@ -102,6 +103,12 @@ export interface Bootstrap<
    * bitset), so the page falls back to its authorizer.
    */
   readonly permissions?: BootstrapPermissions | null;
+  /**
+   * The token's `team_ids` is not the user's whole team list (the hook set
+   * `team_ids_truncated`), so a team check must ask the database. False when
+   * the claim is absent.
+   */
+  readonly teamIdsTruncated?: boolean;
 }
 
 /** One context and its checks, bound to one authorization version. */
@@ -427,6 +434,9 @@ export async function bootstrapWith<C, P, T, S extends ReadSet = ReadSet>(
     permissions: row.sessionActive
       ? (expandBootstrapPermissions(row.permissions) ?? null)
       : null,
+    teamIdsTruncated:
+      ctx.auth.kind === "user" &&
+      ctx.auth.claims[TEAM_IDS_TRUNCATED_CLAIM] === true,
   };
 }
 

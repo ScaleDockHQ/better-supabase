@@ -313,6 +313,35 @@ describe("sessions hook plan", () => {
     expect(sql).toContain("= acme.user_version(v_user)");
   });
 
+  it("reads the team claim from the option, then the provider's hook", () => {
+    const own = sessions({
+      options: {
+        ...withVersions,
+        hook: { teamIdsTruncatedClaim: "teams_cut" },
+      },
+    });
+
+    expect(own).toContain("v_claims ->> 'teams_cut'");
+
+    const provided = moduleBody("sessions", {
+      modules: { sessions: { options: { ...withVersions, hook: true } } },
+      accessProvider: {
+        name: "acme",
+        scope: "organization",
+        idType: "uuid",
+        functions: {
+          idsWith: "a.b({permission})",
+          isPlatform: "a.c({permission})",
+        },
+        truncatedClaim: "perms_cut",
+        teamIdsTruncatedClaim: "teams_cut_2",
+      },
+    })!;
+
+    expect(provided).toContain("v_claims ->> 'teams_cut_2'");
+    expect(provided).toContain("v_claims ->> 'perms_cut'");
+  });
+
   it("checks the option values", () => {
     expect(() =>
       sessions({ options: { ...withVersions, hook: { oauth: "nope" } } }),

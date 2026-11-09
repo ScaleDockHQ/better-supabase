@@ -221,9 +221,9 @@ export interface AuthorizationMembership {
   readonly table: string;
   readonly userColumn: string;
   /**
-   * The column of the user table `userColumn` points at, when it is not
-   * `auth.users.id`. Optional and informational: the modules read `userColumn`,
-   * and doctor names it when a user key differs.
+   * The column of `table` that holds the auth user id, when `userColumn` is
+   * another key (a profile id). The derived `memberIds` and `memberIdsFor`
+   * templates match it against `auth.uid()` instead of `userColumn`.
    */
   readonly userKey?: string;
   /** The scope column, or the scope every row is in. */

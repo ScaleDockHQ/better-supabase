@@ -59,7 +59,10 @@ export type SessionsSqlOptions = {
    * `'reuse'` for a refresh whose `authz_ver` is still current (`refresh:
    * 'reuse'`, the default, which needs `authzVersions` or a provider with
    * `versions`), `'full'` otherwise. `true` takes the defaults;
-   * `truncatedClaim` names the claim that marks a partial `permissions`.
+   * `truncatedClaim` names the claim that marks a partial `permissions` and
+   * `teamIdsTruncatedClaim` the one that marks a partial `team_ids`; both
+   * default to the provider hook's claims, then `permissions_truncated` and
+   * `team_ids_truncated`.
    */
   readonly hook?:
     | boolean
@@ -67,6 +70,7 @@ export type SessionsSqlOptions = {
         readonly refresh?: "reuse" | "full";
         readonly oauth?: "full" | "slim";
         readonly truncatedClaim?: string;
+        readonly teamIdsTruncatedClaim?: string;
       };
   readonly policies?: boolean;
 };

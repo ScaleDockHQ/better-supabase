@@ -11,7 +11,7 @@ import type {
   BlockSqlPermissionKey,
 } from "../sql/index.ts";
 
-import { DEFAULT_CLAIMS } from "../config/index.ts";
+import { DEFAULT_CLAIMS, splitPermissionLevel } from "../config/index.ts";
 import {
   MODULE_ID_TYPES,
   moduleIdType,
@@ -130,7 +130,7 @@ function membershipTemplates(
             ? ` and m.${quotedName(source.scope.column)} = '{scope}'`
             : "";
 
-        return `select m.${quotedName(source.idColumn)} as id from ${quotedTableName(source.table)} m where m.${quotedName(source.userColumn)} = ${user}${kind}${live}`;
+        return `select m.${quotedName(source.idColumn)} as id from ${quotedTableName(source.table)} m where m.${quotedName(source.userKey ?? source.userColumn)} = ${user}${kind}${live}`;
       })
       .join(" union ");
 
@@ -298,6 +298,9 @@ export function accessProviderMode(
         ? { ownsPermissions: true }
         : {}),
       ...(truncatedClaim === undefined ? {} : { truncatedClaim }),
+      ...(provider.tokenHook?.teamIdsTruncatedClaim === undefined
+        ? {}
+        : { teamIdsTruncatedClaim: provider.tokenHook.teamIdsTruncatedClaim }),
       ...(provider.wildcards === undefined
         ? {}
         : { wildcards: provider.wildcards }),
@@ -337,7 +340,15 @@ export function keyStatus(
   );
 
   if (!entry) {
-    return "missing";
+    // A level key (`file.read@team`) names one level of a listed permission.
+    // The tenant-level SQL functions answer for the whole tenant, so a level
+    // key is never complete; a level the entry doesn't list is missing.
+    const { permission, level } = splitPermissionLevel(key);
+    const base = provider.permissions.find((entry) => entry.key === permission);
+
+    return level !== null && base?.levels?.includes(level) === true
+      ? "incomplete"
+      : "missing";
   }
 
   if (entry.sqlComplete === undefined) {

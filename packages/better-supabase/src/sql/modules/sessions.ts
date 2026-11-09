@@ -505,10 +505,24 @@ function hookPlan(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const refresh = choose("refresh", ["reuse", "full"]);
   const oauth = choose("oauth", ["full", "slim"]);
   const flag = options["truncatedClaim"];
+  const teamFlag = options["teamIdsTruncatedClaim"];
+
+  const teamClaim =
+    teamFlag === undefined
+      ? (layout.accessProvider?.teamIdsTruncatedClaim ?? "team_ids_truncated")
+      : typeof teamFlag === "string" && /^[a-z_][a-z0-9_]*$/.test(teamFlag)
+        ? teamFlag
+        : undefined;
+
+  if (teamClaim === undefined) {
+    throw new TypeError(
+      "blocks['sessions'].options.hook.teamIdsTruncatedClaim must be a claim name (letters, digits, _)",
+    );
+  }
 
   const truncated =
     flag === undefined
-      ? "permissions_truncated"
+      ? (layout.accessProvider?.truncatedClaim ?? "permissions_truncated")
       : typeof flag === "string" && /^[a-z_][a-z0-9_]*$/.test(flag)
         ? flag
         : undefined;
@@ -547,7 +561,7 @@ function hookPlan(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     and jsonb_typeof(v_claims -> 'authz_ver') = 'number'
     and jsonb_typeof(v_claims -> 'memberships') = 'array'
     and coalesce(v_claims ->> '${truncated}', 'false') <> 'true'
-    and coalesce(v_claims ->> 'team_ids_truncated', 'false') <> 'true'
+    and coalesce(v_claims ->> '${teamClaim}', 'false') <> 'true'
     and (v_claims ->> 'authz_ver')::bigint = ${current}
   then
     return 'reuse';

@@ -5,6 +5,7 @@ import type { AuthorizationProvider } from "../../src/config/index.ts";
 import {
   accessProviderMode,
   entitlementsMode,
+  keyStatus,
 } from "../../src/cli/authorization.ts";
 import {
   permissionLevelKey,
@@ -42,7 +43,7 @@ const provider: AuthorizationProvider = {
     {
       table: "authz.members",
       userColumn: "user_id",
-      userKey: "id",
+      userKey: "auth_user_id",
       scope: { value: "organization" },
       idColumn: "organization_id",
       disabledAt: "disabled_at",
@@ -80,9 +81,9 @@ describe("a provider that fills only the 0.26 fields", () => {
       kind: "provider",
       provider: {
         memberIds: expect.stringContaining(
-          'from "authz"."members" m where m."user_id" = (select auth.uid())',
+          'from "authz"."members" m where m."auth_user_id" = (select auth.uid())',
         ),
-        memberIdsFor: expect.stringContaining('m."user_id" = {user}'),
+        memberIdsFor: expect.stringContaining('m."auth_user_id" = {user}'),
       },
     });
     expect(JSON.stringify(mode)).toContain('m.\\"disabled_at\\" is null');
@@ -148,6 +149,30 @@ describe("a provider that fills only the 0.26 fields", () => {
     expect(files.map((file) => file.path)).toEqual([
       "supabase/tests/database/access_matrix_provider_viewer.test.sql",
     ]);
+  });
+
+  it("never calls a level key complete, and refuses a level the entry doesn't list", () => {
+    expect(keyStatus(provider, "file.read")).toBe("complete");
+    expect(keyStatus(provider, "file.read@team")).toBe("incomplete");
+    expect(keyStatus(provider, "file.read@all")).toBe("missing");
+    expect(keyStatus(provider, "other@team")).toBe("missing");
+  });
+
+  it("hands the hook's team claim to the hook plan", () => {
+    const config = resolveConfig(
+      {
+        auth: { authorization: provider },
+        blocks: { permissions: { model: "provider" } },
+      },
+      "/p",
+    );
+
+    const mode = accessProviderMode(config);
+
+    expect(mode).toMatchObject({
+      kind: "provider",
+      access: { teamIdsTruncatedClaim: "team_ids_truncated" },
+    });
   });
 
   it("writes level keys with @ and splits them back", () => {
